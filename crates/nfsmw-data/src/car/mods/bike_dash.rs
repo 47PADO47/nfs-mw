@@ -16,6 +16,33 @@ pub struct Colors {
     pub gear: [u8; 3],
 }
 
+/// What a field shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Channel {
+    Speed,
+    Gear,
+    RpmBar,
+}
+
+/// Where a text justifies in its rectangle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Align {
+    Left,
+    Center,
+    Right,
+}
+
+/// One place of the cluster that shows a value: the rectangle is erased with `background` and the value drawn in it in `color`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Field {
+    pub channel: Channel,
+    pub rect: [u32; 4],
+    pub color: [u8; 3],
+    pub background: [u8; 3],
+    pub align: Align,
+    pub segments: u32,
+}
+
 /// The screen of one bike's cluster.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Dash {
@@ -25,11 +52,13 @@ pub struct Dash {
     /// The display in the texture, `[x, y, width, height]` texels from the top left.
     pub window: [u32; 4],
     pub colors: Colors,
+    /// The cluster's own places for the values; empty: the generic panel in `window`.
+    pub fields: Vec<Field>,
 }
 
 impl Dash {
-    pub fn new(texture: &str, window: [u32; 4], colors: Colors) -> Self {
-        Self { texture: texture.to_owned(), texture_hash: bstring_hash(texture), window, colors }
+    pub fn new(texture: &str, window: [u32; 4], colors: Colors, fields: Vec<Field>) -> Self {
+        Self { texture: texture.to_owned(), texture_hash: bstring_hash(texture), window, colors, fields }
     }
 }
 
@@ -68,8 +97,8 @@ mod tests {
 
     #[test]
     fn a_published_screen_is_found_by_folder_without_regard_to_case_and_the_first_publication_wins() {
-        publish("TESTBIKE_DASH", Dash::new("TESTBIKE_DASH_GAUGE1_D", [4, 8, 64, 32], COLORS));
-        publish("testbike_dash", Dash::new("OTHER", [0, 0, 8, 8], COLORS));
+        publish("TESTBIKE_DASH", Dash::new("TESTBIKE_DASH_GAUGE1_D", [4, 8, 64, 32], COLORS, Vec::new()));
+        publish("testbike_dash", Dash::new("OTHER", [0, 0, 8, 8], COLORS, Vec::new()));
         let found = of("testbike_Dash").expect("published");
         assert_eq!(found.window, [4, 8, 64, 32]);
         assert_eq!(found.texture_hash, bstring_hash("TESTBIKE_DASH_GAUGE1_D"));

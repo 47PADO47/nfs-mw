@@ -17,7 +17,9 @@ use serde::Deserialize;
 
 pub use super::bike_burnout::Burnout;
 pub use super::bike_camera::{Camera, Chase as CameraChase, Front as CameraFront, Helmet as CameraHelmet};
-pub use super::bike_dash::{Colors as DashColors, Dash};
+pub use super::bike_dash::{
+    Align as DashAlign, Channel as DashChannel, Colors as DashColors, Dash, Field as DashField,
+};
 pub use super::bike_help::AbsLevel;
 pub use super::bike_parts::{Brakes, Damper, Engine, Fall, Steering, Suspension, Transmission, Wheelie};
 pub use super::bike_rider::Rider;

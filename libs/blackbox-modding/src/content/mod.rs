@@ -107,7 +107,8 @@ mod xenon_variant;
 pub use bike::{
     Bike, Brakes as BikeBrakes, Camera as BikeCamera, CameraChase as BikeCameraChase, CameraFront as BikeCameraFront,
     CameraHelmet as BikeCameraHelmet, Chassis as BikeChassis, Damper as BikeDamper, Dash as BikeDash,
-    DashColors as BikeDashColors, Engine as BikeEngine, MF_A, MF_B, MF_C, Rider as BikeRider, Steering as BikeSteering,
+    DashAlign as BikeDashAlign, DashChannel as BikeDashChannel, DashColors as BikeDashColors,
+    DashField as BikeDashField, Engine as BikeEngine, MF_A, MF_B, MF_C, Rider as BikeRider, Steering as BikeSteering,
     Suspension as BikeSuspension, Transmission as BikeTransmission, Tyre as BikeTyre, Wheel as BikeWheel,
 };
 pub use car::{CarManifest, Kind as CarKind, Role, parse as parse_car};

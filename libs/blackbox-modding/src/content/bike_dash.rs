@@ -20,9 +20,58 @@ pub struct Dash {
     pub texture: String,
     /// The display in that texture: `[x, y, width, height]` in texels, from the top left.
     pub window: [u32; 4],
-    /// The colours the host paints with.
+    /// The colours the host paints with when the cluster has no `field`.
     #[serde(default)]
     pub colors: Colors,
+    /// Where the cluster's own widgets show the speed, the gear and the revs (`[[bike.dash.field]]`). With fields the host erases each
+    /// rectangle with its background and draws the value in it, in the cluster's own colour; without, it paints its generic panel in
+    /// `window`.
+    #[serde(default)]
+    pub field: Vec<Field>,
+}
+
+/// What a field shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Channel {
+    /// The speed in km/h.
+    Speed,
+    /// The gear: `N` in neutral, `R` in reverse.
+    Gear,
+    /// The revs as a bar that fills from the left.
+    RpmBar,
+}
+
+/// Where a text justifies in its rectangle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Align {
+    Left,
+    #[default]
+    Center,
+    Right,
+}
+
+/// One place of the cluster that shows a value (`[[bike.dash.field]]`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Field {
+    pub channel: Channel,
+    /// `[x, y, width, height]` in texels of the stored texture; the whole rectangle is erased with `background` before the value is drawn.
+    pub rect: [u32; 4],
+    /// The colour of the digits, or of the lit part of a bar.
+    pub color: [u8; 3],
+    /// The colour the picture has in the rectangle without its glyphs.
+    pub background: [u8; 3],
+    #[serde(default)]
+    pub align: Align,
+    /// A bar's segments (1: a continuous bar).
+    #[serde(default = "one")]
+    pub segments: u32,
+}
+
+fn one() -> u32 {
+    1
 }
 
 /// The colours of the painted panel.
@@ -59,6 +108,11 @@ impl Dash {
         ranged(self.window[3] as f32, "bike.dash.window[3]", 8.0, 8192.0)?;
         ranged(self.window[0] as f32, "bike.dash.window[0]", 0.0, 8192.0)?;
         ranged(self.window[1] as f32, "bike.dash.window[1]", 0.0, 8192.0)?;
+        for field in &self.field {
+            ranged(field.rect[2] as f32, "bike.dash.field.rect[2]", 4.0, 8192.0)?;
+            ranged(field.rect[3] as f32, "bike.dash.field.rect[3]", 4.0, 8192.0)?;
+            ranged(field.segments as f32, "bike.dash.field.segments", 1.0, 64.0)?;
+        }
         match self.texture.is_empty() || self.texture.len() > 64 {
             true => Err(super::bike_check::field("bike.dash.texture", "is empty or longer than 64 bytes")),
             false => Ok(()),
