@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the conversion changes what it writes for the same input.
-const CONVERSION: u32 = 25;
+const CONVERSION: u32 = 26;
 /// Bump when the brand logos (`brands.rs`, `logo.rs`) change for the same input.
 const BRANDS: u32 = 1;
 pub const FILE: &str = ".import-stamp";
@@ -24,6 +24,7 @@ pub fn of(config: &Config, source: &Path) -> String {
         fingerprint(&source.join("GLOBALEFFECTS.BNDL")),
         fingerprint(&source.join("VEHICLES/VEHICLELIST.BNDL")),
         fingerprint(&source.join("UI/LANGUAGE/0001.BNDL")),
+        fingerprint(&source.join(crate::grading::BUNDLE)),
     ];
     for entry in fs::read_dir(source.join("GAMELOGIC")).into_iter().flatten().flatten() {
         sources.push(fingerprint(&entry.path()));

@@ -55,8 +55,16 @@ pub const WIND: Kind = Kind {
 pub const TREES: Kind =
     Kind { option: "trees_variant", label: "Trees", value: crate::trees::VARIANT, value_label: crate::trees::LABEL };
 
+/// The colour grading of the world (`grading.rs`): the cubes of the 2012 game's `ENVIRONMENT` bundle by hour and weather.
+pub const GRADING: Kind = Kind {
+    option: "grading_variant",
+    label: "Color grading",
+    value: crate::grading::VARIANT,
+    value_label: crate::grading::LABEL,
+};
+
 /// Every kind this mod adds a value to, besides the nitrous and the trees.
-pub const ALL: [&Kind; 4] = [&TIRE_SMOKE, &COLLISION_SPARKS, &XENON_SPARKS, &WIND];
+pub const ALL: [&Kind; 5] = [&TIRE_SMOKE, &COLLISION_SPARKS, &XENON_SPARKS, &WIND, &GRADING];
 
 /// Add the value of every kind, and the trees' when `trees` (the setting of that name) is on. A game without `bb.settings`
 /// keeps its own effects.
@@ -109,6 +117,13 @@ mod tests {
         let folder = format!("{}/{}", blackbox_modding::content::TREES.folder, TREES.value.to_ascii_uppercase());
         assert_eq!(folder, crate::trees::FOLDER);
         assert!(TREES.option.ends_with("_variant") && ALL.iter().all(|other| other.option != TREES.option));
+    }
+
+    #[test]
+    fn the_grading_option_is_the_games_and_names_the_folder_the_mod_writes() {
+        assert_eq!(GRADING.option, blackbox_modding::content::GRADING.option);
+        let folder = format!("{}/{}", blackbox_modding::content::GRADING.folder, GRADING.value.to_ascii_uppercase());
+        assert_eq!(folder, crate::grading::FOLDER);
     }
 
     #[test]
