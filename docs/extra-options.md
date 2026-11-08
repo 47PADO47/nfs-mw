@@ -86,3 +86,9 @@ a value (the 2012 content mod adds **NFS Most Wanted 2012**). They are not Extra
 [vehicle-effects.md](vehicle-effects.md#tuning-config-file-only) still applies to the restored variant (`spark_intensity`,
 `max_sparks`); the wind contrail and speed streaks are not part of any variant. See
 [effect-variants-sparks-xenon.md](modding/effect-variants-sparks-xenon.md).
+
+## Experimental rows in the options menus
+
+The Gameplay and Video option pages list the rewrite's experimental rows under an **Experimental** title, and the rider rows
+under **RIDE 6**; which rows are experimental, and why, is in [specs/menu-sections.md](specs/menu-sections.md) section 5. The F5
+panel and the F8 Graphics Lab are not changed by it.
