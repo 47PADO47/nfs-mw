@@ -99,6 +99,26 @@ tree, and `0xF0C5A212` miss a material or a texture in every bundle that holds t
 | `DEAD` | `0x0C41AAF0` | `TRK_UNIT146` | 4 | r 11.8 | bare tree |
 | `BUSH` | `0xFAC87374` | `TRK_UNIT1` | 4 | r 3.4 | round bush |
 
+### The levels that stand
+
+The coarsest level of some species is **not a tree that stands on the ground**: it is a crown alone, with no trunk and a lowest point
+that is metres above the model's origin (measured on the converted models, lowest and highest z of the level, metres, in 2005 space)
+**[verified]**:
+
+| Species, level | Lowest to highest | What it is |
+|---|---|---|
+| `AUTUMN` L3 | 1.2 to 4.8 | a small crown blob, a fifth of the tree's 23 m |
+| `BROADLEAF_L` L3 | 7.8 to 22.0 | a crown alone from 7.8 m up (its trunk is two triangles) |
+| `SPRUCE` L3 | 3.0 to 13.6 | crossed cards from 3 m up |
+| `DEAD` L3 | 2.3 to 15.1 | the branch cards, no trunk |
+
+Fitted to the 2005 far-tree solids (`1Z`), such a level hovered: `XT_CT_FALLTREED_1Z_JG_00` (a tree 25 m tall and 17 m wide in the 2005
+game) became a crown **70 m wide and 14 m tall, 4.8 m above the ground** (the model's 3.6 m blob scaled by the 4x limit), seen from afar as dark
+flat discs floating over the countryside; `XT_TREEMAPLEX_1Z_LL_00` got a crown from 12 m up. The converter therefore stops a species at the
+first level that does not stand (its lowest point at most a tenth of its own top, and its top at least 60 percent of the finest level's,
+`trees/build.rs`, `stands`) and the far solids take the coarsest level that does, so no solid of the variant hovers
+([effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)). The pack is 12 KB smaller.
+
 For each of them the model, its renderables and materials, the vertex descriptors and shaders (`SHADERS.BNDL`) and the textures resolve in a pool of the
 named bundle, `HAWAII/GLOBALRESOURCES.BNDL` and `SHADERS.BNDL` **[verified]**. The converter reads the bundles in that order (by ranges,
 [below](#what-the-conversion-costs)) and needs no other.
@@ -149,7 +169,7 @@ vertices the same way, because the 2012 vertices have no normals that can be rea
 | Leaf groups | effect 6, flags `0x4008`; texture `AlphaUsageType` 1 (punch-through), `Flags` bit 1, from BC1 or BC3 as they are | `trees/build.rs`, `Palette::add_foliage` |
 | Bark groups | effect 0, flags `0x4000`; opaque texture that repeats | `Palette::add_bark` |
 | Normals and colours | crown normals and the grey ramp above for leaves; smooth normals (area-weighted, shared at seams) and `0x38` for bark | `trees/light.rs` |
-| Levels | `1A`/`1B` the finest level of a single tree, `1C` the second, `1Z` the last; a row takes one level coarser (`A`/`B` the second, `C` the third) | `trees/stock.rs` (`level`) |
+| Levels | `1A`/`1B` the finest level of a single tree, `1C` the second, `1Z` the last level **that stands** ([above](#the-levels-that-stand)); a row takes one level coarser (`A`/`B` the second, `C` the third) | `trees/stock.rs` (`level`), `trees/build.rs` |
 | Meshes left out | the `WorldShadow_*` stand-ins | `trees/read.rs` (`classify`) |
 | Species per solid | the families of `trees/stock.rs`: for example the cedars and the tall conifer, the poplars and the cypresses the columnar tree, the fall trees and the Japanese maple the autumn tree, the dead trees the bare tree, the bushes the round bush, the tree lines and canopies rows of the broadleaf trees, the evergreen lines rows of the small spruce | `trees/stock.rs` |
 
@@ -160,8 +180,9 @@ when `<NAME>` is: the game finds its swap by the name before `_DEINST`, and fits
 floor and height), see [effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees). The 84 solids of the shared
 library `X0` are replaced like the tiles' (by name, fitted to their own bounds).
 
-The fit of a model to the solid it replaces (scale to the old height, stand on the old floor, copies along a row) is in
-[effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees); it is done by the game, from the bounds of the solid
+The fit of a model to the solid it replaces (scale to the old height, stand on the old floor, one copy for each stretch of the old
+geometry, never wider than the old footprint, or the solid keeps its own tree) is in
+[effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees); it is done by the game, from the vertices of the solid
 it replaces, so the mod never reads the 2005 install.
 
 ## What the conversion costs
@@ -179,7 +200,7 @@ the texture's pixels). The shaders are the 1.8 MB `SHADERS.BNDL` the car convers
 | Time to read them | 0.02 s of a Python replay on a warm cache, including the inflating; a cold disk adds the seeks of the small reads | **[verified]** (warm) |
 | Textures the species use (diffuse pictures) | 17, 3.24 MB at the 1,024 pixel limit of `max_texture_size` (2.85 MB at 512, 0.72 MB at 256) | **[verified]** from the headers |
 | Models | the vertex and index data of the species' renderables is 0.60 MB in the 2012 layout (the pack's solids, of the vertices the triangles use, with 36-byte vertices and without the shadow stand-ins, are about as big) | upper bound **[verified]**, the pack **[unconfirmed]** |
-| Written to the mod's `files/TREES/MW2012/` | about 3.5 to 4 MB in three files (`GEOMETRY.BIN`, `TEXTURES.BIN` once, `profile.toml` of 78 swaps, a few KB) | **[unconfirmed]**: the conversion logs the real figure |
+| Written to the mod's `files/TREES/MW2012/` | 2.8 MB in three files (`GEOMETRY.BIN` 739 KiB, `TEXTURES.BIN` 1,996 KiB once, `profile.toml` of 81 swaps, 7 KB) | **[verified]**: 0.69 s on the install, 2,668 KiB read of 342,435 KiB |
 
 Nothing is duplicated: each texture is one entry of `TEXTURES.BIN` (named by the 2012 resource id), one decoded copy in memory
 (the pack's compressed pictures, until the world drops the pack) and one on the GPU (the shared sets), whatever number of tiles
@@ -197,7 +218,11 @@ nothing: the mod's fingerprint says the files are right).
 - The resources of the blossom tree `0x4DA8A407` and of `0xF0C5A212` are not in the bundle of any unit that holds the model: another
   bundle must hold their material or texture (not searched).
 - The 2005 world's own placement of the replaced solids is unchanged, so a 2012 tree stands where the 2005 tree stood; the crowns are
-  fitted to the old bounds and not to the old silhouette (decided for the rows: [effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)).
+  fitted to the cells of the old vertices, not to the old silhouette ([effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)).
+  The real ground under a tree-line's crowns is not read: a collision query of the tile found it under only 186 of the 881 replaced
+  solids (the terrain is not in a tile's collision), and where it was found the old crowns' floor was at the ground or below it (median
+  3 m below). Trying to hang the crown of a replacement on the old floor and let its trunk reach down put the trunks through a wall in a
+  screenshot, so a replacement's foot stands on the old floor of its stretch.
 - Whether every name of the 99 base names that is a tree (and not a panorama or a stand) is in `trees/stock.rs`: the families were
   listed from the names of the tree solids that were looked at; a name the list lacks keeps the game's look.
 - The conversion's output size and time on the real install: the figures below are estimates from the headers; the log line `trees variant:

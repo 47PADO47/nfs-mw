@@ -54,7 +54,7 @@ fn the_pack_reads_back_as_solids_textures_and_a_profile_the_game_accepts() {
     for swap in &profile.swaps {
         assert!(solids.iter().any(|solid| solid.name == swap.model), "{} has no model {}", swap.solid, swap.model);
     }
-    assert_eq!(profile.swaps.len(), 78, "{} swaps", profile.swaps.len());
+    assert_eq!(profile.swaps.len(), 81, "{} swaps", profile.swaps.len());
 }
 
 #[test]
@@ -75,4 +75,13 @@ fn the_trees_are_read_by_ranges_and_written_in_a_few_megabytes() {
         started.elapsed()
     );
     assert!(pack.geometry.len() + pack.textures.len() < 12 * 1024 * 1024);
+}
+
+#[test]
+#[ignore = "reads the 2012 install (MW2012_GAME_DIR) and writes under MW2012_TREES_OUT"]
+fn the_variant_is_written_where_asked_for_looking_at_it_in_the_game() {
+    let Some(source) = install() else { return };
+    let out = std::env::var_os("MW2012_TREES_OUT").expect("set MW2012_TREES_OUT to a folder");
+    write(&source, &Config::default(), std::path::Path::new(&out));
+    assert!(std::path::Path::new(&out).join("files").join(FOLDER).join("profile.toml").is_file());
 }

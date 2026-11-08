@@ -13,6 +13,7 @@
 //! transform ([`Rider::instances`]). Nothing here names a game: the files say what the bones are called.
 
 mod attach;
+mod choices;
 mod contacts;
 mod demo;
 mod fall;
@@ -43,7 +44,6 @@ mod view;
 mod worn;
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
 
 use anyhow::{Context, Result};
 use blackbox_gfx::{DrawRange, Instance, MeshDesc, MeshHandle, RenderBackend, TextureHandle, Vertex};
@@ -64,19 +64,11 @@ pub use self::view::RiderVisibility;
 use super::CarPose;
 use crate::garage::rider_gear::{self, Choice};
 use crate::scenes::world::keys;
+use crate::settings::BikeClass;
 use crate::viewer::camera::rider_follow::Phase;
 
-/// The riding style the player picked (`riding_style`, the blueprint's `RidingStyle` 0 to 2): every rider plays its lean set.
-static RIDING_STYLE: AtomicU8 = AtomicU8::new(0);
-
-/// Tell the riders the player's riding style (the host pushes it each frame with the other settings).
-pub fn set_riding_style(style: crate::settings::RidingStyle) {
-    RIDING_STYLE.store(style.blueprint(), Ordering::Relaxed);
-}
-
-fn riding_style() -> u8 {
-    RIDING_STYLE.load(Ordering::Relaxed)
-}
+/// Tell the riders what the player chose (the host pushes it each frame with the other settings).
+pub use self::choices::set as set_choices;
 
 /// The first part number a rider's meshes take in the instance keys of the player's car (the car's own placements come
 /// before it).
@@ -142,6 +134,8 @@ struct RiderRig {
     /// The gear on him now, and the camera table whose helmet names say which meshes to leave out from inside.
     gear: Choice,
     cameras: Option<Arc<BikeCamera>>,
+    /// The class of bike he rides: which of the player's three riding styles he takes.
+    class: BikeClass,
 }
 
 impl RiderRig {
@@ -154,15 +148,18 @@ impl RiderRig {
             |name: &str| dir.read(&format!("{folder}/{name}")).with_context(|| format!("reading {folder}/{name}"));
         let attach = Attach::parse(&read("attach.json")?)?;
         // The bike's own seat, grips and pegs (`CARS/<ID>/RIDER/contacts.json`) over the rig's.
-        let (attach, kind) = contacts::lay_over(attach, dir, &model.name);
+        let (attach, own_style) = contacts::lay_over(attach, dir, &model.name);
+        let kind = own_style.as_ref().map(|style| style.name.as_str());
+        // The class of bike, for the riding style the player chose for it (`choices.rs`).
+        let class = choices::class_of(kind, own_style.as_ref().and_then(|style| style.input_handler.as_deref()));
         let mut pack = Pack::parse(&read("rider.bbsk")?).context("rider.bbsk")?;
         // The blend tree of this bike's kind (`styles.json`), else the rig's own.
-        let selection = style::select(dir, &folder, kind.as_deref());
+        let selection = style::select(dir, &folder, kind);
         let graph: Graph = serde_json::from_slice(&read(&selection.graph)?).with_context(|| selection.graph.clone())?;
         graph
             .validate(&pack.clips, &pack.skeleton)
             .with_context(|| format!("{} does not fit rider.bbsk", selection.graph))?;
-        log::info!("rider: {} plays {} ({})", model.name, selection.graph, kind.as_deref().unwrap_or("no kind"));
+        log::info!("rider: {} plays {} ({}, {class:?})", model.name, selection.graph, kind.unwrap_or("no kind"));
         let mut resolved = Resolved::new(&attach, &pack.skeleton).map_err(anyhow::Error::msg)?;
         resolved.seat = seat::Seat::new(&attach, &pack);
         let stock = parts::parse_entries(&read("parts.json")?)?;
@@ -198,7 +195,8 @@ impl RiderRig {
         let mut smoothed = Smoothed::default();
         smoothed.set_walk(selection.walk);
         smoothed.set_kind(selection.bike_type, selection.stand.clone());
-        smoothed.set_riding_style(riding_style());
+        let (brake, clutch) = choices::fingers();
+        smoothed.set_choices(choices::riding_style(class), brake, clutch);
         let fall = fall::Fall::load(dir, &folder, &pack);
         Ok(Some(Self {
             pack,
@@ -222,6 +220,7 @@ impl RiderRig {
             base_meshes,
             gear: choice,
             cameras,
+            class,
         }))
     }
 
@@ -256,7 +255,8 @@ impl RiderRig {
 
     /// Pose the rider with the handlebar at `steer` (rad, positive left), skin it and write the vertices to the renderer.
     fn update(&mut self, renderer: &mut dyn RenderBackend, steer: f32, world: Mat4) {
-        self.smoothed.set_riding_style(riding_style());
+        let (brake, clutch) = choices::fingers();
+        self.smoothed.set_choices(choices::riding_style(self.class), brake, clutch);
         let steering = self.steering.map(|(axis, point)| Steering { axis, point, angle: steer });
         let mut targets = pose::rider_targets(&self.attach, &self.frame, steering);
         pose::roll_wrist(&self.attach, &mut targets, self.smoothed.values().wrist);

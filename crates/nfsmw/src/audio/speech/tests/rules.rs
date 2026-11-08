@@ -1,6 +1,6 @@
 use super::event;
 use crate::audio::speech::history::History;
-use crate::audio::speech::rules::{Actor, Asked, Context, Env, Verdict, judge};
+use crate::audio::speech::rules::{Actor, Asked, Context, Env, Gone, Hold, Verdict, judge};
 
 fn env(history: &History, now: f32) -> Env<'_> {
     Env { now, dead_air: 99.0, history, playing: None, context: Context::default() }
@@ -25,7 +25,7 @@ fn a_request_older_than_its_expiry_is_ditched() {
     let history = History::default();
     let e = event(1, |e| e.expiry = 5.0);
     assert_eq!(judge(&e, &asked(0.0), &env(&history, 5.0)), Verdict::Keep);
-    assert_eq!(judge(&e, &asked(0.0), &env(&history, 5.1)), Verdict::Ditch);
+    assert_eq!(judge(&e, &asked(0.0), &env(&history, 5.1)), Verdict::Ditch(Gone::Expired));
 }
 
 #[test]
@@ -38,11 +38,11 @@ fn a_unit_too_far_away_or_out_of_sight_has_to_wait() {
     });
     let at = |actor| Asked { entry: 0.0, actor };
     assert_eq!(judge(&e, &at(near(50.0)), &env(&history, 0.0)), Verdict::Keep);
-    assert_eq!(judge(&e, &at(near(150.0)), &env(&history, 0.0)), Verdict::Defer);
+    assert_eq!(judge(&e, &at(near(150.0)), &env(&history, 0.0)), Verdict::Defer(Hold::Range));
     let hidden = Some(Actor { distance: 50.0, on_screen: false, line_of_sight: true });
-    assert_eq!(judge(&e, &at(hidden), &env(&history, 0.0)), Verdict::Defer);
+    assert_eq!(judge(&e, &at(hidden), &env(&history, 0.0)), Verdict::Defer(Hold::OnScreen));
     let blocked = Some(Actor { distance: 50.0, on_screen: true, line_of_sight: false });
-    assert_eq!(judge(&e, &at(blocked), &env(&history, 0.0)), Verdict::Defer);
+    assert_eq!(judge(&e, &at(blocked), &env(&history, 0.0)), Verdict::Defer(Hold::Sight));
     // A request without a unit skips these checks.
     assert_eq!(judge(&e, &asked(0.0), &env(&history, 0.0)), Verdict::Keep);
 }
@@ -58,7 +58,7 @@ fn a_timed_dependency_looks_back_that_many_seconds() {
         e.expiry = 100.0;
     });
     assert_eq!(judge(&e, &asked(0.0), &env(&history, 14.0)), Verdict::Keep);
-    assert_eq!(judge(&e, &asked(0.0), &env(&history, 16.0)), Verdict::Defer);
+    assert_eq!(judge(&e, &asked(0.0), &env(&history, 16.0)), Verdict::Defer(Hold::Follow));
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn a_dependency_is_met_by_the_line_being_said() {
     history.touch(5, 0.0);
     let e = event(1, |e| e.dep_follow = vec![7]);
     let mut playing = env(&history, 0.0);
-    assert_eq!(judge(&e, &asked(0.0), &playing), Verdict::Defer);
+    assert_eq!(judge(&e, &asked(0.0), &playing), Verdict::Defer(Hold::Follow));
     playing.playing = Some(7);
     assert_eq!(judge(&e, &asked(0.0), &playing), Verdict::Keep);
 }

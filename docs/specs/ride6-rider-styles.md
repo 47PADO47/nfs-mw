@@ -89,8 +89,8 @@ blueprint's `BikeType`, where it came from (`correction-table` or `input-handler
 `style.name`, looks it up in `styles.json` and plays that graph; a bike or a rig without them plays `graph.json`.
 
 **The riding style is the player's setting** (section 8): every graph carries the lean sets of all three styles (a `Select` node over
-the sitting pose, indexed by the graph's `riding_style` parameter) and the game fills the parameter from the `riding_style` setting
-(Gameplay options, **Riding Style**). A type whose three styles play the same clips (the scooter) has one lean set. Before the setting
+the sitting pose, indexed by the graph's `riding_style` parameter) and the game fills the parameter from the bike's group's setting
+(`riding_style_road`, `riding_style_motard` or `riding_style_offroad`; section 8). A type whose three styles play the same clips (the scooter) has one lean set. Before the setting
 existed the importer wrote one style per type (0, the supermoto's 2).
 
 ## 4. The reverse walk (animation)
@@ -194,8 +194,32 @@ other three options for each: Balanced `START_LEG` 1 (right), `LEG_OUT` 1; Shoul
 `BRAKE_FINGERS` 2 in all (ElbowOut and BodyOut have no `LEAN_STYLE` value). The anim data table `RidingStyle_DT` repeats three of them with
 `StartLeg` 1, 0, 0 and `BrakeFingers` 3, 2, 2; the bindings table is the one the page reads and was taken.
 
-**Here** the setting is `riding_style` = `balanced` (default), `shoulders-out` or `old-school` (config key and `NFSMW_RIDING_STYLE`, console
-`set riding_style`, Gameplay options **Riding Style**, [extra-options.md](../extra-options.md)). It sets, for a bike of any type:
+**Here** there are **three** riding style settings, one per class of bike, and two settings for the fingers (Gameplay options, from the top: Rider
+Gear, **Riding Style: Road**, **Riding Style: Motard**, **Riding Style: Offroad**, **Brake Fingers**, **Clutch Fingers**):
+
+| Setting (config key, `NFSMW_` variable, console `set`) | Values | Default | Origin |
+|---|---|---|---|
+| `riding_style_road` (`NFSMW_RIDING_STYLE_ROAD`) | `balanced`, `shoulders-out`, `old-school` | `balanced` | Data for the values (`LEAN_STYLE` 0 to 2); the default is the first value and the first preset (choice) |
+| `riding_style_motard` (`NFSMW_RIDING_STYLE_MOTARD`) | the same | `balanced` | the same |
+| `riding_style_offroad` (`NFSMW_RIDING_STYLE_OFFROAD`) | the same | `balanced` | the same |
+| `brake_fingers` (`NFSMW_BRAKE_FINGERS`) | `1`, `2`, `4` | `2` | Data (`BRAKE_FINGERS`; 2 is the blueprint's default and every preset's) |
+| `clutch_fingers` (`NFSMW_CLUTCH_FINGERS`) | `2`, `4` | `2` | Ours: RIDE 6 has no clutch option; the values are the two left-hand clips that exist ([ride6-rider-hands.md](ride6-rider-hands.md)) |
+
+RIDE 6's page keeps the three pictures sets of the style apart: `RoadOptionToPictureMap` (the `Sportive_*` pictures), `MotardOptionToPictureMap` and
+`OffroadOptionToPictureMap` (`Enduro_*`) of `WBP_RidingStylePage` [D], so the three groups are the game's own. Whether the page stores one style per group
+or one for the rider could not be read (the page's picture choice is native code); one per group is what the player asked for. The old single setting
+(`riding_style`, `NFSMW_RIDING_STYLE`, console `set riding_style`) still works as **a migration**: it sets all three at once and a class's own key wins
+over it; nothing writes it any more.
+
+**Which bike is in which group** (`scenes/world/drive/rider/choices.rs`, from the bike's `contacts.json` `style`: the graph's name and the input handler):
+
+| Group | Bikes | Rule |
+|---|---|---|
+| Road | superbikes and sport bikes, nakeds, classics, cruisers (the bagger plays the naked set) | kind `race`, `naked` (and anything the table does not know) |
+| Motard | the supermotos: KTM 450 SMR, 690 SMC R, Honda CRF 450 R SMT, ... | kind `motard`, **or** the input handler `Motard` (8 bikes). The CRF 450 R SMT is type `enduro` in the correction table (it plays the enduro graph, its old-school set is the enduro's) but runs the supermoto's handler, and the player counts it a 450 supermoto |
+| Offroad | touring, adventure and enduro bikes, scooters | kind `enduro` (a `Maxienduro` handler) or `scooter` |
+
+A bike with no kind plays the rig's shared graph, which is the supermoto's, and takes the motard group. The setting of the bike's group sets, for that bike:
 
 - the lean set of the graph (the table of section 1: `race_Rossi_*`, `race_Lorenzo_*`, `race_Schwantz_*`; `naked_Balanced_*`, `naked_ShoulderOut_*`,
   `naked_Old_School_*`; `motard_Leaning_Knee_*`, `motard_Leaning_*`, `motard_Old_School_*`; the enduro's own old-school set; the scooter has one);
@@ -203,5 +227,8 @@ other three options for each: Balanced `START_LEG` 1 (right), `LEG_OUT` 1; Shoul
 - the foot put down at a standstill from `START_LEG` of the preset: balanced the right foot, shoulders out the left, old school both
   (`standstill::leg_of`).
 
-`LEG_OUT` and `BRAKE_FINGERS` are not options here: the leg-out layers are not played and the brake takes two fingers. The race bikes'
-names for the three styles are riders' names (Rossi, Lorenzo, Schwantz); the page calls them by the three titles above.
+Why the row was hard to find: the single row sat 17th of 23 in a list that shows 8, so it needed nine presses of Down to appear (checked offscreen
+with `nfsmw view-screen Options.fng --category gameplay`; the row was there and worked). The rider's rows are now 6th to 11th, one scroll from the top.
+
+`LEG_OUT` is not an option here: the leg-out layers are not played. The race bikes' names for the three styles are riders' names (Rossi, Lorenzo,
+Schwantz); the page calls them by the three titles above.

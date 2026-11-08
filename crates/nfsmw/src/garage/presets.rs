@@ -159,7 +159,6 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model) {
                     model.category =
                         model.cars.iter().find(|c| c.folder == selection.car).expect("validated car").category;
                     model.draft = selection;
-                    model.parts_filter = Default::default();
                     model.message = None;
                     model.preset_picker.report(Ok("Car preset loaded.".into()));
                 }

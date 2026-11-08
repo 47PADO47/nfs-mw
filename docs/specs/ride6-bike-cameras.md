@@ -264,6 +264,11 @@ choice **[C]**.
   point is the bike's and the rider's blended, so the camera glides to him instead of cutting. After the remount the rider's point
   keeps its offset to the (moving) bike, so the ease back has no jump. A placement of the bike (reset by hand, a respawn) cuts the
   camera to the bike at once and keeps it there until the rider is on it.
+- **Smoothed** (round 14, [ride6-feel-round14.md](ride6-feel-round14.md), section 1): the point the camera follows is the pelvis through a
+  critically damped spring (`viewer/camera/damped.rs`, `FOLLOW_OMEGA` 35 per second, acceleration capped at 300 m/s^2), the velocity and the
+  heading are the spring's, the heading turns at most 5 rad/s, the bike's contacts shake the camera less as it moves to the rider, and the point is
+  kept above the ground under it (`above_ground`). A rider who is under the map is put back by the host's watch
+  (`drive/under_map.rs`), and the camera cut to the bike.
 - **The heading** the chase camera sits behind: while he slides, the direction of his horizontal motion (above `HEADING_MIN_SPEED` =
   1.5 m/s; held when he lies still, starting from the bike's heading), so the camera is behind the slide and sees him ahead; while he
   jogs, the direction to the bike (held within `FACE_BIKE_MIN_M` = 0.5 m), so the camera sits behind him and sees the bike ahead.

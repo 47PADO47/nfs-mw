@@ -129,8 +129,44 @@ original file at load time with no file written (S), needs a small converter (C)
 | Street props and lamps | 112 `PropObject`, models in `TRK_UNIT*` and `GLOBALRESOURCES` | the same model swap as the trees, by solid name | DOABLE after the trees PR | which 2005 solid matches which 2012 prop is a manual table (names are hashes); 150 lines of mod code, no host code | C |
 | Billboards, signs as models | models in `TRK_UNIT*` | same swap | DOABLE after the trees PR | needs the same manual match | C |
 | Ground cover (grass, bushes) | `GroundcoverCollection` 400 | the 2005 ground cover is baked in sections | NOT FEASIBLE | | |
-| The city (districts, roads, buildings) | `TRK_UNIT*`, `DISTRICT_*` (3.5 GB) | a map pack ([api-content.md](../modding/api-content.md#scenery-and-map-packs)) | NOT FEASIBLE | a whole city needs roads, zones and AI data in the 2005 formats, and a second conversion of 3.5 GB | |
+| The city (districts, roads, buildings) | `TRK_UNIT*`, `DISTRICT_*` (3.5 GB) | a map pack ([api-content.md](../modding/api-content-worlds.md#scenery-and-map-packs)) | NOT FEASIBLE | a whole city needs roads, zones and AI data in the 2005 formats, and a second conversion of 3.5 GB | |
 | Traffic lights as props | models plus textures | swap | DOABLE after the trees PR | | |
+
+### 3.4a Other props of the world: what the trees pattern could carry (assessment, November 2026)
+
+The trees variant ([effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)) swaps solids of the 2005 world by
+name for models of the 2012 world and fits them to the old footprint, so any prop that is a solid of the 2005 world can be
+replaced the same way. Measured for this list: the 2005 solids by name (a scratch report of `STREAML2RA.BUN`, 16,349 distinct names: 6,700 terrain
+`TRN`, 4,299 `SHD` shadows, 1,957 buildings `XB`, 1,163 objects `XO`, 498 signs `XS`, 474 walls `XW`, 147 trees `XT`; a world-space
+`_DEINST` copy counts under the name it was made of) and the 2012 install (a Python reader of the `bnd2` tables of all
+`TRK_UNIT*` bundles and `GLOBALRESOURCES`): **112 distinct `PropObject`, 109 of which resolve to a model, with a bounding
+radius of 0.28 to 3.3 m (35 under 1 m, 61 of 1 to 2 m, 10 of 2 to 3 m, 3 over 3 m)** and **no lamp-post sized object among them**: the
+2012 street furniture that is taller than a car is part of the district geometry, not a prop. The 2012 resources have no names
+(only hashes), so which model is a bench or a hydrant is read off its pictures, by hand, as the 40 tree models were found by their shader.
+
+| Class | What the 2005 world has (names; distinct names / solids) | What the 2012 install has | Look gain | Risk | Verdict |
+|---|---|---|---|---|---|
+| **Bushes, hedges** | `XT_CT_BUSH_1B_JG_00` (176 solids), `XT_BUSH_FOREST_1A/2A_JG_00` (125), `XT_GC_BUSH_1B_00` (47), `XT_CT_BUSHMULLB`, `XT_BUSHREDA` (24 names / 478 solids; four of them are already swapped) | bush and shrub cards on the `Tree_*` shader (the round bush is one of the eleven species; thin bushes, shrub strips and a bare shrub have textures but are not converted) | medium: low foliage is most of what the eye sees from the road | most of these 2005 solids are **effect 0** patches up to 100 m wide: with at most 32 copies a solid, a patch of bushes would become a few bushes; needs denser 2012 strips first | **best next step**, as families of the existing trees pack; not done: the visible result has to be looked at species by species |
+| **Grass** | `XT_GRASSPATCH_1B_00` (59, leaf cards), `XT_BEACHGRASS` (69), `XO_GRASSCLUMPCT` (43), `XT_GRASSA/B/C` (45): 11 names / 221 solids | **no grass model**: grass is the `Groundcover` shader (400 `GroundcoverCollection` of `TRK_UNIT*`, drawn from an atlas by position) | high | none to the 2005 data, but nothing to put there | **not feasible** as a model swap; a picture swap of the grass atlas needs the texture swap of section 3.4 |
+| **Street lamps** | `XO_StreetLightCb/C/G/M`, `XO_IRONLAMPSTANDINGB`, `XO_PARKLAMPA`, `XO_LIGHTPOLEA`, floodlights, cage and canopy lights (120 names / 135 solids) | district geometry, not props (see above); models exist per unit but are not identified | medium | the 2005 lamp has flares, a night glow and a physics body tied to the solid's name and markers (`docs/specs/scenery-sway.md`, the lamp tests of `residency`): a swapped model loses the markers the swap does not carry | **not recommended** until a swap can keep the markers |
+| **Traffic lights** | `XS_TRAFFICSIGNALARROW/CROSS_JK`, `TRAFFICLIGHTA/B` (24 / 44) | traffic light models of `GLOBALRESOURCES` | low (small, seen for a second) | the lamps are driven by the host's light cycle (`traffic_lights` option) through the solid's own parts | not recommended |
+| **Road and shop signs** | `XS_*` and `XO_*SIGN*` (538 / 831): the Rockport names and texts | `Sign_RetroReflective` (5 materials), the STOP, speed-limit, tow-zone and police signs of `GLOBALRESOURCES` | low to medium | text of another city, a model is one board: the picture is the whole look, and that is a texture swap, not a model swap | texture swap, not models |
+| **Billboards** | `XS_BILLBOARDA/D`, `XO_IRONBILLBOARD*` (11 / 19) | `World_SmashedBillboard_*` (the 2012 adverts) | low | adverts of the 2012 game (brands, licensing) in the 2005 city | no |
+| **Benches, bins, boxes, tables, shelters** | `PARKBENCHA/B`, `TRASHCAN`, `DUMPSTER*`, `NEWSPAPERBOX*`, `PICNICTABLE`, `PATIOTABLE`, `BUSSHELTER*`, `PHONEB` (86 / 90) | among the 109 `PropObject` (0.3 to 3.3 m), identity unknown | low to medium (seen at 20 m) | these are **physics props**: the 2005 game gives each its bounds and mass by name (`PropCatalog`), so the model must be the same size and its origin where the old one's was; the 2012 origins are not measured | possible one by one, after a contact sheet of the 109 models |
+| **Barriers, cones, barrels, sawhorses, tire piles** | `CRASHBARREL*`, `SAWHORSE`, `TIREPILE*`, `XW_*BARRIER*`, `MEDIANPOLE` (100 / 176) | props of the same 109 | low | as above; the Jersey barriers (`XW_`) are walls with collision | no |
+| **Fences, rails, gates** | `XW_*FENCE*`, rails, gates (300 / 630) | `Fence_GreyScale_Doublesided` (17 materials, grey-scale tinted) | low | fences are long walls with collision; the swap fits a row of copies, which a fence is not | no |
+| **Flags** | `XO_FLAG*`, `XO_TRIFLAG`, `XO_ROUNDFLAG` (14 / 46) | `Flag_Opaque_Doublesided` (4 materials) and `Flag_UVFlip_Opaque_Doublesided` | low | the 2005 flags are animated by the scenery sway; the 2012 ones by their own shader technique (`Flag_*`), which the 2005 engine has no equivalent of **[unconfirmed]** | no |
+| **Rocks, boulders** | `XO_ROCKSMALL A/B/C`, `XO_BOULDERA` (15 / 43) | district rocks, not identified | low | 2005 rocks are effect 3 (normal mapped) | no |
+| **Cars as props** | `MINIVAN_*`, `CARBODYA/B` fragments (14) | the 2012 cars (already imported, 93) | low | these are debris fragments of a smashable car, not cars | no |
+
+**Why nothing of this was built with the trees fix.** The cheap and safe part is bushes, and it needs a look at each species
+before its solids are listed (the 2005 bush patches are big and dense); a second, separate option row "Props" needs more than
+the trees pattern gives: the world holds **one** pack in effect (`model_swap::set_active`), so a second kind needs a second slot
+and the residency's texture upload and refresh (`residency/trees.rs`) to follow every pack, a `VariantKind` and `EffectKind`
+(`variants.rs`, `bridge.rs`) with its catalogue messages in every language, and a mod key and a value for the mod's `effect_variants`. About 300 lines of
+host code and the same again in tests, for a variant whose first content (bushes) is not looked at yet. The first step is to add
+the bush families to `trees/stock.rs` (they ride the existing "Trees" option and the mod's `trees` key) and look at them; a "Props"
+option is worth its cost only once there is a second class with content.
 
 ### 3.5 Interface
 

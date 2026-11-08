@@ -50,7 +50,7 @@ pub fn choice_hash(folder: &str, component: &str) -> u32 {
 }
 
 /// The component of `slot` whose tier is the highest not above `level`; `None` for level 0 (the slot's default).
-fn ladder_pick(slot: &Slot, catalog: &Catalog, level: u8) -> Option<Pick> {
+pub fn ladder_pick(slot: &Slot, catalog: &Catalog, level: u8) -> Option<Pick> {
     if level == 0 {
         return None;
     }
@@ -80,8 +80,24 @@ pub fn picks(folder: &str, components: &Components, selection: &Selection, packa
         {
             picks.set(&slot.id, pick);
         }
+        if let Some(pick) = session_pick(slot, selection) {
+            picks.set(&slot.id, pick);
+        }
     }
     picks
+}
+
+/// The pick the session keeps for a slot the garage has no category for (`Selection::slots`): the component, or nothing when the
+/// slot was emptied on purpose. A component the slot does not accept is ignored, like a saved choice the mod dropped.
+fn session_pick(slot: &Slot, selection: &Selection) -> Option<Pick> {
+    if category_of(&slot.id).is_some() || performance_of(&slot.id).is_some() {
+        return None;
+    }
+    let wanted = selection.slots.get(&slot.id)?;
+    if wanted.is_empty() {
+        return slot.can_be_empty().then(Pick::empty);
+    }
+    slot.offer(wanted).map(|offer| Pick::of(&offer.component))
 }
 
 /// The car with the components of `selection` and `package` installed. When they do not fit together (a rule of the mod) the

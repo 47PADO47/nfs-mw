@@ -59,7 +59,17 @@ options-minimap-fixed = Fixed
 options-minimap-rotating = Rotating
 options-turn-signals = Turn Signals
 options-rider-gear = Rider Gear
-options-riding-style = Riding Style
+# One riding style per class of bike (RIDE 6's riding style page pictures road, motard and off-road bikes), and the fingers on the levers.
+options-riding-style-road = Riding Style: Road
+options-riding-style-motard = Riding Style: Motard
+options-riding-style-offroad = Riding Style: Offroad
+options-brake-fingers = Brake Fingers
+options-clutch-fingers = Clutch Fingers
+options-rider-body = Rider Body
+options-rider-helmet = Rider Helmet
+options-rider-suit = Rider Suit
+options-rider-gloves = Rider Gloves
+options-rider-boots = Rider Boots
 options-riding-style-balanced = Balanced
 options-riding-style-shoulders-out = Shoulders Out
 options-riding-style-old-school = Old School
@@ -116,3 +126,7 @@ options-game-music-volume = Game Music Volume
 
 options-autosave = Autosave
 options-autosave-save-failed = Could not save the Autosave setting. Your previous setting is still active.
+
+# The Free Roam world row of the Gameplay options (docs/specs/second-world.md).
+options-world = Free Roam World
+options-world-city = Rockport

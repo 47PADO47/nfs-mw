@@ -8,6 +8,7 @@
 use blackbox_collision::CollisionWorld;
 mod audio;
 mod bike_fall;
+mod bike_slide;
 mod cinematic;
 mod hits;
 pub(in crate::scenes::world) mod memo;
@@ -95,11 +96,6 @@ pub struct CarSim {
     pending_body_impact: Impact,
     /// What the last step did to the car, for the police radio (`memo.rs`).
     memo: memo::StepMemo,
-}
-
-/// A vector from physics space to render space axes: `(x, y, z) -> (z, -x, y)`.
-fn to_model_axes(v: Vec3) -> Vec3 {
-    Vec3::new(v.z, -v.x, v.y)
 }
 
 impl CarSim {
@@ -302,7 +298,8 @@ impl CarSim {
             let (sin, cos) = wheel.steer_angle.sin_cos();
             let forward = self.vehicle.rotation() * Vec3::new(sin, 0.0, cos);
             // The rear-wheel permutation is its own inverse: physics order -> model order.
-            let visual = self.visual_tires.map(|tires| tires[PHYSICS_WHEEL[i]]);
+            // A bike's marks start from the contact patch of the tyre (a lean moves it off the bottom of the drawn tyre).
+            let visual = self.visual_tires.filter(|_| self.ride.is_none()).map(|tires| tires[PHYSICS_WHEEL[i]]);
             if let Some(tire) = visual {
                 let point = pose.transform().transform_point3(tire.point(pose.wheels[PHYSICS_WHEEL[i]]));
                 wheel.position = Vec3::from_array(space::to_physics(point));
@@ -310,6 +307,9 @@ impl CarSim {
             let mut contact = effects::project(wheel, forward, collision)?;
             if let Some(tire) = visual {
                 contact.width = tire.width;
+            }
+            if let Some(ride) = &self.ride {
+                contact.width = ride.mark_width(i);
             }
             Some(contact)
         })
@@ -462,11 +462,6 @@ impl CarSim {
     }
 }
 
-fn next_sound_identity() -> u64 {
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-    (1 << 63) | NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-}
-
 mod ai;
 mod bike;
 pub use bike::set_bike_steering;
@@ -487,12 +482,18 @@ mod terrain;
 pub(in crate::scenes::world) use step::StepStart;
 pub(in crate::scenes::world) use terrain::Integration;
 mod trailer;
+mod util;
+use util::{next_sound_identity, to_model_axes};
 
 #[cfg(test)]
 mod bike_curb_tests;
 #[cfg(test)]
+mod bike_skid_tests;
+#[cfg(test)]
 mod bike_sound_tests;
 #[cfg(test)]
 mod bike_tests;
+#[cfg(test)]
+mod bike_wall_survey_tests;
 #[cfg(test)]
 mod tests;

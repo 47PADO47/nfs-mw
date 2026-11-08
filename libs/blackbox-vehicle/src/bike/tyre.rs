@@ -46,6 +46,10 @@ pub struct TyreOutput {
     pub normalised_x: f32,
     /// The same for the lateral slip.
     pub normalised_y: f32,
+    /// How far the tyre slides, in the force peaks: the length of the normalised slip, 1 where the combined force peaks and more
+    /// beyond it (the tyre is then skidding). Unlike the pair above, the slips are not scaled down below 1 m/s of patch speed, so
+    /// a rear wheel spinning on the spot reads as the skid it is.
+    pub slide: f32,
     /// The wheel's `Slip.y` (the sine of the slip angle).
     pub slip_y: f32,
     /// The self-aligning moment (N m); 0 for a wheel that does not steer.
@@ -93,6 +97,11 @@ pub fn prepare(wheel: &WheelSpec, input: &TyreInput) -> Prepared {
     }
 }
 
+/// The slip `slip` over a force's peaks (the negative one at `negative`, `span` apart): -1 at the negative peak, 1 at the positive.
+fn normalised(slip: f32, negative: f32, span: f32) -> f32 {
+    2.0 * (slip - negative) / span - 1.0
+}
+
 /// The sign of `x`, 0 for 0.
 fn sign(x: f32) -> f32 {
     match x == 0.0 {
@@ -128,7 +137,14 @@ pub fn forces_at(wheel: &WheelSpec, input: &TyreInput, prepared: &Prepared, spin
     let nx = 2.0 * (slip_x - p.x_negative) / span_x - 1.0;
     let ny = 2.0 * (slip_y - p.y_negative) / span_y - 1.0;
     let combined = nx.hypot(ny) / (nx.abs() * input.slip_correction * prepared.correction + 1.0);
+    let floor = speed.max(1.0);
+    let slide = normalised(slip_speed / floor, p.x_negative, span_x).hypot(normalised(
+        input.v_lat / floor,
+        p.y_negative,
+        span_y,
+    ));
     let mut output = TyreOutput {
+        slide,
         slip_angle: alpha,
         slip_ratio: slip_x,
         normalised_x: nx,
@@ -266,6 +282,31 @@ mod tests {
         assert!(forces(&wheel, &input(25.0 / wheel.radius, 20.0, 0.0, 0.0)).longitudinal > 0.0);
         let locked = forces(&wheel, &input(0.0, 20.0, 0.0, 0.0));
         assert!(locked.longitudinal < 0.0 && locked.normalised_x < -1.0);
+    }
+
+    #[test]
+    fn a_tyre_slides_past_its_peak_only_when_it_skids_at_any_speed() {
+        let wheel = BikeSpec::example().rear;
+        for speed in [5.0_f32, 30.0, 80.0] {
+            // Rolling, then driving at a few percent of slip (a bike holding its speed against its drag), then a locked wheel and a
+            // sideways slide of 30 degrees.
+            let rolling = forces(&wheel, &input(speed / wheel.radius, speed, 0.0, 0.0));
+            assert!(rolling.slide < 0.3, "{speed} m/s: {rolling:?}");
+            let driving = forces(&wheel, &input(speed * 1.03 / wheel.radius, speed, 0.0, 0.0));
+            assert!(driving.slide < 1.0, "{speed} m/s: {driving:?}");
+            let locked = forces(&wheel, &input(0.0, speed, 0.0, 0.0));
+            assert!(locked.slide > 1.5, "{speed} m/s: {locked:?}");
+            let sliding = forces(&wheel, &input(speed / wheel.radius, speed, speed * 0.5, 0.0));
+            assert!(sliding.slide > 1.0, "{speed} m/s: {sliding:?}");
+        }
+    }
+
+    #[test]
+    fn a_wheel_spinning_on_the_spot_slides_although_its_forces_are_scaled_down() {
+        let wheel = BikeSpec::example().rear;
+        let burning = forces(&wheel, &input(60.0 / wheel.radius, 0.0, 0.0, 0.0));
+        assert!(burning.slide > 20.0, "{burning:?}");
+        assert!(burning.normalised_x < burning.slide, "the pair is scaled down at a standstill: {burning:?}");
     }
 
     #[test]

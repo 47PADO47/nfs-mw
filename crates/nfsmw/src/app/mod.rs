@@ -94,7 +94,7 @@ pub struct RunOptions {
     pub open_console: bool,
     /// Start with the runtime garage open when the scene supports it.
     pub open_garage: bool,
-    pub garage_tab: crate::garage::OptionsTab,
+    pub garage_tab: Option<crate::garage::OptionsTab>,
     /// Show the in-game HUD, reading its data from this install.
     pub hud: Option<game_install::GameDir>,
     /// Numbers the HUD shows until the scene supplies its own (`--hud-demo`).

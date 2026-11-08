@@ -68,6 +68,7 @@ mod motion_blur_tests;
 pub mod net;
 mod partial;
 pub mod physics_rate;
+pub(crate) mod world_id;
 pub use physics_rate::{DEFAULT_PHYSICS_RATE_HZ, parse_physics_rate};
 pub mod game_moments;
 pub mod pursuit_options;
@@ -89,8 +90,10 @@ mod renderer;
 mod road_reflections;
 pub use road_reflections::{RoadReflectionResolution, RoadReflections};
 mod bike_steering;
+mod fingers;
 #[cfg(test)]
 mod renderer_tests;
+mod rider_write;
 mod riding_style;
 mod smoke_color;
 #[cfg(test)]
@@ -143,6 +146,7 @@ pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
 pub use custom_hud_skin::CustomHudSkin;
 pub use custom_music::{CustomContext, CustomMode, CustomMusic, Sources as CustomSources};
+pub use fingers::{BrakeFingers, ClutchFingers};
 pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
 pub use language::LanguageTag;
@@ -153,7 +157,7 @@ pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
 pub use radio_hud::RadioHudStyle;
 pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
-pub use riding_style::RidingStyle;
+pub use riding_style::{BikeClass, RidingStyle};
 pub use smoke_color::{PALETTE as SMOKE_PALETTE, SmokeColor, SmokeColorMode, SmokeTint};
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
@@ -293,12 +297,21 @@ pub struct Settings {
     pub custom_hud_skin: CustomHudSkin,
     /// The unit speed is shown in on every HUD look (`speed_units`). Display only.
     pub speed_units: SpeedUnits,
-    /// How the rider of a bike leans into a corner (`riding_style`: balanced, shoulders out or old school).
-    pub riding_style: RidingStyle,
+    /// How the rider of a road bike (superbike, naked, classic) leans into a corner (`riding_style_road`: balanced, shoulders out or old
+    /// school); the same for a supermoto (`riding_style_motard`) and for a touring, adventure, enduro bike or scooter
+    /// (`riding_style_offroad`).
+    pub riding_style_road: RidingStyle,
+    pub riding_style_motard: RidingStyle,
+    pub riding_style_offroad: RidingStyle,
+    /// How many fingers pull a bike's brake lever (`brake_fingers`: 1, 2 or 4) and its clutch lever (`clutch_fingers`: 2 or 4).
+    pub brake_fingers: BrakeFingers,
+    pub clutch_fingers: ClutchFingers,
     /// How a bike turns (`bike_steering`: this game's arcade steering or the reference game's), read when a bike is loaded.
     pub bike_steering: BikeSteering,
     /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
     pub language: Option<LanguageTag>,
+    /// The second world to play instead of the city (`world`, `--world`); unset or `rockport` is the city.
+    pub world: Option<world_id::WorldId>,
     /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.
     pub ui_theme: UiTheme,
     /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.

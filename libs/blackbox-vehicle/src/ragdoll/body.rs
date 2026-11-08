@@ -2,9 +2,11 @@
 
 use glam::{Mat3, Quat, Vec3};
 
-/// The largest linear speed (m/s) and angular speed (rad/s) a segment may have: a guard against a runaway solver.
-const MAX_SPEED: f32 = 150.0;
-const MAX_SPIN: f32 = 200.0;
+/// The largest linear speed (m/s) and angular speed (rad/s) a segment may have whatever it was thrown at: a guard against a
+/// runaway solver. A fast bike is 90 m/s; a body that was thrown slower is held to a share of its own launch speed
+/// ([`Body::cap`]).
+pub(super) const MAX_SPEED: f32 = 100.0;
+const MAX_SPIN: f32 = 60.0;
 
 /// A segment of the ragdoll as the caller describes it: a capsule of `radius` whose end spheres are `half_length` from its centre
 /// along its local Y axis. `position` is the centre of mass (the capsule's centre) and `orientation` the body frame, both in the
@@ -33,6 +35,11 @@ pub(super) struct Body {
     pub inv_inertia: Vec3,
     pub radius: f32,
     pub half_length: f32,
+    /// How much of the sub-step's move was recovery from an overlap (a push out of the ground or a wall beyond what the body's own
+    /// motion into it needed): it is a correction of the place, not a motion, and gives the body no velocity (`settle`).
+    pub recover: Vec3,
+    /// The fastest the segment may move sideways or up (m/s).
+    pub cap: f32,
 }
 
 impl Body {
@@ -55,6 +62,8 @@ impl Body {
             inv_inertia: Vec3::new(1.0 / across, 1.0 / along, 1.0 / across),
             radius,
             half_length: segment.half_length.max(0.0),
+            recover: Vec3::ZERO,
+            cap: MAX_SPEED,
         }
     }
 
@@ -94,6 +103,7 @@ impl Body {
     pub fn predict(&mut self, h: f32, gravity: f32, damping: (f32, f32)) {
         self.x0 = self.x;
         self.q0 = self.q;
+        self.recover = Vec3::ZERO;
         self.v.y += gravity * h;
         self.v /= 1.0 + damping.0 * h;
         self.w /= 1.0 + damping.1 * h;
@@ -101,9 +111,14 @@ impl Body {
         self.rotate(self.w * h);
     }
 
-    /// The last half: the velocities are what the solver's moves came to.
+    /// The last half: the velocities are what the solver's moves came to, less the recovery from overlaps (which is no motion: a
+    /// body that was pushed out of a surface it was 40 cm into must not leave it at 40 cm per sub-step, 190 m/s).
     pub fn settle(&mut self, h: f32) {
-        self.v = ((self.x - self.x0) / h).clamp_length_max(MAX_SPEED);
+        let moved = ((self.x - self.x0 - self.recover) / h).clamp_length_max(MAX_SPEED);
+        // Falling is not capped (gravity may take a body from a bridge to 40 m/s); going sideways or up faster than the body was thrown is
+        // a solver's launch, not a motion.
+        let flat = Vec3::new(moved.x, 0.0, moved.z).clamp_length_max(self.cap);
+        self.v = Vec3::new(flat.x, moved.y.min(self.cap), flat.z);
         let mut turn = self.q * self.q0.inverse();
         if turn.w < 0.0 {
             turn = -turn;

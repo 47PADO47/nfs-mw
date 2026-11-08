@@ -1,4 +1,6 @@
 //! Visibility and composition of the world HUD.
+use nfsmw_data::world::DEFAULT_TRACK;
+
 use super::WorldScene;
 
 impl WorldScene {
@@ -33,7 +35,13 @@ impl WorldScene {
         if looking_back && !self.tuning.show_hud_on_look_back {
             return None;
         }
-        self.hud_frame()
+        let mut state = self.hud_frame()?;
+        // The minimap is the city's picture: a second world has none (`docs/specs/second-world.md`).
+        if self.track != DEFAULT_TRACK {
+            state.minimap = None;
+            state.map_car = None;
+        }
+        Some(state)
     }
     pub(super) fn scene_ui(&mut self, ctx: &egui::Context) -> f32 {
         if self.career.garage.is_some() {
@@ -68,6 +76,11 @@ impl WorldScene {
         feed.rain_intensity = rain;
         feed.speech.player.car_type = look.car_type;
         feed.speech.player.car_colour = look.colour;
+        let at = glam::Vec3::from_array(feed.speech.player.position);
+        feed.speech.player.speech_map_id = self
+            .audio_environment
+            .as_ref()
+            .map_or(crate::audio::environment_context::NO_SPEECH_PLACE, |map| map.speech_place(at));
         Some(feed)
     }
 

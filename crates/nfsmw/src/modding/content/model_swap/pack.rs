@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use blackbox_hash::bstring_hash;
-use blackbox_modding::content::{ModelSwapProfile, SwapFit};
+use blackbox_modding::content::{FitLimits, ModelSwapProfile, SwapFit};
 use blackbox_scenery::ScenerySection;
 use blackbox_solid::Solid;
 use blackbox_tpk::Texture;
@@ -33,6 +33,7 @@ type Key = (u32, [u32; 6]);
 pub struct Pack {
     entries: HashMap<u32, Entry>,
     textures: Vec<Texture>,
+    limits: FitLimits,
     pub(super) fitted: Mutex<HashMap<Key, Arc<Solid>>>,
 }
 
@@ -105,7 +106,7 @@ impl Pack {
             let Some(ready) = ready.clone() else { continue };
             entries.insert(bstring_hash(&swap.solid), Entry { model: ready, fit: swap.fit });
         }
-        Self { entries, textures, fitted: Mutex::new(HashMap::new()) }
+        Self { entries, textures, limits: profile.limits, fitted: Mutex::new(HashMap::new()) }
     }
 
     /// How many solids of the game this pack replaces.
@@ -168,9 +169,11 @@ impl Pack {
         Some(solid)
     }
 
+    /// The replacement of `stock`, or `None` when the solid keeps the game's own model: the models cannot be fitted into its
+    /// footprint within the profile's limits (that is the rule, not an error), or the result cannot be made (a warning says why).
     fn fit_now(&self, entry: &Entry, stock: &Solid, frame: Frame) -> Option<Solid> {
-        match fit_prepared(&entry.model, stock, entry.fit, frame) {
-            Ok(solid) => Some(solid),
+        match fit_prepared(&entry.model, stock, entry.fit, frame, &self.limits) {
+            Ok(solid) => solid,
             Err(error) => {
                 log::warn!("trees: {} keeps its own model: {error:#}", stock.name);
                 None

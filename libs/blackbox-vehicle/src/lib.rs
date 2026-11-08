@@ -53,7 +53,7 @@ pub mod vehicle;
 /// The fixed simulation step, in seconds.
 pub const FIXED_STEP: f32 = 1.0 / 60.0;
 
-pub use ground::{FlatGround, Ground, GroundHit, NoGround, SurfaceGrip};
+pub use ground::{FlatGround, Ground, GroundHit, NoGround, SurfaceGrip, WallHit};
 pub use input::{ControlConfig, InputState};
 pub use launch::LaunchConfig;
 pub use vehicle::{DriftTuning, ManeuverAssist, SKID_RANGE, SMOKE_RANGE, Tunings, Vehicle, VehicleSpec, WheelState};

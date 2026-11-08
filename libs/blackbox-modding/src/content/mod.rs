@@ -90,6 +90,7 @@ mod traffic_tests;
 mod variant;
 mod wheels;
 mod wind_fx;
+mod world;
 mod xenon_variant;
 
 pub use bike::{
@@ -124,7 +125,7 @@ pub use lamp_flares::{
 };
 pub use manufacturer::{Manufacturer, brand_key, parse as parse_manufacturer};
 pub use model_swap::{
-    Fit as SwapFit, MAX_SWAPS, ModelSwapProfile, Swap, TREES_FOLDER, model_swap_profile_path,
+    Fit as SwapFit, FitLimits, MAX_SWAPS, ModelSwapProfile, Swap, TREES_FOLDER, model_swap_profile_path,
     parse as parse_model_swap_profile,
 };
 pub use music::{MusicSection, parse as parse_music};
@@ -154,6 +155,7 @@ pub use wheels::{Tyre, WheelLayout};
 pub use wind_fx::{
     MAX_LAYERS as MAX_WIND_LAYERS, WIND_FOLDER, WindLayer, WindProfile, parse as parse_wind_profile, wind_profile_path,
 };
+pub use world::{WORLDS_FOLDER, WorldManifest, parse as parse_world};
 pub use xenon_variant::{
     MAX_XENON_SPARKS, XENON_FOLDER, XenonProfile, XenonSpark, parse as parse_xenon_profile, xenon_profile_path,
 };

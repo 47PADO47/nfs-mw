@@ -17,6 +17,7 @@ Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 
 | Module | Spec | Restricted sources read |
 |---|---|---|
+| [Fairhaven world and RIDE 6 tracks](chameleon-world.md) | [formats/chameleon-world.md](../formats/chameleon-world.md), [formats/ride6-tracks.md](../formats/ride6-tracks.md), [plans/tracks-and-fairhaven-feasibility.md](../plans/tracks-and-fairhaven-feasibility.md) | The 2012 install's `HAWAII` bundles (measured); `NFS13.exe` type-name and file-name strings only (Ghidra); the RIDE 6 install through CUE4Parse |
 | [Cached terrain reference](vehicle-ground-reference.md) | [specs/vehicle-ground-reference.md](../specs/vehicle-ground-reference.md) | Original PC body triangle-list/query cache and CC0 world collision lifecycle |
 | [Jump stabilizers](vehicle-jump-stabilizers.md) | [specs/vehicle-jump-stabilizers.md](../specs/vehicle-jump-stabilizers.md) | Original PC chassis/world-position routines and CC0 rigid-body cache lifecycle |
 | [Controls list packages](controls-packages.md) | [specs/controls-remap.md](../specs/controls-remap.md) | The install's own `Options_PC_Controller.fng` and `Pause_PC_Controller.fng` object tables (`nfsmw dump-screen`) |

@@ -308,3 +308,32 @@ fn a_base_part_has_no_nearest_level_to_stand_in_for_its_own() {
         "an aftermarket part falls back to the nearest level its pack has"
     );
 }
+
+#[test]
+fn a_slot_the_garage_has_no_category_for_takes_the_sessions_pick() {
+    let catalog: Catalog = toml::from_str(
+        r#"[[component]]
+id = "t:mirrors.on"
+effects = [{ kind = "part", show = ["mirrors"] }]
+[[component]]
+id = "t:mirrors.big"
+effects = [{ kind = "part", show = ["mirrors.big"] }]"#,
+    )
+    .unwrap();
+    // No default: the slot is empty on the stock vehicle and can be emptied again.
+    let vehicle: VehicleDef =
+        toml::from_str("id = \"b\"\n[[slot]]\nid = \"mirrors\"\naccepts = [\"t:mirrors.on\", \"t:mirrors.big\"]\n")
+            .unwrap();
+    let components = Components { vehicle, catalog: Arc::new(catalog), parts: BTreeMap::new() };
+    let package = PerformancePackage::default();
+    let mut selection = Selection::default();
+    assert!(picks("B", &components, &selection, package).is_empty());
+    selection.slots.insert("mirrors".into(), "t:mirrors.big".into());
+    let picked = picks("B", &components, &selection, package);
+    assert_eq!(picked.get("mirrors").and_then(|pick| pick.component.as_deref()), Some("t:mirrors.big"));
+    selection.slots.insert("mirrors".into(), "t:mirrors.nothing".into());
+    assert!(picks("B", &components, &selection, package).is_empty(), "a component the slot does not accept is ignored");
+    selection.slots.insert("mirrors".into(), String::new());
+    assert!(picks("B", &components, &selection, package).get("mirrors").is_some_and(|pick| pick.component.is_none()));
+    assert!(!selection.is_stock());
+}

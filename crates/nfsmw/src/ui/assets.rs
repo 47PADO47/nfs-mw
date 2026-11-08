@@ -179,6 +179,7 @@ pub struct UiAssets {
     input_atlas: Image,
     discord_mark: Image,
     mod_mark: Image,
+    rider_mark: Image,
     /// The fonts each language table carries, by its file in lower case (`docs/specs/localization.md` section 5).
     language_fonts: HashMap<String, HashMap<u32, Font>>,
 }
@@ -206,6 +207,7 @@ impl UiAssets {
             input_atlas: blank(),
             discord_mark: blank(),
             mod_mark: blank(),
+            rider_mark: blank(),
             language_fonts: HashMap::new(),
         }
     }
@@ -248,6 +250,7 @@ impl UiAssets {
         let input_atlas = super::input_icons::load()?;
         let discord_mark = super::discord_icon::load()?;
         let mod_mark = super::mod_icon::load()?;
+        let rider_mark = super::rider_icon::load()?;
         let assets = Self {
             fonts,
             textures,
@@ -259,6 +262,7 @@ impl UiAssets {
             input_atlas,
             discord_mark,
             mod_mark,
+            rider_mark,
         };
         log::info!("UI: {} fonts, {} textures", assets.fonts.len(), assets.textures.len());
         Ok(assets)
@@ -373,6 +377,14 @@ impl UiAssets {
                 width: self.mod_mark.width,
                 height: self.mod_mark.height,
                 rgba: self.mod_mark.rgba.clone(),
+                blend: 1,
+            });
+        }
+        if hash == super::rider_icon::TEXTURE {
+            return Some(Image {
+                width: self.rider_mark.width,
+                height: self.rider_mark.height,
+                rgba: self.rider_mark.rgba.clone(),
                 blend: 1,
             });
         }

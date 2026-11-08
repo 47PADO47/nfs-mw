@@ -459,6 +459,24 @@ Written without building; nothing here has been compiled or run.
   that falls with the bike.
 
 
+## Where to change the rider's gear
+
+The helmet, suit, gloves, boots and body of the rider are the player's choice, one for every bike, kept beside the profile's save
+([spec](../specs/ride6-rider-gear.md)). Two places offer it, both only while the mod has written `files/RIDER/GEAR/gear.json` (the
+mod's folder, next to `cars/`) and the setting `rider_gear` is on (Options > Gameplay > Rider Gear, on by default):
+
+- **Options > Gameplay** (the main menu's Options, or the pause menu's Options in a race or free roam): right after Rider Gear, the rows
+  **Rider Body, Rider Helmet, Rider Suit, Rider Gloves, Rider Boots**. Left and Right cycle the item (Stock is the rider's own gear);
+  the choice is kept at once and the rider in the world wears it as soon as you leave the page. No picture there.
+- **The garage, for a bike:** Main menu > My Cars > the bike's slot > Customize Car > Visual. The helmet icons right after Paint and
+  Vinyls are the same five. Left and Right (L and R, ten at a time) change the item and the rider on the bike wears it; Accept keeps
+  it, Back puts back what he wore. The same Visual category is in the world's garage and the shop, whenever the bike is the car shown.
+
+Nothing shows when the current car is not a bike (the garage), when `gear.json` is missing (the mod did not build the catalogue:
+set `gear` in the mod's `config.toml` or put the exporter's `rider-gear` folder beside `source`, then restart; the game log says
+`rider gear: ... is not used` when the file does not read), or when the switch is off. The first-person (helmet) camera hides
+whichever helmet is worn; the side view shows the suit.
+
 ## The rider in a fall (`ride6-rider-ragdoll`)
 
 `ride6-rider-ragdoll <RiderGP_PhysicsAsset.json> <RiderBP.json> <mod>/files/RIDER` writes `ragdoll.json`: the 11 bodies and 10 joints of

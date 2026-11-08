@@ -49,6 +49,11 @@ impl Trail {
         self.crumbs.first().copied()
     }
 
+    /// The newest place: where the car last drove with every wheel down.
+    pub fn newest(&self) -> Option<Crumb> {
+        self.crumbs.last().copied()
+    }
+
     /// A reset put the car at `used`: it is the trail's only place.
     pub fn reset_to(&mut self, used: Crumb) {
         self.crumbs.clear();

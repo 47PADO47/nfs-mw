@@ -58,6 +58,14 @@ cargo run --release -p nfsmw -- view-car BMWM3GTR
 cargo run --release -p nfsmw -- view-world
 ```
 
+## Developer tools
+
+The game has developer panels: **F12** the console (`help` lists its commands), **F8** the [graphics lab](graphics-lab.md), **F5** the
+[extra options](extra-options.md), **F6** the [garage overlay](garage-overlay.md), **F9 / F10** the performance trace and **F11** the vehicle
+panel. Every panel can be reached and closed with a controller: L3 + R3 open the devtools menu. The vehicle panel, the `vehicle` and
+`gear` commands (the options of the vehicle on show, read from its components or its categories, and the rider's gear) and the controller
+navigation are in [devtools-vehicle.md](devtools-vehicle.md). Panels can be opened in a screenshot run with `--exec "devtools vehicle"`.
+
 ## Editor setup
 
 The workspace uses `rustfmt.toml` for formatting and `.cargo/config.toml` for build

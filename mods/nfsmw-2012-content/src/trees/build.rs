@@ -25,6 +25,18 @@ const FOLIAGE: (u32, u32) = (6, 0x4008);
 const BARK: (u32, u32) = (0, 0x4000);
 /// Vertices one group may hold: the writer puts the groups of one effect in a single 16-bit-indexed buffer.
 const MAX_GROUP_VERTICES: usize = 60_000;
+/// A level of detail is dropped, and the one before it takes the far solids, when it does not stand on the ground: the 2012
+/// game's coarsest levels of some trees are a crown alone (a few cards from several metres up, or a small blob), which would
+/// hover over the ground wherever the game draws a far tree. A level stands when its lowest point is at most this share of its
+/// own top, and its top reaches at least [`STANDING_TOP`] of the finest level's.
+const STANDING_FLOOR: f32 = 0.1;
+const STANDING_TOP: f32 = 0.6;
+/// The limits the game keeps a replacement to (`blackbox_modding::content::FitLimits`, the `[fit]` table of the profile): a
+/// tree is at most this much wider than the footprint it replaces, is squeezed sideways to no less than this share of its
+/// height scale, and is not used if it would be shorter than this share of the replaced height.
+const FIT_SPREAD: f32 = 1.25;
+const FIT_SQUEEZE: f32 = 0.5;
+const FIT_MIN_HEIGHT: f32 = 0.7;
 /// The folder of the variant under the mod's `files/`, and the files in it.
 pub const FOLDER: &str = "TREES/MW2012";
 pub const GEOMETRY_FILE: &str = "GEOMETRY.BIN";
@@ -93,11 +105,33 @@ fn species_solids(
         added.with_context(|| format!("the texture {id:#x} is in a format the 2005 engine cannot draw"))?;
     }
     let mut solids = Vec::new();
+    let mut finest_top = None;
     for (at, level) in model.levels.iter().enumerate() {
         let Some(solid) = level_solid(species::solid_name(species.key, at), level)? else { break };
+        let (low, top) = z_range(&solid);
+        let reference = *finest_top.get_or_insert(top);
+        if !stands(low, top, reference) {
+            log::debug!(
+                "trees: the {} stops at level {at}: it does not stand on the ground ({low:.1} to {top:.1})",
+                species.key
+            );
+            break;
+        }
         solids.push(solid);
     }
     Ok(solids)
+}
+
+/// The lowest and highest point of a solid, z (up) in 2005 space.
+fn z_range(solid: &SolidSource) -> (f32, f32) {
+    let heights = solid.groups.iter().flat_map(|group| group.vertices.iter()).map(|vertex| vertex.position[2]);
+    heights.fold((f32::MAX, f32::MIN), |(low, high), z| (low.min(z), high.max(z)))
+}
+
+/// Whether a level whose lowest and highest points are `low` and `top` stands on the ground like the finest level, whose top is
+/// `finest_top` ([`STANDING_FLOOR`]).
+fn stands(low: f32, top: f32, finest_top: f32) -> bool {
+    low <= STANDING_FLOOR * top && top >= STANDING_TOP * finest_top
 }
 
 /// One level of a tree as a solid: the bark groups, then the leaf groups, in 2005 space. `None` when the level has no triangle.
@@ -166,8 +200,9 @@ fn level_solid(name: String, level: &Level) -> Result<Option<SolidSource>> {
 /// The text of the variant's `profile.toml`: a swap for every solid of [`stock::FAMILIES`] whose species is in `built` (the
 /// species and the number of levels each has).
 pub fn profile_text(built: &[(&str, usize)]) -> String {
-    let mut text =
-        format!("format = 1\ngeometry = \"{FOLDER}/{GEOMETRY_FILE}\"\ntextures = \"{FOLDER}/{TEXTURES_FILE}\"\n");
+    let mut text = format!(
+        "format = 1\ngeometry = \"{FOLDER}/{GEOMETRY_FILE}\"\ntextures = \"{FOLDER}/{TEXTURES_FILE}\"\n\n[fit]\nspread = {FIT_SPREAD}\nsqueeze = {FIT_SQUEEZE}\nmin_height = {FIT_MIN_HEIGHT}\n"
+    );
     for family in stock::FAMILIES {
         let Some(&(_, levels)) = built.iter().find(|(key, _)| *key == family.species) else { continue };
         for (solid, code) in family.names() {

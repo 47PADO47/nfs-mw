@@ -86,6 +86,7 @@ impl Drive {
             last_good: None,
             strict_since: None,
             fall: FallWatch::default(),
+            under_map: Default::default(),
             road_check_elapsed: 0.0,
             presses: Presses::default(),
             transmission: Transmission::default(),

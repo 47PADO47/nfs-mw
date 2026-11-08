@@ -81,8 +81,7 @@ impl Host {
         scene.set_rain(settings.always_rain, settings.rain_amount.amplitude());
         scene.set_world_tuning(settings.into());
         crate::garage::rider_gear::set_enabled(settings.rider_gear);
-        crate::scenes::world::drive::rider::set_riding_style(settings.riding_style);
-        crate::scenes::world::drive::set_bike_steering(settings.bike_steering);
+        crate::scenes::world::drive::rider::set_choices(settings);
         scene.set_detail(settings.detail);
         scene.set_car_shading(settings.effective_car_shading());
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);

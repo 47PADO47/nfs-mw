@@ -10,7 +10,7 @@ Where each default of `NFSMWBartenderSettings.ini` came from, and what was not r
 | `TimePerLevel` | 600 (levels 1 to 7), 780, 820, 2000 s | `docs/specs/ai-pursuit-heat.md` section 2.3 (the bin-independent values the rewrite already used) |
 | `BustSpeed` | 9, 12, 19, 20, 25, 25, 19, 5, 5, 5 km/h | `docs/specs/ai-pursuit-heat.md` section 2.2 (`pursuitlevels.BustSpeed`, install-verified) |
 | `Fines` | 150, 350, 1000, 350, 300, 100, 300, 75 | `docs/specs/ai-pursuit-heat.md` section 4 (`infractions`, install-verified; the constant the rewrite already used) |
-| `EvadeAdjust` | 0.95 | `docs/specs/ai-pursuit-heat.md` section 2.3 (`EvadeSuccessHeatAdjust` of the default collection) |
+| `EvadeAdjust` | 1.0 | `docs/specs/ai-pursuit-heat.md` section 3.3: the original keeps the live heat through an escape (2026-11-07 recording); `EvadeSuccessHeatAdjust` 0.95 of the default collection cools the career records |
 | `CopCap` | none (the install's `FullEngagementCopCount`) | `docs/specs/ai-pursuit-heat.md` section 2.1 (install row, read by `nfsmw-data::pursuit`) |
 | `MaxCops` | 8 | the rewrite's existing cap (`pursuit.rs`); the stock car loader's limit in the Bartender notes (`docs/mods/nfsmwbartender.md` section 4), not measured here |
 | `Busted.Timeout` | 5 s | `docs/specs/ai-pursuit.md` section 5.1 (`kBustedTimeout`) |

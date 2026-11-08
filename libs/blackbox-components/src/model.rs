@@ -27,7 +27,8 @@ pub enum Condition {
 }
 
 impl Condition {
-    pub(crate) fn slot(&self) -> &str {
+    /// The slot the rule is about.
+    pub fn slot(&self) -> &str {
         match self {
             Self::Is { slot, .. }
             | Self::IsNot { slot, .. }
@@ -258,7 +259,8 @@ impl Slot {
         self.accepts.iter().find(|offer| offer.component == component)
     }
 
-    pub(crate) fn can_be_empty(&self) -> bool {
+    /// Whether the slot can hold nothing: it has no default, or it is optional.
+    pub fn can_be_empty(&self) -> bool {
         self.optional || self.default.is_none()
     }
 }

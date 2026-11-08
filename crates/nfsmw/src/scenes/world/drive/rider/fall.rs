@@ -26,6 +26,9 @@ const RETURN_TIME: f32 = 0.25;
 /// second (`docs/specs/ride6-rider-getup.md`, "The return"). About a jog, so the way back takes a second or two.
 const RETURN_SPEED: f32 = 3.0;
 const RETURN_LONGEST: f32 = 2.0;
+/// A rider this far from the bike when it is put back (m) is not walked to it: he was lost (under the map, far off the road) and is on the
+/// seat in the next step, not streaked across the picture (`docs/specs/ride6-feel-round14.md`, section 4).
+const RETURN_SNAP_M: f32 = 25.0;
 
 /// A body of the ragdoll and the bone it moves.
 #[derive(Debug, Clone, Copy)]
@@ -196,7 +199,12 @@ impl Fall {
         let from: Vec<Transform> =
             tumble.pose(skeleton, self.origin).into_iter().map(|t| shifted(t, self.origin)).collect();
         let pelvis = from.get(tumble.links[tumble.anim.as_ref().map_or(0, |anim| anim.root)].bone);
+        let far = pelvis.is_some_and(|pelvis| {
+            let way = pelvis.translation.distance(seat);
+            way.is_nan() || way >= RETURN_SNAP_M
+        });
         let duration = match (self.ready, pelvis) {
+            _ if far => f32::EPSILON,
             (true, Some(pelvis)) => return_time(pelvis.translation.distance(seat)),
             _ => RETURN_TIME,
         };

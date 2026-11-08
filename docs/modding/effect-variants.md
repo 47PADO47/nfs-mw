@@ -102,6 +102,11 @@ format = 1
 geometry = "TREES/MW2012/GEOMETRY.BIN"   # the models: solids in the install's format (a GeometryPack, as a car's GEOMETRY.BIN)
 textures = "TREES/MW2012/TEXTURES.BIN"   # the textures they use (a texture pack, as a car's TEXTURES.BIN)
 
+[fit]                                    # optional, every key optional: the limits a replacement keeps (below)
+spread = 1.25                            # at most this much wider than the footprint it replaces (1 to 4)
+squeeze = 0.5                            # squeezed sideways to no less than this share of its height scale (0.1 to 1)
+min_height = 0.7                         # not used if it would be shorter than this share of the replaced height (0 to 1)
+
 [[swap]]                                 # one per replaced solid, 1 to 4096
 solid = "XT_CEDARM_1B_JG_00"             # the game's solid, by name as the game spells it (the hash is case-sensitive)
 model = "MW12_CONIFER_TALL_L0"           # the solid of `geometry` that takes its place
@@ -113,20 +118,35 @@ fit = "height"                           # "height" (default) or "row"
   colour, uv); its groups name their effect: **effect 6** (the tree shader) for leaf cards, **effect 0** (the world shader) for bark.
   The texture of a leaf card is a punch-through texture (`AlphaUsageType` 1, blend 0): the engine draws it cut out and from both sides.
 - **A model's origin is its base**: z is up, the foot of the trunk is at the origin, and the model's height is how far it reaches above it
-  (roots may reach below). Texture names are the mod's own (the 2012 mod's are `MW12_T<id>`), so they cannot clash with the game's.
+  (roots may reach below). **Every level of a model must stand on the ground** (its lowest point near the origin): a level that is a crown
+  alone hovers over the ground wherever the game draws it, so a mod leaves such levels out (the 2012 mod does, see
+  [chameleon-vegetation.md](../formats/chameleon-vegetation.md#the-levels-that-stand)). Texture names are the mod's own (the 2012 mod's are
+  `MW12_T<id>`), so they cannot clash with the game's.
 - **A replacement keeps the identity of the solid it replaces**: its name (so the hash the scenery refers to it by), its flags (the
   sway bit among them), its pivot matrix and the polygon count and density its header carries (the scenery's choice of level of detail
   reads them). Only the geometry changes.
-- **`fit = "height"`**: one copy, scaled evenly (a quarter to four times) to the height of the replaced solid's bounds, with its origin at
-  the solid's origin on the solid's floor (the lowest point of its bounds).
-- **`fit = "row"`**: for a solid that is a stretch of trees: copies of the model, scaled to the replaced height but no further than one and
-  a half times, set along the longer horizontal side of the replaced bounds (at most eight, a crown overlapping its neighbour by a fifth),
-  each turned by the golden angle more than the one before, on the middle of the other side.
-- **Rows follow the footprint, not the silhouette (decided).** A row takes the bounds of the solid it replaces, its long side and its floor,
-  and nothing more: the copies are whole 2012 trees at most one and a half times their size, so a row whose old crowns were 46 m high gets
-  trees of 33 m, and one whose old canopy floated (its floor 7.4 m above the origin, with no trunks under it) gets trees whose trunks start
-  at that floor. Fitting the old crown band exactly would stretch a tree to twice its size or leave its foot in the air, and a stretch is seen
-  from afar, where the long line and the height matter. The cap is `ROW_MAX_SCALE` in `model_swap/fit.rs`.
+- **The rule: a replacement never grows beyond the footprint it replaces** (`model_swap/place.rs`, the limits are the `[fit]` table).
+  The game measures the replaced solid from its own vertices, so the mod never reads the 2005 install:
+  - *Height of a copy.* It is scaled evenly to the height of the geometry it replaces (a quarter to four times for a `height` swap, up to
+    one and a half times for a `row`), its foot on that geometry's **floor** (the lowest vertex of its stretch). A solid modelled around its
+    own origin (the scenery places it with a matrix) stands its tree on the origin, which is the ground, even when the old solid is only a
+    crown that begins above it (a far level): the tree reaches the old top from the ground. For a world-space copy the floor is the
+    only ground there is: a 2005 tree line is a crown without trunks, and its crowns' floor is where its trees stand (measured at a wall
+    top, where the old crowns began exactly at the wall's top, so the trunks of a replacement start there and do not pierce the wall).
+  - *Width of a copy.* It may be `spread` times as wide as the geometry it replaces (the wider side of the box that holds its
+    vertices in x and y: the whole solid for a single tree, the cell for the copies of a row). A model that is wider than that for its height (a broadleaf crown on a thin cypress) is **squeezed sideways**, down
+    to `squeeze` of its height scale; if even that is too wide, the copy is made smaller until its squeezed width fits. A copy that would
+    end up shorter than `min_height` of what the height asked for is **not used**: a solid with no copy keeps the game's own model, and
+    so does a solid when more than a third of its stretches cannot be fitted. The refusal is a rule, not an error: nothing is logged.
+  - *One copy for each stretch of the old geometry.* **`fit = "height"`** on a solid modelled around its own origin (the scenery places it with a
+    matrix) is one copy at that origin. Every other solid (**`fit = "row"`** of either kind, and every world-space copy of either fit) is
+    cut into the cells of a grid as wide as one copy (the model's width at the scale it needs, a fifth less for a row so that crowns overlap;
+    a solid no longer than one and a half cells is one cell); each cell with three vertices or more gets a copy, **at the middle of its
+    vertices, on the floor of its vertices**, as thick as they are. At most 32 copies and 60,000 vertices to a solid (the cells grow until
+    they fit; a solid that cannot be brought under the limit keeps its own model). Each copy is turned by the golden angle more than the
+    one before. So a line of trees that climbs a slope or bends round a road keeps its shape and every copy stands on its own floor: it
+    neither floats over a lower floor nor sinks into a higher one (the older rule put at most eight copies on a straight line on the
+    lowest floor of the solid, which hung the crowns of a row that climbed 50 metres in the air and carried them past the old footprint by up to 45 m).
 - **What is swapped.** A section is rewritten right after it is parsed (`Streamer::set_rewrite`), before its textures are decoded: each
   solid whose name hash a swap lists is replaced (a swap whose model or texture is missing from the packs is left out, with a warning). The
   shared sets (`X0`: the library of the scenery, which the scenery places with a matrix) are rewritten like the tiles. Solids the profile does
@@ -134,10 +154,9 @@ fit = "height"                           # "height" (default) or "row"
 - **World-space copies.** The game's scenery has no instance of most of its trees: it holds a copy of the solid for each place, with the
   instance's matrix baked into its vertices and the name `<NAME>_DEINST<n>_<tile>` (910 of the 1,004 tree solids,
   [chameleon-vegetation.md](../formats/chameleon-vegetation.md#how-the-2005-game-draws-its-trees-verified)). A swap listed under `<NAME>`
-  therefore reaches every copy of it too: the model stands at the middle of the copy's footprint (the oriented box of its vertices) on the
-  copy's floor, as tall as the copy; a `row` runs along the long side of that box whichever way it points. The copy keeps its name, flags,
-  pivot, polygon count and density; if the instance it was made from is a mirror image (`docs/specs/backface-culling.md`) the replacement is
-  wound the same way. A copy is fitted where it loads (the fit of a solid with a matrix is cached by its bounds, a copy's is not kept).
+  therefore reaches every copy of it too, and a copy may be a whole hillside of trees (a far level merges many), so it is fitted cell by cell as above. The copy keeps its
+  name, flags, pivot, polygon count and density; if the instance it was made from is a mirror image (`docs/specs/backface-culling.md`) the
+  replacement is wound the same way. A copy is fitted where it loads (the fit of a solid with a matrix is cached by its name and bounds, a copy's is not kept).
 - **Textures once.** The textures of the models are **not** copied into the sections that are rewritten. The world uploads them once, into
   the shared sets (`residency/trees.rs`: they join the global textures that are uploaded before the shared models), and the solids of every
   tile find them there as they find the shared library's textures. On disk they are in `TEXTURES.BIN` once; in memory the pack holds the
@@ -150,8 +169,8 @@ fit = "height"                           # "height" (default) or "row"
   choice at the next drive), the map packs of mods, and everything in a multiplayer session (lockstep), where a tile that is uploaded again
   is not the same moment on every machine. A pack that is missing or does not parse leaves the game's trees (a warning says why).
 
-The 2012 mod's value, **NFS Most Wanted 2012**, is the 2012 game's trees converted from the player's own install: eleven species, four
-levels of detail each, 78 swaps (they reach the world-space copies too). What the conversion reads, writes and takes:
+The 2012 mod's value, **NFS Most Wanted 2012**, is the 2012 game's trees converted from the player's own install: eleven species, up to four
+levels of detail each (the ones that stand on the ground), 81 swaps (they reach the world-space copies too). What the conversion reads, writes and takes:
 [chameleon-vegetation.md](../formats/chameleon-vegetation.md#what-the-conversion-costs). What the 2012 files hold, the species, and which
 solids they replace: [chameleon-vegetation.md](../formats/chameleon-vegetation.md). The mod's setting `trees = false` leaves them out.
 

@@ -3,6 +3,7 @@
 pub mod bike;
 mod chase;
 mod cut;
+mod damped;
 #[cfg(test)]
 mod depth_tests;
 mod dynamic_fov;
