@@ -1,9 +1,11 @@
-//! The stock parts of a bike that the shop can swap, built as solids of their own (`docs/modding/ride6-bike-upgrades.md`).
+//! The stock parts of a bike that the shop can swap or switch off, built as solids of their own
+//! (`docs/modding/ride6-bike-upgrades.md`, `docs/modding/ride6-road-equipment.md`).
 //!
-//! Without the shop's options the exhaust is part of the body solid, the bar pad of the bars, and the rims and brake discs of
-//! the wheel solids. A bike that has options writes these six parts as solids named `<ID>_KIT00_<TAG>_<L>`, each modelled in the
-//! frame the game poses it in (body, or a hub), so that a part of the catalogue can take its place. The body, bars, fork and
-//! wheel solids leave them out ([`apart_ids`]); the tyre stays in the wheel solid.
+//! Without the shop's options the exhaust is part of the body solid, the bar pad of the bars, the rims and brake discs of the
+//! wheel solids, and the road equipment (side mirrors, homologation kit) of the body. A bike that has options writes these parts
+//! as solids named `<ID>_KIT00_<TAG>_<L>`, each modelled in the frame the game poses it in (body, or a hub), so that a part of
+//! the catalogue can take its place or a component can show it or not. The body, bars, fork and wheel solids leave them out
+//! ([`apart_ids`]); the tyre stays in the wheel solid.
 
 use anyhow::Result;
 use blackbox_solid::SolidSource;
@@ -40,14 +42,20 @@ pub struct Piece {
 }
 
 /// The pieces, in the order the manifest lists them.
-pub static PIECES: [Piece; 6] = [
+pub static PIECES: [Piece; 8] = [
     Piece { tag: "EXHAUST", ids: &["exmanifold", "muffler"], at: At::Body, part: "exhaust.stock", role: "body" },
     Piece { tag: "BARPAD", ids: &["barpad"], at: At::FrontHub, part: "barpad.stock", role: "steered" },
     Piece { tag: "FRONT_RIM", ids: &["front_rim"], at: At::FrontHub, part: "rim.front.stock", role: "wheel_front" },
     Piece { tag: "REAR_RIM", ids: &["back_rim"], at: At::RearHub, part: "rim.back.stock", role: "wheel_rear" },
     Piece { tag: "FRONT_DISC", ids: &["front_brake"], at: At::FrontHub, part: "disc.front.stock", role: "wheel_front" },
     Piece { tag: "REAR_DISC", ids: &["back_brake"], at: At::RearHub, part: "disc.back.stock", role: "wheel_rear" },
+    Piece { tag: "MIRRORS", ids: &["mirrors"], at: At::Body, part: ROAD_MIRRORS, role: "body" },
+    Piece { tag: "HOMOLOGATION", ids: &["homologation"], at: At::Body, part: ROAD_HOMOLOGATION, role: "body" },
 ];
+
+/// The part ids the road equipment's pieces are bound as: the optional component `r6:road.on` shows both.
+pub const ROAD_MIRRORS: &str = "road.mirrors";
+pub const ROAD_HOMOLOGATION: &str = "road.homologation";
 
 /// The part ids the pieces of `mask` (bit `n` for `PIECES[n]`) take out of the body, bars and wheels.
 pub fn apart_ids(mask: u8) -> Vec<&'static str> {

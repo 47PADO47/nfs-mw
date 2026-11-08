@@ -36,6 +36,7 @@ The numbers are from the user's install (319 bikes):
 | `rims` | stock and the aftermarket rims that fit (radius within 3 percent of the stock rim, width 0.75 to 1.35 times, both wheels) | 277 | 1556 | Rims category |
 | `brake_discs` | stock, and the discs of the bike's `Brakes-Kit-Level-1` and `-2` rows | 166 | 332 | Body kit category |
 | `bar_pad` | stock and the 33 aftermarket pads, for the bikes that have a stock pad | 5 | 165 | Hood category |
+| `road_equipment` | the road equipment on or off: the side mirrors and the homologation plate holder, one optional component shown by default (group `road`, [ride6-road-equipment.md](ride6-road-equipment.md)) | 159 | | none: the developer tools only |
 | `perf_engine` | three levels: peak torque times the bike's upgrade multiplier in equal steps | 187 | | Engine performance level |
 | `perf_chassis` | two levels: mass times its multiplier (the lightweight chassis) | 187 | | Suspension performance level |
 | `perf_brakes` | two levels: front and rear brake force times its multiplier | 187 | | Brakes performance level |
@@ -68,7 +69,7 @@ slot the garage has no category for is kept for the session ([devtools-vehicle.m
 ## What the importer writes
 
 ```
-files/CARS/<ID>/GEOMETRY.BIN     + <ID>_KIT00_{EXHAUST,BARPAD,FRONT_RIM,REAR_RIM,FRONT_DISC,REAR_DISC}_<L>: the stock parts as solids
+files/CARS/<ID>/GEOMETRY.BIN     + <ID>_KIT00_{EXHAUST,BARPAD,FRONT_RIM,REAR_RIM,FRONT_DISC,REAR_DISC,MIRRORS,HOMOLOGATION}_<L>: the stock parts as solids
 files/PARTS/R6/<STEM>/{GEOMETRY.BIN,TEXTURES.BIN}    one folder per aftermarket part, shared by every bike that fits it
 components/ride6-bikes.toml      the catalog: every component once
 cars/<id>.toml                   + [[slot]] tables and [parts."<id>"] bindings

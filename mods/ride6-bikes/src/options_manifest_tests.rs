@@ -49,7 +49,10 @@ fn part<'a>(plan: &'a Plan, id: &str) -> &'a Part {
 fn a_bike_with_everything_has_a_slot_for_each() {
     let plan = plan();
     let ids: Vec<&str> = plan.slots.iter().map(|slot| slot.id).collect();
-    assert_eq!(ids, ["exhaust", "rims", "brake_discs", "bar_pad", "perf_engine", "perf_chassis", "perf_brakes"]);
+    assert_eq!(
+        ids,
+        ["exhaust", "rims", "brake_discs", "bar_pad", "perf_engine", "perf_chassis", "perf_brakes", "road_equipment"]
+    );
     let exhaust = &plan.slots[0];
     assert_eq!(exhaust.accepts, ["r6:exhaust.stock", "r6:exhaust.muf_akrapovic_completo_standard"]);
     assert_eq!(exhaust.default, "r6:exhaust.stock");
@@ -97,13 +100,58 @@ fn a_bike_gets_only_the_slots_its_data_and_its_stock_parts_allow() {
     let have: Vec<&Piece> = PIECES.iter().filter(|piece| piece.tag != "BARPAD" && piece.tag != "REAR_RIM").collect();
     let plan = Plan::of("ktm450", &options(), &have, Mounts::default());
     let ids: Vec<&str> = plan.slots.iter().map(|slot| slot.id).collect();
-    assert_eq!(ids, ["exhaust", "brake_discs", "perf_engine", "perf_chassis", "perf_brakes"]);
+    assert_eq!(ids, ["exhaust", "brake_discs", "perf_engine", "perf_chassis", "perf_brakes", "road_equipment"]);
     let none = BikeOptions {
         upgrade: Some(Upgrade { peak_torque: 1.0, mass: 1.0, brake_force: 1.0 }),
         ..BikeOptions::default()
     };
-    let have: Vec<&Piece> = PIECES.iter().collect();
+    let have: Vec<&Piece> = PIECES.iter().filter(|piece| !matches!(piece.tag, "MIRRORS" | "HOMOLOGATION")).collect();
     assert!(Plan::of("x", &none, &have, Mounts::default()).slots.is_empty());
+}
+
+fn road(tags: &[&str]) -> Plan {
+    let have: Vec<&Piece> = PIECES.iter().filter(|piece| tags.contains(&piece.tag)).collect();
+    Plan::of("pani", &BikeOptions::default(), &have, Mounts::default())
+}
+
+#[test]
+fn a_bike_with_road_equipment_gets_one_optional_slot_that_is_shown_by_default() {
+    let plan = road(&["MIRRORS", "HOMOLOGATION", "EXHAUST"]);
+    assert_eq!(plan.slots.len(), 1, "no catalogue row is needed for the road equipment");
+    let slot = &plan.slots[0];
+    assert_eq!((slot.id, slot.group, slot.optional), ("road_equipment", "road", true));
+    assert_eq!((slot.accepts.as_slice(), slot.default.as_str()), (["r6:road.on".to_owned()].as_slice(), "r6:road.on"));
+    let mirrors = part(&plan, "road.mirrors");
+    assert_eq!((mirrors.solid.as_str(), mirrors.pack.as_deref(), mirrors.role), ("PANI_KIT00_MIRRORS", None, "body"));
+    assert_eq!(part(&plan, "road.homologation").solid, "PANI_KIT00_HOMOLOGATION");
+    assert!(
+        plan.parts.iter().all(|part| !part.id.starts_with("exhaust")),
+        "the exhaust has no slot without a catalogue row"
+    );
+    let shows = &plan.components[0].1.shows;
+    assert_eq!(shows, &["road.mirrors", "road.homologation"], "one component for every bike");
+}
+
+#[test]
+fn a_bike_with_only_the_mirrors_binds_only_them() {
+    let plan = road(&["MIRRORS"]);
+    assert_eq!(plan.slots.len(), 1);
+    assert_eq!(plan.parts.len(), 1);
+    assert!(road(&["EXHAUST", "FRONT_RIM"]).slots.is_empty(), "a bike with none has no slot");
+}
+
+#[test]
+fn the_road_slot_is_written_optional_and_the_game_reads_it_back() {
+    let plan = road(&["MIRRORS", "HOMOLOGATION"]);
+    let text = plan.text();
+    assert!(text.contains("group = \"road\"") && text.contains("optional = true"), "{text}");
+    let car = parse_car("pani", &text).unwrap();
+    let components = car.components.unwrap();
+    assert!(components.slots[0].optional && components.slots[0].group == "road");
+    let catalog = parse_catalog(&catalog_text([&plan].into_iter())).unwrap();
+    assert!(catalog.get("r6:road.on").is_some());
+    let vehicle = VehicleDef { id: "pani".to_owned(), parts: BTreeSet::new(), slots: components.slots };
+    vehicle.check(&catalog).unwrap();
 }
 
 #[test]
@@ -121,7 +169,7 @@ fn the_text_is_read_back_by_the_game_and_its_slots_fit_the_catalog() {
     let plan = plan();
     let car = parse_car("ktm450", &plan.text()).unwrap();
     let components = car.components.unwrap();
-    assert_eq!(components.slots.len(), 7);
+    assert_eq!(components.slots.len(), 8);
     assert_eq!(components.parts["rim.front.rim738_001"].matrix.unwrap().len(), 12);
     let catalog = parse_catalog(&catalog_text([&plan].into_iter())).unwrap();
     let vehicle = VehicleDef { id: "ktm450".to_owned(), parts: BTreeSet::new(), slots: components.slots };

@@ -16,7 +16,9 @@ use crate::config::Config;
 /// lift and satin metal drawn as painted metal.
 /// 7: the finest level of detail for every body (the frame is as many solids as it needs, `BODY2`, ...), the pictures of the old rims,
 /// silencers and headers whose master names them differently, the far levels' paint taken from the chassis' livery.
-const CONVERSION: u32 = 7;
+/// 8: the road equipment (side mirrors, homologation kit) as solids of their own with an optional slot, group `road`
+/// (`docs/modding/ride6-road-equipment.md`).
+const CONVERSION: u32 = 8;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";
 
