@@ -49,6 +49,19 @@ fn the_trees_are_on_by_default_and_the_setting_turns_them_off() {
 }
 
 #[test]
+fn the_sky_is_on_at_full_size_by_default_and_its_settings_are_checked() {
+    let config = Config::default();
+    assert!(config.sky && config.sky_size == 2048 && !Config::parse("sky = false
+").unwrap().sky);
+    assert_eq!(Config::parse("sky_size = 1024
+").unwrap().sky_size, 1024);
+    assert!(["sky_size = 100", "sky_size = 4096", "sky_size = 128"].into_iter().all(|bad| Config::parse(bad).is_err()));
+    let stamp = |config: Config| crate::stamp::of(&config, Path::new("definitely/not/here"));
+    assert_ne!(stamp(Config::default()), stamp(Config { sky: false, ..Config::default() }));
+    assert_ne!(stamp(Config::default()), stamp(Config { sky_size: 512, ..Config::default() }));
+}
+
+#[test]
 fn selection_and_exclusion_match_ids_and_name_fragments() {
     let config: Config = toml::from_str("cars = ['porsche', 'LAM']\nexclude = ['GT2']").unwrap();
     assert!(config.wants("POR911CARR12", "Porsche 911 Carrera S 2012"));

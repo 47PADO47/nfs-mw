@@ -324,6 +324,8 @@ impl WorldScene {
                 tire_smoke_variant: None,
                 skid_marks_variant: None,
                 rain_splash: Default::default(),
+                panorama: Default::default(),
+                panorama_profile: None,
                 rain,
                 wind,
                 wet_road: Default::default(),

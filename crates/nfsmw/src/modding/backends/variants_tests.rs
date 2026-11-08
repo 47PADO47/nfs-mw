@@ -58,6 +58,26 @@ fn every_kind_has_its_own_option_and_folder_and_texts() {
 }
 
 #[test]
+fn the_original_value_of_an_option_a_mod_created_has_no_owner() {
+    let (bridge, _, _) = setup();
+    let options = bridge.options.borrow_mut().add_option(
+        "mymod",
+        &OptionSpec {
+            id: SKY_KIND.variant.option,
+            kind: OptionKind::List,
+            label: "Sky",
+            values: vec![ValueSpec { id: ORIGINAL, label: "Original" }, ValueSpec { id: "mymod", label: "A mod's" }],
+            default_on: false,
+            section: "",
+        },
+    );
+    assert!(options.is_ok());
+    let chosen = choice(&bridge, &SKY_KIND);
+    assert_eq!((chosen.value.as_str(), chosen.owner), ("original", None), "no profile is looked for");
+    assert!(bridge.sky_profile().is_none());
+}
+
+#[test]
 fn without_a_mod_every_kind_is_the_original_and_no_option_is_listed() {
     let (bridge, _, _) = setup();
     assert!(visible(&bridge).is_empty(), "one value each: the menu is as it was");

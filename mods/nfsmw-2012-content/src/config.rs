@@ -125,6 +125,11 @@ skid_marks = true
 rain_splash = true
 rain_drops = true
 wet_road = true
+# Add the 2012 game's sky (cloud domes for the hours and the weather, the moon) as a value of the gameplay setting \"Sky\", read from
+# your 2012 install into the mod's folder (about 5.5 MB; README, \"Sky\"). false adds neither. sky_size is the widest a dome picture
+# is written, 256 to 2048: 2048 keeps the install's pictures, 1024 halves them and the disk they take.
+sky = true
+sky_size = 2048
 
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
@@ -245,6 +250,10 @@ pub struct Config {
     pub rain_splash: bool,
     pub rain_drops: bool,
     pub wet_road: bool,
+    /// Whether the 2012 game's sky is converted and offered as a sky variant (`sky.rs`).
+    pub sky: bool,
+    /// The widest a sky dome picture is written (256 to 2048): wider ones are halved.
+    pub sky_size: u32,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -275,6 +284,8 @@ impl Default for Config {
             rain_splash: true,
             rain_drops: true,
             wet_road: true,
+            sky: true,
+            sky_size: 2048,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),
@@ -329,6 +340,9 @@ impl Config {
     }
 
     pub fn check(&self) -> Result<()> {
+        if !self.sky_size.is_power_of_two() || !(256..=2048).contains(&self.sky_size) {
+            bail!("sky_size {} must be a power of two from 256 to 2048", self.sky_size);
+        }
         if !self.max_texture_size.is_power_of_two() || !(16..=4096).contains(&self.max_texture_size) {
             bail!("max_texture_size {} must be a power of two from 16 to 4096", self.max_texture_size);
         }

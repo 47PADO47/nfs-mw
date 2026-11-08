@@ -14,10 +14,10 @@ use std::sync::Arc;
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
 use blackbox_modding::content::{
-    GradingProfile, ModelSwapProfile, NitrousProfile, RainSplashProfile, SkidMarksProfile, SparksProfile, TireSmokeProfile,
-    WetRoadProfile, WindProfile, XenonProfile, parse_grading_profile, parse_model_swap_profile, parse_nitrous_profile,
-    parse_rain_splash_profile, parse_skid_marks_profile, parse_sparks_profile, parse_tire_smoke_profile,
-    parse_wet_road_profile, parse_wind_profile, parse_xenon_profile,
+    GradingProfile, ModelSwapProfile, NitrousProfile, RainSplashProfile, SkidMarksProfile, SkyProfile, SparksProfile,
+    TireSmokeProfile, WetRoadProfile, WindProfile, XenonProfile, parse_grading_profile, parse_model_swap_profile,
+    parse_nitrous_profile, parse_rain_splash_profile, parse_skid_marks_profile, parse_sky_profile, parse_sparks_profile,
+    parse_tire_smoke_profile, parse_wet_road_profile, parse_wind_profile, parse_xenon_profile,
 };
 use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;
@@ -34,8 +34,8 @@ use super::settings::{self, OptionHandler};
 use super::time::{self, Clock, ClockRequest};
 use super::ui::UiRecord;
 use super::variants::{
-    COLLISION_SPARKS_KIND, CacheCell, GRADING_KIND, NITROUS_KIND, RAIN_SPLASH_KIND, SKID_MARKS_KIND, TIRE_SMOKE_KIND,
-    TREES_KIND, WET_ROAD_KIND, WIND_KIND, XENON_SPARKS_KIND,
+    COLLISION_SPARKS_KIND, CacheCell, GRADING_KIND, NITROUS_KIND, RAIN_SPLASH_KIND, SKID_MARKS_KIND, SKY_KIND,
+    TIRE_SMOKE_KIND, TREES_KIND, WET_ROAD_KIND, WIND_KIND, XENON_SPARKS_KIND,
 };
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
@@ -91,6 +91,8 @@ pub struct Bridge {
     pub(super) skid_marks_cache: CacheCell<SkidMarksProfile>,
     pub(super) rain_splash_cache: CacheCell<RainSplashProfile>,
     pub(super) wet_road_cache: CacheCell<WetRoadProfile>,
+    /// The same for the sky variant (`sky_profile`).
+    pub(super) sky_cache: CacheCell<SkyProfile>,
     /// The same for the trees variant (`trees_profile`), and the profile whose models are in effect in the world's loaders
     /// (`publish_replacements`).
     pub(super) trees_cache: CacheCell<ModelSwapProfile>,
@@ -148,6 +150,7 @@ impl Bridge {
             skid_marks_cache: RefCell::default(),
             rain_splash_cache: RefCell::default(),
             wet_road_cache: RefCell::default(),
+            sky_cache: RefCell::default(),
             trees_cache: RefCell::default(),
             replace: RefCell::default(),
             grading_cache: RefCell::default(),
@@ -249,6 +252,12 @@ impl Bridge {
         self.variant_profile(&WET_ROAD_KIND, &self.wet_road_cache, parse_wet_road_profile)
     }
 
+    /// The sky variant the player chose, when it is a mod's: `SKY/<value>/profile.toml`. The option is the one the replacement sets
+    /// of kind `sky` create (`replace.rs`).
+    pub fn sky_profile(&self) -> Option<Arc<SkyProfile>> {
+        self.variant_profile(&SKY_KIND, &self.sky_cache, parse_sky_profile)
+    }
+
     /// The trees variant the player chose, when it is a mod's: `TREES/<value>/profile.toml`.
     pub fn trees_profile(&self) -> Option<Arc<ModelSwapProfile>> {
         self.variant_profile(&TREES_KIND, &self.trees_cache, parse_model_swap_profile)
@@ -271,6 +280,7 @@ impl Bridge {
             rain_splash: self.rain_splash_profile(),
             wet_road: self.wet_road_profile(),
             grading: self.grading_look(),
+            sky: self.sky_profile(),
         }
     }
 

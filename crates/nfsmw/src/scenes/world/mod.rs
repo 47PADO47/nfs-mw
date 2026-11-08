@@ -113,6 +113,7 @@ use session_rules::ViewSource;
 mod shadow_feed;
 mod simulation;
 mod sky;
+mod sky_panorama;
 mod sound;
 mod space;
 mod state_hash;
@@ -334,6 +335,9 @@ pub struct WorldScene {
     skid_marks_variant: Option<std::sync::Arc<blackbox_modding::content::SkidMarksProfile>>,
     /// The splashes of the rain on the road, when the player chose a mod's variant (`effects/rain_splash.rs`).
     rain_splash: effects::rain_splash::RainSplash,
+    /// The panoramic sky of the sky variant the player chose, if it is a mod's (`sky_panorama.rs`).
+    panorama: sky_panorama::PanoramaSky,
+    panorama_profile: Option<std::sync::Arc<blackbox_modding::content::SkyProfile>>,
     rain: crate::weather::rain::Rain,
     /// The wind each player view hands to the scenery sway (`docs/specs/scenery-sway.md`).
     wind: crate::weather::wind::Wind,

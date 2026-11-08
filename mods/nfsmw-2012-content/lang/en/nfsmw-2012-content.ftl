@@ -8,3 +8,5 @@ nfsmw2012-road-textures-value = NFS Most Wanted 2012
 nfsmw2012-road-signs = Road signs
 nfsmw2012-traffic-light-models = Traffic light models
 nfsmw2012-bushes = Bushes
+nfsmw2012-sky = Sky
+nfsmw2012-sky-value = NFS Most Wanted 2012

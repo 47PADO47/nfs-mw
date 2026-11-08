@@ -86,6 +86,7 @@ mod scenery;
 mod scenery_tests;
 mod shared_sound;
 mod skid_marks;
+mod sky_variant;
 mod spark_gate;
 mod spark_variant;
 mod stats;
@@ -166,6 +167,10 @@ pub use shared_sound::SharedSound;
 pub use skid_marks::{
     MAX_SETS as MAX_MARK_SETS, MarkSet, MarkSurface, SKIDMARKS_FOLDER, SkidMarksProfile,
     parse as parse_skid_marks_profile, skid_marks_profile_path,
+};
+pub use sky_variant::{
+    Dome as SkyDome, Moon as SkyMoon, Pose as SkyPose, SKY, SKY_FOLDER, SkyProfile, Weather as SkyWeather,
+    parse as parse_sky_profile, sky_profile_path,
 };
 pub use spark_gate::{HitChannel, HitGate, ScrapeChannel, ScrapeGate};
 pub use spark_variant::{

@@ -73,6 +73,7 @@ mod rain_assets;
 mod sample;
 mod shared;
 mod signs;
+mod sky;
 mod sound_store;
 mod sounds;
 mod soundtrack;

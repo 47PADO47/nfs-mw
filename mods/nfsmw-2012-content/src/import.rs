@@ -130,6 +130,7 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
         crate::marks_assets::write(source, out);
     }
     crate::rain_assets::write(source, out, config.rain_splash, config.rain_drops, config.wet_road);
+    crate::sky::write(source, config, out);
     let makes: Vec<&str> =
         wanted.iter().zip(&results).filter(|(_, done)| done.is_ok()).map(|(car, _)| car.make.as_str()).collect();
     let written = brands::write_all(source, &folder, &makes);

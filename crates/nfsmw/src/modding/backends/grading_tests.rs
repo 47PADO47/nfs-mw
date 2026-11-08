@@ -22,6 +22,7 @@ fn spec(value: &str) -> OptionSpec<'_> {
         label: "Color grading",
         values: vec![ValueSpec { id: value, label: "A mod's look" }],
         default_on: false,
+        section: "",
     }
 }
 

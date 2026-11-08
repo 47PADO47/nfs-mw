@@ -94,6 +94,9 @@ pub trait RenderBackend {
     }
     fn destroy_sky_material(&mut self, _handle: crate::SkyMaterialHandle) {}
     fn set_sky_state(&mut self, _state: crate::SkyState) {}
+    /// The pictures of a panoramic sky (`SkyState::panorama` says how they are drawn), or `None` to go back to the procedural
+    /// clouds. The renderer keeps the handles' textures: the caller destroys them after setting `None`.
+    fn set_sky_panorama(&mut self, _panorama: Option<crate::SkyPanorama>) {}
     fn set_sun_glare(&mut self, _glare: Option<crate::SunGlare>) {}
 
     /// Unsupported backends return `None`, requesting the caller's legacy fallback.

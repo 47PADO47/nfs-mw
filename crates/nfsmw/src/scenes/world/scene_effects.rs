@@ -47,6 +47,7 @@ impl WorldScene {
         self.wet_road.set_profile(variants.wet_road.clone());
         self.wind_fx = variants.wind.clone();
         self.grading.set_look(variants.grading.clone());
+        self.panorama_profile = variants.sky.clone();
         if let Some(drive) = self.players.lead_mut() {
             drive.effects.set_variant(variants.tire_smoke.clone());
             drive.effects.set_marks_variant(variants.skid_marks.clone());

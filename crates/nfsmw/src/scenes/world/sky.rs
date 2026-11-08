@@ -32,6 +32,16 @@ impl WorldScene {
         if sky.enhanced {
             sky.scroll += self.day.cloud_seek_seconds() * 0.02;
         }
+        // A sky variant's panorama replaces the procedural clouds, so it needs the procedural sky.
+        self.panorama.set_profile(self.panorama_profile.clone(), renderer);
+        if self.panorama.active() {
+            let sun = celestial.map_or_else(|| self.sun.visible(), |c| c.sun);
+            let sun_turns = sun.y.atan2(sun.x) / std::f32::consts::TAU + 0.5;
+            let scroll = sky.scroll * options.sky_wind_speed;
+            sky.panorama =
+                self.panorama.frame(renderer, &self.dir, (self.day.hour(), sky.cloud_coverage), sun_turns, scroll);
+            sky.enhanced |= sky.panorama.is_some();
+        }
         sky.sky_wind_speed = options.sky_wind_speed;
         sky.sky_sun_size = options.sky_sun_size;
         sky.sky_sun_brightness = options.sky_sun_brightness * (1.0 - night);

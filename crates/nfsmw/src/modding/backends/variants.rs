@@ -12,8 +12,8 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use blackbox_modding::content::{
-    COLLISION_SPARKS, ContentError, GRADING, NITROUS, RAIN_SPLASH, SKID_MARKS, TIRE_SMOKE, TREES, VariantKind, WET_ROAD,
-    WIND, XENON_SPARKS,
+    COLLISION_SPARKS, ContentError, GRADING, NITROUS, RAIN_SPLASH, SKID_MARKS, SKY, TIRE_SMOKE, TREES, VariantKind,
+    WET_ROAD, WIND, XENON_SPARKS,
 };
 
 use super::bridge::Bridge;
@@ -114,6 +114,11 @@ pub const GRADING_KIND: EffectKind = EffectKind {
     original: "options-grading-variant-original",
 };
 
+/// The sky: cloud domes and a moon picture. Not in [`KINDS`]: its option is created by the replacement sets of kind `sky` that a
+/// mod declares (`replace.rs`), and this is only how the profile of the chosen value is found.
+pub const SKY_KIND: EffectKind =
+    EffectKind { variant: SKY, name: "sky", label: "options-sky-variant", original: "options-sky-variant-original" };
+
 /// Every kind the game offers variants of. A new kind is added here.
 pub const KINDS: [EffectKind; 10] = [
     NITROUS_KIND,
@@ -139,6 +144,10 @@ pub struct VariantChoice {
 pub fn choice(bridge: &Bridge, kind: &EffectKind) -> VariantChoice {
     let option = kind.variant.option;
     let value = settings::chosen(bridge, option).unwrap_or_else(|| ORIGINAL.to_owned());
+    // The game's own value belongs to no mod, even when a mod created the option (the replacement sets do).
+    if value == ORIGINAL {
+        return VariantChoice { value, owner: None };
+    }
     let owner = bridge.options.borrow().value_owner(option, &value).map(str::to_owned);
     VariantChoice { value, owner }
 }

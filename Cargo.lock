@@ -2140,6 +2140,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon-environment"
+version = "0.1.0"
+dependencies = [
+ "chameleon-bundle",
+ "chameleon-gfx",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "chameleon-gfx"
 version = "0.1.0"
 dependencies = [
@@ -4361,6 +4370,7 @@ dependencies = [
  "chameleon-camera",
  "chameleon-effects",
  "chameleon-engine-state",
+ "chameleon-environment",
  "chameleon-gfx",
  "chameleon-postfx",
  "chameleon-sound-graph",

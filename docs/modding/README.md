@@ -32,6 +32,7 @@ when the module is new.
 | [effect-variants-marks-rain.md](effect-variants-marks-rain.md) | The skid mark, rain splash and wet road variants (`SKIDMARKS/`, `RAINSPLASH/`, `WETROAD/` profiles) and the rain drops as a replacement set of the lens picture; the 2012 mod's values and what they are made from |
 | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) | The collision spark and restored (Xenon) spark variants: `SPARKS/<ID>/` and `XENON/<ID>/` profiles, the strength gates of impacts and scrapes, what the game keeps of its own (the restored variant is the sparks only: no contrail, no streaks) |
 | [nitrous-variants.md](nitrous-variants.md) | The "Nitrous variant" option, a variant's `profile.toml` (sounds, flame tint, screen effects) and how a mod adds one |
+| [sky-variants.md](sky-variants.md) | The `sky` kind of the replacement API: a profile of cloud domes (pictures of the cloud cover) for the hours and the weather, and a moon picture, drawn as the clouds of the Enhanced sky; the profile format and where it is in the game |
 | [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |
 | [api-traffic.md](api-traffic.md) | Traffic cars: `role = "traffic"` and the `[traffic]` table (class, weight, limit, speed, patterns), how the traffic manager picks them, the `traffic` console commands, `bb.traffic` |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |

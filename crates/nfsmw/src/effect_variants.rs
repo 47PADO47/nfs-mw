@@ -9,8 +9,8 @@
 use std::sync::Arc;
 
 use blackbox_modding::content::{
-    NitrousProfile, RainSplashProfile, SkidMarksProfile, SparksProfile, TireSmokeProfile, WetRoadProfile, WindProfile,
-    XenonProfile,
+    NitrousProfile, RainSplashProfile, SkidMarksProfile, SkyProfile, SparksProfile, TireSmokeProfile, WetRoadProfile,
+    WindProfile, XenonProfile,
 };
 
 use crate::grading::GradingLook;
@@ -36,6 +36,8 @@ pub struct EffectVariants {
     pub wet_road: Option<Arc<WetRoadProfile>>,
     /// The colour grading: the cubes of the look the player chose, read from the install (`GRADING/<value>/profile.toml`).
     pub grading: Option<Arc<GradingLook>>,
+    /// The cloud domes and the moon of the sky (`SKY/<value>/profile.toml`), drawn as the clouds of the procedural sky.
+    pub sky: Option<Arc<SkyProfile>>,
 }
 
 #[cfg(test)]
@@ -48,7 +50,7 @@ mod tests {
         assert!(variants.nitrous.is_none() && variants.tire_smoke.is_none());
         assert!(variants.collision_sparks.is_none() && variants.xenon_sparks.is_none() && variants.wind.is_none());
         assert!(variants.skid_marks.is_none() && variants.rain_splash.is_none() && variants.wet_road.is_none());
-        assert!(variants.grading.is_none());
+        assert!(variants.grading.is_none() && variants.sky.is_none());
     }
 
     #[test]
