@@ -494,4 +494,6 @@ mod bike_sound_tests;
 #[cfg(test)]
 mod bike_tests;
 #[cfg(test)]
+mod bike_wall_survey_tests;
+#[cfg(test)]
 mod tests;

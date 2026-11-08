@@ -109,7 +109,7 @@ fn world(kerb: Kerb) -> CollisionWorld {
 }
 
 /// The example bike, or with `RIDE6_BIKE_TOML=<an imported bike's manifest>` that one (its box from the manifest).
-fn bike_sim() -> CarSim {
+pub(super) fn bike_sim() -> CarSim {
     let Some(path) = std::env::var_os("RIDE6_BIKE_TOML") else {
         return CarSim::new(CarPhysics::from_bike(Arc::new(BikeSpec::example()), 0.0, BOUNDS), [0.32; 4]);
     };
