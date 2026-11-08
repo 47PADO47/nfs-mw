@@ -277,6 +277,7 @@ fn the_throttle_rolls_the_right_grips_target_about_its_own_frame_and_only_that_o
         steers: true,
         anchor: None,
         anchor_rotation: None,
+        grip_span: None,
     });
     let roll = Quat::from_rotation_z(-std::f32::consts::FRAC_PI_6);
     attach.wrist_throttle = Some(Rigid { translation: [-0.006, -0.05, 0.0], rotation: roll.to_array() });
@@ -333,6 +334,7 @@ fn a_hand_keeps_its_place_and_turn_against_the_grip_bone_it_holds() {
         anchor: Some([0.3, 0.2, 0.9]),
         // A bone that is not the world's axes, to tell the bone's own y from the world's.
         anchor_rotation: Some(Quat::from_rotation_x(0.7).to_array()),
+        grip_span: None,
     });
     attach.wrist_throttle = Some(super::super::attach::Rigid {
         translation: [0.0, 0.01, 0.0],
@@ -349,4 +351,54 @@ fn a_hand_keeps_its_place_and_turn_against_the_grip_bone_it_holds() {
     let axis = (bone.1 * Vec3::Y).normalize();
     assert!((at.1 * Vec3::Y).distance(axis) < 1e-5, "the bone's y axis is the turn's axis");
     assert!((at.1 * Vec3::X).distance(Quat::from_axis_angle(axis, -0.5) * (bone.1 * Vec3::X)) < 1e-5);
+}
+
+/// The grip rubber's `[inboard, outboard]` span along its axis, metres from the grip bone, on real bikes (the importer's measure on the
+/// bikes' chassis meshes: CRF 450 R SMT, RC 390, Panigale V4 S, KTM 690, Challenger, Africa Twin, Dragster 200, S 1000 RR) and the
+/// extent of the posed glove along the grip from the same bone, measured on all eight with the probe of `probe_tests.rs`.
+const GRIPS: [[f32; 2]; 8] =
+    [[0.0, 0.116], [0.0, 0.121], [0.0, 0.125], [0.0, 0.113], [0.0, 0.129], [0.0, 0.137], [-0.010, 0.109], [0.0, 0.124]];
+const GLOVE_EXTENT: [f32; 2] = [-0.046, 0.094];
+
+fn grip(name: &str, span: Option<[f32; 2]>) -> super::super::attach::Target {
+    super::super::attach::Target {
+        name: name.into(),
+        position: [0.1, 0.1, 0.1],
+        rotation: Some(Quat::IDENTITY.to_array()),
+        steers: false,
+        anchor: Some([0.3, 0.2, 0.9]),
+        // A bone whose y is the grip's axis, turned as the real ones are (14 degrees about z).
+        anchor_rotation: Some(Quat::from_rotation_z(0.25).to_array()),
+        grip_span: span,
+    }
+}
+
+#[test]
+fn the_glove_is_centred_on_the_grip_and_overhangs_neither_end_by_more_than_two_centimetres_on_real_grips() {
+    for span in GRIPS {
+        let slide = grip("right_grip", Some(span)).hand_slide();
+        let inboard = (span[0] - (GLOVE_EXTENT[0] + slide)).max(0.0);
+        let outboard = (GLOVE_EXTENT[1] + slide - span[1]).max(0.0);
+        // Cutting into the throttle housing and the lever perch is the glove's inboard overhang: 4.6 cm without the slide.
+        assert!(inboard <= 0.02 && outboard <= 0.02, "{span:?}: inboard {inboard}, outboard {outboard}");
+        assert!(GLOVE_EXTENT[0].abs() - inboard > 0.025, "better than the 4.6 cm of the hand held by the bone alone");
+    }
+    // A file with no span assumes a grip of the usual length.
+    let usual = grip("right_grip", None).hand_slide();
+    assert!(usual > 0.03 && usual < 0.04, "{usual}");
+}
+
+#[test]
+fn each_hand_slides_outboard_along_its_own_bones_axis() {
+    let mut attach = attach();
+    attach.targets.push(grip("left_grip", Some([0.0, 0.12])));
+    attach.targets.push(grip("right_grip", Some([0.0, 0.12])));
+    let targets = rider_targets(&attach, &plain_frame(), None);
+    let (left, right) = (targets[targets.len() - 2], targets[targets.len() - 1]);
+    let (bone_left, bone_right) = (left.anchor.unwrap(), right.anchor.unwrap());
+    let slide = 0.06 - super::super::attach::GLOVE_CENTRE_M;
+    // The bone's y turned by the same 0.25 rad; the left bone's y points outboard (+y of the car), the right bone's inboard.
+    let y = Quat::from_rotation_z(0.25) * Vec3::Y;
+    assert!((bone_left.0 - Vec3::new(0.3, 0.2, 0.9) - y * slide).length() < 1e-6, "{bone_left:?}");
+    assert!((bone_right.0 - Vec3::new(0.3, 0.2, 0.9) + y * slide).length() < 1e-6, "{bone_right:?}");
 }

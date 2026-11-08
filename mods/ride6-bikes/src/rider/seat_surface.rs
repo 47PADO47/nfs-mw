@@ -34,7 +34,7 @@ pub type Triangle = [Vec3; 3];
 
 /// A point of the part's frame in the car frame: the part's anchor into the chassis frame (glTF axes: x forward, y up, z right)
 /// and then glTF to car.
-fn car_point(anchor: &crate::partfile::Anchor, p: [f32; 3]) -> Vec3 {
+pub(super) fn car_point(anchor: &crate::partfile::Anchor, p: [f32; 3]) -> Vec3 {
     let q = anchor.point(p);
     Vec3::new(q[0], -q[2], q[1])
 }
