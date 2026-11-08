@@ -55,10 +55,25 @@ fn the_trees_are_on_by_default_and_the_setting_turns_them_off() {
 #[test]
 fn the_sky_is_on_at_full_size_by_default_and_its_settings_are_checked() {
     let config = Config::default();
-    assert!(config.sky && config.sky_size == 2048 && !Config::parse("sky = false
-").unwrap().sky);
-    assert_eq!(Config::parse("sky_size = 1024
-").unwrap().sky_size, 1024);
+    assert!(
+        config.sky
+            && config.sky_size == 2048
+            && !Config::parse(
+                "sky = false
+"
+            )
+            .unwrap()
+            .sky
+    );
+    assert_eq!(
+        Config::parse(
+            "sky_size = 1024
+"
+        )
+        .unwrap()
+        .sky_size,
+        1024
+    );
     assert!(["sky_size = 100", "sky_size = 4096", "sky_size = 128"].into_iter().all(|bad| Config::parse(bad).is_err()));
     let stamp = |config: Config| crate::stamp::of(&config, Path::new("definitely/not/here"));
     assert_ne!(stamp(Config::default()), stamp(Config { sky: false, ..Config::default() }));
@@ -184,5 +199,8 @@ fn the_effect_variants_are_on_by_default_and_each_setting_turns_one_off() {
     assert!(!off.skid_marks && !off.rain_splash && !off.wet_road && off.rain_drops);
     assert!(!off.features().skid_marks && off.features().trees);
     let here = Path::new("definitely/not/here");
-    assert_ne!(crate::stamp::of(&config, here), crate::stamp::of(&Config { rain_drops: false, ..config.clone() }, here));
+    assert_ne!(
+        crate::stamp::of(&config, here),
+        crate::stamp::of(&Config { rain_drops: false, ..config.clone() }, here)
+    );
 }

@@ -16,8 +16,8 @@ use blackbox_attrib::Database;
 use blackbox_modding::content::{
     GradingProfile, ModelSwapProfile, NitrousProfile, RainSplashProfile, SkidMarksProfile, SkyProfile, SparksProfile,
     TireSmokeProfile, WetRoadProfile, WindProfile, XenonProfile, parse_grading_profile, parse_model_swap_profile,
-    parse_nitrous_profile, parse_rain_splash_profile, parse_skid_marks_profile, parse_sky_profile, parse_sparks_profile,
-    parse_tire_smoke_profile, parse_wet_road_profile, parse_wind_profile, parse_xenon_profile,
+    parse_nitrous_profile, parse_rain_splash_profile, parse_skid_marks_profile, parse_sky_profile,
+    parse_sparks_profile, parse_tire_smoke_profile, parse_wet_road_profile, parse_wind_profile, parse_xenon_profile,
 };
 use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;

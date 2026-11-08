@@ -438,6 +438,8 @@ fn material_group(
         &sky.blank,
     )
 }
+
+#[allow(clippy::too_many_arguments)]
 fn material_group_parts(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,

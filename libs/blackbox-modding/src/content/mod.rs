@@ -184,8 +184,8 @@ pub use tire_smoke::{
 };
 pub use traffic::{MAX_INSTANCES as MAX_TRAFFIC_INSTANCES, MAX_WEIGHT as MAX_TRAFFIC_WEIGHT, Traffic, TrafficClass};
 pub use variant::{
-    COLLISION_SPARKS, FORMAT, GRADING, NITROUS, RAIN_SPLASH, SKID_MARKS, TIRE_SMOKE, TREES, VariantKind, WET_ROAD, WIND,
-    XENON_SPARKS,
+    COLLISION_SPARKS, FORMAT, GRADING, NITROUS, RAIN_SPLASH, SKID_MARKS, TIRE_SMOKE, TREES, VariantKind, WET_ROAD,
+    WIND, XENON_SPARKS,
 };
 pub use wet_road::{WETROAD_FOLDER, WetRoadProfile, parse as parse_wet_road_profile, wet_road_profile_path};
 pub use wheels::{Tyre, WheelLayout};

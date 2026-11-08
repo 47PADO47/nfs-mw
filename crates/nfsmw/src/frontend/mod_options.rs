@@ -128,7 +128,10 @@ pub fn video_rows(mods: Option<&Mods>) -> Vec<SectionedRow> {
     let plain = |row: Row| SectionedRow { row, section: String::new(), heading };
     vec![
         plain(Row { setting: Setting::GameplayOption(index), title: MOD_TITLE }),
-        plain(Row { setting: Setting::Post(PostSetting::GradingStrength), title: PostSetting::GradingStrength.title() }),
+        plain(Row {
+            setting: Setting::Post(PostSetting::GradingStrength),
+            title: PostSetting::GradingStrength.title(),
+        }),
     ]
 }
 
