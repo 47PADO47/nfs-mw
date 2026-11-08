@@ -8,6 +8,7 @@ use super::curve::{curve, ramp};
 use super::pitch_assist::{self, FREE_PEDAL, PitchInput, approach};
 use super::spec::{RiderHelpSpec, WheelieSpec};
 use super::trick_spec::AutoTuckSpec;
+use super::wheelie_throttle;
 use super::{Bike, BikeInput, FRONT, REAR, lean_of, pitch_of};
 
 /// Below this the share of the weight shift counts as none (the reference compares with a small constant it does not name).
@@ -25,6 +26,10 @@ pub(super) struct TrickState {
     /// air drag, and the tuck level that follows it at the rate of the input handler and goes to the animation.
     pub tuck: f32,
     pub tuck_level: f32,
+    /// The weight lever the help and the pitch assist work with: the player's own, or the virtual lever the throttle pulls back
+    /// (`wheelie_throttle.rs`), and whether the throttle is holding it.
+    pub weight: f32,
+    pub throttle_lever: bool,
 }
 
 /// The rate (1/s) at which the tuck level rises while the rider tucks and falls when he does not: the constructor defaults of
@@ -268,10 +273,28 @@ impl Bike {
             None => (None, 1.0, TUCK_LEVEL_RATE, TUCK_LEVEL_RATE),
         };
         let max_lean = self.spec.steering.max_lean.max(f32::EPSILON);
+        // The game's wheelie from the throttle alone: a throttle flat out pulls the lever back (`wheelie_throttle.rs`); a bike with no
+        // wheelie control has nothing to ask.
+        let limit = self.plan.limit.max(0.05);
+        let (weight, throttle_lever) = match assist.is_some() {
+            true => wheelie_throttle::lever(
+                &self.throttle_wheelie,
+                &wheelie_throttle::Ask {
+                    weight: self.weight_input,
+                    throttle,
+                    front_brake: brake,
+                    speed,
+                    pitch: pitch_of(self.body.rotation()),
+                    lean_share: (lean_of(self.body.rotation()).abs() / limit).min(1.0),
+                    held: self.trick.throttle_lever,
+                },
+            ),
+            false => (self.weight_input, false),
+        };
         let situation = TuckSituation {
             speed,
             normalised_lean: (lean_of(self.body.rotation()) / max_lean).clamp(-1.0, 1.0),
-            weight: self.weight_input,
+            weight,
             throttle,
             front_brake: brake,
         };
@@ -279,7 +302,15 @@ impl Bike {
         let tuck = f32::from(tucked);
         let tuck_level = tuck_level(self.trick.tuck_level, tucked, rise, fall, dt);
         let Some(mut assist) = assist else {
-            self.trick = TrickState { aid: self.weight_input, throttle, front_brake: brake, tuck, tuck_level };
+            self.trick = TrickState {
+                aid: self.weight_input,
+                throttle,
+                front_brake: brake,
+                tuck,
+                tuck_level,
+                weight,
+                throttle_lever,
+            };
             return passthrough;
         };
         // The rider's ABS level shrinks the start of the brake relief range (`SETTINGS_ABS`, `AutoRiderStoppieBrakeControl.X`).
@@ -289,7 +320,7 @@ impl Bike {
             lift: self.help_lift(assist.help.lookahead, rate),
             rate,
             speed,
-            weight: self.weight_input,
+            weight,
             throttle,
             front_brake: brake,
         };
@@ -300,7 +331,15 @@ impl Bike {
             help.brake = brake;
         }
         let aid = rider_position(&assist.help, &situation, self.trick.aid, dt);
-        self.trick = TrickState { aid, throttle: help.throttle, front_brake: help.brake_pedal, tuck, tuck_level };
+        self.trick = TrickState {
+            aid,
+            throttle: help.throttle,
+            front_brake: help.brake_pedal,
+            tuck,
+            tuck_level,
+            weight,
+            throttle_lever,
+        };
         help
     }
 
@@ -329,7 +368,7 @@ impl Bike {
         let rotation = self.body.rotation();
         let limit = self.plan.limit.max(0.05);
         let request = PitchInput {
-            weight: self.weight_input,
+            weight: self.trick.weight,
             throttle: self.trick.throttle,
             front_brake: self.trick.front_brake,
             pitch: pitch_of(rotation),

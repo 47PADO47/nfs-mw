@@ -61,6 +61,7 @@ mod tyre;
 mod wheel;
 mod wheel_step;
 mod wheelie_steer;
+mod wheelie_throttle;
 
 pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
 pub use burnout::{BurnoutSpec, HelpSpec as BurnoutHelpSpec};
@@ -83,6 +84,7 @@ pub use spec::{
 };
 pub use tyre::{TyreInput, TyreOutput};
 pub use wheel::WheelState;
+pub use wheelie_throttle::ThrottleWheelie;
 
 use glam::{Quat, Vec3};
 
@@ -131,6 +133,8 @@ pub struct Bike {
     plan: LeanPlan,
     weight: RiderWeight,
     weight_input: f32,
+    /// The game's wheelie from the throttle alone (`wheelie_throttle.rs`); off (the reference's behaviour) until the host switches it on.
+    throttle_wheelie: ThrottleWheelie,
     /// What the rider help keeps from step to step (`trick.rs`).
     trick: TrickState,
     abs_level: f32,
@@ -215,6 +219,7 @@ impl Bike {
             plan: LeanPlan::default(),
             weight: RiderWeight::new(),
             weight_input: 0.0,
+            throttle_wheelie: ThrottleWheelie::REFERENCE,
             trick: TrickState::default(),
             slipstream: 0.0,
             rider_body: RiderBody::default(),
@@ -473,3 +478,5 @@ mod tests_tricks;
 mod turn_tests;
 #[cfg(test)]
 mod wheelie_hold_tests;
+#[cfg(test)]
+mod wheelie_throttle_sim_tests;
