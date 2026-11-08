@@ -202,6 +202,11 @@ fn run_ui(
             let mut open = true;
             let request =
                 host.scene.garage().and_then(|model| crate::garage::show(ctx, &mut open, model, &mut settings));
+            if let Some(model) = host.scene.garage()
+                && std::mem::take(&mut model.vehicle_panel_requested)
+            {
+                dev.request(panels::Request::Open { panel: panels::Panel::Vehicle, from_menu: false });
+            }
             if let Some(selection) = request {
                 let host = &mut *host;
                 if let Some(renderer) = host.renderer.as_mut() {
@@ -274,32 +279,71 @@ fn show_devtools(
         }
     }
     if dev.vehicle {
-        let view = vehicle::PanelView { options, gear, message: dev.message.as_deref(), pad: dev.pad };
-        for action in vehicle::show(ctx, &view) {
-            match action {
-                vehicle::PanelAction::Close => dev.request(Request::Back),
-                vehicle::PanelAction::Vehicle(change) => {
-                    let result = match (host.renderer.as_mut(), host.scene.vehicle()) {
-                        (Some(renderer), Some(scene)) => scene.change(renderer.as_mut(), &change),
-                        _ => Err("no vehicle on show, or the renderer is not ready".to_owned()),
-                    };
-                    dev.message = Some(result.unwrap_or_else(|error| error));
-                }
-                vehicle::PanelAction::Gear { part, id } => {
-                    let result = crate::garage::rider_gear::commit(part, &id);
-                    let worn = match id.is_empty() {
-                        true => "the rider's own gear",
-                        false => &id,
-                    };
-                    dev.message = Some(match result {
-                        Ok(()) => format!("{}: {worn}", part.label()),
-                        Err(error) => format!("{error:#}"),
-                    });
-                }
-            }
-        }
+        vehicle_panel(ctx, dev, host, settings, options, gear);
     }
     if dev.pad && !dev.menu && (dev.vehicle || other_panel_up) {
         menu::hint(ctx);
     }
+}
+
+/// The vehicle panel: the pages of the vehicle's own options, and the pages the garage hosts (the tuning, the saved setups, the vinyl
+/// colours, the gauges, the plate), whose changes are applied the way the F6 garage applies them.
+fn vehicle_panel(
+    ctx: &egui::Context,
+    dev: &mut panels::DevPanels,
+    host: &mut crate::app::Host,
+    settings: &mut Settings,
+    options: Option<&crate::garage::options::VehicleOptions>,
+    gear: Option<&[vehicle::GearRow]>,
+) {
+    use crate::garage::hosted;
+    let snapshot = host.scene.garage().and_then(hosted::begin);
+    let view =
+        vehicle::PanelView { options, gear, message: dev.message.as_deref(), pad: dev.pad, hosted: snapshot.is_some() };
+    let mut page = dev.page;
+    let mut hosted_page = |ui: &mut egui::Ui, what: vehicle::Hosted| {
+        let Some(model) = host.scene.garage() else { return };
+        match what {
+            vehicle::Hosted::Setups => hosted::setups(ui, model),
+            vehicle::Hosted::Page(panels::VehiclePage::Tuning) => hosted::tuning(ui, model),
+            vehicle::Hosted::Page(panels::VehiclePage::Appearance) => hosted::appearance(ui, model, settings),
+            vehicle::Hosted::Page(_) => {}
+        }
+    };
+    let actions = vehicle::show(ctx, &view, &mut page, &mut hosted_page);
+    dev.page = page;
+    for action in actions {
+        match action {
+            vehicle::PanelAction::Close => dev.request(panels::Request::Back),
+            vehicle::PanelAction::Vehicle(change) => {
+                let result = match (host.renderer.as_mut(), host.scene.vehicle()) {
+                    (Some(renderer), Some(scene)) => scene.change(renderer.as_mut(), &change),
+                    _ => Err("no vehicle on show, or the renderer is not ready".to_owned()),
+                };
+                dev.message = Some(result.unwrap_or_else(|error| error));
+            }
+            vehicle::PanelAction::Gear { part, id } => {
+                let result = crate::garage::rider_gear::commit(part, &id);
+                let worn = match id.is_empty() {
+                    true => "the rider's own gear",
+                    false => &id,
+                };
+                dev.message = Some(match result {
+                    Ok(()) => format!("{}: {worn}", part.label()),
+                    Err(error) => format!("{error:#}"),
+                });
+            }
+        }
+    }
+    let Some(before) = snapshot else { return };
+    let Some(selection) = host.scene.garage().and_then(|model| hosted::changed(model, &before)) else { return };
+    let result = match host.renderer.as_mut() {
+        Some(renderer) => host
+            .scene
+            .apply_garage(renderer.as_mut(), selection)
+            .map(|()| "Applied".to_owned())
+            .map_err(|error| format!("{error:#}")),
+        None => Err("the renderer is not ready".to_owned()),
+    };
+    dev.message = Some(result.unwrap_or_else(|error| error));
 }

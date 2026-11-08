@@ -83,10 +83,10 @@ pub struct ViewArgs {
     /// Start with the runtime garage overlay open (world and driving scenes).
     #[arg(long)]
     pub open_garage: bool,
-    /// Initial garage tab when opening the overlay at startup.
-    #[arg(long, value_enum)]
-    #[arg(default_value = "performance", requires = "open_garage")]
-    pub garage_tab: crate::garage::OptionsTab,
+    /// With --open-garage: open the vehicle panel (F11) on this page instead of the F6 car browser. The pages are performance,
+    /// tuning, appearance and parts (what the F6 garage's tabs were).
+    #[arg(long, value_enum, requires = "open_garage")]
+    pub garage_tab: Option<crate::garage::OptionsTab>,
     /// Play no sound (no output device is opened).
     #[arg(long)]
     pub no_sound: bool,

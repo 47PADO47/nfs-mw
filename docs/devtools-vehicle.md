@@ -41,18 +41,45 @@ result, and when they do not hold nothing changes and the reason is the message.
 
 ## The vehicle panel (F11)
 
-**F11**, the devtools menu or `vehicle panel` opens it. It works in the world (the car you drive: the car is dressed again where it
-stands, speed kept, like an F6 change) and in the car viewer (`view-car`, the asset viewer: the car on the floor is loaded again).
-It lists, by group:
+**F11**, the devtools menu or `vehicle panel` opens it. It is **the one place for everything about the vehicle you are in**; the F6 garage
+keeps only the choice of which vehicle to drive ([garage-overlay.md](garage-overlay.md)). It works in the world (the car you drive is
+dressed again where it stands, speed kept) and in the car viewer (`view-car`, the asset viewer: the car on the floor is loaded again).
+Pages, by tab (`--open-garage --garage-tab performance|tuning|appearance|parts` opens the panel on that page):
 
-- every slot as a **stepper** `◀ choice ▶  n/last`, `n` being the number `vehicle set` takes (0 is stock): click the left or right half,
+| Page | What it lists | Driven by |
+|---|---|---|
+| **Parts** | the parts slots in groups: a car's body kit, spoiler, hood, roof scoop, rims; a bike's exhaust, rims, brake discs, bar pad; any slot a mod adds; a group's **on** checkbox where all its slots can be emptied, **stock** where changed | the vehicle's components, else its categories |
+| **Appearance** | the paint finishes (the catalogue's tabs), paint, window tint, rim paint, vinyl / livery, the **body colour**; hosted from the garage: vinyl colours, rim colour, gauges, the licence plate, **Restore stock appearance** | the vehicle's categories (`[customization]` for a mod car) |
+| **Performance** | **Stock / Maximum / Max + Junkman**, then every ladder the vehicle has with its **Junkman package** checkbox (enabled where the data and the equipment allow it) | the vehicle's upgrade catalogue; a bike's ladders by its components |
+| **Tuning** | the three tuning profiles, the sliders with their locks and **Reset profile** (hosted from the garage; the world only) | the original tuning model |
+| **Rider gear** | the five parts of the rider | the gear catalogue |
+
+Above the tabs, in the world, **Saved setups** (hosted from the garage) saves and loads whole setups (car, paint, parts, performance, tuning,
+gauges) in `garage-presets.toml`, as F6's presets did. The header has **Reset to stock** (every slot, the paint and the Junkman packages).
+
+- every slot is a **stepper** `◀ choice ▶  n/last`, `n` being the number `vehicle set` takes (0 is stock): click the left or right half,
   or Left/Right while it has the focus (a controller's D-pad), Page Up / Page Down for ten at a time, or Enter for the next one; a `List`
   button lists every choice for the mouse, with a search box when the list is long (a vehicle's rims or vinyls can be hundreds);
-- for a group whose slots can all be emptied, an **on** checkbox (see Groups); for a group with changes, a **stock** button;
-- the **body colour** of a car that can be repainted, and **Reset to stock**;
-- **Rider gear**, below.
+- the panel shows what the data lacks under the Parts list ("Not in this vehicle's data: ...").
 
-The panel shows what the data lacks under the list ("Not in this vehicle's data: ...").
+The **hosted** pages (tuning, setups, vinyl colours, rim colour, gauges, plate, restore) are the garage's own controls, drawn in the panel
+on the garage's model of the driven car: the draft starts as what is applied and a changed draft is applied the way F6 applied it
+(`garage/hosted.rs`). They need the garage's model, so the car viewer (no physics, no garage) shows only the pages built from the
+vehicle's data, and the Tuning page says so. While a normal shop transaction owns the model the panel does not touch it.
+
+### What F6 had on its left, and where it is now
+
+| F6 (before) | Now |
+|---|---|
+| Performance tab: Stock / Maximum / Max + Junkman, the seven categories (fixed list) with Junkman checkboxes | Performance page: the same shortcuts and checkboxes, over the ladders the vehicle has (`options.levels`, `Change::Shortcut`, `Change::Junkman`) |
+| Tuning tab: 3 profiles, 7 sliders | Tuning page (hosted) |
+| Appearance: paint finish buttons, paint / tint / vinyl / rim paint selectors | Appearance page: finishes (`Change::Finish`) and the slots of the options |
+| Appearance: vinyl colours, rim colour, gauges, licence plate, Restore stock appearance | Appearance page (hosted) |
+| Appearance: body colour (six swatches, preset / custom, colour picker) | Appearance page: the colour picker and **Own paint**; the six fixed swatches were dropped (they were a hardcoded palette) |
+| Parts tab: body kit, spoiler, hood, roof scoop, rims, Restore stock parts | Parts page: the vehicle's own slots; **stock** per group, **Reset to stock** |
+| Saved presets (setups) | Saved setups (hosted), above the tabs |
+| Exhaust, Backfire (flame styles) | **stay in F6**: shared across cars and saved as settings, not a vehicle's setup; their previews need the world frozen |
+| Racing cars / Police tabs, search, Preview car, camera | stay in F6 |
 
 ## Console
 
@@ -183,7 +210,8 @@ closing, focus), `devtools/pad_nav/tests.rs` (the navigation), `devtools/console
 
 - A session slot is not saved, and its `param` effects do not reach the physics (only the garage's performance ladders do).
 - The panel does not buy: it is a developer tool, like F6, and never touches the career's cash, markers or car records.
-- The Performance tab of the F6 garage still lists the seven categories with the Junkman checkboxes; the panel and the console list only
-  the ladders a vehicle has, named by its components. The Appearance tab keeps its category selectors.
+- The pages a vehicle's data builds work in the car viewer; the hosted ones (tuning, setups, vinyl colours, rim colour, gauges, plate) need
+  the world's garage model. The console's `vehicle` commands cover the slots, the groups, the colour, the finishes and the performance
+  (`vehicle set engine 2`); the tuning, the setups and the hosted appearance extras have no console command (`plate` and `parts` remain).
 - The car viewer has no physics, so it lists no performance levels.
 - The pad cannot type: the console's line needs a keyboard (D-pad up and down still walk its history, A runs the line).
