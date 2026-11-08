@@ -154,6 +154,13 @@ pub(super) fn read(record: &CustomizationRecord, tables: &CarTables, folder: &st
     Ok(selection)
 }
 
+/// What the original record can hold of a choice: the hash, or the stock part (`None`) for a choice of a mod car's own parts, which
+/// the installed database does not list. The choice itself is kept in the garage extension beside the save (`persistence`), whose
+/// fingerprint is the record's, so a bike's rims and exhaust are not lost; the record only cannot name them.
+fn native_choice(tables: &CarTables, folder: &str, hash: Option<u32>) -> Option<u32> {
+    hash.filter(|hash| !nfsmw_data::car::mods::is_mod_car(folder) || tables.parts.by_name_hash(*hash).is_some())
+}
+
 pub(super) fn write(
     record: &CustomizationRecord,
     tables: &CarTables,
@@ -173,10 +180,12 @@ pub(super) fn write(
     let selected_wheel =
         selection.parts.parts[Category::Wheels as usize].or(stock[slot::FRONT_WHEEL].map(|p| p.name_hash));
     for category in Category::ALL {
-        store_hash(&mut record, tables, category.slot(), selection.parts.parts[category as usize])?;
+        let hash = native_choice(tables, &selection.car, selection.parts.parts[category as usize]);
+        store_hash(&mut record, tables, category.slot(), hash)?;
     }
     if current_wheel != selected_wheel {
-        store_hash(&mut record, tables, slot::REAR_WHEEL, selection.parts.parts[Category::Wheels as usize])?;
+        let hash = native_choice(tables, &selection.car, selection.parts.parts[Category::Wheels as usize]);
+        store_hash(&mut record, tables, slot::REAR_WHEEL, hash)?;
     }
     if current_body != selected_body {
         let mut parts = vec![PresetRide::STOCK; LAYOUT.slots.len()];

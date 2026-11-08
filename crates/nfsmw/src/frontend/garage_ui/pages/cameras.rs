@@ -13,6 +13,7 @@ pub(super) fn backroom(page: Page) -> &'static str {
         Page::Choices { row: Row::Part(Part::Spoiler), .. } | Page::Spoilers { .. } => {
             "customize_spoilers_backroom_258"
         }
+        Page::Choices { row: Row::Part(Part::Wheels), .. } => "customize_rims_backroom",
         Page::Choices { row: Row::Gauge, .. } => "customize_customhud_backroom_775",
         Page::Choices { row: Row::Performance(category) | Row::Junkman(category), .. } => {
             PERFORMANCE_BACKROOM[category as usize]

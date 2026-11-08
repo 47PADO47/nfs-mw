@@ -65,6 +65,15 @@ impl Carousel {
 
     fn refresh(&self, cx: &mut Cx) {
         self.handle.header(cx, self.page);
+        // A choice the vehicle's own rules refuse says why, in the place the shop's other refusals use.
+        if let Some(reason) = self.entries.get(self.picked).and_then(|item| item.blocked.as_deref()) {
+            cx.hide(0xebc3_e6b7, false);
+            cx.text_object(0xa629_8e25, reason);
+        }
+        if matches!(self.page, Page::Choices { row: crate::garage::menu_rows::Row::Part(Part::Wheels), .. }) {
+            // The brand pages show a rim's size; the list of a bike's own rims has none.
+            cx.hide(0xe678_2841, true);
+        }
         if self.page == Page::Showcase {
             super::inspection::refresh(cx, &self.handle.model());
             return;

@@ -13,7 +13,12 @@ pub use backfire::BackfireEvent;
 mod interaction_tests;
 pub(crate) mod listing;
 mod menu;
+#[cfg(test)]
+pub(crate) mod menu_fixture;
 pub(crate) mod menu_rows;
+pub(crate) mod menu_slots;
+#[cfg(test)]
+mod menu_slots_tests;
 #[cfg(test)]
 mod menu_tests;
 pub(crate) mod my_cars;
@@ -103,6 +108,10 @@ pub struct Selection {
     pub parts: nfsmw_data::car::customization::Selection,
     pub gauges: GaugeSelection,
     pub exhaust: ExhaustSelection,
+    /// The rider's gear a bike's shop sells (`rider_gear`): the player's, so it is the same for every bike and is not kept with
+    /// the car (`presets` and the career's garage extension leave it out; the profile's `rider-gear.toml` keeps it). Only a shop
+    /// session reads or changes it: it is the profile's kept choice there, and a purchase writes it back.
+    pub gear: rider_gear::Choice,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -209,7 +218,9 @@ impl Model {
 
     pub fn select(&mut self, car: String) {
         let style = self.draft.exhaust.style();
-        self.draft = Selection { car, ..Selection::default() };
+        // The rider's gear is the player's, not the car's: the next car is worn by the same rider.
+        let gear = std::mem::take(&mut self.draft.gear);
+        self.draft = Selection { car, gear, ..Selection::default() };
         self.draft.exhaust.set_style(style);
         self.message = None;
     }

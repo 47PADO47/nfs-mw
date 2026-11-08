@@ -179,6 +179,55 @@ fn a_published_bike_is_upgraded_by_its_package_and_a_stock_package_changes_nothi
 }
 
 #[test]
+fn a_component_in_any_slot_changes_the_numbers_it_names() {
+    // An exhaust (kept in a model category) that adds torque and a mirror (a slot no category holds) that saves weight: the
+    // shop saves both with the car and the physics read both, not only the performance ladders.
+    let catalog: Catalog = toml::from_str(
+        r#"
+[[component]]
+id = "t:exhaust.stock"
+[[component]]
+id = "t:exhaust.race"
+effects = [{ kind = "param", key = "bike.engine.peak_torque_nm", op = "mul", value = 1.04 }]
+[[component]]
+id = "t:mirrors.on"
+[[component]]
+id = "t:mirrors.light"
+effects = [{ kind = "param", key = "bike.chassis.mass_kg", op = "add", value = -2.0 }]
+"#,
+    )
+    .unwrap();
+    let vehicle: VehicleDef = toml::from_str(
+        r#"
+id = "comptestbike3"
+[[slot]]
+id = "exhaust"
+accepts = ["t:exhaust.stock", "t:exhaust.race"]
+default = "t:exhaust.stock"
+[[slot]]
+id = "mirrors"
+accepts = ["t:mirrors.on", "t:mirrors.light"]
+default = "t:mirrors.on"
+"#,
+    )
+    .unwrap();
+    vehicle.check(&catalog).unwrap();
+    publish("COMPTESTBIKE3", Components { vehicle, catalog: Arc::new(catalog), parts: BTreeMap::new() });
+    let spec = Arc::new(BikeSpec::example());
+    let stock = PerformancePackage::default();
+    let mut parts = Selection::default();
+    assert!(Arc::ptr_eq(&upgraded("COMPTESTBIKE3", Arc::clone(&spec), stock, &parts), &spec), "nothing fitted, nothing changed");
+    parts.parts[Category::Spoiler as usize] = Some(choice_hash("COMPTESTBIKE3", "t:exhaust.race"));
+    let faster = upgraded("COMPTESTBIKE3", Arc::clone(&spec), stock, &parts);
+    assert!((faster.engine.peak_torque - spec.engine.peak_torque * 1.04).abs() < 1e-3);
+    assert_eq!(faster.chassis.mass, spec.chassis.mass);
+    parts.slots.insert("mirrors".into(), "t:mirrors.light".into());
+    let both = upgraded("COMPTESTBIKE3", Arc::clone(&spec), stock, &parts);
+    assert!((both.chassis.mass - (spec.chassis.mass - 2.0)).abs() < 1e-3);
+    assert!((both.engine.peak_torque - spec.engine.peak_torque * 1.04).abs() < 1e-3, "the exhaust still counts");
+}
+
+#[test]
 fn a_car_whose_slots_do_not_fit_its_catalog_still_draws_its_own_stock_parts() {
     let mut parts = components().parts;
     parts
