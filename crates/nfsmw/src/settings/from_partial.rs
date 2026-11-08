@@ -77,6 +77,7 @@ impl From<Partial> for Settings {
             tail_trail_style: p.tail_trail_style.unwrap_or_default(),
             turn_signals: p.turn_signals.unwrap_or(false),
             rider_gear: p.rider_gear.unwrap_or(true),
+            easy_wheelie: p.easy_wheelie.unwrap_or(true),
             rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
             discord: p.discord.unwrap_or(true),
             discord_time_played: p.discord_time_played.unwrap_or(true),
