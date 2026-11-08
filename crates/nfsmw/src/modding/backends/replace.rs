@@ -188,6 +188,9 @@ impl Bridge {
             active.replaced_textures(),
             active.textures().len()
         );
+        for line in active.conflicts() {
+            log::warn!("replacements: conflict: {line}");
+        }
         replace::set_active(Some(Arc::new(active)));
     }
 
