@@ -63,6 +63,10 @@ impl RenderBackend for Renderer {
         self.touch_scene();
         Renderer::set_sky_state(self, state);
     }
+    fn set_sky_panorama(&mut self, panorama: Option<blackbox_gfx::SkyPanorama>) {
+        self.touch_scene();
+        Renderer::set_sky_panorama(self, panorama);
+    }
     fn set_scene_reuse(&mut self, mode: blackbox_gfx::SceneReuse) {
         self.request_scene_reuse(mode);
     }

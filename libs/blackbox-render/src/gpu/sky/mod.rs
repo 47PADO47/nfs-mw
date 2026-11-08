@@ -4,6 +4,7 @@ mod cloud_map;
 mod cloud_schedule;
 pub(super) mod cloud_shadow;
 mod noise;
+mod panorama;
 mod pipeline;
 #[cfg(test)]
 mod tests;
@@ -25,11 +26,24 @@ struct Params {
     appearance: [f32; 4],
     celestial: [f32; 4],
     moon: [f32; 4],
+    /// Panoramic clouds: enabled (1 or 0), the blend of the two domes, and each dome's turn in turns of the circle.
+    pano: [f32; 4],
+    /// Each dome's colour multiplier (linear, exposure included); the alpha is the cover gain.
+    tint_a: [f32; 4],
+    tint_b: [f32; 4],
+    /// The moon's picture: enabled, half its width as an angle, its brightness.
+    moon_pic: [f32; 4],
+}
+
+impl Params {
+    const OFF: [f32; 4] = [0.0; 4];
 }
 
 struct Material {
     uniform: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
+    /// The same material with the panorama's domes in place of the two authored textures, while a panorama is set.
+    pano_group: Option<wgpu::BindGroup>,
     kind: blackbox_gfx::SkyLayerKind,
     views: [wgpu::TextureView; 2],
 }
@@ -46,6 +60,11 @@ pub(super) struct Sky {
     layout: wgpu::PipelineLayout,
     material_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
+    /// A transparent black picture for the materials that have no moon.
+    blank: wgpu::TextureView,
+    panorama: Option<panorama::Panorama>,
+    /// Counts panorama picture changes: the cloud map is rebuilt whole when it moves.
+    panorama_epoch: u32,
     materials: Slots<Material>,
     pipelines: HashMap<wgpu::TextureFormat, [wgpu::RenderPipeline; 3]>,
     state: SkyState,
@@ -121,6 +140,9 @@ impl Sky {
             layout,
             material_layout,
             sampler,
+            blank: pipeline::blank_picture(device, queue),
+            panorama: None,
+            panorama_epoch: 0,
             materials: Slots::new(),
             pipelines: HashMap::new(),
             state: SkyState::default(),
@@ -163,6 +185,7 @@ impl Sky {
             true => scroll * self.state.sky_wind_speed,
             false => scroll,
         };
+        let pano = self.panorama_state();
         for material in self.materials.iter_mut() {
             let coverage = match self.state.cloud_coverage.is_finite() {
                 true => self.state.cloud_coverage.clamp(0.0, 1.0),
@@ -187,6 +210,13 @@ impl Sky {
                     self.state.moon_direction[2],
                     self.state.night_amount,
                 ],
+                pano: pano.map_or(Params::OFF, |p| [1.0, p.blend, p.rotation[0], p.rotation[1]]),
+                tint_a: pano.map_or(Params::OFF, |p| [p.tint[0][0], p.tint[0][1], p.tint[0][2], p.gain]),
+                tint_b: pano.map_or(Params::OFF, |p| [p.tint[1][0], p.tint[1][1], p.tint[1][2], p.gain]),
+                moon_pic: match (pano, self.panorama.as_ref().is_some_and(|views| views.has_moon)) {
+                    (Some(p), true) => [1.0, p.moon_size, p.moon_brightness, 0.0],
+                    _ => Params::OFF,
+                },
             };
             queue.write_buffer(&material.uniform, 0, bytemuck::bytes_of(&params));
         }
@@ -233,7 +263,7 @@ impl Sky {
                 let Some(material) = self.materials.get(handle.raw()).filter(|m| m.kind == kind) else { continue };
                 let Some(secondary_uvs) = &mesh.secondary_uvs else { continue };
                 if bound_material != Some(handle.raw()) {
-                    pass.set_bind_group(1, &material.bind_group, &[]);
+                    pass.set_bind_group(1, self.group(material), &[]);
                     bound_material = Some(handle.raw());
                 }
                 if bound_mesh != Some(cmd.mesh) {
@@ -255,6 +285,7 @@ impl Sky {
 impl Sky {
     pub(super) fn cloud_shadow_active(&self) -> bool {
         self.state.enhanced
+            && self.panorama_state().is_none()
             && self.state.cloud_coverage > 0.005
             && self.materials.iter_indexed().any(|(_, m)| m.kind == blackbox_gfx::SkyLayerKind::Base)
     }
@@ -288,15 +319,23 @@ impl Sky {
         if !self.state.enhanced {
             return;
         }
-        let Some(material) = self.materials.iter_mut().find(|m| m.kind == blackbox_gfx::SkyLayerKind::Base) else {
+        let panorama_key = self.panorama_key();
+        let pano_on = self.panorama_state().is_some();
+        let Some(material) =
+            self.materials.iter_indexed().map(|(_, m)| m).find(|m| m.kind == blackbox_gfx::SkyLayerKind::Base)
+        else {
             return;
+        };
+        let group = match (pano_on, &material.pano_group) {
+            (true, Some(group)) => group,
+            _ => &material.bind_group,
         };
         self.cloud_map.prepare(
             device,
             encoder,
             &self.enhanced_shader,
-            [(globals_layout, globals_group), (&self.material_layout, &material.bind_group)],
-            (globals, self.state),
+            [(globals_layout, globals_group), (&self.material_layout, group)],
+            (globals, self.state, panorama_key),
             timing,
         );
     }
@@ -317,15 +356,21 @@ impl Renderer {
                 appearance: [2.0, 1.0, 1.0, 1.0],
                 celestial: [0.0; 4],
                 moon: [0.0, 0.0, 1.0, 0.0],
+                pano: Params::OFF,
+                tint_a: Params::OFF,
+                tint_b: Params::OFF,
+                moon_pic: Params::OFF,
             }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let views = [diffuse.clone(), miscellaneous.clone()];
         let bind_group = material_group(&self.device, sky, &views, &uniform);
+        let pano_group = sky.panorama_group(&self.device, &uniform);
         sky.params_dirty = true;
         Some(SkyMaterialHandle::from_raw(sky.materials.insert(Material {
             uniform,
             bind_group,
+            pano_group,
             kind: desc.kind,
             views,
         })))
@@ -366,7 +411,13 @@ impl Sky {
                 &self.noise_sampler,
                 &material.views,
                 &material.uniform,
+                &self.blank,
             );
+        }
+        let groups: Vec<_> =
+            self.materials.iter_indexed().map(|(_, m)| self.panorama_group(device, &m.uniform)).collect();
+        for (material, group) in self.materials.iter_mut().zip(groups) {
+            material.pano_group = group;
         }
     }
 }
@@ -384,6 +435,7 @@ fn material_group(
         &sky.noise_sampler,
         views,
         uniform,
+        &sky.blank,
     )
 }
 fn material_group_parts(
@@ -394,6 +446,7 @@ fn material_group_parts(
     noise_sampler: &wgpu::Sampler,
     views: &[wgpu::TextureView; 2],
     uniform: &wgpu::Buffer,
+    moon: &wgpu::TextureView,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("sky layer material"),
@@ -407,6 +460,7 @@ fn material_group_parts(
             wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::Sampler(noise_sampler) },
             wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(noise[1]) },
             wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(noise[2]) },
+            wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(moon) },
         ],
     })
 }

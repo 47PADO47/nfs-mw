@@ -42,6 +42,8 @@ pub(super) struct Key {
     pub sun: [f32; 4],
     pub light: [f32; 3],
     pub warmth: f32,
+    /// The panorama's pictures (a counter), blend and turns; the counter is -1 without one.
+    pub pano: [f32; 4],
 }
 
 fn distance_squared(a: &[f32], b: &[f32]) -> f32 {
@@ -56,6 +58,8 @@ impl Key {
             || (self.warmth - previous.warmth).abs() > BIG_SCALAR_MOVE
             || distance_squared(&self.sun, &previous.sun) > BIG_VECTOR_MOVE
             || distance_squared(&self.light, &previous.light) > BIG_VECTOR_MOVE
+            || self.pano[0] != previous.pano[0]
+            || self.pano[1..].iter().zip(&previous.pano[1..]).any(|(a, b)| (a - b).abs() > BIG_SCALAR_MOVE)
     }
 }
 
