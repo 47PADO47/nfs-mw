@@ -461,19 +461,22 @@ Written without building; nothing here has been compiled or run.
 
 ## Where to change the rider's gear
 
-The helmet, suit, gloves, boots and body of the rider are the player's choice, one for every bike, kept beside the profile's save
-([spec](../specs/ride6-rider-gear.md)). Two places offer it, both only while the mod has written `files/RIDER/GEAR/gear.json` (the
-mod's folder, next to `cars/`) and the setting `rider_gear` is on (Options > Gameplay > Rider Gear, on by default):
+The helmet, suit, gloves, boots and body of the rider are the player's choice, **one for every bike**, kept beside the profile's save
+([spec](../specs/ride6-rider-gear.md)). They are changed in **two places only**, and only while the mod has written
+`files/RIDER/GEAR/gear.json` (the mod's folder, next to `cars/`) and the setting `rider_gear` is on (Options > Gameplay > Rider Gear,
+on by default, the only gear row of the options):
 
-- **Options > Gameplay** (the main menu's Options, or the pause menu's Options in a race or free roam): right after Rider Gear, the rows
-  **Rider Body, Rider Helmet, Rider Suit, Rider Gloves, Rider Boots**. Left and Right cycle the item (Stock is the rider's own gear);
-  the choice is kept at once and the rider in the world wears it as soon as you leave the page. No picture there.
-- **The garage, for a bike:** Main menu > My Cars > the bike's slot > Customize Car > Visual. The helmet icons right after Paint and
-  Vinyls are the same five. Left and Right (L and R, ten at a time) change the item and the rider on the bike wears it; Accept keeps
-  it, Back puts back what he wore. The same Visual category is in the world's garage and the shop, whenever the bike is the car shown.
+- **A bike's shop** (a safe house or an auto shop, with the bike as the career's car): Customize Car > **Visual**. The helmet icons right
+  after Paint and Vinyls (**Rider Body, Rider Helmet, Rider Suit, Rider Gloves, Rider Boots**) are the five parts. Left and Right (L and
+  R, ten at a time) change the item and the rider on the bike wears it; Accept puts it **in the cart** with its price (nothing for the
+  rider's own gear and for an item already bought: Rider Body 500, Helmet 1,500, Suit 3,000, Gloves 600, Boots 900 otherwise); the
+  checkout charges and keeps it, Back leaves the cart as it was. **My Cars, the free roam garage and a car never list them.**
+- **The developer tools:** the `gear` console command (`gear list`, `gear set helmet 3`, `gear stock`) and the **Rider gear** section of
+  the F11 vehicle panel ([devtools-vehicle.md](../devtools-vehicle.md)): any vehicle on show, no price, no shop.
 
-Nothing shows when the current car is not a bike (the garage), when `gear.json` is missing (the mod did not build the catalogue:
-set `gear` in the mod's `config.toml` or put the exporter's `rider-gear` folder beside `source`, then restart; the game log says
+Options > Gameplay has no helmet, suit, gloves or boots rows (they were there for one round and were removed: the gear is bought, not
+set). Nothing shows when the current car is not a bike, when `gear.json` is missing (the mod did not build the catalogue: set `gear`
+in the mod's `config.toml` or put the exporter's `rider-gear` folder beside `source`, then restart; the game log says
 `rider gear: ... is not used` when the file does not read), or when the switch is off. The first-person (helmet) camera hides
 whichever helmet is worn; the side view shows the suit.
 

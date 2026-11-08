@@ -4,6 +4,9 @@
   first integrated for the RIDE 6 bikes ([ride6-bike-upgrades.md](../modding/ride6-bike-upgrades.md)): loader, bike binder and the importer; the 2005 garage and the 2012 mod are not moved.
 - **Developer tools (2026-11-08):** the F11 vehicle panel, the `vehicle` console command and the F6 garage's Parts tab list a vehicle's
   slots from its components, or from the category model for a car that has none ([devtools-vehicle.md](../devtools-vehicle.md)).
+- **Shop (2026-11-08):** the auto shop, performance shop, Junkman and My Cars screens list a vehicle's slots from its components, price
+  and refuse by them, and save a slot no category holds with the car ([specs/garage-shop-components.md](../specs/garage-shop-components.md));
+  the 2005 cars keep their categories, which are the model's fallback.
 - **Specs:** [specs/vehicle-components/](../specs/vehicle-components/README.md) (data model, resolution, manifest, runtime,
   worked examples). **Plan:** [plans/vehicle-components.md](../plans/vehicle-components.md) (seven stages, risks).
 - **Builds on:** [ADR 0005](0005-native-mod-plugins.md) (mods add files and registry entries; content mods need no code),
