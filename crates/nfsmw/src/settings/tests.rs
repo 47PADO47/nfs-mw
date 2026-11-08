@@ -92,6 +92,20 @@ fn easy_wheelie_is_on_by_default_and_comes_from_every_layer() {
 }
 
 #[test]
+fn live_dash_is_on_by_default_and_comes_from_every_layer() {
+    assert!(Settings::from(Partial::default()).live_dash);
+    let env = env::read(|n| (n == "NFSMW_LIVE_DASH").then(|| "off".to_owned()));
+    let file = file::parse(
+        "live_dash = false
+",
+        "test",
+    );
+    assert!(!Settings::from(Partial::default().or(env)).live_dash);
+    assert!(!Settings::from(Partial::default().or(file)).live_dash);
+    assert_eq!(file::parse("live_dash = 3", "test").live_dash, None);
+}
+
+#[test]
 fn each_class_of_bike_has_its_riding_style_balanced_by_default_from_every_layer() {
     use super::{BikeClass, RidingStyle};
     let all = |s: Settings| [s.riding_style_road, s.riding_style_motard, s.riding_style_offroad];

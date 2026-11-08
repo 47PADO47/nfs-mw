@@ -17,8 +17,10 @@ use crate::scenes::world::keys;
 mod damage_gpu_tests;
 #[cfg(test)]
 mod damage_tests;
+mod dash;
 #[cfg(test)]
 mod detail_tests;
+pub use dash::DashState;
 mod glass;
 pub use glass::SurfaceDamage;
 #[cfg(test)]
@@ -104,6 +106,8 @@ pub struct CarRig {
     hinges: Option<std::sync::Arc<Vec<Hinge>>>,
     /// How many steering poses of the driver a mod car ships, and whether it has the look back (`driver_poses`).
     driver_poses: (usize, bool),
+    /// The live screen of a bike's instrument cluster, when its manifest has one (`dash.rs`).
+    dash: Option<dash::DashFeed>,
 }
 
 impl CarRig {
@@ -149,6 +153,7 @@ impl CarRig {
         background_actor: bool,
     ) -> Self {
         let swaps = model.swaps.clone();
+        let model_name = model.name.clone();
         let (parts, meshes, materials) = upload_parts(renderer, &model, &swaps, shading, to_sun, background_actor);
         let lights = CarLights::for_model(&model);
         let hinges = nfsmw_data::car::mods::hinged::of(&model.name);
@@ -166,6 +171,7 @@ impl CarRig {
             glass: RefCell::default(),
             hinges,
             driver_poses,
+            dash: dash::DashFeed::of(&model_name),
         }
     }
 

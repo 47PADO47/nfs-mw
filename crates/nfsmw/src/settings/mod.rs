@@ -270,6 +270,8 @@ pub struct Settings {
     pub rider_gear: bool,
     /// The throttle alone lifts and holds a bike's wheelie (a game-specific assist, `docs/specs/ride6-wheelie-throttle.md`); off is the reference's behaviour.
     pub easy_wheelie: bool,
+    /// The instrument cluster of a bike shows its speed, gear and revs live (`docs/modding/ride6-bike-dash.md`); off keeps the picture of the bike at rest.
+    pub live_dash: bool,
     /// The rear-view mirror in the HUD (the rear view captured from the car, with the radar under it).
     pub rear_view_mirror: bool,
     /// Show the game in Discord Rich Presence (the local Discord client; silently skipped when it is not running).

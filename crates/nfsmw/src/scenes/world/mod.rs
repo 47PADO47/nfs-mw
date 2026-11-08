@@ -14,6 +14,7 @@ mod car_loader;
 mod career;
 mod cargo;
 mod commands;
+mod dash_feed;
 mod day;
 mod detail;
 #[cfg(test)]

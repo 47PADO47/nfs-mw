@@ -6,10 +6,21 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use blackbox_vehicle::bike::ThrottleWheelie;
 
 static EASY_WHEELIE: AtomicBool = AtomicBool::new(true);
+static LIVE_DASH: AtomicBool = AtomicBool::new(true);
 
 /// Switch the throttle-only wheelie (the `easy_wheelie` setting); read at every step, so a change reaches a bike on the road.
 pub(crate) fn set_easy_wheelie(on: bool) {
     EASY_WHEELIE.store(on, Ordering::Relaxed);
+}
+
+/// Switch the live screen of the bikes' instrument clusters (the `live_dash` setting, `docs/modding/ride6-bike-dash.md`); read every frame.
+pub(crate) fn set_live_dash(on: bool) {
+    LIVE_DASH.store(on, Ordering::Relaxed);
+}
+
+/// Whether the live cluster screen is on.
+pub(super) fn live_dash() -> bool {
+    LIVE_DASH.load(Ordering::Relaxed)
 }
 
 /// The throttle-only wheelie's settings for a bike: the game's while the setting is on and the player rides it, the reference's

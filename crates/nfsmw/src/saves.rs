@@ -196,6 +196,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         turn_signals: Some(s.turn_signals),
         rider_gear: Some(s.rider_gear),
         easy_wheelie: Some(s.easy_wheelie),
+        live_dash: Some(s.live_dash),
         rear_view_mirror: Some(s.rear_view_mirror),
         discord: Some(s.discord),
         discord_time_played: Some(s.discord_time_played),

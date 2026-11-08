@@ -90,6 +90,9 @@ fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
         if let Some(cameras) = super::bike_camera::cameras_of(&manifest) {
             nfsmw_data::car::mods::bike_camera::publish(&car.folder, cameras);
         }
+        if let Some(dash) = manifest.bike.as_ref().and_then(|bike| bike.dash.as_ref()) {
+            super::bike_dash::publish(&car.folder, dash);
+        }
         return;
     }
 }

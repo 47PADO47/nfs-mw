@@ -82,6 +82,7 @@ impl Host {
         scene.set_world_tuning(settings.into());
         crate::garage::rider_gear::set_enabled(settings.rider_gear);
         crate::scenes::world::bike_assist::set_easy_wheelie(settings.easy_wheelie);
+        crate::scenes::world::bike_assist::set_live_dash(settings.live_dash);
         crate::scenes::world::drive::rider::set_choices(settings);
         scene.set_detail(settings.detail);
         scene.set_car_shading(settings.effective_car_shading());
