@@ -16,10 +16,10 @@ test) **[T]**:
 | Before | 30 m/s | 50 m/s | 80 m/s |
 |---|---|---|---|
 | rear slip speed the sound reads (m/s) | 0.3 | 1.0 to 1.7 | 1.4 to 3.3 |
-| strongest skid loop volume | 0.01 to 0.02 | 0.03 to 0.09 | 0.08 to 0.19 |
-| rear skid (mark strength 0 to 1) | 0 | 0 | 0.14 to 0.47 on 9 of 9 bikes |
+| strongest skid loop volume | 0 to 0.025 | 0.03 to 0.09 | 0.06 to 0.19 |
+| rear skid (mark strength 0 to 1) | 0 | 0 | 0.14 to 0.47 on 6 of 9 bikes |
 
-A bike that does nothing but hold its speed screeched on every bike at every speed and left marks at 80 m/s, with no lean at all.
+A bike that does nothing but hold its speed screeched (8 of 9 bikes at 30 m/s, all of them from 50) and left marks at 80 m/s, with no lean at all.
 
 **Cause [I].** The effects take the wheel readouts of a car: the car sound's skid loop plays from a slip *speed* in m/s with a
 dead zone of 0.1 m/s (loop volume above 0.01 from 0.15 m/s on), and the marks and the smoke ramp over 2 to 5 and 3.5 to 9 m/s. A
