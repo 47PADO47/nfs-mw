@@ -1,46 +1,46 @@
-//! A mod's trees variant in the residency (`docs/modding/effect-variants.md`, "Profile format of the trees").
+//! A mod's replacement sets in the residency (`docs/modding/api-replace.md`).
 //!
-//! The loader threads swap the models of the trees in the sections they load ([`crate::modding::content::model_swap`]); the
-//! textures of the new models are not in those sections. They go to the GPU **once**, into the shared sets, and a tile's
-//! solids find them there like the textures of the shared library: no tile holds a copy. When the pack in effect changes
-//! (the player chose another trees variant, in a drive too) the resident tiles are streamed again, so the new models show
-//! within seconds and no drive has to restart.
+//! The loader threads swap the models and the textures the sets replace in the sections they load
+//! ([`crate::modding::content::replace`]); the textures the sets add are not in those sections. They go to the GPU **once**, into the
+//! shared sets, and a tile's solids find them there like the textures of the shared library: no tile holds a copy. When the
+//! replacements in effect change (the player chose another value of a kind, in a drive too) the resident tiles are streamed again, so the
+//! new models and textures show within seconds and no drive has to restart. The shared sets and the global textures were rewritten when
+//! they loaded: a replacement of one of **their** textures follows at the next drive.
 
 use std::sync::Arc;
 
 use super::*;
-use crate::modding::content::model_swap::{self, Pack};
+use crate::modding::content::replace::{self, Active};
 
-/// What tells one pack from another while it lives: where it is. `None` for no pack.
-fn pack_id(pack: Option<&Arc<Pack>>) -> Option<usize> {
-    pack.map(|pack| Arc::as_ptr(pack) as usize)
+/// What tells one set of replacements from another while it lives: where it is. `None` for none.
+fn active_id(active: Option<&Arc<Active>>) -> Option<usize> {
+    active.map(|active| Arc::as_ptr(active) as usize)
 }
 
-/// Add the textures of the pack in effect, if there is one, to the global textures the shared sets upload (they come
-/// before the shared models in the order of the upload, and the models of the shared library are rewritten like the tiles').
+/// Add the replacements in effect to the global textures the shared sets upload (the ones they replace are replaced, the ones they add
+/// come before the shared models in the order of the upload, and the models of the shared library are rewritten like the tiles').
 pub(super) fn add_textures(globals: &mut GlobalTextures) {
-    let Some(pack) = model_swap::active() else { return };
-    globals.textures.extend(pack.textures().iter().cloned());
+    replace::apply_to_globals(globals);
 }
 
 impl Residency {
-    /// Runs every frame once the shared sets are up, before the arrived tiles are uploaded: when the pack in effect is not the
-    /// one last seen, uploads its textures into the shared sets (a texture that is there already is not uploaded again) and has
-    /// the resident tiles streamed again.
-    pub(super) fn sync_trees(&mut self, renderer: &mut dyn RenderBackend) {
-        let pack = model_swap::active();
-        let id = pack_id(pack.as_ref());
-        if id == self.trees_seen {
+    /// Runs every frame once the shared sets are up, before the arrived tiles are uploaded: when the replacements in effect are not
+    /// the ones last seen, uploads the textures they add into the shared sets (a texture that is there already is not uploaded again)
+    /// and has the resident tiles streamed again.
+    pub(super) fn sync_replace(&mut self, renderer: &mut dyn RenderBackend) {
+        let active = replace::active();
+        let id = active_id(active.as_ref());
+        if id == self.replace_seen {
             return;
         }
-        self.trees_seen = id;
-        if let Some(pack) = &pack {
-            self.shared.upload_texture_list(renderer, pack.textures(), &[]);
+        self.replace_seen = id;
+        if let Some(active) = &active {
+            self.shared.upload_texture_list(renderer, active.textures(), &[]);
         }
         self.refresh_resident();
     }
 
-    /// Ask the streamer for every resident map tile again: the sections come back rewritten with the pack now in effect and
+    /// Ask the streamer for every resident map tile again: the sections come back rewritten with the replacements now in effect and
     /// replace what the tiles hold (`upload_arrived`). The collision and the shared sets stay as they are; a multiplayer session
     /// (lockstep) keeps its tiles, because a tile that is uploaded again is not the same moment on every machine.
     fn refresh_resident(&mut self) {
@@ -71,57 +71,47 @@ impl Residency {
 mod tests {
     use super::super::shadow_tests::fixture;
     use super::*;
-    use crate::modding::content::model_swap::TEST_LOCK;
+    use crate::modding::content::replace::TEST_LOCK;
 
-    /// A pack with no model and no texture: enough to be a pack in effect.
-    fn empty_pack() -> Arc<Pack> {
-        let profile = blackbox_modding::content::parse_model_swap_profile(
-            "format = 1
-geometry = \"A.BIN\"
-textures = \"B.BIN\"
-[[swap]]
-solid = \"S\"
-model = \"M\"
-",
-        )
-        .unwrap();
-        Arc::new(Pack::build(&profile, Vec::new(), Vec::new()))
+    /// Replacements with no model and no texture: enough to be in effect.
+    fn empty_active() -> Arc<Active> {
+        Arc::new(Active::empty())
     }
 
     #[test]
-    fn a_pack_is_told_by_where_it_is_and_none_is_none() {
-        let (first, second) = (empty_pack(), empty_pack());
-        assert_eq!(pack_id(None), None);
-        assert_eq!(pack_id(Some(&first)), pack_id(Some(&first)));
-        assert_ne!(pack_id(Some(&first)), pack_id(Some(&second)));
+    fn a_set_of_replacements_is_told_by_where_it_is_and_none_is_none() {
+        let (first, second) = (empty_active(), empty_active());
+        assert_eq!(active_id(None), None);
+        assert_eq!(active_id(Some(&first)), active_id(Some(&first)));
+        assert_ne!(active_id(Some(&first)), active_id(Some(&second)));
     }
 
     #[test]
-    fn a_changed_pack_streams_the_resident_tiles_again_and_the_same_pack_does_not() {
+    fn changed_replacements_stream_the_resident_tiles_again_and_the_same_ones_do_not() {
         let _lock = TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let (mut residency, mut renderer) = fixture();
         residency.tiles.insert(3, TileState::Resident { resources: Default::default(), placed: vec![], packs: vec![] });
-        model_swap::set_active(None);
-        residency.trees_seen = None;
-        residency.sync_trees(&mut renderer);
-        assert!(residency.refresh.is_empty(), "no pack before and none now");
-        model_swap::set_active(Some(empty_pack()));
-        residency.sync_trees(&mut renderer);
-        assert!(residency.refresh.contains(&3), "the pack came: the tile is streamed again");
+        replace::set_active(None);
+        residency.replace_seen = None;
+        residency.sync_replace(&mut renderer);
+        assert!(residency.refresh.is_empty(), "nothing before and nothing now");
+        replace::set_active(Some(empty_active()));
+        residency.sync_replace(&mut renderer);
+        assert!(residency.refresh.contains(&3), "replacements came: the tile is streamed again");
         assert!(residency.take_refresh(3));
         assert!(!residency.take_refresh(3), "once");
         residency.refresh.clear();
-        residency.sync_trees(&mut renderer);
-        assert!(residency.refresh.is_empty(), "the same pack is not looked at twice");
-        model_swap::set_active(None);
-        residency.sync_trees(&mut renderer);
+        residency.sync_replace(&mut renderer);
+        assert!(residency.refresh.is_empty(), "the same replacements are not looked at twice");
+        replace::set_active(None);
+        residency.sync_replace(&mut renderer);
         assert!(residency.refresh.contains(&3), "back to the original: streamed again");
         residency.lockstep = true;
         residency.refresh.clear();
-        model_swap::set_active(Some(empty_pack()));
-        residency.sync_trees(&mut renderer);
+        replace::set_active(Some(empty_active()));
+        residency.sync_replace(&mut renderer);
         assert!(residency.refresh.is_empty(), "a multiplayer session keeps its tiles");
-        model_swap::set_active(None);
+        replace::set_active(None);
     }
 
     #[test]
