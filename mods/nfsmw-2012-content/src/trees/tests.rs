@@ -178,3 +178,37 @@ fn the_level_a_solid_takes_follows_its_letter_and_whether_it_is_a_row() {
     assert_eq!(stock::level("1C", true, 2), 1, "never past the last level");
     assert_eq!(stock::level("2B", false, 1), 0);
 }
+
+/// A tree whose coarsest level is a crown alone: a card of leaves from 6 to 10 metres, with no trunk under it.
+fn tree_with_a_hovering_last_level() -> TreeModel {
+    let mut model = tree(3);
+    let leaves = quad([[-3.0, 6.0, 0.0], [3.0, 6.0, 0.0], [3.0, 10.0, 0.0], [-3.0, 10.0, 0.0]], Role::Foliage, LEAF);
+    model.levels[2] = Level { parts: vec![leaves] };
+    model
+}
+
+#[test]
+fn a_level_that_hovers_over_the_ground_is_dropped_so_far_trees_stand() {
+    let pack = build::build(&[(&SPECIES[0], tree_with_a_hovering_last_level())], 1024).unwrap();
+    assert_eq!(pack.species, [("BROADLEAF_S", 2)], "the crown-only level is not in the pack");
+    let solids = read_solids(&pack.geometry).unwrap();
+    assert_eq!(solids.len(), 2);
+    let swapped = parse_model_swap_profile(&build::profile_text(&pack.species)).unwrap();
+    let far = swapped.swaps.iter().find(|swap| swap.solid == "XO_CT_CAMPUSSMACKTREE_1Z_JG_00").unwrap();
+    assert_eq!(far.model, "MW12_BROADLEAF_S_L1", "the far solids take the coarsest level that stands");
+}
+
+#[test]
+fn a_level_that_is_short_of_the_finest_is_dropped_too() {
+    let mut model = tree(2);
+    let blob = quad([[-1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 2.0, 0.0], [-1.0, 2.0, 0.0]], Role::Foliage, LEAF);
+    model.levels[1] = Level { parts: vec![blob] };
+    let pack = build::build(&[(&SPECIES[0], model)], 1024).unwrap();
+    assert_eq!(pack.species, [("BROADLEAF_S", 1)], "a blob on the ground is too short to stand for the tree");
+}
+
+#[test]
+fn the_profile_carries_the_limits_the_game_keeps_a_replacement_to() {
+    let limits = parse_model_swap_profile(&build::profile_text(&[("BUSH", 4)])).unwrap().limits;
+    assert_eq!((limits.spread, limits.squeeze, limits.min_height), (1.25, 0.5, 0.7));
+}

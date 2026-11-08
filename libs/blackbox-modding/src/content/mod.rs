@@ -123,7 +123,7 @@ pub use lamp_flares::{
 };
 pub use manufacturer::{Manufacturer, brand_key, parse as parse_manufacturer};
 pub use model_swap::{
-    Fit as SwapFit, MAX_SWAPS, ModelSwapProfile, Swap, TREES_FOLDER, model_swap_profile_path,
+    Fit as SwapFit, FitLimits, MAX_SWAPS, ModelSwapProfile, Swap, TREES_FOLDER, model_swap_profile_path,
     parse as parse_model_swap_profile,
 };
 pub use music::{MusicSection, parse as parse_music};

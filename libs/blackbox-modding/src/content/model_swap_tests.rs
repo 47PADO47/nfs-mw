@@ -77,3 +77,25 @@ fn more_than_4096_swaps_are_too_many() {
     assert!(parse(&format!("{head}{}", many(MAX_SWAPS))).is_ok());
     assert!(parse(&format!("{head}{}", many(MAX_SWAPS + 1))).is_err());
 }
+
+#[test]
+fn the_fit_limits_default_and_are_read_from_the_fit_table() {
+    assert_eq!(parse(PROFILE).unwrap().limits, FitLimits::default());
+    let tuned = PROFILE.replacen("[[swap]]", "[fit]\nspread = 1.5\nsqueeze = 0.4\nmin_height = 0.6\n\n[[swap]]", 1);
+    let limits = parse(&tuned).unwrap().limits;
+    assert_eq!(limits, FitLimits { spread: 1.5, squeeze: 0.4, min_height: 0.6 });
+    let partial = PROFILE.replacen("[[swap]]", "[fit]\nspread = 2.0\n\n[[swap]]", 1);
+    let limits = parse(&partial).unwrap().limits;
+    assert_eq!(limits, FitLimits { spread: 2.0, ..FitLimits::default() }, "a key left out keeps its default");
+}
+
+#[test]
+fn fit_limits_out_of_range_or_unknown_are_refused() {
+    let with = |line: &str| PROFILE.replacen("[[swap]]", &format!("[fit]\n{line}\n\n[[swap]]"), 1);
+    for line in
+        ["spread = 0.9", "spread = 5.0", "squeeze = 0.0", "squeeze = 1.5", "min_height = -0.1", "min_height = 1.1"]
+    {
+        assert!(matches!(parse(&with(line)), Err(ContentError::Field { .. })), "{line}");
+    }
+    assert!(parse(&with("grow = 2.0")).is_err(), "a key the schema does not know");
+}
