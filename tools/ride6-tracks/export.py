@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # `python -I` le
 
 import common  # noqa: E402  (first: it makes the user site-packages importable)
 import numpy as np  # noqa: E402
+import lapfinder  # noqa: E402
 import level  # noqa: E402
 import meshes  # noqa: E402
 import pack  # noqa: E402
@@ -168,24 +169,9 @@ class Builder:
         )
 
 
-def export_spline(assets, track):
-    """The lap: the track spline sampled every 2 m, the starting grid, in render space."""
-    out = {}
-    for layout in ("SplinesA", "Splines", "SplinesB"):
-        exports = assets.exports(level.level_paths(track)[layout])
-        if not exports:
-            continue
-        component = level.spline_component(exports, "TrackSpline")
-        if component is None:
-            continue
-        out["spline"] = level.sample_spline(component, 2.0)
-        ideal = level.spline_component(exports, "IdealTrajectory_1000cc_1")
-        if ideal is not None:
-            out["line"] = level.sample_spline(ideal, 2.0)
-        out["layout"] = layout
-        out["grid"] = level.target_points(exports, "StartingGrid")
-        return out
-    return out
+def export_spline(assets, track, builder):
+    """The lap: the track spline sampled every 2 m, the racing line and the starting grid, in render space (`lapfinder.py`)."""
+    return lapfinder.find(assets, track, (builder.ground.groups, builder.materials))
 
 
 def export_textures(tool, builder, out_dir, size):
@@ -202,7 +188,7 @@ def export_textures(tool, builder, out_dir, size):
             os.remove(os.path.join(out_dir, name))
 
 
-def export_objects(tool, assets, builder, track, out, scratch):
+def export_objects(tool, assets, builder, track, out, scratch, spline):
     """The barriers, buildings and props: `models.r6m` (each distinct mesh once), `instances.r6i`; the models for pack.json."""
     instances, models = props.collect(assets, track, common.log)
     if not instances:
@@ -229,7 +215,6 @@ def export_objects(tool, assets, builder, track, out, scratch):
     os.makedirs(out, exist_ok=True)
     sink.write(os.path.join(out, "models.r6m"))
     props.write_instances(os.path.join(out, "instances.r6i"), instances)
-    spline = [] if "spline" not in (export_spline(assets, track) or {}) else export_spline(assets, track)["spline"]["points"]
     common.log(f"{len(instances)} objects of {len(models)} models, {sink.triangles()} triangles; mean distance to the lap {props.median_distance(instances, spline)}")
     return [{"name": m["name"], "solid": m["solid"]} for m in sorted(models.values(), key=lambda m: m["index"])]
 
@@ -249,11 +234,13 @@ def run(track, out, size):
             continue
         for slot, (_material, attrs, indices) in enumerate(meshes.Glb(path).slots()):
             builder.add_primitive(item, slot, attrs, indices)
-    object_models = export_objects(tool, assets, builder, track, out, scratch)
+    lap = export_spline(assets, track, builder)
+    object_models = export_objects(
+        tool, assets, builder, track, out, scratch, lap["spline"]["points"] if "spline" in lap else []
+    )
     os.makedirs(out, exist_ok=True)
     builder.ground.write(os.path.join(out, "ground.r6m"))
     export_textures(tool, builder, os.path.join(out, "tex"), size)
-    lap = export_spline(assets, track)
     sea = find_sea(assets, tool, track, scratch)
     document = {
         "format": 1,
