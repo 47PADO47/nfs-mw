@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the conversion changes what it writes for the same input.
-const CONVERSION: u32 = 26;
+const CONVERSION: u32 = 27;
 /// Bump when the brand logos (`brands.rs`, `logo.rs`) change for the same input.
 const BRANDS: u32 = 1;
 pub const FILE: &str = ".import-stamp";
@@ -22,6 +22,7 @@ pub fn of(config: &Config, source: &Path) -> String {
         fingerprint(&source.join("VEHICLES/VEHICLETEX.BNDL")),
         fingerprint(&source.join("SHADERS.BNDL")),
         fingerprint(&source.join("GLOBALEFFECTS.BNDL")),
+        fingerprint(&source.join(chameleon_environment::BUNDLE_PATH)),
         fingerprint(&source.join("VEHICLES/VEHICLELIST.BNDL")),
         fingerprint(&source.join("UI/LANGUAGE/0001.BNDL")),
     ];

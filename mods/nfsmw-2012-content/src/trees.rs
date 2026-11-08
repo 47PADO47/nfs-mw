@@ -12,7 +12,7 @@
 
 mod build;
 mod light;
-mod ranges;
+pub(crate) mod ranges;
 mod read;
 #[cfg(test)]
 mod real_tests;

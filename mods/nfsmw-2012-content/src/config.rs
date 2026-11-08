@@ -101,6 +101,12 @@ traffic = true
 # (mods/nfsmw-2012-content/README.md, \"Trees\"); the max_texture_size key applies to their textures.
 trees = true
 
+# Add the 2012 game's sky (cloud domes for the hours and the weather, the moon) as a value of the gameplay setting \"Sky\", read from
+# your 2012 install into the mod's folder (about 5.5 MB; README, \"Sky\"). false adds neither. sky_size is the widest a dome picture
+# is written, 256 to 2048: 2048 keeps the install's pictures, 1024 halves them and the disk they take.
+sky = true
+sky_size = 2048
+
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
 # weight, grip the tyres, brakes the brake torque (0.25 to 4 each, grip 0.25 to 3), nitrous_power the extra torque of
@@ -207,6 +213,10 @@ pub struct Config {
     pub traffic: bool,
     /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
     pub trees: bool,
+    /// Whether the 2012 game's sky is converted and offered as a sky variant (`sky.rs`).
+    pub sky: bool,
+    /// The widest a sky dome picture is written (256 to 2048): wider ones are halved.
+    pub sky_size: u32,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -230,6 +240,8 @@ impl Default for Config {
             lazy: false,
             traffic: true,
             trees: true,
+            sky: true,
+            sky_size: 2048,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),
@@ -284,6 +296,9 @@ impl Config {
     }
 
     pub fn check(&self) -> Result<()> {
+        if !self.sky_size.is_power_of_two() || !(256..=2048).contains(&self.sky_size) {
+            bail!("sky_size {} must be a power of two from 256 to 2048", self.sky_size);
+        }
         if !self.max_texture_size.is_power_of_two() || !(16..=4096).contains(&self.max_texture_size) {
             bail!("max_texture_size {} must be a power of two from 16 to 4096", self.max_texture_size);
         }
@@ -333,6 +348,19 @@ mod tests {
             crate::stamp::of(&Config { trees: false, ..Config::default() }, Path::new("definitely/not/here")),
             "a change of the setting converts again"
         );
+    }
+
+    #[test]
+    fn the_sky_is_on_at_full_size_by_default_and_its_settings_are_checked() {
+        let config = Config::default();
+        assert!(config.sky && config.sky_size == 2048 && !Config::parse("sky = false\n").unwrap().sky);
+        assert_eq!(Config::parse("sky_size = 1024\n").unwrap().sky_size, 1024);
+        assert!(
+            ["sky_size = 100", "sky_size = 4096", "sky_size = 128"].into_iter().all(|bad| Config::parse(bad).is_err())
+        );
+        let stamp = |config: Config| crate::stamp::of(&config, Path::new("definitely/not/here"));
+        assert_ne!(stamp(Config::default()), stamp(Config { sky: false, ..Config::default() }));
+        assert_ne!(stamp(Config::default()), stamp(Config { sky_size: 512, ..Config::default() }));
     }
 
     #[test]
