@@ -231,7 +231,8 @@ impl HudBinding {
             minimap: map.is_some(),
             laser: s.cop_nearby,
             // The detector's own scripts hide its two layouts and preserve their exit animations.
-            radar: true,
+            radar: !s.second_world,
+            mapless: s.second_world,
             // The heat meter rings the minimap: with the minimap off it would ring nothing.
             heat: s.vehicle_heat >= 1.0 && map.is_some(),
             mirror: self.mirror_shown,
@@ -285,6 +286,9 @@ impl HudBinding {
 
     /// Dynamic widths keep their fixed edges after any authored script changes in this frame.
     pub fn finish_frame(&mut self, rt: &mut Runtime, s: &HudState) {
+        if s.second_world {
+            self.layout.hide_mapless(rt);
+        }
         self.pursuit_meter.finish_frame(rt, s.pursuit);
         self.gauge_colors.apply(rt, s.gauge_colors);
         self.launch_needle.apply(rt, self.needle, s.perfect_launch_range, s.gauge_colors[1]);

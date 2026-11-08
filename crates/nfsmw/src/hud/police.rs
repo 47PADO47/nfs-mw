@@ -46,6 +46,11 @@ impl Binding {
     }
 
     pub fn apply(&mut self, rt: &mut Runtime, state: &HudState, mirror: bool) {
+        // A second world has no map and no police: the detector's disc stays hidden.
+        if state.second_world {
+            self.radar.hide(rt, mirror);
+            return;
+        }
         self.radar.apply(rt, state, mirror);
         self.heat.apply(rt, state.vehicle_heat);
         if let Some(group) = self.heat_group {
