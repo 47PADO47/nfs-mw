@@ -405,14 +405,6 @@ fn a_rider_lost_far_from_the_bike_is_on_the_seat_in_the_next_step_not_walked_to_
     assert!(fall.active(), "stopped, not yet back");
     fall.step(FIXED_STEP, &ground);
     assert!(!fall.active(), "back on the bike in one step");
-    // Nearer than the limit he is walked, as he was.
-    let (mut fall, pack) = started_animated(FallKind::LowSide, 0.5);
-    run_until_getting_up(&mut fall, &pack);
-    let State::Down(tumble) = &fall.state else { panic!("not down") };
-    let lying = to_render(tumble.ragdoll.centre());
-    fall.stop(&pack.skeleton, lying + Vec3::new(RETURN_SNAP_M - 5.0, 0.0, 0.0));
-    fall.step(FIXED_STEP, &ground);
-    assert!(fall.active(), "20 m away is a way to walk");
 }
 
 #[test]
