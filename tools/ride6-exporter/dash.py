@@ -135,14 +135,16 @@ def compose(assets, tool, base_package, emissive_package, cache, rpm):
         return None
     textures = fetch_textures(tool, collect_textures(assets, widgets), cache)
     total = np.zeros((1024, 1024, 3), dtype=np.float32)
+    fields = []
     for widget in widgets:
         config = merge_config(widget, assets)
         painter = Painter(assets, textures, config, idle_state(widget, config, rpm), 1024)
         layer = Layer(1024)
         painter.render(widget.root, (0.0, 0.0, 1024.0, 1024.0), layer)
+        fields.extend(painter.fields)
         arr = np.array(layer.image).astype(np.float32)
         total += to_linear(arr[..., :3]) * (arr[..., 3:4] / 255.0)
-    return np.clip(total, 0, 1) ** (1 / 2.2)
+    return np.clip(total, 0, 1) ** (1 / 2.2), fields
 
 
 def gauge_stem(parts):
@@ -182,12 +184,15 @@ def main():
             if not stem or not chassis:
                 continue
             base, emissive = hud_classes(assets, chassis_number(chassis))
-            picture = compose(assets, tool, base, emissive, args.tex, args.idle_rpm)
+            composed = compose(assets, tool, base, emissive, args.tex, args.idle_rpm)
+            picture, fields = composed if composed else (None, [])
             if picture is None:
                 print(f"{vehicle}: no widget")
                 continue
             target = os.path.join(folder, "tex", f"{stem}_dash.png")
             Image.fromarray((picture * 255 + 0.5).astype(np.uint8)).save(target)
+            with open(os.path.join(folder, "tex", f"{stem}_dash.json"), "w", encoding="utf-8") as f:
+                json.dump({"canvas": 1024, "fields": fields}, f)
             print(f"{vehicle}: {os.path.basename(target)} ({base and base.rsplit('/', 1)[-1]} {emissive and emissive.rsplit('/', 1)[-1]})")
     finally:
         tool.close()

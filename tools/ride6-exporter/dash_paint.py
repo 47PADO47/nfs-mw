@@ -45,6 +45,24 @@ def srgb_byte(linear):
     return int(v * 255 + 0.5)
 
 
+def bar_box(picture, rect):
+    """The bar picture's drawn part as a rectangle of the canvas (the picture fills its widget, the bar is a part of it) and how many
+    separate segments it has: the runs of columns that show something (1 for a continuous bar)."""
+    alpha = np.array(picture.getchannel("A")) > 16
+    columns, rows = alpha.any(axis=0), alpha.any(axis=1)
+    if not columns.any():
+        return None
+    height, width = alpha.shape
+    x0, x1 = np.flatnonzero(columns)[[0, -1]]
+    y0, y1 = np.flatnonzero(rows)[[0, -1]]
+    x, y, w, h = rect
+    box = [x + x0 / width * w, y + y0 / height * h, (x1 + 1 - x0) / width * w, (y1 + 1 - y0) / height * h]
+    if box[2] < 3 * box[3]:
+        return None  # a dial's arc, not a bar: the live panel does not draw it
+    runs = int(columns[0]) + int(np.count_nonzero(columns[1:] & ~columns[:-1]))
+    return [round(v, 1) for v in box], max(1, min(runs, 64))
+
+
 def text_colour(props):
     """The text colour (r, g, b, a bytes): the hex of the specified colour, else its linear floats encoded."""
     colour = props.get("ColorAndOpacity", {}).get("SpecifiedColor")
@@ -133,6 +151,9 @@ class Painter:
         self.state = state
         self.canvas = canvas
         self.cache = {}
+        # The places the live values go (`fields`, written by dash.py as `<picture>_dash.json`): the speed and gear text boxes and the rev bar.
+        self.fields = []
+        self.bar = None
 
     # --- sources -------------------------------------------------------------------------------------------------
     def texture(self, package):
@@ -174,6 +195,7 @@ class Painter:
             return None
         gradient = Image.open(gradient_path).convert("L").resize(base.size)
         mask = gradient.point(lambda v: 255 if v / 255.0 <= fill else 0)
+        self.bar = base
         out = base.copy()
         alpha = Image.fromarray(np.minimum(np.array(out.getchannel("A")), np.array(mask)))
         out.putalpha(alpha)
@@ -293,10 +315,14 @@ class Painter:
             self.draw_text(node, rect, layer)
 
     def draw_image(self, node, rect, layer):
+        self.bar = None
         picture, tint = self.brush(node)
         if picture is None:
             return
         x, y, w, h = rect
+        box = bar_box(self.bar, rect) if self.bar is not None else None
+        if box:
+            self.fields.append({"channel": "rpm_bar", "rect": box[0], "segments": box[1]})
         if w < 1 or h < 1:
             return
         widget_tint = (node.props.get("ColorAndOpacity") or {}).get("SpecifiedColor") or {}
@@ -322,6 +348,10 @@ class Painter:
         px = props.get("Font", {}).get("Size", 24.0) * SLATE_PX
         colour = text_colour(props)
         justification = props.get("Justification", "ETextJustify::Left")
+        channel = {"speedtext": "speed", "speed": "speed", "gear": "gear", "gear_": "gear"}.get(node.name.lower())
+        if channel:
+            align = "right" if justification.endswith("Right") else ("center" if justification.endswith("Center") else "left")
+            self.fields.append({"channel": channel, "rect": [round(v, 1) for v in rect], "colour": list(colour[:3]), "align": align, "px": round(px, 1), "segment": bool(is_segment_font(props))})
         part = Layer(layer.size)
         draw = ImageDraw.Draw(part.image)
         if is_segment_font(props):
