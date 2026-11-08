@@ -4,20 +4,20 @@
 use std::sync::Arc;
 
 use blackbox_hash::bstring_hash;
-use blackbox_modding::content::{ModelSwapProfile, SwapFit, parse_model_swap_profile};
+use blackbox_modding::content::{FitLimits, ModelSwapProfile, SwapFit, parse_model_swap_profile};
 use blackbox_solid::{GroupSource, Solid, SolidSource, Vertex, read_solids, write_geometry_pack};
 use blackbox_tpk::{AlphaUsage, PixelFormat, Texture};
 use nfsmw_data::world::SectionData;
 
-use super::fit::{
-    Frame, MAX_SCALE, MIN_SCALE, Prepared, ROW_MAX_COPIES, ROW_MAX_SCALE, fit_prepared, footprint, placements,
-};
+use super::fit::{Frame, Prepared, fit_prepared};
 use super::pack::world_copy_base;
+use super::place::{MAX_COPIES as ROW_COPIES_AT_MOST, MAX_SCALE};
 use super::{Pack, TEST_LOCK, active, rewrite, set_active};
 
 /// `model` fitted into the local solid `stock`.
 fn fit(model: &Solid, stock: &Solid, how: SwapFit) -> anyhow::Result<Solid> {
-    fit_prepared(&Prepared::new(model)?, stock, how, Frame::Local)
+    let fitted = fit_prepared(&Prepared::new(model)?, stock, how, Frame::Local, &FitLimits::default())?;
+    fitted.ok_or_else(|| anyhow::anyhow!("the solid keeps its own model"))
 }
 
 fn vertex(position: [f32; 3], uv: [f32; 2]) -> Vertex {
@@ -60,10 +60,38 @@ fn tree(name: &str, texture: &str, height: f32, half_width: f32, flags: u16) -> 
     write(source)
 }
 
+/// A solid of leaf cards (the way the game's rows of trees are) whose vertices are `points`.
+fn cloud(name: &str, points: &[[f32; 3]]) -> Solid {
+    let vertices: Vec<Vertex> = points.iter().map(|&p| vertex(p, [0.0, 0.0])).collect();
+    let indices: Vec<u16> = (0..points.len() as u16 - 2).flat_map(|n| [n, n + 1, n + 2]).collect();
+    let leaves = GroupSource { effect_id: 6, flags: 0x4008, ..GroupSource::new(vertices, indices) };
+    let mut source = SolidSource::new(name, vec![leaves]);
+    source.texture_hashes = vec![bstring_hash("STOCKTEX")];
+    write(source)
+}
+
+/// A pack whose one swap replaces `solid` with the tree model, fitted as `fit` ("height" or "row").
+fn pack_for(solid: &str, fit: &str) -> Pack {
+    let text = format!(
+        r#"format = 1
+geometry = "TREES/X/GEOMETRY.BIN"
+textures = "TREES/X/TEXTURES.BIN"
+
+[[swap]]
+solid = "{solid}"
+model = "MW12_TREE_L0"
+fit = "{fit}"
+"#
+    );
+    let models = vec![tree("MW12_TREE_L0", "MW12_LEAF", 10.0, 3.0, 0)];
+    Pack::build(&parse_model_swap_profile(&text).unwrap(), models, vec![texture("MW12_LEAF")])
+}
+
 /// A solid with only the bounds `low` to `high`: a quad across them.
 fn bounds_box(name: &str, low: [f32; 3], high: [f32; 3]) -> Solid {
     let corners = [low, [high[0], low[1], low[2]], high, [low[0], high[1], high[2]]];
-    let mut source = SolidSource::new(name, vec![GroupSource::new(quad(corners), vec![0, 1, 2, 0, 2, 3])]);
+    let trunk = GroupSource { effect_id: 0, flags: 0x4000, ..GroupSource::new(quad(corners), vec![0, 1, 2, 0, 2, 3]) };
+    let mut source = SolidSource::new(name, vec![trunk]);
     source.texture_hashes = vec![bstring_hash("STOCKTEX")];
     write(source)
 }
@@ -105,48 +133,87 @@ fn a_replacement_is_a_solid_the_loader_would_have_read() {
 
 #[test]
 fn a_model_is_set_on_the_floor_of_the_solid_it_replaces() {
-    let stock = bounds_box("XT_BOX", [-2.0, -2.0, 5.0], [2.0, 2.0, 25.0]);
+    let stock = bounds_box("XT_BOX", [-5.0, -5.0, 5.0], [5.0, 5.0, 25.0]);
     let fitted = fit(&tree("MODEL", "LEAF", 10.0, 3.0, 0), &stock, SwapFit::Height).unwrap();
     assert!((lowest(&fitted) - 5.0).abs() < 0.1, "the floor of the stock solid is z = 5: {}", lowest(&fitted));
     assert!((highest(&fitted) - 25.0).abs() < 0.1);
 }
 
 #[test]
-fn a_row_sets_copies_along_the_longer_side_and_scales_them_no_further_than_one_and_a_half_times() {
+fn a_replacement_is_never_wider_than_the_footprint_it_replaces_by_more_than_the_spread() {
+    // A stock tree 8 metres wide and 20 tall; the model is 6 wide and 10 tall, so the height asks for twice its size (12 metres
+    // wide). It is squeezed to 8 x 1.25 = 10 metres.
+    let stock = bounds_box("XT_THIN", [-4.0, -4.0, 0.0], [4.0, 4.0, 20.0]);
+    let fitted = fit(&tree("MODEL", "LEAF", 10.0, 3.0, 0), &stock, SwapFit::Height).unwrap();
+    let width = fitted.bounds_max[0] - fitted.bounds_min[0];
+    assert!(width <= 10.1, "held to the spread: {width}");
+    assert!((highest(&fitted) - 20.0).abs() < 0.1, "squeezed, not shortened");
+}
+
+#[test]
+fn a_replacement_that_cannot_fit_leaves_the_solid_its_own_model() {
+    let narrow = bounds_box("XT_NARROW", [-0.5, -0.5, 0.0], [0.5, 0.5, 20.0]);
+    let model = Prepared::new(&tree("MODEL", "LEAF", 10.0, 3.0, 0)).unwrap();
+    let limits = FitLimits::default();
+    assert!(fit_prepared(&model, &narrow, SwapFit::Height, Frame::Local, &limits).unwrap().is_none());
+    let loose = FitLimits { min_height: 0.0, ..limits };
+    let tiny = fit_prepared(&model, &narrow, SwapFit::Height, Frame::Local, &loose).unwrap().unwrap();
+    assert!(highest(&tiny) < 10.0, "with no least height it is made as small as the footprint asks");
+}
+
+#[test]
+fn a_row_is_one_copy_for_each_stretch_of_the_old_geometry() {
     let model = tree("MODEL", "LEAF", 10.0, 3.0, 0);
-    let stock = bounds_box("XT_ROW", [-30.0, -5.0, 0.0], [30.0, 5.0, 20.0]);
+    let points: Vec<[f32; 3]> = (0..=24)
+        .flat_map(|n| (0..2).map(move |side| [n as f32 * 2.5, side as f32 * 6.0, 20.0 * side as f32 + 0.6 * n as f32]))
+        .collect();
+    let stock = cloud("XT_ROW", &points);
     let fitted = fit(&model, &stock, SwapFit::Row).unwrap();
-    assert_eq!(fitted.groups.len(), 2 * ROW_MAX_COPIES, "60 metres of 7 metre crowns is more than the most copies");
-    let top = highest(&fitted);
-    assert!((top - ROW_MAX_SCALE * 10.0).abs() < 0.3, "scaled by {ROW_MAX_SCALE}, not to the stock height: {top}");
+    let copies = fitted.groups.len() / 2;
+    assert!((3..=ROW_COPIES_AT_MOST).contains(&copies), "{copies} copies of a 60 metre row");
     for vertex in &fitted.vertices {
-        assert!(vertex.position[0].abs() < 31.5, "inside the long side: {:?}", vertex.position);
-        assert!(vertex.position[1].abs() < 9.6, "near the middle of the short side: {:?}", vertex.position);
+        assert!(vertex.position[0] > -6.0 && vertex.position[0] < 66.0, "inside the row: {:?}", vertex.position);
     }
 }
 
 #[test]
-fn a_short_row_has_one_copy_and_the_other_axis_is_used_when_it_is_longer() {
-    let model_bounds = ([-3.0, -0.2, 0.0], [3.0, 0.2, 10.0]);
-    let short = placements(SwapFit::Row, model_bounds, ([-3.0, -3.0, 0.0], [3.0, 3.0, 10.0]));
-    assert_eq!(short.len(), 1);
-    assert_eq!(short[0].offset, [0.0, 0.0, 0.0]);
-    let along_y = placements(SwapFit::Row, model_bounds, ([-4.0, -20.0, 0.0], [4.0, 20.0, 10.0]));
-    assert!(along_y.len() > 1);
-    assert!(along_y.iter().all(|at| at.offset[0] == 0.0), "the copies stand on the middle of the short side");
-    assert!(along_y.windows(2).all(|pair| pair[0].offset[1] < pair[1].offset[1]), "along y, in order");
-    assert!(along_y.windows(2).all(|pair| pair[0].yaw != pair[1].yaw), "no two copies are alike");
+fn a_row_that_climbs_has_every_copy_on_its_own_floor() {
+    let points: Vec<[f32; 3]> = (0..=40)
+        .flat_map(|n| {
+            let x = n as f32 * 2.5;
+            [[x, 0.0, 0.3 * x], [x, 4.0, 0.3 * x + 12.0]]
+        })
+        .collect();
+    let stock = cloud("XT_SLOPE_DEINST1_T1", &points);
+    let pack = pack_for("XT_SLOPE", "row");
+    let mut data = section(vec![stock]);
+    pack.apply(&mut data);
+    let fitted = &data.solids[0];
+    assert_ne!(fitted.vertices.len(), points.len(), "it was replaced");
+    let (low, high) = (lowest(fitted), highest(fitted));
+    assert!(low < 3.0, "the first copy stands low: {low}");
+    assert!(high > 30.0, "the last copy stands on the slope, 30 metres up: {high}");
+    let feet: Vec<f32> = fitted
+        .groups
+        .iter()
+        .filter(|group| group.effect_id == 0)
+        .map(|group| {
+            let start = group.base_vertex as usize;
+            let own = &fitted.vertices[start..start + group.num_vertices as usize];
+            own.iter().map(|v| v.position[2]).fold(f32::MAX, f32::min)
+        })
+        .collect();
+    assert!(feet.len() >= 3, "{feet:?}");
+    assert!(feet.windows(2).all(|pair| pair[1] > pair[0]), "each copy's foot is higher than the one before: {feet:?}");
 }
 
 #[test]
-fn a_height_fit_is_one_placement_with_the_scale_kept_in_range() {
-    let model_bounds = ([-1.0, -1.0, 0.0], [1.0, 1.0, 1.0]);
-    let tall = placements(SwapFit::Height, model_bounds, ([-1.0, -1.0, 0.0], [1.0, 1.0, 100.0]));
-    assert_eq!(tall.len(), 1);
-    assert_eq!(tall[0].scale, MAX_SCALE);
-    let flat =
-        placements(SwapFit::Height, ([-1.0, -1.0, 0.0], [1.0, 1.0, 100.0]), ([-1.0, -1.0, 0.0], [1.0, 1.0, 1.0]));
-    assert_eq!(flat[0].scale, MIN_SCALE);
+fn a_height_fit_is_kept_in_range() {
+    let mut model = tree("MODEL", "LEAF", 1.0, 3.0, 0);
+    model.bounds_max[2] = 1.0;
+    let tall = bounds_box("XT_TALL", [-40.0, -40.0, 0.0], [40.0, 40.0, 100.0]);
+    let fitted = fit(&model, &tall, SwapFit::Height).unwrap();
+    assert!(highest(&fitted) <= MAX_SCALE + 0.1, "no more than {MAX_SCALE} times its size: {}", highest(&fitted));
 }
 
 #[test]
@@ -275,34 +342,54 @@ fn a_world_copy_is_replaced_where_it_stands_and_keeps_its_own_name() {
 }
 
 #[test]
-fn a_row_in_world_space_runs_along_the_way_the_copy_runs() {
-    let model = ([-3.0, -0.2, 0.0], [3.0, 0.2, 10.0]);
-    // A long thin strip on the diagonal: ten metres thick, a hundred long, 45 degrees from the x axis.
-    let corners = [[0.0, 0.0], [70.0, 70.0], [77.0, 63.0], [7.0, -7.0]];
-    let vertices = corners.iter().map(|c| vertex([c[0], c[1], 0.0], [0.0, 0.0]));
-    let top = corners.iter().map(|c| vertex([c[0], c[1], 20.0], [0.0, 0.0]));
-    let mut copy = bounds_box("XT_ROW_DEINST1_T1", [0.0, -7.0, 0.0], [77.0, 70.0, 20.0]);
-    copy.vertices = vertices.chain(top).collect();
-    let plan = footprint(&copy);
-    assert!((plan.angle - std::f32::consts::FRAC_PI_4).abs() < 0.05, "along the diagonal: {}", plan.angle);
-    assert!((plan.length - 99.0).abs() < 3.0, "about 100 metres: {}", plan.length);
-    assert!((plan.centre[0] - 38.5).abs() < 2.0 && (plan.centre[1] - 31.5).abs() < 2.0, "{:?}", plan.centre);
-    let copies = super::fit::world_placements(SwapFit::Row, model, (copy.bounds_min, copy.bounds_max), &plan);
-    assert_eq!(copies.len(), ROW_MAX_COPIES);
-    let (first, last) = (copies[0].offset, copies[ROW_MAX_COPIES - 1].offset);
-    assert!(last[0] > first[0] && last[1] > first[1], "both axes grow along the diagonal: {first:?} {last:?}");
-    assert!(((last[1] - first[1]) / (last[0] - first[0]) - 1.0).abs() < 0.2, "on the diagonal");
+fn a_row_in_world_space_follows_a_diagonal_and_a_bend() {
+    // A strip that runs along the diagonal and then turns to run along y: a straight line of copies could not follow it.
+    let mut points: Vec<[f32; 3]> = Vec::new();
+    for n in 0..=56 {
+        let at = n as f32 * 1.5;
+        points.push([at, at, 0.0]);
+        points.push([at + 5.0, at - 5.0, 18.0]);
+    }
+    for n in 1..=56 {
+        let at = 84.0 + n as f32 * 1.5;
+        points.push([84.0, at, 0.0]);
+        points.push([89.0, at, 18.0]);
+    }
+    let copy = cloud("XT_ROW_DEINST1_T1", &points);
+    let pack = pack_for("XT_ROW", "row");
+    let mut data = section(vec![copy]);
+    pack.apply(&mut data);
+    let fitted = &data.solids[0];
+    let (low, high) = (fitted.bounds_min, fitted.bounds_max);
+    assert!(high[0] > 85.0 && low[0] < 5.0, "along the diagonal: {low:?} {high:?}");
+    assert!(high[1] > 150.0, "and up the second leg: {high:?}");
 }
 
 #[test]
 fn a_world_single_tree_is_placed_at_the_middle_of_its_footprint() {
     let copy = world_tree("XT_STOCK_DEINST3_T7", [10.0, 20.0], 20.0);
-    let plan = footprint(&copy);
-    assert!((plan.centre[0] - 10.0).abs() < 0.5 && (plan.centre[1] - 20.0).abs() < 0.5, "{:?}", plan.centre);
-    let bounds = ([-3.0, -0.2, 0.0], [3.0, 0.2, 10.0]);
-    let at = super::fit::world_placements(SwapFit::Height, bounds, (copy.bounds_min, copy.bounds_max), &plan);
-    assert_eq!(at.len(), 1);
-    assert!((at[0].offset[2] - copy.bounds_min[2]).abs() < 1e-3);
+    let mut data = section(vec![copy.clone()]);
+    pack().apply(&mut data);
+    let fitted = &data.solids[0];
+    let (low, high) = (fitted.bounds_min, fitted.bounds_max);
+    let middle = [0.5 * (low[0] + high[0]), 0.5 * (low[1] + high[1])];
+    assert!((middle[0] - 10.0).abs() < 1.5 && (middle[1] - 20.0).abs() < 1.5, "{low:?} {high:?}");
+    assert!((lowest(fitted) - lowest(&copy)).abs() < 0.1);
+}
+
+#[test]
+fn a_world_copy_that_cannot_be_fitted_is_left_as_it_is() {
+    let mut copy = world_tree("XT_STOCK_DEINST3_T7", [10.0, 20.0], 20.0);
+    for vertex in &mut copy.vertices {
+        vertex.position[0] = 10.0 + (vertex.position[0] - 10.0) * 0.05;
+        vertex.position[1] = 20.0 + (vertex.position[1] - 20.0) * 0.05;
+    }
+    copy.bounds_min = [9.0, 19.0, copy.bounds_min[2]];
+    copy.bounds_max = [11.0, 21.0, copy.bounds_max[2]];
+    let before = copy.clone();
+    let mut data = section(vec![copy]);
+    pack().apply(&mut data);
+    assert_eq!(data.solids[0], before, "the game's own tree stays");
 }
 
 #[test]

@@ -10,6 +10,9 @@
 
 mod fit;
 mod pack;
+mod place;
+#[cfg(test)]
+mod real_tests;
 #[cfg(test)]
 mod tests;
 
