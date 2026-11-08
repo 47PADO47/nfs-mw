@@ -227,7 +227,7 @@ fn write_drops(out: &Path, pictures: &RainPictures) -> Result<()> {
     std::fs::write(folder.join(format!("{LENS_TARGET}.png")), vfx::png_bytes(&pictures.drop)?)
         .context("writing the lens drop")?;
     // The set is written last: a host that reads it finds the picture in place.
-    let replace = out.join(blackbox_modding::content::REPLACE_FOLDER);
+    let replace = out.join(crate::vfx::REPLACE_FOLDER);
     std::fs::create_dir_all(&replace).with_context(|| format!("creating {}", replace.display()))?;
     std::fs::write(replace.join("rain-drops-mw2012.toml"), drops_manifest()).context("writing the replacement set")
 }

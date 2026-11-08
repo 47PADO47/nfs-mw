@@ -16,6 +16,8 @@ use blackbox_tpk::{AlphaUsage, PixelFormat as TpkFormat, Texture as TpkTexture, 
 use chameleon_bundle::{Bundle, ResourceKind};
 use chameleon_gfx::{PixelFormat, Texture};
 
+/// The folder of the mod that holds its replacement sets (`blackbox_modding::content::REPLACE_FOLDER`, which only a host build has).
+pub const REPLACE_FOLDER: &str = "replace";
 /// The file with the effects.
 pub const GLOBAL_EFFECTS: &str = "GLOBALEFFECTS.BNDL";
 

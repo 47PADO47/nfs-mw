@@ -459,7 +459,7 @@ reads the install).
 ## Skid marks and rain
 
 Four effect variants of the 2005 game's own effects, each a value of a gameplay option: the tyre marks of the 2012 road surfaces (decoded
-slip and spin pictures, three sets: paved, loose and a wet paved one that equals the dry), and, made from the 2012 water pictures because
+slip and spin pictures, two sets: paved and loose), and, made from the 2012 water pictures because
 the 2012 game has no rain, a rain splash on the road, the lens drops and a wet road look. Settings above, files, costs and what is chosen
 or not decoded: [docs/mods/nfsmw-2012-skid-rain.md](../../docs/mods/nfsmw-2012-skid-rain.md) (`src/marks_assets.rs`, `src/rain_assets.rs`).
 

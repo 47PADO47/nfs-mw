@@ -70,16 +70,18 @@ host's marks are unlit, so the mod does not carry them.
 
 `mods/nfsmw-2012-content/src/marks_assets.rs`: opens `SURFACELIST.BNDL` (75 KB) and `GLOBALEFFECTS.BNDL` (4.8 MB) **by ranges**
 (`trees::ranges`, the table of each bundle and the blocks of the resources it asks for), tallies the surfaces, decodes the slip and
-spin diffuse pictures of the candidate materials, picks the most named non-brown material of each slot (the dry and the wet set, the
-wet one only when it differs) and the most named brown one (the loose set), and writes up to six PNGs (`PAVED_SLIP.PNG` ...) and a
-`profile.toml` under `files/SKIDMARKS/MW2012/`. The run pictures, the normal maps and the parameters are not carried. `slip_tile` 4 m,
+spin diffuse pictures of the candidate materials, picks the most named non-brown material of each slot (the dry and, if different, the wet set, the
+wet one only when its pictures differ from the dry set's) and the most named brown one (the loose set), and writes the PNGs
+(`PAVED_SLIP.PNG` ...) and a `profile.toml` under `files/SKIDMARKS/MW2012/`. **In the installed game the wet set's slip and spin diffuse
+pictures are the dry set's** (only its normal maps and constants differ), so the mod writes four PNGs and two sets, paved and loose; a mod
+of another game could ship a wet set. The run pictures, the normal maps and the parameters are not carried. `slip_tile` 4 m,
 `spin_tile` 2 m are **[chosen]** (a tyre's circumference is about 2 m).
 
 ## Cost
 
 Measured with `cargo test -p nfsmw-2012-content --lib -- --ignored real_install --nocapture` (the two real-install tests): see the
 numbers in the pull request description; the test asserts the mod reads under a quarter of the two bundles' bytes. Disk: six
-tiny PNGs (the pictures are 32 x 32 to 64 x 64) and one profile.
+tiny PNGs (the pictures are 32 x 32; four of them, about 4 KB with the profile).
 
 ## Not decoded
 

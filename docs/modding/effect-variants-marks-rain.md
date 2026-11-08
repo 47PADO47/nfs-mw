@@ -130,7 +130,7 @@ All four are **NFS Most Wanted 2012**, written by the mod from your own install 
 car conversion needed), each with a setting in the mod's `config.toml`: `skid_marks`, `rain_splash`, `rain_drops`, `wet_road` (all
 `true`; see the [mod README](../../mods/nfsmw-2012-content/README.md#skid-marks-and-rain)).
 
-- **Skid marks**: the slip and spin diffuse pictures of the 2012 tyre mark materials, three sets (dry paved, wet paved, loose), found
+- **Skid marks**: the slip and spin diffuse pictures of the 2012 tyre mark materials, two sets (paved, loose; the wet paved set's diffuse pictures equal the dry one's, so it is left out), found
   through the `SurfaceType` and `SurfaceVfx` objects of `SURFACELIST.BNDL` ([chameleon-tyre-marks.md](../formats/chameleon-tyre-marks.md)).
   `slip_tile` 4 m and `spin_tile` 2 m are **chosen**; `width` and `opacity` are 1.
 - **Rain splash** and **rain drops**: the 2012 game has **no rain**, so these are made from the 2012 water pictures (a splash ring and

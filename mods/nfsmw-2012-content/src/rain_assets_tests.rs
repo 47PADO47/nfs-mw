@@ -37,6 +37,11 @@ fn the_largest_dot_becomes_the_lens_drop_bending_the_scene_more_at_its_rim() {
 }
 
 #[test]
+fn the_replacement_folder_is_the_hosts() {
+    assert_eq!(crate::vfx::REPLACE_FOLDER, blackbox_modding::content::REPLACE_FOLDER);
+}
+
+#[test]
 fn a_picture_with_no_dot_is_refused() {
     let empty = Picture { width: 8, height: 8, rgba: vec![0; 8 * 8 * 4] };
     assert!(lens_drop(&empty).is_err());

@@ -8,7 +8,7 @@ the 2012 install holds is in [chameleon-tyre-marks.md](../formats/chameleon-tyre
 
 | Effect | Option (Gameplay) | Setting (the mod's `config.toml` or `[mods.nfsmw-2012-content]`) | What is written | Made from |
 |---|---|---|---|---|
-| Skid marks | Skid marks variant | `skid_marks = true` | `files/SKIDMARKS/MW2012/`: up to six 32 x 32 PNGs and `profile.toml` (about 4 KB) | the slip and spin pictures of the tyre mark materials of `SURFACELIST.BNDL` and `GLOBALEFFECTS.BNDL`: decoded |
+| Skid marks | Skid marks variant | `skid_marks = true` | `files/SKIDMARKS/MW2012/`: four 32 x 32 PNGs and `profile.toml` (about 4 KB) | the slip and spin pictures of the tyre mark materials of `SURFACELIST.BNDL` and `GLOBALEFFECTS.BNDL`: decoded |
 | Rain splash | Rain splash variant | `rain_splash = true` | `files/RAINSPLASH/MW2012/`: `RING.PNG` (6 KB), `SPRAY.PNG` (70 KB), `profile.toml` | the 2012 water splash ring and spray column pictures; the numbers are chosen |
 | Rain drops | Rain drops variant (a replacement set of kind `rain_drops`) | `rain_drops = true` | `files/REPLACE/RAIN_DROPS/RAINDROPPC.png` (3 KB) and `replace/rain-drops-mw2012.toml` | one drop computed from the 2012 round dots; the bend is chosen |
 | Wet road | Wet road variant | `wet_road = true` | `files/WETROAD/MW2012/profile.toml` | chosen factors: nothing decoded to read |
@@ -27,7 +27,7 @@ marks_assets::tests::the_real rain_assets::tests::the_real --nocapture`):
 - rain pictures: **111,710 bytes read** of `GLOBALEFFECTS.BNDL`, about 80 KB written (the spray picture is most of it);
 - nothing is converted when no setting is on, and nothing is read by the game while the option says "Original".
 
-In the game, a skid mark variant costs one textured batch for each picture in use (at most six) and the cutting of a mark at every
+In the game, a skid mark variant costs one textured batch for each picture in use (at most four) and the cutting of a mark at every
 repeat of its picture (a few quads for a 3 m mark); the splash costs at most 8 ground queries and 384 quads a frame while it rains.
 
 ## What was not heard or seen

@@ -17,8 +17,8 @@ use crate::import::{self, Report};
 use crate::{lazy, stamp};
 
 const STAGING: &str = ".staging";
-/// The folders the game reads, which a promotion replaces together.
-const CONTENT: [&str; 3] = ["files", "cars", "manufacturers"];
+/// The folders the game reads, which a promotion replaces together (`replace` holds the replacement sets of `trees.rs` and `rain_assets.rs`).
+const CONTENT: [&str; 4] = ["files", "cars", "manufacturers", crate::vfx::REPLACE_FOLDER];
 
 /// A conversion running on its own thread.
 pub struct Job {
@@ -193,7 +193,10 @@ mod tests {
         fs::write(dir.join("cars/old.toml"), "old").unwrap();
         fs::write(dir.join("mod.toml"), "keep").unwrap();
         staged(&dir, true);
+        fs::create_dir_all(dir.join(".staging/replace")).unwrap();
+        fs::write(dir.join(".staging/replace/set.toml"), "set").unwrap();
         assert!(promote(&dir).unwrap());
+        assert!(dir.join("replace/set.toml").is_file(), "the replacement sets are promoted with the content");
         assert!(dir.join("cars/x.toml").is_file() && !dir.join("cars/old.toml").exists());
         assert!(dir.join("files/CARS/X").is_dir());
         assert_eq!(fs::read_to_string(dir.join(stamp::FILE)).unwrap(), "stamp");
