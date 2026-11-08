@@ -246,16 +246,24 @@ pub fn decide(ctx: &Ctx, config: &Config) -> bool {
 /// Give the host the maker of the lazy files in the mod folder `mod_dir`, when it has a recipe: the files its stubs stand for
 /// are then made when the game reads them. Called at load for content already there, and again when a first run is promoted.
 pub fn provide(ctx: &Ctx, mod_dir: &Path) {
-    let Some(recipe) = Recipe::read(mod_dir) else { return };
+    let roads = crate::road_textures::Maker::read(mod_dir);
+    let recipe = match (Recipe::read(mod_dir), &roads) {
+        (Some(recipe), _) => recipe,
+        // No cars are streamed, but the road textures are: the maker has no car to make.
+        (None, Some(roads)) => Recipe::new(&Config::default(), roads.source(), Vec::new()),
+        (None, None) => return,
+    };
     let Some(content) = ctx.content().filter(|content| content.supports_lazy_files()) else {
         let reason = "nfsmw-2012-content: the cars are lazy files and this game cannot make them: reconvert with stream_cars = false";
         ctx.log(Level::Warn, reason);
         return;
     };
     let cars = recipe.car.len();
-    match content.provide_lazy_files(Maker::new(recipe)) {
+    match content.provide_lazy_files(Maker::new(recipe).with_roads(roads)) {
         Ok(()) => {
-            let said = format!("nfsmw-2012-content: the files of {cars} cars are made when the game opens them");
+            let said = format!(
+                "nfsmw-2012-content: the files of {cars} cars and the road textures are made when the game opens them"
+            );
             ctx.log(Level::Info, &said);
         }
         Err(error) => ctx.log(Level::Warn, &format!("nfsmw-2012-content: the lazy files are not offered: {error}")),

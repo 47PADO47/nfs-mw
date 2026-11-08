@@ -18,7 +18,7 @@ use crate::{lazy, stamp};
 
 const STAGING: &str = ".staging";
 /// The folders the game reads, which a promotion replaces together.
-const CONTENT: [&str; 3] = ["files", "cars", "manufacturers"];
+const CONTENT: [&str; 4] = ["files", "cars", "manufacturers", crate::road_textures::REPLACE_FOLDER];
 
 /// A conversion running on its own thread.
 pub struct Job {
@@ -77,6 +77,8 @@ pub fn start_with(
     // The soundtrack is a playlist of the install's own files, kept in line with the settings at every start whatever the
     // conversion does (`soundtrack.rs`).
     crate::soundtrack::sync(mod_dir, config.source.as_deref(), config.music);
+    // The road textures are stubs, so they are kept in line with the settings at every start too (`road_textures/`).
+    crate::road_textures::sync(mod_dir, config.source.as_deref(), config.road_textures);
     let Some(source) = config.source.clone() else {
         return Ok(Start::NotConfigured { config: config_path, created });
     };

@@ -101,6 +101,12 @@ traffic = true
 # (mods/nfsmw-2012-content/README.md, \"Trees\"); the max_texture_size key applies to their textures.
 trees = true
 
+# Offer the 2012 game's road, ground and sign textures (asphalt, sidewalks, grass, concrete, road paint, the STOP and speed limit
+# signs, the storm grate and the round cover) as a value of the gameplay setting \"Road textures\". Nothing is converted or
+# written: the pictures are made from your 2012 install when the game first loads a map tile that uses them
+# (mods/nfsmw-2012-content/README.md, \"Road textures\"). false adds neither the textures nor the value.
+road_textures = true
+
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
 # weight, grip the tyres, brakes the brake torque (0.25 to 4 each, grip 0.25 to 3), nitrous_power the extra torque of
@@ -207,6 +213,9 @@ pub struct Config {
     pub traffic: bool,
     /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
     pub trees: bool,
+    /// Whether the 2012 game's road, ground and sign textures are offered as a replacement of the 2005 world's (`road_textures/`). Not part
+    /// of the conversion's fingerprint: the set is only stubs, written at every start.
+    pub road_textures: bool,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -230,6 +239,7 @@ impl Default for Config {
             lazy: false,
             traffic: true,
             trees: true,
+            road_textures: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),
