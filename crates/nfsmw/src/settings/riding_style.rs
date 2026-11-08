@@ -86,16 +86,6 @@ impl BikeClass {
             Self::Offroad => "NFSMW_RIDING_STYLE_OFFROAD",
         }
     }
-
-    /// The title of the class's row in the current language.
-    pub fn title(self) -> String {
-        let id = match self {
-            Self::Road => "options-riding-style-road",
-            Self::Motard => "options-riding-style-motard",
-            Self::Offroad => "options-riding-style-offroad",
-        };
-        crate::i18n::text(id, &crate::i18n::Args::new())
-    }
 }
 
 impl super::Settings {
@@ -167,7 +157,6 @@ mod tests {
         assert_eq!(keys, ["riding_style_road", "riding_style_motard", "riding_style_offroad"]);
         assert_eq!(BikeClass::ALL.map(BikeClass::index), [0, 1, 2]);
         assert_eq!(BikeClass::Motard.env(), "NFSMW_RIDING_STYLE_MOTARD");
-        assert_eq!(BikeClass::Offroad.title(), "Riding Style: Offroad");
     }
 
     #[test]
