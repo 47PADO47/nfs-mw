@@ -98,3 +98,16 @@ Between two keys the dome changes by a cross-fade; at a key it is that key's. A 
 The 2012 mod writes 5.5 MB (`sky_size = 1024`: 1.4 MB). The game reads two domes (1 MB each) and the moon when the
 variant is first drawn, uploads them compressed, and then draws the clouds with the cost of two texture samples per map texel; see the
 measurements of the 2012 value in [the mod's README](../../mods/nfsmw-2012-content/README.md#sky).
+
+## Status and what was checked (November 2026)
+
+Looked at in the game (offscreen, `view-world`, isolated profile): the 2012 value at day, sunrise, afternoon, dusk, evening, night, dawn
+and overcast against the game's own sky, eight pairs, the domes, their cross-fade, the glow turned under the sun, the weather picked by
+the cloud cover. Run on the GPU: `libs/blackbox-render` `panorama` tests (the cloud map takes the domes, a transparent dome shows the
+clear sky, the map is rebuilt for new pictures or a jump of the blend, the moon picture). Run on the 2012 install: the reader and the
+conversion (`chameleon-environment`, `the_installed_sky_is_converted_to_a_profile_the_game_reads_with_every_picture`).
+
+Not verified: the moon picture **in the game** (no frame with the moon in view was found: the moon stands high at midnight in the full
+day/night cycle, look up 60 degrees or more; the GPU test draws it); the storm picture (`0x3F38`) is not used at all; the Original PC
+layered sky is not changed by a variant (see above); a change of weather class switches the domes at once; the cloud shadows are off
+while a variant is chosen; multiplayer lockstep was not considered (the sky is the viewer's own).
