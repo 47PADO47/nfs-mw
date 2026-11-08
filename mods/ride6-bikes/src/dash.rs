@@ -19,6 +19,7 @@
 //! cluster, a bezel on a black ground) is left as it is.
 
 use anyhow::Result;
+use blackbox_tpk::Level;
 
 use crate::textures::{Picture, TexStore};
 
@@ -56,6 +57,86 @@ pub struct Screen {
     pub window: [u32; 4],
     /// Background, lit segment, unlit segment, text, label, gear: texel colours, the lift of the picture applied.
     pub colors: [[u8; 3]; 6],
+    /// The cluster's own places for the speed, the gear and the revs, from the exporter's layout; empty: the generic panel.
+    #[serde(default)]
+    pub fields: Vec<Field>,
+}
+
+/// One place of the cluster that shows a value (`[[bike.dash.field]]`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Field {
+    /// `speed`, `gear` or `rpm_bar`.
+    pub channel: String,
+    /// `[x, y, width, height]` in texels of the stored texture.
+    pub rect: [u32; 4],
+    /// The digits' colour (the lit part of a bar), lifted like the picture, and the colour of the picture in the rectangle.
+    pub color: [u8; 3],
+    pub background: [u8; 3],
+    pub align: String,
+    pub segments: u32,
+}
+
+#[derive(serde::Deserialize)]
+struct RawField {
+    channel: String,
+    rect: [f32; 4],
+    #[serde(default)]
+    colour: Option<[u8; 3]>,
+    #[serde(default)]
+    align: Option<String>,
+    #[serde(default)]
+    segments: Option<u32>,
+}
+
+#[derive(serde::Deserialize)]
+struct Layout {
+    canvas: f32,
+    fields: Vec<RawField>,
+}
+
+/// The median of each channel of the texels of `level` in `rect`: the picture's colour with the few glyph texels voted out.
+fn median_colour(level: &Level, [x, y, w, h]: [u32; 4]) -> [u8; 3] {
+    let mut channels: [Vec<u8>; 3] = Default::default();
+    for row in y..(y + h).min(level.height) {
+        for column in x..(x + w).min(level.width) {
+            let at = ((row * level.width + column) * 4) as usize;
+            for (channel, list) in channels.iter_mut().enumerate() {
+                list.push(level.rgba[at + channel]);
+            }
+        }
+    }
+    channels.map(|mut list| {
+        list.sort_unstable();
+        list.get(list.len() / 2).copied().unwrap_or(0)
+    })
+}
+
+/// The fields of the exporter's layout `json` (rectangles in its canvas) for the stored picture `level`: scaled to it, each with its
+/// colour lifted by `gain` and the median colour of the picture under it. A rectangle too small or outside the picture is left out.
+pub fn fields_from(json: &str, level: &Level, gain: f32) -> Vec<Field> {
+    let Ok(layout) = serde_json::from_str::<Layout>(json) else { return Vec::new() };
+    let scale = level.width as f32 / layout.canvas.max(1.0);
+    let mut out = Vec::new();
+    for raw in layout.fields {
+        let [x, y, w, h] = raw.rect.map(|v| v * scale);
+        let (x0, y0) = (x.max(0.0).floor() as u32, y.max(0.0).floor() as u32);
+        let (x1, y1) =
+            (((x + w).ceil().max(0.0) as u32).min(level.width), ((y + h).ceil().max(0.0) as u32).min(level.height));
+        if x1 < x0 + 4 || y1 < y0 + 4 {
+            continue;
+        }
+        let rect = [x0, y0, x1 - x0, y1 - y0];
+        let colour = raw.colour.unwrap_or([110, 200, 255]);
+        out.push(Field {
+            channel: raw.channel,
+            rect,
+            color: crate::grade::lift_colour(colour, gain),
+            background: median_colour(level, rect),
+            align: raw.align.unwrap_or_else(|| "center".to_owned()),
+            segments: raw.segments.unwrap_or(1),
+        });
+    }
+    out
 }
 
 impl Screen {
@@ -67,11 +148,36 @@ impl Screen {
         let (width, height) =
             (scale(window.width, picture_size.0, from.0), scale(window.height, picture_size.1, from.1));
         let lifted = [BACKGROUND, LIT, DIM, WHITE, GREY, GREEN].map(|colour| crate::grade::lift_colour(colour, gain));
-        Self { texture: texture.to_owned(), window: [x, y, width, height], colors: lifted }
+        Self { texture: texture.to_owned(), window: [x, y, width, height], colors: lifted, fields: Vec::new() }
     }
 
     /// The `[bike.dash]` table.
     pub fn table(&self) -> String {
+        let mut text = self.window_table();
+        let colour = |[r, g, b]: [u8; 3]| format!("[{r}, {g}, {b}]");
+        for field in &self.fields {
+            let [x, y, w, h] = field.rect;
+            text.push_str(&format!(
+                "
+[[bike.dash.field]]
+channel = \"{}\"
+rect = [{x}, {y}, {w}, {h}]
+color = {}
+background = {}
+align = \"{}\"
+segments = {}
+",
+                field.channel,
+                colour(field.color),
+                colour(field.background),
+                field.align,
+                field.segments
+            ));
+        }
+        text
+    }
+
+    fn window_table(&self) -> String {
         let [x, y, w, h] = self.window;
         let [background, lit, dim, text, label, gear] = self.colors;
         let colour = |[r, g, b]: [u8; 3]| format!("[{r}, {g}, {b}]");
@@ -310,6 +416,43 @@ window = [50, 100, 200, 100]
             "[bike.dash.colors]
 background = ["
         ));
+    }
+
+    #[test]
+    fn a_layout_gives_fields_scaled_to_the_picture_with_the_median_background_and_lifted_colour() {
+        // A 100 x 100 picture of grey with a white glyph of a few texels in the middle of the field.
+        let mut level = Level { width: 100, height: 100, rgba: [40u8, 50, 60, 255].repeat(100 * 100) };
+        for row in 40..44 {
+            for column in 40..44 {
+                let at = (row * 100 + column) * 4;
+                level.rgba[at..at + 3].copy_from_slice(&[255, 255, 255]);
+            }
+        }
+        let json = r#"{"canvas": 200, "fields": [
+            {"channel": "speed", "rect": [60.0, 60.0, 60.0, 40.0], "colour": [100, 200, 50], "align": "right"},
+            {"channel": "rpm_bar", "rect": [0.0, 0.0, 100.0, 20.0], "segments": 3},
+            {"channel": "gear", "rect": [10.0, 10.0, 2.0, 2.0]}]}"#;
+        let fields = fields_from(json, &level, 1.0);
+        assert_eq!(fields.len(), 2, "the two texel rectangle is left out");
+        assert_eq!((fields[0].channel.as_str(), fields[0].rect), ("speed", [30, 30, 30, 20]));
+        assert_eq!((fields[0].color, fields[0].align.as_str()), ([100, 200, 50], "right"));
+        assert_eq!(fields[0].background, [40, 50, 60], "the glyph is voted out");
+        assert_eq!((fields[1].channel.as_str(), fields[1].segments, fields[1].rect), ("rpm_bar", 3, [0, 0, 50, 10]));
+        assert!(fields_from("not json", &level, 1.0).is_empty());
+        let mut screen =
+            Screen::new("CAR_G_D", Window { x: 0, y: 0, width: 50, height: 50 }, (100, 100), (100, 100), 1.0);
+        screen.fields = fields;
+        let table = screen.table();
+        assert!(
+            table.contains(
+                "[[bike.dash.field]]
+channel = \"speed\"
+rect = [30, 30, 30, 20]
+"
+            ),
+            "{table}"
+        );
+        assert!(table.parse::<toml::Table>().is_ok(), "{table}");
     }
 
     #[test]

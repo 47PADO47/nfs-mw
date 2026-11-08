@@ -304,15 +304,24 @@ impl Surfaces {
         // The display of a cluster, found in the static picture before the widgets are composed over it: a cluster that has one is
         // stored as 32-bit colour at `dash::LIVE_SIZE` so the host can paint the speed, gear and revs into it.
         let mut live = None;
+        let mut layout: Option<String> = None;
         if material.name.to_ascii_lowercase().starts_with("mat_gauge") {
             live = dash::find_window(&picture).map(|window| (window, (picture.width, picture.height)));
-            // The screen of an instrument cluster is drawn by widgets at run time: take the exporter's composition of them at rest,
-            // or else draw a small panel into the black window of the static picture.
-            match dash::composed(&mut self.store, base_stem)? {
-                Some(screen) => picture = screen,
-                None => {
+            // The screen of an instrument cluster is drawn by widgets at run time. The exporter's composition of them at rest is the
+            // picture; its layout (`<picture>_dash.json`: where the speed, the gear and the revs are) tells the host where to draw
+            // the live values over it. A cluster with a display but no layout keeps the bezel of the static picture and an idle panel
+            // in the window; one without a display takes the composition, or else a small panel in the black window.
+            layout = live.and_then(|_| self.store.json_beside(&format!("{}_dash", base_stem.to_ascii_lowercase())));
+            match (&live, &layout) {
+                (Some(_), None) => {
                     dash::fill_screen(&mut picture);
                 }
+                _ => match dash::composed(&mut self.store, base_stem)? {
+                    Some(screen) => picture = screen,
+                    None => {
+                        dash::fill_screen(&mut picture);
+                    }
+                },
             }
         }
         let level = picture.shrunk(if live.is_some() { cap.min(dash::LIVE_SIZE) } else { cap });
@@ -321,7 +330,9 @@ impl Surfaces {
         let cut_out = level.rgba.as_chunks::<4>().0.iter().any(|t| t[3] < 255);
         if !self.palette.contains(&diffuse) {
             if let Some((window, from)) = live {
-                let screen = dash::Screen::new(&diffuse, window, from, (level.width, level.height), grade.gain);
+                let mut screen = dash::Screen::new(&diffuse, window, from, (level.width, level.height), grade.gain);
+                screen.fields =
+                    layout.as_deref().map(|text| dash::fields_from(text, &level, grade.gain)).unwrap_or_default();
                 self.dash.get_or_insert(screen);
                 self.add_level_mips(&diffuse, level.clone(), PixelFormat::Argb8888, Alpha::Opaque, 1);
             } else {
