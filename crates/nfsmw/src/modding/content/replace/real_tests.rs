@@ -41,7 +41,7 @@ fn report_what_the_trees_do_to_the_installed_world() {
     let listed: std::collections::HashSet<&str> = profile.swaps.iter().map(|swap| swap.solid.as_str()).collect();
     let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
     let mut report = String::from(
-        "section\tname\tframe\tfit\told_min\told_max\tnew_min\tnew_max\ttrunk_floor\tleaf_floor\tcentre\tangle\tlength\tspan_x\tspan_y\tpivot\tground_low\tground_high\n",
+        "section\tname\tframe\tfit\told_min\told_max\tnew_min\tnew_max\ttrunk_floor\tleaf_floor\tcentre\tangle\tlength\tspan_x\tspan_y\tpivot\tground_low\tground_high\told_vertices\tnew_vertices\told_triangles\tnew_triangles\n",
     );
     for (i, section) in index.sections.iter().enumerate() {
         let bytes = dir.read_range(&index.stream_file, u64::from(section.file_offset), section.size as usize).unwrap();
@@ -75,7 +75,7 @@ fn report_what_the_trees_do_to_the_installed_world() {
             let f = |v: [f32; 3]| format!("{:.1},{:.1},{:.1}", v[0], v[1], v[2]);
             let _ = writeln!(
                 report,
-                "{}\t{}\t{}\t{:?}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.1},{:.1}\t{:.2}\t{:.1}\t{:.1}\t{:.1}\t{:.1},{:.1},{:.1}\t{}",
+                "{}\t{}\t{}\t{:?}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.1},{:.1}\t{:.2}\t{:.1}\t{:.1}\t{:.1}\t{:.1},{:.1},{:.1}\t{}\t{}\t{}\t{}\t{}",
                 section.name,
                 old.name,
                 if world.is_some() { "world" } else { "local" },
@@ -96,6 +96,10 @@ fn report_what_the_trees_do_to_the_installed_world() {
                 old.transform[13],
                 old.transform[14],
                 ground_text,
+                old.vertices.len(),
+                new.vertices.len(),
+                old.indices.len() / 3,
+                new.indices.len() / 3,
             );
         }
     }
@@ -208,4 +212,48 @@ fn report_where_the_local_trees_are_placed() {
         }
     }
     std::fs::write(env_path("NFSMW_TREES_REPORT").with_extension("places.tsv"), report).unwrap();
+}
+
+/// Every solid whose base name contains one of the words of `NFSMW_REPORT_FILTER` (comma separated, upper case): where it is, how
+/// big, how many vertices and triangles, and the effects of its groups. For measuring a family before a pack lists it.
+#[test]
+#[ignore = "needs the game (NFSMW_GAME_DIR), NFSMW_REPORT_FILTER and NFSMW_TREES_REPORT"]
+fn report_the_solids_of_some_families() {
+    let dir = GameDir::open(env_path("NFSMW_GAME_DIR")).unwrap();
+    let filter = std::env::var("NFSMW_REPORT_FILTER").expect("set NFSMW_REPORT_FILTER");
+    let words: Vec<&str> = filter.split(',').collect();
+    let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
+    let mut report = String::from("section\tname\tframe\tsize\tfloor\tvertices\ttriangles\teffects\tpivot\n");
+    for (i, section) in index.sections.iter().enumerate() {
+        let bytes = dir.read_range(&index.stream_file, u64::from(section.file_offset), section.size as usize).unwrap();
+        let data = parse_section(i, &bytes).unwrap();
+        for solid in &data.solids {
+            let world = world_copy_base(&solid.name);
+            let base = world.unwrap_or(&solid.name);
+            if !words.iter().any(|word| base.contains(word)) {
+                continue;
+            }
+            let effects: Vec<u32> = solid.groups.iter().map(|group| group.effect_id).collect();
+            let size = |axis: usize| solid.bounds_max[axis] - solid.bounds_min[axis];
+            let _ = writeln!(
+                report,
+                "{}\t{}\t{}\t{:.1}x{:.1}x{:.1}\t{:.1}\t{}\t{}\t{effects:?}\t{:.0},{:.0},{:.0}	{:.0},{:.0}",
+                section.name,
+                solid.name,
+                if world.is_some() { "world" } else { "local" },
+                size(0),
+                size(1),
+                size(2),
+                solid.bounds_min[2],
+                solid.vertices.len(),
+                solid.indices.len() / 3,
+                solid.transform[12],
+                solid.transform[13],
+                solid.transform[14],
+                solid.vertices.iter().map(|v| v.position[0]).sum::<f32>() / solid.vertices.len().max(1) as f32,
+                solid.vertices.iter().map(|v| v.position[1]).sum::<f32>() / solid.vertices.len().max(1) as f32,
+            );
+        }
+    }
+    std::fs::write(env_path("NFSMW_TREES_REPORT").with_extension("solids.tsv"), report).unwrap();
 }
