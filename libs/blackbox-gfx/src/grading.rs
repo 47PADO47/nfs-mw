@@ -88,6 +88,40 @@ impl ColourCube {
         self.rgb.iter().zip(&identity.rgb).all(|(a, b)| (f32::from(*a) - f32::from(*b)).abs() <= tolerance)
     }
 
+    /// A cube of the first part's size whose every entry is the weighted mean of the parts' lookups at that entry's position
+    /// (the weights are scaled to add up to 1): a blend on the CPU for a mix the pass cannot do (three or four cubes), made
+    /// when the blend changes, not every frame. `None` without a part or with weights that do not add up to above 0.
+    pub fn blend(parts: &[(&ColourCube, f32)]) -> Option<Self> {
+        let (first, _) = parts.first()?;
+        let total: f32 = parts.iter().map(|(_, w)| if w.is_finite() { w.max(0.0) } else { 0.0 }).sum();
+        if total <= 0.0 {
+            return None;
+        }
+        let n = first.size as usize;
+        let scale = (n - 1) as f32;
+        let mut rgb = Vec::with_capacity(n * n * n * 3);
+        for z in 0..n {
+            for y in 0..n {
+                for x in 0..n {
+                    let at = [x, y, z].map(|i| i as f32 / scale);
+                    let mut out = [0.0f32; 3];
+                    for (cube, weight) in parts {
+                        let weight = if weight.is_finite() { weight.max(0.0) } else { 0.0 } / total;
+                        if weight == 0.0 {
+                            continue;
+                        }
+                        let value = cube.sample(at);
+                        for channel in 0..3 {
+                            out[channel] += value[channel] * weight;
+                        }
+                    }
+                    rgb.extend(out.map(|v| (v * 255.0).round().clamp(0.0, 255.0) as u8));
+                }
+            }
+        }
+        Self::new(first.size, rgb)
+    }
+
     /// The trilinear lookup of `rgb` (each channel clamped to 0 to 1): the arithmetic of the GPU's linear filter on the
     /// cube texture, which the passes' tests compare against.
     pub fn sample(&self, rgb: [f32; 3]) -> [f32; 3] {

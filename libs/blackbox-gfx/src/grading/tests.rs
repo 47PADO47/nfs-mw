@@ -143,3 +143,23 @@ fn the_rgba_copy_has_a_full_alpha() {
     assert!(rgba.chunks_exact(4).all(|px| px[3] == 255));
     assert_eq!(&rgba[4..8], &[255, 0, 0, 255], "the second entry is red");
 }
+
+#[test]
+fn a_blend_of_cubes_is_their_weighted_mean_at_every_entry() {
+    let identity = ColourCube::identity(16).unwrap();
+    let inverted = invert(16);
+    let half = ColourCube::blend(&[(&identity, 1.0), (&inverted, 1.0)]).unwrap();
+    assert_eq!(half.size(), 16);
+    for entry in half.rgb().chunks_exact(3) {
+        assert!(entry.iter().all(|b| (127..=128).contains(b)), "{entry:?}");
+    }
+    let mostly = ColourCube::blend(&[(&identity, 3.0), (&inverted, 1.0)]).unwrap();
+    assert!((mostly.entry(15, 0, 0)[0] - 0.75).abs() < 0.01, "{:?}", mostly.entry(15, 0, 0));
+    // One part is that cube, a part of weight 0 does not count, and the first part sets the size.
+    assert!(ColourCube::blend(&[(&identity, 1.0), (&inverted, 0.0)]).unwrap().is_identity(0.0));
+    let small = ColourCube::identity(8).unwrap();
+    assert_eq!(ColourCube::blend(&[(&small, 1.0), (&identity, 1.0)]).unwrap().size(), 8);
+    assert!(ColourCube::blend(&[]).is_none());
+    assert!(ColourCube::blend(&[(&identity, 0.0)]).is_none());
+    assert!(ColourCube::blend(&[(&identity, f32::NAN)]).is_none());
+}
