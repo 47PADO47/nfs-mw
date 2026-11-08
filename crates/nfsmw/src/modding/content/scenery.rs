@@ -31,9 +31,19 @@ pub struct MapPack {
     pub key: String,
     /// The streaming entry: its number and anchor, and the file as the whole section (offset 0).
     pub section: StreamingSection,
-    /// The pack file on disk.
-    pub path: PathBuf,
+    /// Where the pack's bytes are read from.
+    pub source: PackSource,
     pub manifest: SceneryManifest,
+}
+
+/// Where a pack's section bytes come from.
+#[derive(Debug, Clone)]
+pub enum PackSource {
+    /// A file on disk, read from offset 0 by the pack's own streamer.
+    File(PathBuf),
+    /// A file of the mod's `files/` layer, read **whole through the install** when the pack's area is near, so that a lazy
+    /// file (`GameDir::read`, a mod that makes the bytes when they are asked for) is made then and not when the world opens.
+    Installed { dir: GameDir, file: String },
 }
 
 impl MapPack {
@@ -87,12 +97,19 @@ fn read_pack(dir: &GameDir, m: &ModDir, path: &Path, taken: &HashSet<i16>) -> Re
         return Err(format!("section {number} is already taken by the install or another pack"));
     }
     let file = pack_path(dir, m, &manifest.file)?;
+    if manifest.placed_by_file {
+        // The file places its own objects and may be lazy: it is read when the camera comes near, and any problem with it is
+        // reported then.
+        let section = entry(&manifest, number, 1)?;
+        let source = PackSource::Installed { dir: dir.clone(), file: manifest.file.clone() };
+        return Ok(MapPack { owner: m.id.clone(), key: manifest.key.clone(), section, source, manifest });
+    }
     let size = std::fs::metadata(&file).map_err(|error| error.to_string())?.len();
     let bytes = std::fs::read(&file).map_err(|error| error.to_string())?;
     let data = parse_section(0, &bytes).map_err(|error| format!("the model file does not parse: {error:#}"))?;
     check_models(&manifest, &data)?;
     let section = entry(&manifest, number, size)?;
-    Ok(MapPack { owner: m.id.clone(), key: manifest.key.clone(), section, path: file, manifest })
+    Ok(MapPack { owner: m.id.clone(), key: manifest.key.clone(), section, source: PackSource::File(file), manifest })
 }
 
 /// The bands a mod may take: `K`, `N`, `U` and `W` (no section in the install), and 2700 and up. Inside a band the last two
@@ -151,9 +168,15 @@ fn entry(manifest: &SceneryManifest, number: i16, size: u64) -> Result<Streaming
 }
 
 /// Build a loaded pack's placed objects into a scenery section of its number, and keep its static collision only when a
-/// placement asks for it. The collision packs take the pack's number, so each is told apart from the others.
+/// placement asks for it. The collision packs take the pack's number, so each is told apart from the others. A pack whose
+/// file places its own objects keeps the file's scenery and collision, renumbered the same way.
 pub fn assemble(data: &mut SectionData, pack: &MapPack) -> Result<(), String> {
     let number = u32::from(pack.section.number.unsigned_abs());
+    if pack.manifest.placed_by_file {
+        data.scenery.iter_mut().for_each(|section| section.section_number = number);
+        data.collision.iter_mut().for_each(|collision| collision.section = number);
+        return Ok(());
+    }
     let placements = pack.manifest.places.iter().map(|place| placement(data, place)).collect::<Result<Vec<_>, _>>()?;
     let section = build::section(number, &placements).map_err(|error| format!("{error:?}"))?;
     data.scenery.push(section);

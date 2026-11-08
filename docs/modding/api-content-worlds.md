@@ -39,6 +39,11 @@ lod_m = 300.0                    # checked, must not exceed draw_m; not applied 
 
 - The file name is the pack key. A `key` in `[pack]` is optional and must equal it.
 - Only `route = "tile"` (the default) exists. Routes B and C are not in this delivery.
+- `placed = "file"` in `[pack]` (built for streamed worlds, [second-world.md](../specs/second-world.md#pieces-made-when-asked-for-built)):
+  the pack file carries its own `ScenerySection` and collision, so the manifest has **no** `[[place]]`. The game does not read the
+  file when the world opens: it reads it (`GameDir::read`, so a [lazy file](api-content.md#lazy-files) is made then) when the camera comes within
+  150 m of the anchor, and a problem with it is logged at that time. The file's scenery and collision are numbered with the pack's
+  section number.
 - The pack loads while the camera is within 150 m of its anchor, or while an interior holds it. It never displaces an
   install tile.
 - A pack that fails a check is logged with its reason and left out: a bad manifest, a section number that is taken or

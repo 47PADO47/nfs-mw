@@ -117,6 +117,10 @@ pub struct Residency {
     /// The mods' map packs, by `index - mod_base`, and one streamer each for their files.
     mod_packs: Vec<MapPack>,
     mod_streamers: Vec<Streamer>,
+    /// For each pack, the streamer that reads it and the pack's section in that streamer; and, per streamer, the pack of each
+    /// of its sections (`mod_tiles::spawn_streamers`).
+    mod_routes: Vec<(usize, usize)>,
+    mod_owners: Vec<Vec<usize>>,
     /// The map packs the camera wants (near an anchor, or pinned), as residency indices.
     mod_wanted: Vec<usize>,
     /// Map packs an interior holds loaded (`pin`).
@@ -169,9 +173,8 @@ impl Residency {
         let shared_total = sections.iter().filter(|section| !section.is_spatial()).count();
         let mod_base = sections.len();
         let zones = Zones::new(visible, &sections);
-        // A mod pack is a section of its own file: its streamer reads that file from offset 0, as entry 0.
-        let mod_streamers =
-            mod_packs.iter().map(|pack| Streamer::spawn(pack.path.clone(), vec![pack.section.clone()], 1)).collect();
+        let mod_tiles::ModStreamers { streamers: mod_streamers, routes: mod_routes, owners: mod_owners } =
+            mod_tiles::spawn_streamers(&mod_packs);
         sections.extend(mod_packs.iter().map(|pack| pack.section.clone()));
         let tiles = started.requested.iter().map(|&i| (i, TileState::Requested)).collect();
         Self {
@@ -212,6 +215,8 @@ impl Residency {
             mod_base,
             mod_packs,
             mod_streamers,
+            mod_routes,
+            mod_owners,
             mod_wanted: Vec::new(),
             pinned: HashSet::new(),
             keep_scratch: HashSet::default(),

@@ -28,7 +28,7 @@ pub use globals::{GLOBAL_TEXTURE_FILES, GlobalTextures, load_global_textures};
 pub use index::WorldIndex;
 pub use props::{LocalBox, PropCatalog, PropDynamics, PropKind, PropShape, boxes as prop_boxes};
 pub use section::{SectionData, load_section, parse_section, solid_upload_bytes, texture_upload_bytes};
-pub use streamer::{Prepare, Streamer, StreamerEvent};
+pub use streamer::{Prepare, SectionReader, Streamer, StreamerEvent};
 
 /// The only track in NFS: Most Wanted: the city of Rockport.
 pub const DEFAULT_TRACK: &str = "L2RA";
