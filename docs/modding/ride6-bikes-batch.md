@@ -148,6 +148,62 @@ shipped in this build of the install (a later patch or paid pack, or content cut
 replace it, and the exporter does not guess a mesh from another bike. **Nothing to fix here**; if a later install has the
 packages, `export_all.py --only <id> --force` exports them.
 
+**Is anything recoverable? [M]** Mounted with the pak key as well (88 containers, 142,907 files, `R6ToolSnd raw`; the 44 `.pak` files hold the Wwise banks and some data, no meshes of
+these bikes): for none of the 26 is a chassis mesh, a livery material or a `customization_data/bikeNNN_001` asset in any container of the install (a search for `chassis`, `bike` and the
+chassis numbers finds only the parts the other bikes share: rims, brakes, silencers, headers, mirrors and homologation kits by their numbers). What **is** there for most of them is
+everything that is not a picture: the physics data asset (`VehiclesTuning/DataAsset/<Make>/...`: 23 of the 26; not for the RSV4 Factory 1100 2025, the Husqvarna 701 Supermoto 2025 and
+the Suzuki DR 800 S Big 1994), the engine torque curve (most; some under the name of another year's model), the camera container (`data/cameras/Containers/<class>/<vehicle>.json`: all but the Husqvarna 701 and the DR 800 S Big) and, by name, the sound events and banks
+of the Aprilia RS 457 Trofeo, Ducati Panigale V2, MV Agusta F3 800, Triumph Trident 660 and Yamaha MT-10 SP. The physics dump (`physdump-all/vehicles/`) already holds the 23 physics
+assets. So the 26 can be played with **another bike's looks and their own handling**.
+
+### Borrowed visuals
+
+`tools/ride6-exporter/borrow.py` (data: `borrow.json`) makes that choice explicit and per bike, and opt-in: for each of the 26 it writes an exporter folder `<vehicle id>/` whose
+`parts.json` is the lender's with the borrowed bike's vehicle id and its own physics asset (the lender's where the install has none: marked in `status.json`), and whose `glb/` and
+`tex/` are links to the lender's (a junction, nothing copied). `ride6-bike-import import-all` then imports them with everything else: the garage name is the bike's own (`Ducati
+Panigale V2 2021`), its physics, cameras and sound tables are its own, the meshes and textures are the lender's. Run it **before** `import-all` and import the whole set in one run (a run
+rewrites `components/ride6-bikes.toml` from the bikes it imported, so a partial run leaves the others without their catalog):
+
+```
+python -I toolside6-exporterorrow.py --out C:6workikes --physdump C:6work\physdump-all [--only <regex>] [--dry-run]
+```
+
+The lenders (the same model, a variant of it, or the nearest of the family; a choice [C], edit `borrow.json` to change one):
+
+| # | Vehicle | Physics | Lender (its meshes and textures) |
+|---|---|---|---|
+| 034 | Aprilia RS 457 Trofeo 2024 | own | Aprilia RS 457 2024 (the same bike) |
+| 009 | Aprilia RSV4 Factory 1100 2025 | lender's | Aprilia RSV4 Factory 1100 2019 |
+| 030 | Aprilia Tuono V4 Factory E5 2021 | own | Aprilia Tuono V4 Factory E5 RM 2021 (the same bike) |
+| 068 | BMW M 1000 R 2023 | own | BMW S 1000 R 2021 |
+| 070 | BMW R 100 GS 1000 1987 | own | BMW R 1300 GS 2024 |
+| 065 | BMW S 1000 R 2020 | own | BMW S 1000 R 2021 |
+| 141 | Ducati Hypermotard 950 2019 | own | Ducati Hypermotard 698 Mono 2024 |
+| 155 | Ducati Monster Plus 2021 | own | Ducati Monster 1200 S 2019 |
+| 156 | Ducati Panigale V2 2021 | own | Ducati Panigale V4 2018 |
+| 166 | Ducati Panigale V4 S RM 2025 | own | Ducati Panigale V4 S 2025 |
+| 251 | Honda CBR 600 RR HRC 2021 | own | Honda CBR 600 RR HRC RM 2021 (the same bike) |
+| 256 | Honda XVR 750 Africa Twin 1990 | own | Honda CRF 1100 L Africa Twin ES 2024 |
+| 274 | Husqvarna 701 Supermoto 2025 | lender's (KTM 690) | KTM 690 SMC R 2026 (the same platform) |
+| 277 | Husqvarna FS 450 2022 | own | KTM 450 SMR 2022 (the same platform) |
+| 320 | Kawasaki Ninja ZX-10RR Performance 2024 | own | Kawasaki Ninja ZX-10RR 2021 |
+| 484 | MV Agusta Brutale 800 RR 2021 | own | MV Agusta Brutale 1000 RR 2021 |
+| 488 | MV Agusta F3 800 RR 2022 | own | MV Agusta F3 675 RM 2019 |
+| 490 | MV Agusta LXP Orioli 2024 | own | MV Agusta Rush 1000 2024 |
+| 486 | MV Agusta Rush 1000 2021 | own | MV Agusta Rush 1000 2024 |
+| 536 | Suzuki DR 800 S Big 1994 | lender's (Tuareg) | Aprilia Tuareg Rally 2024 |
+| 552 | Suzuki TL 1000 R RM 1998 | own | Suzuki TL 1000 R 1998 (the same bike) |
+| 598 | Triumph Street Triple RS 2024 | own | Triumph Street Triple RS 2020 |
+| 595 | Triumph Trident 660 2021 | own | Triumph Street Triple RS 2020 |
+| 645 | Vyrus Alyen 2020 | own | Vyrus 986 M2 2017 |
+| 664 | Yamaha MT-10 SP 2024 | own | Yamaha MT-10 ABS 2020 |
+| 666 | Yamaha XTZ 750 Super Tenere 1989 | own | BMW R 1300 GS 2024 |
+
+**Checked [M]**: four of them imported (`import-all` of a folder with the Panigale V2, the Husqvarna FS 450, the RS 457 Trofeo and the DR 800 S Big: 4 imported, 0 left out) and
+seen with `view-car` (`C:6workikegaps-shotsorrow\*.png`: the V2 wears the V4 2018's fairing and the FS 450 the KTM 450 SMR's, with the rider on). Not done: the bikes are not in the
+installed mod (the lead imports them with the other 293 if wanted), the liveries and the colours are the lender's, a lender's mirrors and plate holder come with it, and the sound of the
+bikes with no sound bank of their own is the game's built-in engine as for any bike without tables.
+
 **The 5 the first import refused:** the three Indian Challenger variants (a tyre section of the bagger's rain tyre has an unset
 reference, `TireData/Bagger/FrontTyre_Rain`) and the two Italjet Dragster 200 CC (the skeleton data has no rake and trail: a
 scooter-like frame). Both are fields RIDE 6's own assets leave empty; they are imported with the field taken from the nearest model,
