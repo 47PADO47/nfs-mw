@@ -1,6 +1,7 @@
 //! What a 2012 material makes of a surface in this game: the picture it is drawn with and the few things of its technique that
 //! the game's own materials can say (a cut-out, two sides). The 2012 shading (lightmaps, reflections, lit windows, the blend of
-//! the terrain's layers) is not read: a surface is its diffuse picture (`docs/modding/fairhaven.md`).
+//! the terrain's layers) is not read: a surface is its diffuse picture, and a terrain is cut into the triangles of each of its
+//! three layers (`docs/modding/fairhaven.md`).
 
 use chameleon_gfx::Material;
 
@@ -34,6 +35,38 @@ pub struct Surface {
     /// How many times the picture repeats over the mesh's texture coordinates, across and down: the terrain's tiling ratios of
     /// its first layer (the first two parameters of a `Plot*` material, `docs/formats/chameleon-world.md`), 1 for the rest.
     pub uv_scale: [f32; 2],
+    /// The three layers of a `Terrain*` material and the mask that says where each one is.
+    pub layers: Option<Layers>,
+}
+
+/// The layers of a terrain: the mask (its red, green and blue are the weights of layers 1, 2 and 3 **[unconfirmed]**, read off
+/// the slope each channel covers), the picture of each layer and how often it repeats across and down.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Layers {
+    pub mask: u64,
+    pub textures: [u64; 3],
+    pub ratios: [[f32; 2]; 3],
+}
+
+/// The layers of a `Terrain*` material: the samplers `Mask` and `Tiling1`, `Tiling2` and `Tiling3` `Texture`, the ratios of
+/// `Tiling_Ratios_X` (slot 1: layers 1 to 3 in x, y, z) and `Tiling_Ratios_Y` (slot 2). `None` for another technique or a
+/// material that lacks one of them.
+fn layers(material: &Material, shader: &ShaderInfo) -> Option<Layers> {
+    if !shader.technique.starts_with("Terrain") {
+        return None;
+    }
+    let texture = |name: &str| {
+        let slot = shader.samplers.iter().position(|sampler| sampler == name)?;
+        material.textures.get(slot).copied()
+    };
+    let textures = [texture("Tiling1TextureSampler")?, texture("Tiling2TextureSampler")?, texture("Tiling3TextureSampler")?];
+    let (across, down) = (material.float4(1)?, material.float4(2)?);
+    let ratio = |values: [f32; 4], layer: usize| Some(values[layer]).filter(|v| v.is_finite() && *v > 0.0).unwrap_or(1.0);
+    Some(Layers {
+        mask: texture("MaskTextureSampler")?,
+        textures,
+        ratios: [0, 1, 2].map(|layer| [ratio(across, layer), ratio(down, layer)]),
+    })
 }
 
 /// The tiling of a terrain material's first layer: the x of its `Tiling_Ratios_X` parameter and of its `Tiling_Ratios_Y`
@@ -60,6 +93,7 @@ pub fn surface(material: &Material, shader: &ShaderInfo) -> Surface {
     Surface {
         diffuse,
         uv_scale: tiling(material, technique),
+        layers: layers(material, shader),
         cut_out: technique.contains("1Bit") || technique.contains("1_Bit") || technique.starts_with("Fence"),
         two_sided: technique.contains("Doublesided"),
         hidden: technique.starts_with("Cable"),
@@ -133,6 +167,20 @@ mod tests {
         assert_eq!(surface(&terrain, &world).uv_scale, [1.0, 1.0]);
         let empty = Material { shader: 0, textures: vec![1], constants: Vec::new() };
         assert_eq!(surface(&empty, &info).uv_scale, [1.0, 1.0]);
+    }
+
+    #[test]
+    fn a_terrain_has_three_layers_with_their_ratios_and_a_mask() {
+        let floats: [f32; 12] = [50.0, 0.0, 0.0, 0.0, 30.0, 100.0, 200.0, 0.0, 20.0, 10.0, 0.0, 0.0];
+        let constants: Vec<u8> = floats.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let samplers = ["MaskTextureSampler", "Tiling3TextureSampler", "Tiling2TextureSampler", "Tiling1TextureSampler"];
+        let info = shader("TerrainPBR_Normal_Opaque", &samplers);
+        let terrain = Material { shader: 0, textures: vec![5, 6, 7, 8], constants };
+        let layers = surface(&terrain, &info).layers.expect("a terrain has layers");
+        assert_eq!((layers.mask, layers.textures), (5, [8, 7, 6]));
+        assert_eq!(layers.ratios, [[30.0, 20.0], [100.0, 10.0], [200.0, 1.0]], "a zero ratio is left as 1");
+        assert!(surface(&terrain, &shader("World_Diffuse", &samplers)).layers.is_none());
+        assert!(surface(&terrain, &shader("TerrainPBR_X", &["MaskTextureSampler"])).layers.is_none());
     }
 
     #[test]

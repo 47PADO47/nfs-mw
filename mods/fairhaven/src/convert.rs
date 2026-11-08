@@ -17,12 +17,13 @@ use chameleon_gfx::{Material, Model, Texture};
 use crate::collision;
 use crate::install::{Install, ShaderInfo};
 use crate::instances::{self, COMPOUND_INSTANCE_LIST, DYNAMIC_INSTANCE_LIST, INSTANCE_LIST, MODEL, PROP_INSTANCE_LIST};
-use crate::material::{Surface, surface};
-use crate::mesh::{self, RenderableData};
+use crate::material::{Layers, Surface, surface};
+use crate::mesh::{self, MeshData, RenderableData};
 use crate::pvs::Zone;
 use crate::section;
 use crate::solid::{self, BuiltSolid, Group};
 use crate::space;
+use crate::terrain::{self, Mask};
 use crate::textures::{Look, name_of, texture_source};
 use crate::unit::Unit;
 
@@ -115,6 +116,7 @@ struct Converter<'a> {
     texture_names: HashMap<String, bool>,
     models: HashMap<u64, Option<Rc<ModelInfo>>>,
     object_models: HashMap<u64, Option<u64>>,
+    masks: HashMap<u64, Option<Rc<Mask>>>,
     built: HashMap<u64, Rc<Vec<PartPlacement>>>,
     sources: Vec<SolidSource>,
 }
@@ -134,6 +136,7 @@ pub fn convert_unit(install: &Install, number: u32, section_number: u32, options
         texture_names: HashMap::new(),
         models: HashMap::new(),
         object_models: HashMap::new(),
+        masks: HashMap::new(),
         built: HashMap::new(),
         sources: Vec::new(),
     };
@@ -318,17 +321,57 @@ impl Converter<'_> {
                 continue;
             }
             let look = Look { cut_out: material.surface.cut_out, two_sided: material.surface.two_sided };
+            if let Some(layers) = &material.surface.layers
+                && let Some(mask) = self.mask(layers.mask)
+            {
+                groups.extend(self.terrain_groups(mesh, layers, &mask, look));
+                continue;
+            }
             let texture = match material.surface.water {
                 true => self.water(),
                 false => self.texture(material.surface.diffuse, look),
             };
-            let [across, down] = material.surface.uv_scale;
-            groups.extend(mesh::parts(mesh).into_iter().map(|mut part| {
-                part.uvs.iter_mut().for_each(|uv| *uv = [uv[0] * across, uv[1] * down]);
-                Group { texture: texture.clone(), part }
-            }));
+            groups.extend(self.groups(mesh, &texture, material.surface.uv_scale));
         }
         solid::build(prefix, groups)
+    }
+
+    /// The parts of `mesh` drawn with `texture`, its coordinates repeated `scale` times.
+    fn groups(&self, mesh: &MeshData, texture: &str, [across, down]: [f32; 2]) -> Vec<Group> {
+        mesh::parts(mesh)
+            .into_iter()
+            .map(|mut part| {
+                part.uvs.iter_mut().for_each(|uv| *uv = [uv[0] * across, uv[1] * down]);
+                Group { texture: texture.to_owned(), part }
+            })
+            .collect()
+    }
+
+    /// A terrain mesh cut into the triangles of each of its layers (the layer the mask is strongest in at the triangle's middle),
+    /// each drawn with its layer's picture at its own repeat.
+    fn terrain_groups(&mut self, mesh: &MeshData, layers: &Layers, mask: &Mask, look: Look) -> Vec<Group> {
+        let mut triangles: [Vec<[u32; 3]>; 3] = Default::default();
+        for triangle in &mesh.triangles {
+            let corner = |n: usize| mesh.uvs[triangle[n] as usize];
+            let middle = [0, 1].map(|axis| (corner(0)[axis] + corner(1)[axis] + corner(2)[axis]) / 3.0);
+            triangles[terrain::layer_of(mask, middle)].push(*triangle);
+        }
+        let mut groups = Vec::new();
+        for (layer, kept) in triangles.iter().enumerate().filter(|(_, kept)| !kept.is_empty()) {
+            let texture = self.texture(Some(layers.textures[layer]), look);
+            groups.extend(self.groups(&mesh::subset(mesh, kept), &texture, layers.ratios[layer]));
+        }
+        groups
+    }
+
+    /// The mask of a terrain: a quarter of its size at most 256 pixels, read once.
+    fn mask(&mut self, id: u64) -> Option<Rc<Mask>> {
+        if let Some(known) = self.masks.get(&id) {
+            return known.clone();
+        }
+        let made = self.read_texture(id).ok().and_then(|texture| terrain::mask_of(&texture)).map(Rc::new);
+        self.masks.insert(id, made.clone());
+        made
     }
 
     fn material(&mut self, id: u64) -> Option<Rc<MaterialInfo>> {

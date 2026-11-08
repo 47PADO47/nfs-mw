@@ -123,6 +123,23 @@ pub struct Part {
     pub indices: Vec<u16>,
 }
 
+/// The triangles `keep` of the mesh as a mesh of their own, with only the vertices they use.
+pub fn subset(mesh: &MeshData, keep: &[[u32; 3]]) -> MeshData {
+    let mut remap: HashMap<u32, u32> = HashMap::new();
+    let mut out = MeshData { material: mesh.material, positions: Vec::new(), uvs: Vec::new(), triangles: Vec::new() };
+    for triangle in keep {
+        let corners = triangle.map(|index| {
+            *remap.entry(index).or_insert_with(|| {
+                out.positions.push(mesh.positions[index as usize]);
+                out.uvs.push(mesh.uvs[index as usize]);
+                (out.positions.len() - 1) as u32
+            })
+        });
+        out.triangles.push(corners);
+    }
+    out
+}
+
 /// The mesh as parts of at most [`MAX_PART`] vertices and triangles each, in the order of its triangles. A mesh that fits is one
 /// part with its own vertices; a bigger one is cut where a part fills, each part copying the vertices its triangles use.
 pub fn parts(mesh: &MeshData) -> Vec<Part> {
@@ -211,6 +228,19 @@ mod tests {
             }
         }
         MeshData { material: 1, uvs: vec![[0.0, 0.0]; side * side], positions, triangles }
+    }
+
+    #[test]
+    fn a_subset_keeps_the_triangles_it_is_given_with_only_the_vertices_they_use() {
+        let mesh = grid(2);
+        let keep = [mesh.triangles[0], mesh.triangles[7]];
+        let part = subset(&mesh, &keep);
+        assert_eq!(part.triangles.len(), 2);
+        assert!(part.positions.len() <= 6 && part.positions.len() >= 3);
+        assert!(part.triangles.iter().flatten().all(|&i| (i as usize) < part.positions.len()));
+        let corner = |t: [u32; 3], n: usize| part.positions[t[n] as usize];
+        assert_eq!(corner(part.triangles[0], 0), mesh.positions[mesh.triangles[0][0] as usize]);
+        assert_eq!(corner(part.triangles[1], 2), mesh.positions[mesh.triangles[7][2] as usize]);
     }
 
     #[test]

@@ -22,5 +22,6 @@ pub mod section;
 pub mod solid;
 pub mod space;
 pub mod start;
+pub mod terrain;
 pub mod textures;
 pub mod unit;

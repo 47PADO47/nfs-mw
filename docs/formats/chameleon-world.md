@@ -128,13 +128,22 @@ Every unit also places the same distant **panorama pieces** (the ring of hills, 
 above 800 m. A reader that wants a district drops instances whose sphere centre is outside the unit's `PVS` rectangle (plus
 25 m) or whose radius is over 800 m: that is how `tools/chameleon_export.py` clips a unit.
 
-### Other instance lists **[layout partly verified]**
+### Resources of other units **[verified]**
+
+A unit's renderables and materials import textures and models that are **not in its own bundle**: 14 of the 36 diffuse textures of unit
+161's materials (ids of class 1, for example `0x10000000010F9B1`) live in other units (`TRK_UNIT115`, `118`, `146`, `162`... and the
+`ARENA_*` bundles) and in no shared bundle. The engine keeps the resources of all loaded units in one pool by id, and a unit stores only
+what its neighbourhood does not already bring. A reader that resolves ids therefore needs the tables of **all 169 unit files** (about
+120,000 entries, 15 ms to read the tables on the author's machine) after the unit's own and the shared bundles; copies of an id are the same
+bytes. With them unit 161 has 1 flat picture instead of 7 and 3 missing models instead of 9.
+
+### Other instance lists **[layout verified for the three object lists]**
 
 | Type | Header | Record | Notes |
 |---|---|---|---|
-| `PropInstanceList` (0x218) | `u32 2, first = 0x10, count, 0` | 0x60 bytes: matrix (rows of 4 floats, the 4th is 1 for rotation rows and the uniform scale for the translation row: 0.94 seen), 0x50: `0, 0, id, 1.0` | 12,290 in all; refers to `PropObject` (0x217), which carries Genesys physics objects (lamp posts, signs: breakable) **[unconfirmed]** |
-| `CompoundInstanceList` (0x216) | same | 0x60 | 4,301 in all; `CompoundObject` (0x215) models made of several parts |
-| `DynamicInstanceList` (0x204) | `u32 3, 0x10, count, 0` | 0x60 | 4,477 in all; `WorldObject` (0x205) objects (animated or moving) |
+| `PropInstanceList` (0x218) | `u32 2, first = 0x10, count, 0` (the first record and the count are the second and third words; an `InstanceList` has them in the first and second) | 0x60 bytes: **the matrix first** (16 floats, rows of 4, the 4th value of the first three rows is 1 and of the translation row 1 or a uniform scale: 0.94 seen), **the object's import slot at +0x40** **[verified]** (the imports of a list sit 0x60 apart from 0x50), then `0, 0, id, 1.0` | 12,290 in all; refers to `PropObject` (0x217): 128 bytes with two `Model` imports (a whole and probably a broken one), Genesys objects (lamp posts, signs: breakable) **[unconfirmed]**. `mods/fairhaven` draws the first model |
+| `CompoundInstanceList` (0x216) | same | 0x60, as the prop list | 4,301 in all; `CompoundObject` (0x215): 1,456 bytes, imports a `Model`, a `Skeleton` and Genesys objects; `mods/fairhaven` draws the first model |
+| `DynamicInstanceList` (0x204) | `u32 3, 0x10, count, 0` | 0x60, as the prop list | 4,477 in all; `WorldObject` (0x205) objects (cranes, flags, signs: animated or moving), 288 bytes, the first import is a `Model`; drawn still |
 | `LightInstanceList` (0x213) | `u32 1, 0, 0, 0` | | 169 lists, empty in unit 1 (16 bytes) |
 | `GroundcoverInstances` (0x214) | `u32 0x10, count, 0, 0` | **16 bytes**: 8 bytes packed position, a u16 class, flags | 1,957 per list in unit 1, 8.8 million in all; `GroundcoverCollection` (0x20F) holds the meshes (2,069 resources) |
 
@@ -174,6 +183,23 @@ the majority, the rest belong to cars, effects and the post chain. A first-look 
 `Tiling1TextureSampler`); `tools/chameleon_export.py` does exactly that, and the result is recognisable (a district with its
 roads, piers, buildings; see below). Terrain blending, lightmaps, lit windows and reflections are the engine's shading and are
 **not** decoded.
+
+**Terrain tiling [verified on three materials].** A `PlotPBR*` or `TerrainPBR*` surface's mesh has texture coordinates over the whole
+mesh (0 to 1 across a terrain tile that is several kilometres wide) and the picture of each layer repeats by the material's
+`Tiling_Ratios_X` and `Tiling_Ratios_Y` parameters (float4s, the layers 1 to 3 in x, y, z): the constants of a `Plot*` material
+start with them (slots 0 and 1), those of a `Terrain*` one with the noise ratio first (slots 1 and 2). Values seen: 1.5, 0.35, 50
+(`Plot`), 30 and 4 (`Terrain`). A terrain drawn with the coordinates as they are is a smear of one picture's stretched pixels.
+`TerrainPBR*` takes its ten samplers in the order `Mask, Normal, Tiling3Normal, Tiling1Normal, Reflection, Tiling3Texture,
+Tiling2Normal, Noise, Tiling2Texture, Tiling1Texture`; the mask's red, green and blue look like the weights of three layers (rock,
+grass, gravel on the unit 178 mountain material) **[unconfirmed]**, which `mods/fairhaven` does not blend (it draws layer 1).
+
+**Water.** The sea is one mesh of 86 vertices and 123 triangles at height 10.0 (`Water_Proto_Cheap`, bounding sphere radius 23,250 m, in
+unit 161 and the units by the coast; `Water_Opaque_Singlesided`, 69 vertices, in unit 1): a normal map and a reflection, no diffuse
+picture, so `mods/fairhaven` draws it as one flat colour.
+
+**Vertex colour.** The `R8G8B8A8` element at usage 0x207 of the `World*` meshes averages 128 over its four bytes (range 0 to 255) in
+all the 77,235 vertices of the common technique: it looks like a packed normal or tangent (signed values stored as bytes), not a
+baked light **[unconfirmed]**; the game's pre-lit shading takes a constant instead.
 
 Textures are the car-texture format (BC1/BC3, and BC7 and BC4/BC5 for world maps: Pillow decodes them), with all mips in the
 graphics block. A unit with 166 textures is about 25 MB of GPU data at its full size.
