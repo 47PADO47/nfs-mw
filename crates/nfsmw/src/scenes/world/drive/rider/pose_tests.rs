@@ -278,7 +278,7 @@ fn the_throttle_rolls_the_right_grips_target_about_its_own_frame_and_only_that_o
         anchor: None,
         anchor_rotation: None,
     });
-    let roll = Quat::from_rotation_z(-0.5236);
+    let roll = Quat::from_rotation_z(-std::f32::consts::FRAC_PI_6);
     attach.wrist_throttle = Some(Rigid { translation: [-0.006, -0.05, 0.0], rotation: roll.to_array() });
     let frame = frame();
     let rest = rider_targets(&attach, &frame, None);
