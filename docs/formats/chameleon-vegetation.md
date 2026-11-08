@@ -219,9 +219,10 @@ nothing: the mod's fingerprint says the files are right).
   bundle must hold their material or texture (not searched).
 - The 2005 world's own placement of the replaced solids is unchanged, so a 2012 tree stands where the 2005 tree stood; the crowns are
   fitted to the cells of the old vertices, not to the old silhouette ([effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)).
-  The real ground under a tree-line's crowns (which the 2005 tree lines, crowns alone, leave unmodelled) is not read: a collision
-  query of the tile found it under only 186 of the 881 replaced solids (the terrain is not in a tile's collision), so the crown of a
-  replacement takes the old crown's floor and its trunk reaches down from there.
+  The real ground under a tree-line's crowns is not read: a collision query of the tile found it under only 186 of the 881 replaced
+  solids (the terrain is not in a tile's collision), and where it was found the old crowns' floor was at the ground or below it (median
+  3 m below). Trying to hang the crown of a replacement on the old floor and let its trunk reach down put the trunks through a wall in a
+  screenshot, so a replacement's foot stands on the old floor of its stretch.
 - Whether every name of the 99 base names that is a tree (and not a panorama or a stand) is in `trees/stock.rs`: the families were
   listed from the names of the tree solids that were looked at; a name the list lacks keeps the game's look.
 - The conversion's output size and time on the real install: the figures below are estimates from the headers; the log line `trees variant:

@@ -132,10 +132,10 @@ fn a_replacement_is_a_solid_the_loader_would_have_read() {
 }
 
 #[test]
-fn a_model_is_set_on_the_floor_of_the_solid_it_replaces() {
+fn a_local_tree_stands_on_the_origin_and_reaches_the_top_of_the_solid_it_replaces() {
     let stock = bounds_box("XT_BOX", [-5.0, -5.0, 5.0], [5.0, 5.0, 25.0]);
     let fitted = fit(&tree("MODEL", "LEAF", 10.0, 3.0, 0), &stock, SwapFit::Height).unwrap();
-    assert!((lowest(&fitted) - 5.0).abs() < 0.1, "the floor of the stock solid is z = 5: {}", lowest(&fitted));
+    assert!(lowest(&fitted).abs() < 0.1, "the origin is the ground, whatever the old floor: {}", lowest(&fitted));
     assert!((highest(&fitted) - 25.0).abs() < 0.1);
 }
 

@@ -128,9 +128,11 @@ fit = "height"                           # "height" (default) or "row"
 - **The rule: a replacement never grows beyond the footprint it replaces** (`model_swap/place.rs`, the limits are the `[fit]` table).
   The game measures the replaced solid from its own vertices, so the mod never reads the 2005 install:
   - *Height of a copy.* It is scaled evenly to the height of the geometry it replaces (a quarter to four times for a `height` swap, up to
-    one and a half times for a `row`), its foot on that geometry's **floor** (the lowest vertex). When the replaced solid has no trunk (a
-    crown alone, as every tree line of the 2005 world is) the *crown* of the model takes the crown's place instead: the foliage of the
-    model begins at the floor of the old leaves, so the model's trunk reaches down from there and never up.
+    one and a half times for a `row`), its foot on that geometry's **floor** (the lowest vertex of its stretch). A solid modelled around its
+    own origin (the scenery places it with a matrix) stands its tree on the origin, which is the ground, even when the old solid is only a
+    crown that begins above it (a far level): the tree reaches the old top from the ground. For a world-space copy the floor is the
+    only ground there is: a 2005 tree line is a crown without trunks, and its crowns' floor is where its trees stand (measured at a wall
+    top, where the old crowns began exactly at the wall's top, so the trunks of a replacement start there and do not pierce the wall).
   - *Width of a copy.* It may be `spread` times as wide as the geometry it replaces (the wider side of the box that holds its
     vertices in x and y: the whole solid for a single tree, the cell for the copies of a row). A model that is wider than that for its height (a broadleaf crown on a thin cypress) is **squeezed sideways**, down
     to `squeeze` of its height scale; if even that is too wide, the copy is made smaller until its squeezed width fits. A copy that would

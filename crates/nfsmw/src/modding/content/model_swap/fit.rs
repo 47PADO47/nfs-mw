@@ -17,11 +17,6 @@ use blackbox_solid::{GroupSource, Solid, SolidSource, Vertex, read_solids, write
 
 use super::place::{self, Measure, Placement, Stock};
 
-/// The effect of the game's leaf cards (the tree shader).
-const LEAVES: u32 = 6;
-/// The effects of a trunk (the world shader, and its normal-mapped kind).
-const TRUNKS: [u32; 2] = [0, 3];
-
 /// What space the replaced solid's vertices are in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Frame {
@@ -64,11 +59,7 @@ pub fn fit_prepared(
     if stock.bounds_max[2] - stock.bounds_min[2] <= 0.01 {
         bail!("the solid {} has no height", stock.name);
     }
-    let seen = Stock {
-        vertices: &stock.vertices,
-        bounds: (stock.bounds_min, stock.bounds_max),
-        trunk: stock.groups.iter().any(|group| TRUNKS.contains(&group.effect_id)),
-    };
+    let seen = Stock { vertices: &stock.vertices, bounds: (stock.bounds_min, stock.bounds_max) };
     let placements = match (frame, how) {
         (Frame::Local, SwapFit::Height) => place::single(&model.measure, &seen, limits).into_iter().collect(),
         _ => place::copies(&model.measure, &seen, how, limits),
@@ -119,8 +110,7 @@ fn place_vertex(vertex: &Vertex, at: &Placement) -> Vertex {
     }
 }
 
-/// What the groups measure: the footprint, the height, where the leaves begin (the lowest point of the model when it has no
-/// leaves) and how many vertices. `None` with no vertices.
+/// What the groups measure: the footprint, the height and how many vertices. `None` with no vertices.
 fn measure(groups: &[GroupSource]) -> Option<Measure> {
     let mut vertices = groups.iter().flat_map(|group| group.vertices.iter());
     let first = vertices.next()?.position;
@@ -133,7 +123,5 @@ fn measure(groups: &[GroupSource]) -> Option<Measure> {
             *high = high.max(value);
         }
     }
-    let leaves = groups.iter().filter(|group| group.effect_id == LEAVES).flat_map(|group| group.vertices.iter());
-    let foliage_low = leaves.map(|vertex| vertex.position[2]).reduce(f32::min).unwrap_or(low[2]);
-    Some(Measure { width: (high[0] - low[0]).max(high[1] - low[1]), height: high[2], foliage_low, vertices: count })
+    Some(Measure { width: (high[0] - low[0]).max(high[1] - low[1]), height: high[2], vertices: count })
 }

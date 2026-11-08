@@ -3,7 +3,7 @@
 //! The rule, in short (`docs/modding/effect-variants.md`, "Profile format of the trees"): a replacement **never grows beyond the
 //! footprint it replaces**. A single tree is one copy; a stretch of trees (a row, or any world-space copy, which may be a whole
 //! hillside of trees) gets one copy for each *stretch of the old geometry*, standing where that geometry stood, on **its**
-//! floor. So a line of trees that climbs a slope or follows a road keeps its shape, and no tree floats over a lower floor or
+//! floor (a solid modelled around its own origin stands on the origin, which is the ground). So a line of trees that climbs a slope or follows a road keeps its shape, and no tree floats over a lower floor or
 //! sinks into a higher one. Each copy is held to the width of the geometry it replaces ([`FitLimits`]): it is squeezed sideways
 //! if that is enough, made smaller if not, and when it would end up too short the solid keeps the game's own model.
 
@@ -42,8 +42,6 @@ pub struct Measure {
     pub width: f32,
     /// How far it reaches above its origin.
     pub height: f32,
-    /// The lowest point of its leaves (the whole model when it has none), metres above the origin: where its crown begins.
-    pub foliage_low: f32,
     /// How many vertices it has.
     pub vertices: usize,
 }
@@ -53,9 +51,6 @@ pub struct Measure {
 pub struct Stock<'a> {
     pub vertices: &'a [Vertex],
     pub bounds: ([f32; 3], [f32; 3]),
-    /// Whether it has a trunk (a group that is not leaves): then its floor is where the trunk stands; without one it is only
-    /// a crown, and its floor is where the leaves begin.
-    pub trunk: bool,
 }
 
 /// Where one copy stands: a scale across (x and y) and one up (z), a turn about the vertical axis, and where its foot goes.
@@ -75,27 +70,16 @@ struct Target {
     width: f32,
 }
 
-/// Where the part of a model that is matched to the replaced geometry begins, above its origin: the foot when the replaced solid
-/// has a trunk, the beginning of the crown when it is only a crown.
-fn matched_low(model: &Measure, trunk: bool) -> f32 {
-    match trunk {
-        true => 0.0,
-        false => model.foliage_low.max(0.0),
-    }
-}
-
 /// One copy for `target`, scaled to its height by at most `cap`, held to its width by `limits`. `None` when it would be shorter
 /// than `limits.min_height` of the height wanted.
-fn tree(model: &Measure, target: &Target, trunk: bool, cap: f32, limits: &FitLimits) -> Option<Placement> {
-    let low = matched_low(model, trunk);
-    let reach = (model.height - low).max(0.1);
-    let up = ((target.top - target.floor) / reach).clamp(MIN_SCALE, cap);
+fn tree(model: &Measure, target: &Target, cap: f32, limits: &FitLimits) -> Option<Placement> {
+    let up = ((target.top - target.floor) / model.height.max(0.1)).clamp(MIN_SCALE, cap);
     let sideways = limits.spread * target.width / model.width.max(0.01);
     let at = |across: f32, up: f32| Placement {
         across,
         up,
         yaw: 0.0,
-        offset: [target.centre[0], target.centre[1], target.floor - low * up],
+        offset: [target.centre[0], target.centre[1], target.floor],
     };
     if sideways >= limits.squeeze * up {
         return Some(at(sideways.min(up), up));
@@ -108,12 +92,13 @@ fn tree(model: &Measure, target: &Target, trunk: bool, cap: f32, limits: &FitLim
 }
 
 /// The one copy of a model that replaces a solid modelled around its own origin (the scenery places it with a matrix): at the
-/// origin, on the solid's floor, as tall as the solid and no wider than it. `None` when it cannot be fitted.
+/// origin, which is the ground the scenery puts it on (the old solid may be a crown that begins above it), as tall as the solid
+/// and no wider than it. `None` when it cannot be fitted.
 pub fn single(model: &Measure, stock: &Stock, limits: &FitLimits) -> Option<Placement> {
     let (low, high) = stock.bounds;
     let target =
-        Target { centre: [0.0, 0.0], floor: low[2], top: high[2], width: (high[0] - low[0]).max(high[1] - low[1]) };
-    tree(model, &target, stock.trunk, MAX_SCALE, limits)
+        Target { centre: [0.0, 0.0], floor: 0.0, top: high[2], width: (high[0] - low[0]).max(high[1] - low[1]) };
+    tree(model, &target, MAX_SCALE, limits)
 }
 
 /// A stretch of the old geometry: the vertices that fall in one cell of the plan.
@@ -152,8 +137,7 @@ pub fn copies(model: &Measure, stock: &Stock, how: SwapFit, limits: &FitLimits) 
         SwapFit::Height => (MAX_SCALE, 1.0),
         SwapFit::Row => (ROW_MAX_SCALE, OVERLAP),
     };
-    let reach = (model.height - matched_low(model, stock.trunk)).max(0.1);
-    let reference = ((high[2] - low[2]) / reach).clamp(MIN_SCALE, cap);
+    let reference = ((high[2] - low[2]) / model.height.max(0.1)).clamp(MIN_SCALE, cap);
     let mut size = (model.width * reference * overlap).max(MIN_CELL);
     let extent = (high[0] - low[0]).max(high[1] - low[1]);
     if extent <= SINGLE_STRETCH * size {
@@ -181,7 +165,7 @@ pub fn copies(model: &Measure, stock: &Stock, how: SwapFit, limits: &FitLimits) 
             top: cell.floor + (cell.top - cell.floor).max(MIN_BAND_SHARE * middle),
             width: (cell.high[0] - cell.low[0]).max(cell.high[1] - cell.low[1]).max(0.5 * size),
         };
-        let Some(mut at) = tree(model, &target, stock.trunk, cap, limits) else { continue };
+        let Some(mut at) = tree(model, &target, cap, limits) else { continue };
         at.yaw = placements.len() as f32 * TURN;
         placements.push(at);
     }
