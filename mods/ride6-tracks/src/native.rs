@@ -22,15 +22,18 @@ pub struct Ride6Tracks {
     lap: Option<(String, Timer)>,
     /// Scene ticks seen, to look at the world's name now and then.
     ticks: u64,
+    /// The speed of a virtual car that runs the lap in place of the player (`RIDE6_TRACKS_LAP_DEMO`), and its run.
+    demo_speed: Option<f32>,
+    demo: Option<lap::Demo>,
 }
 
 impl Mod for Ride6Tracks {
     fn load(ctx: &mut Ctx) -> ModResult<Self> {
         let Ok(mod_dir) = ctx.mod_dir() else {
             ctx.log(Level::Warn, "ride6-tracks: the host does not say where the mod is");
-            return Ok(Self { mod_dir: PathBuf::new(), job: None, live: false, lap: None, ticks: 0 });
+            return Ok(Self::new(PathBuf::new()));
         };
-        let mut state = Self { mod_dir: mod_dir.clone(), job: None, live: false, lap: None, ticks: 0 };
+        let mut state = Self::new(mod_dir.clone());
         let supplied = match supplied_config(ctx) {
             Ok(supplied) => supplied,
             Err(error) => {
@@ -84,6 +87,11 @@ fn supplied_config(ctx: &Ctx) -> ModResult<Option<config::Supplied>> {
 }
 
 impl Ride6Tracks {
+    fn new(mod_dir: PathBuf) -> Self {
+        let demo_speed = std::env::var("RIDE6_TRACKS_LAP_DEMO").ok().and_then(|speed| speed.parse().ok());
+        Self { mod_dir, job: None, live: false, lap: None, ticks: 0, demo_speed, demo: None }
+    }
+
     /// One scene tick of lap timing: follow the world being played, and time the player's car on its lap.
     fn time_the_lap(&mut self, ctx: &Ctx, dt: f32) {
         let (Some(world), Some(vehicles)) = (ctx.world(), ctx.vehicles()) else { return };
@@ -93,7 +101,11 @@ impl Ride6Tracks {
         self.ticks += 1;
         let Some((_, timer)) = self.lap.as_mut() else { return };
         let Ok(state) = vehicles.player() else { return };
-        let Some(event) = timer.update(state.position, dt) else { return };
+        let position = match self.demo.as_mut() {
+            Some(demo) => demo.step(timer.track(), dt),
+            None => state.position,
+        };
+        let Some(event) = timer.update(position, dt) else { return };
         let Some(hud) = ctx.hud() else { return };
         let (text, style) = match event {
             lap::Event::Started => ("Lap timing started".to_owned(), MessageStyle::Info),
@@ -124,7 +136,9 @@ impl Ride6Tracks {
                         6.0,
                     );
                 }
-                self.lap = Some((track, Timer::new(lap)));
+                let timer = Timer::new(lap);
+                self.demo = self.demo_speed.map(|speed| lap::Demo::new(timer.track(), speed, 60.0));
+                self.lap = Some((track, timer));
             }
             Err(error) => ctx.log(Level::Warn, &format!("ride6-tracks: the lap of {track} is not read: {error:#}")),
         }

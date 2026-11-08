@@ -7,6 +7,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use crate::pvs::Zone;
+use crate::sea;
 
 /// The world's id: `--world fairhaven`.
 pub const WORLD_ID: &str = "fairhaven";
@@ -18,6 +19,9 @@ pub const WORLDS_FOLDER: &str = "worlds";
 pub const FILES_FOLDER: &str = "WORLDS/FAIRHAVEN";
 /// What a unit's anchor covers beyond the unit's own rectangle is the game's 150 m; the anchor circle is the rectangle's, scaled.
 pub const ANCHOR_SCALE: f32 = 1.0;
+
+/// How far past the outermost unit the sea's anchor reaches, metres.
+const SEA_MARGIN: f32 = 5_000.0;
 
 /// The section number of the unit at `index` in the zone list order of the units sorted by number: the free band 2700 and up,
 /// 40 numbers (last two digits 0 to 39) in each hundred (`docs/specs/mod-world-content.md`, 1.3).
@@ -105,6 +109,12 @@ pub fn write(mod_dir: &Path, zones: &[Zone], world: Option<(&str, [f32; 3], f32)
         written.changed += usize::from(write_if_changed(&stub, &bytes)?);
         written.units += 1;
     }
+    // The sea beyond the coast: one flat square under the whole world, always loaded.
+    let number = section_number(zones.len());
+    let circle = sea::circle_of(zones, SEA_MARGIN);
+    let manifest = pack_folder.join(format!("{}.toml", sea::KEY));
+    written.changed += usize::from(write_if_changed(&manifest, sea::manifest(number, circle).as_bytes())?);
+    written.changed += usize::from(write_if_changed(&mod_dir.join("files").join(sea::file()), &sea::build(number)?)?);
     if let Some((name, start, heading)) = world {
         let path = mod_dir.join(WORLDS_FOLDER).join(format!("{WORLD_ID}.toml"));
         written.changed += usize::from(write_if_changed(&path, world_manifest(name, start, heading).as_bytes())?);
@@ -157,7 +167,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let zones = [zone(7), zone(8)];
         let first = write(&dir, &zones, Some(("Fairhaven", [0.0, 0.0, 10.0], 0.0))).unwrap();
-        assert_eq!((first.units, first.changed), (2, 2 * 2 + 1));
+        assert_eq!(
+            (first.units, first.changed),
+            (2, 2 * 2 + 2 + 1),
+            "two units, the sea's manifest and file, the world"
+        );
         let stub = std::fs::read(dir.join("files").join(unit_file(7))).unwrap();
         assert_eq!(unit_of_key(std::str::from_utf8(&stub).unwrap().lines().nth(2).unwrap()), Some(7));
         let second = write(&dir, &zones, Some(("Fairhaven", [0.0, 0.0, 10.0], 0.0))).unwrap();

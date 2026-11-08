@@ -9,6 +9,8 @@
 //! enabled = true
 //! # The longest side of a picture, pixels.
 //! max_texture = 512
+//! # How bright the pictures are, percent (100 = as the 2012 game stores them).
+//! brightness = 70
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -21,6 +23,11 @@ pub const FILE_NAME: &str = "config.toml";
 
 /// The mod's id: its table in the game's main config file is `[mods.fairhaven]`.
 pub const MOD_ID: &str = "fairhaven";
+
+/// The brightness the pictures have by default, and the range the setting may take, percent.
+pub const DEFAULT_BRIGHTNESS: u32 = 70;
+pub const MIN_BRIGHTNESS: u32 = 20;
+pub const MAX_BRIGHTNESS: u32 = 150;
 
 /// The settings as the host merged them (`bb.config`): the TOML text, and which sources the host found.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +59,11 @@ enabled = true
 
 # Longest side of a picture in pixels (a power of two, 64 to 2048). Bigger pictures take more memory and time per unit.
 max_texture = 512
+
+# How bright the pictures are, percent of the 2012 game's pixels (20 to 150). The 2012 pictures are made for a lighting that
+# darkens them (a tone map, ambient occlusion); this game's world shader multiplies a picture by twice its light, so roofs and
+# roads come out near white at 100. Lower is darker.
+brightness = 70
 ";
 
 /// The settings of the mod.
@@ -61,11 +73,12 @@ pub struct Config {
     pub source: Option<PathBuf>,
     pub enabled: bool,
     pub max_texture: u32,
+    pub brightness: u32,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { source: None, enabled: true, max_texture: 512 }
+        Self { source: None, enabled: true, max_texture: 512, brightness: DEFAULT_BRIGHTNESS }
     }
 }
 
@@ -111,6 +124,9 @@ impl Config {
         if !self.max_texture.is_power_of_two() || !(64..=2048).contains(&self.max_texture) {
             bail!("max_texture {} must be a power of two from 64 to 2048", self.max_texture);
         }
+        if !(MIN_BRIGHTNESS..=MAX_BRIGHTNESS).contains(&self.brightness) {
+            bail!("brightness {} must be from {MIN_BRIGHTNESS} to {MAX_BRIGHTNESS} percent", self.brightness);
+        }
         Ok(())
     }
 }
@@ -135,7 +151,11 @@ mod tests {
 
     #[test]
     fn every_key_is_read_and_a_typo_is_refused() {
-        let config = Config::parse("source = 'D:/mw2012'\nenabled = false\nmax_texture = 1024\n").unwrap();
+        let config =
+            Config::parse("source = 'D:/mw2012'\nenabled = false\nmax_texture = 1024\nbrightness = 55\n").unwrap();
+        assert_eq!(config.brightness, 55);
+        assert!(Config::parse("brightness = 10").is_err());
+        assert!(Config::parse("brightness = 200").is_err());
         assert_eq!(config.source.as_deref(), Some(Path::new("D:/mw2012")));
         assert!(!config.enabled);
         assert_eq!(config.max_texture, 1024);

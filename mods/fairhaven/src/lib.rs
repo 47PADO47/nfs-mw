@@ -18,6 +18,7 @@ pub mod mesh;
 mod native;
 pub mod pvs;
 pub mod ranges;
+pub mod sea;
 pub mod section;
 pub mod solid;
 pub mod space;

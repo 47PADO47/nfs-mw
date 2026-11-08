@@ -55,6 +55,17 @@ impl Track {
         self.length
     }
 
+    /// The point `distance` metres along the lap from its first sample (the start line), the lap closing on itself.
+    pub fn at(&self, distance: f32) -> [f32; 2] {
+        let distance = distance.rem_euclid(self.length);
+        let next = self.along.partition_point(|&along| along <= distance);
+        let (from, to) = (next.saturating_sub(1), next % self.points.len());
+        let span = if to == 0 { self.length - self.along[from] } else { self.along[to] - self.along[from] };
+        let t = if span > 0.0 { (distance - self.along[from]) / span } else { 0.0 };
+        let (a, b) = (self.points[from], self.points[to]);
+        [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+    }
+
     pub fn len(&self) -> usize {
         self.points.len()
     }
@@ -102,6 +113,29 @@ fn distance(a: [f32; 2], b: [f32; 2]) -> f32 {
     ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt()
 }
 
+/// A virtual car for checking the lap timer in the game without driving a lap: it runs the lap at a constant speed, starting a
+/// few metres before the start line, so the messages of the start line and of each lap appear on the HUD
+/// (`RIDE6_TRACKS_LAP_DEMO=<metres per second>`, `mods/ride6-tracks/README.md`).
+#[derive(Debug, Clone, Copy)]
+pub struct Demo {
+    speed: f32,
+    distance: f32,
+}
+
+impl Demo {
+    /// A run at `speed` m/s on `track`, `lead` metres before the start line.
+    pub fn new(track: &Track, speed: f32, lead: f32) -> Self {
+        Self { speed, distance: track.length() - lead }
+    }
+
+    /// The car's position after `dt` more seconds (render space).
+    pub fn step(&mut self, track: &Track, dt: f32) -> [f32; 3] {
+        self.distance += self.speed * dt;
+        let [x, y] = track.at(self.distance);
+        [x, y, 0.0]
+    }
+}
+
 /// What a step of the timer found.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Event {
@@ -128,6 +162,11 @@ pub struct Timer {
 impl Timer {
     pub fn new(track: Track) -> Self {
         Self { track, last: None, covered: 0.0, running: None, laps: 0, best: None }
+    }
+
+    /// The lap being timed.
+    pub fn track(&self) -> &Track {
+        &self.track
     }
 
     /// The best lap so far, seconds.
@@ -288,6 +327,26 @@ mod tests {
         assert!((ahead.points[0][1] - 20.0).abs() < 2.5, "{:?}", ahead.points[0]);
         assert!(Track::from_text("1 2\n3\n").is_err());
         assert!(Track::from_text("1 2\n").is_err(), "too few samples");
+    }
+
+    #[test]
+    fn a_point_along_the_lap_wraps_and_a_demo_run_makes_the_start_and_every_lap() {
+        let track = circle();
+        let [x, y] = track.at(0.0);
+        assert!((x - 100.0).abs() < 0.01 && y.abs() < 0.01);
+        let [x, y] = track.at(track.length() / 4.0);
+        assert!(x.abs() < 1.0 && (y - 100.0).abs() < 1.0, "a quarter of the way round: {x} {y}");
+        assert_eq!(track.at(track.length() + 10.0), track.at(10.0));
+        let mut timer = Timer::new(circle());
+        let mut demo = Demo::new(timer.track(), 50.0, 20.0);
+        let mut events = Vec::new();
+        for _ in 0..(3 * 628 * 20 / 50 + 40) {
+            let position = demo.step(&circle(), 0.05);
+            events.extend(timer.update(position, 0.05));
+        }
+        assert_eq!(events[0], Event::Started);
+        let laps = events.iter().filter(|event| matches!(event, Event::Lap { .. })).count();
+        assert_eq!(laps, 3, "{events:?}");
     }
 
     #[test]

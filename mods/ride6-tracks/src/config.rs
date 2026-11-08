@@ -11,12 +11,17 @@
 //! objects = true
 //! # The racing line as a green ribbon on the ground.
 //! racing_line = true
+//! # How bright the pictures are, percent of the exported pixels.
+//! brightness = 80
 //! ```
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
+
+/// The brightness of the pictures by default, percent of the exported pixels.
+pub const DEFAULT_BRIGHTNESS: u32 = 80;
 
 /// The file name of the settings file, in the mod's folder.
 pub const FILE_NAME: &str = "config.toml";
@@ -60,6 +65,10 @@ objects = true
 
 # The racing line (the track authors' ideal trajectory) as a green ribbon on the ground.
 racing_line = true
+
+# How bright the pictures are, percent of the exported pixels (20 to 150). The game's world shader multiplies a picture by twice
+# its light, so pale rock, sand and white buildings come out near white at 100; lower is darker.
+brightness = 80
 ";
 
 /// The settings of the mod.
@@ -72,11 +81,13 @@ pub struct Config {
     pub objects: bool,
     /// Draw the racing line as a ribbon on the ground.
     pub racing_line: bool,
+    /// How bright the pictures are, percent.
+    pub brightness: u32,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { source: None, max_texture: 512, objects: true, racing_line: true }
+        Self { source: None, max_texture: 512, objects: true, racing_line: true, brightness: DEFAULT_BRIGHTNESS }
     }
 }
 
@@ -122,6 +133,9 @@ impl Config {
         if !self.max_texture.is_power_of_two() || !(64..=2048).contains(&self.max_texture) {
             bail!("max_texture {} must be a power of two from 64 to 2048", self.max_texture);
         }
+        if !(20..=150).contains(&self.brightness) {
+            bail!("brightness {} must be from 20 to 150 percent", self.brightness);
+        }
         Ok(())
     }
 }
@@ -153,6 +167,8 @@ mod tests {
         assert!(Config::parse("sorce = 'x'").is_err());
         assert!(Config::parse("max_texture = 1000").is_err());
         assert!(Config::parse("max_texture = 4096").is_err());
+        assert!(Config::parse("brightness = 70").is_ok_and(|c| c.brightness == 70));
+        assert!(Config::parse("brightness = 5").is_err());
     }
 
     #[test]

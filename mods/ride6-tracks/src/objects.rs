@@ -1,6 +1,7 @@
-//! The objects placed on the track (barriers, buildings, props) in the cells: each placement goes to the cell whose anchor is
-//! nearest, the cell's section holds the models its placements use, and a solid model also puts a box of its size into the cell's
-//! collision, so a bike or a car meets the wall.
+//! The objects placed on the track (barriers, buildings, props): the placements are grouped by square of ground and each group is a
+//! section of its own with the models its placements use (`groups`, `placed_objects`), while a solid model also puts a box of its
+//! size into the collision of the ground cell nearest to its placement (`assign`, `walls`), so a bike or a car meets the wall and the
+//! wall streams with the ground.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -38,8 +39,6 @@ pub struct CellObjects {
     pub solids: Vec<SolidSource>,
     pub textures: Vec<TextureSource>,
     pub places: Vec<Placed>,
-    /// Boxes of the solid models, as collision triangles in physics space.
-    pub walls: Vec<SoupTriangle>,
     /// Placements left out: a scale beyond what the scenery format holds.
     pub skipped: usize,
 }
@@ -70,14 +69,28 @@ fn distance(centre: [f32; 2], pos: [f32; 3]) -> f32 {
     (centre[0] - pos[0]).hypot(centre[1] - pos[1])
 }
 
-/// The solids, textures, placements and walls of the placements `indices` of `pack`, with solids named `<key>_M<model>_<part>`.
-pub fn cell_objects(pack: &Pack, pictures: &Pictures, indices: &[usize], key: &str) -> CellObjects {
+/// The placements of `pack` that the scenery format can hold, in groups: those in the same square of `side` metres go together, in
+/// the order of their squares. Each
+/// group becomes one section that holds the models its placements use once (`import.rs`), so a model used all round the track is in
+/// each group that has one of its placements and nowhere else.
+pub fn groups(pack: &Pack, side: f32) -> Vec<Vec<usize>> {
+    let mut by_square: BTreeMap<(i32, i32), Vec<usize>> = BTreeMap::new();
+    for (at, instance) in pack.instances.iter().enumerate().filter(|(_, instance)| fits(instance)) {
+        let square = ((instance.pos[0] / side).floor() as i32, (instance.pos[1] / side).floor() as i32);
+        by_square.entry(square).or_default().push(at);
+    }
+    by_square.into_values().collect()
+}
+
+/// The solids, textures and placements of the placements `indices` of `pack`, with solids named `<key>_M<model>_<part>`. The
+/// models and their pictures are made once for all the placements of the group: a barrier piece used again and again in a group is
+/// in its section once, and not in each cell that uses it.
+pub fn placed_objects(pack: &Pack, pictures: &Pictures, indices: &[usize], key: &str) -> CellObjects {
     let mut out = CellObjects::default();
     let mut made: HashMap<u32, Vec<String>> = HashMap::new();
-    let mut boxes: HashMap<u32, Option<Aabb>> = HashMap::new();
     for &at in indices {
         let instance = &pack.instances[at];
-        if instance.rows.iter().flatten().any(|v| !v.is_finite() || v.abs() > MAX_COMPONENT) {
+        if !fits(instance) {
             out.skipped += 1;
             continue;
         }
@@ -86,17 +99,51 @@ pub fn cell_objects(pack: &Pack, pictures: &Pictures, indices: &[usize], key: &s
         for name in names.iter() {
             out.places.push(Placed { solid: name.clone(), pos: instance.pos, rows: instance.rows });
         }
-        if !pack.models[instance.model as usize].solid {
+    }
+    out
+}
+
+/// Whether the scenery format can hold the placement's rows.
+pub fn fits(instance: &Instance) -> bool {
+    instance.rows.iter().flatten().all(|v| v.is_finite() && v.abs() <= MAX_COMPONENT)
+}
+
+/// The walls of the solid placements `indices` of `pack`: a box of the model's size each, as collision triangles in physics space.
+/// They go into the collision of the cell the placements are assigned to, so they stream with the ground.
+pub fn walls(pack: &Pack, indices: &[usize]) -> Vec<SoupTriangle> {
+    let mut out = Vec::new();
+    let mut boxes: HashMap<u32, Option<Aabb>> = HashMap::new();
+    for &at in indices {
+        let instance = &pack.instances[at];
+        if !fits(instance) || !pack.models[instance.model as usize].solid {
             continue;
         }
         let bounds = *boxes.entry(instance.model).or_insert_with(|| model_bounds(pack, instance.model));
         if let Some((low, high)) = bounds
             && high[2] - low[2] >= MIN_WALL_HEIGHT
         {
-            out.walls.extend(box_triangles(low, high, instance));
+            out.extend(box_triangles(low, high, instance));
         }
     }
     out
+}
+
+/// The sphere that holds the positions of the placements `indices` and `margin` metres more: centre x, y, z and radius.
+pub fn anchor_of(pack: &Pack, indices: &[usize], margin: f32) -> [f32; 4] {
+    let mut low = [f32::INFINITY; 3];
+    let mut high = [f32::NEG_INFINITY; 3];
+    for &at in indices {
+        for axis in 0..3 {
+            low[axis] = low[axis].min(pack.instances[at].pos[axis]);
+            high[axis] = high[axis].max(pack.instances[at].pos[axis]);
+        }
+    }
+    if low[0] > high[0] {
+        return [0.0, 0.0, 0.0, 1.0];
+    }
+    let centre = [0, 1, 2].map(|axis| (low[axis] + high[axis]) / 2.0);
+    let radius = (0..3).map(|axis| ((high[axis] - low[axis]) / 2.0).powi(2)).sum::<f32>().sqrt();
+    [centre[0], centre[1], centre[2], radius + margin]
 }
 
 /// Makes the solids of `model` (one per part of each of its groups) in `out`, and returns their names.
@@ -220,23 +267,45 @@ mod tests {
 
     #[test]
     fn a_cell_gets_the_model_once_each_placement_and_a_box_of_walls() {
-        let objects = cell_objects(&pack(), &pictures(), &[0, 1], "G000");
+        let objects = placed_objects(&pack(), &pictures(), &[0, 1], "G000");
         assert_eq!(objects.solids.len(), 1, "the model is made once");
         assert_eq!(objects.places.len(), 2);
         assert_eq!(objects.places[0].solid, "G000_M0_0");
-        assert_eq!(objects.walls.len(), 24, "two boxes of twelve triangles");
         assert_eq!(objects.textures.len(), 1);
+        let walls = walls(&pack(), &[0, 1]);
+        assert_eq!(walls.len(), 24, "two boxes of twelve triangles");
         // The first box is 2 m long in x: render x 10..12 is physics z 10..12.
-        let z: Vec<f32> = objects.walls[..12].iter().flat_map(|t| t.points.map(|p| p[2])).collect();
+        let z: Vec<f32> = walls[..12].iter().flat_map(|t| t.points.map(|p| p[2])).collect();
         assert!(z.iter().cloned().fold(f32::INFINITY, f32::min) >= 10.0 - 1e-4);
         assert!(z.iter().cloned().fold(f32::NEG_INFINITY, f32::max) <= 12.0 + 1e-4);
     }
 
     #[test]
+    fn the_anchor_holds_every_placement_with_a_margin() {
+        let [x, _, _, radius] = anchor_of(&pack(), &[0, 1], 100.0);
+        assert_eq!(x, 255.0);
+        assert!(radius > 245.0 + 100.0 - 1e-3, "{radius}");
+        assert_eq!(anchor_of(&pack(), &[], 100.0), [0.0, 0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn placements_in_the_same_square_form_a_group() {
+        let groups = groups(&pack(), 100.0);
+        assert_eq!(
+            groups,
+            vec![vec![0], vec![1]],
+            "the placement at 10 m, then the one at 500 m; the scaled one is in none"
+        );
+        assert_eq!(super::groups(&pack(), 1000.0), vec![vec![0, 1]]);
+        assert!(!fits(&pack().instances[2]));
+    }
+
+    #[test]
     fn a_scale_beyond_the_format_is_left_out_and_counted() {
-        let objects = cell_objects(&pack(), &pictures(), &[2], "G000");
+        let objects = placed_objects(&pack(), &pictures(), &[2], "G000");
         assert_eq!(objects.skipped, 1);
         assert!(objects.places.is_empty());
+        assert!(walls(&pack(), &[2]).is_empty());
         assert_eq!(counts(&pack()).get("wall"), Some(&3));
     }
 }

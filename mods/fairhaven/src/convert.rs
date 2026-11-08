@@ -20,6 +20,7 @@ use crate::instances::{self, COMPOUND_INSTANCE_LIST, DYNAMIC_INSTANCE_LIST, INST
 use crate::material::{Layers, Surface, surface};
 use crate::mesh::{self, MeshData, RenderableData};
 use crate::pvs::Zone;
+use crate::sea::{WATER_BLOCK, WATER_NAME};
 use crate::section;
 use crate::solid::{self, BuiltSolid, Group};
 use crate::space;
@@ -36,9 +37,6 @@ pub const CLIP_MARGIN: f32 = 25.0;
 const EXCLUDE_FLAGS: u32 = 0x60;
 /// The name of the flat grey picture a surface with no picture of its own is drawn with.
 const FLAT_NAME: &str = "FLATGREY";
-/// The name and colour (RGB565, little endian) of the picture water is drawn with: a dark green-blue.
-const WATER_NAME: &str = "FLATWATER";
-const WATER_BLOCK: [u8; 8] = [0xCD, 0x1A, 0xCD, 0x1A, 0, 0, 0, 0];
 const RESOURCE_TEXTURE: u32 = 0x1;
 
 /// What the conversion of a unit is told.
@@ -46,6 +44,8 @@ const RESOURCE_TEXTURE: u32 = 0x1;
 pub struct Options {
     /// The longest side of a picture, pixels.
     pub max_texture: u32,
+    /// How bright the pictures are, percent of their stored colour (100 leaves them as they are).
+    pub brightness: u32,
 }
 
 /// What a conversion did.
@@ -58,6 +58,8 @@ pub struct Stats {
     pub objects: usize,
     pub clipped: usize,
     pub missing: usize,
+    /// The ids of the models (or objects) that are missing, each once: in no bundle the reader opens.
+    pub missing_ids: Vec<u64>,
     pub too_large: usize,
     /// Placements written, solids and triangles in them (a coarse level counts as well).
     pub placements: usize,
@@ -180,7 +182,7 @@ impl Converter<'_> {
                 for object in instances::parse_with(&self.unit.resource(list)?, instances::OBJECTS)? {
                     self.stats.objects += 1;
                     let Some(model) = self.model_of_object(object.model) else {
-                        self.stats.missing += 1;
+                        self.note_missing(object.model);
                         continue;
                     };
                     self.place(zone, &instances::Instance { model, ..object }, &mut placements);
@@ -189,6 +191,13 @@ impl Converter<'_> {
         }
         placements.truncate(i16::MAX as usize);
         Ok(placements)
+    }
+
+    fn note_missing(&mut self, id: u64) {
+        self.stats.missing += 1;
+        if !self.stats.missing_ids.contains(&id) {
+            self.stats.missing_ids.push(id);
+        }
     }
 
     /// The model an object (a prop, a compound or a dynamic object) is drawn with: the first model it imports.
@@ -207,7 +216,7 @@ impl Converter<'_> {
 
     fn place(&mut self, zone: &Zone, instance: &instances::Instance, placements: &mut Vec<Placement>) {
         let Some(model) = self.model(instance.model) else {
-            self.stats.missing += 1;
+            self.note_missing(instance.model);
             return;
         };
         let m = &instance.matrix;
@@ -400,8 +409,9 @@ impl Converter<'_> {
             return if ok { name } else { self.flat() };
         }
         let started = Instant::now();
-        let made =
-            self.read_texture(id).and_then(|texture| texture_source(&name, &texture, self.options.max_texture, look));
+        let made = self.read_texture(id).and_then(|texture| {
+            texture_source(&name, &texture, self.options.max_texture, self.options.brightness, look)
+        });
         self.picture_micros += started.elapsed().as_micros();
         match made {
             Ok(source) => {

@@ -90,7 +90,8 @@ impl Mod for Fairhaven {
                 return Ok(nothing);
             }
         }
-        let maker = Arc::new(Maker::new(source, Options { max_texture: config.max_texture }));
+        let maker =
+            Arc::new(Maker::new(source, Options { max_texture: config.max_texture, brightness: config.brightness }));
         if let Err(error) = content.provide_lazy_files(Shared(maker.clone())) {
             ctx.log(
                 Level::Warn,

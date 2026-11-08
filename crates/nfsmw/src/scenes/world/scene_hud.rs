@@ -40,6 +40,7 @@ impl WorldScene {
         if self.track != DEFAULT_TRACK {
             state.minimap = None;
             state.map_car = None;
+            state.second_world = true;
         }
         Some(state)
     }

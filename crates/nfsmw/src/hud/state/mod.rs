@@ -95,6 +95,9 @@ pub struct HudState {
     pub car_dir: String,
     /// The minimap shows this place; `None` hides it (a scene that has no map position).
     pub minimap: Option<MapPosition>,
+    /// The scene is a second world (a mod's track or city): it has no map, so the disc the minimap and the cop detector share and
+    /// the heat ring around it are not drawn (`docs/specs/second-world.md`).
+    pub second_world: bool,
     /// The second co-op player's car, for the world map's second mark (`scenes/world/hud.rs`); `None` outside a co-op
     /// session.
     pub second_player: Option<MapPosition>,
@@ -217,6 +220,7 @@ impl Default for HudState {
             boost_psi: 0.0,
             car_dir: String::new(),
             minimap: None,
+            second_world: false,
             second_player: None,
             blips: Vec::new(),
             cop_nearby: false,

@@ -85,6 +85,20 @@ def part(attrs, indices, triangle_mask):
     )
 
 
+def place(positions, normals, indices, position, rows):
+    """Positions, normals and indices of a mesh moved by an actor's transform: `p' = position + sum(p[i] * rows[i])`.
+
+    The rows are the scenery placement's (`props.render_rows`); a mirrored placement (negative determinant) gets its winding turned.
+    """
+    matrix = np.array(rows, dtype=np.float64)
+    moved = positions.astype(np.float64) @ matrix + np.array(position, dtype=np.float64)
+    turned = normals.astype(np.float64) @ matrix
+    turned /= np.maximum(np.linalg.norm(turned, axis=1, keepdims=True), 1e-12)
+    if np.linalg.det(matrix) < 0:
+        indices = indices.reshape(-1, 3)[:, ::-1].reshape(-1)
+    return moved.astype(np.float32), turned.astype(np.float32), indices
+
+
 def vertex_colours(attrs):
     """The vertex colours as floats 0 to 1, or ones when the mesh has none."""
     if "COLOR_0" not in attrs:

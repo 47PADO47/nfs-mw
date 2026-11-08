@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the importer changes what it writes for the same input.
-const CONVERSION: u32 = 1;
+const CONVERSION: u32 = 4;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";
 

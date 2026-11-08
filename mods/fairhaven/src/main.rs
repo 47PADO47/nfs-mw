@@ -21,9 +21,15 @@ struct Args {
     /// The longest side of a picture, pixels.
     #[arg(long, default_value_t = 512)]
     max_texture: u32,
+    /// How bright the pictures are, percent of their stored colour.
+    #[arg(long, default_value_t = fairhaven::config::DEFAULT_BRIGHTNESS)]
+    brightness: u32,
     /// Write the file of the unit to this path (one unit only).
     #[arg(long)]
     out: Option<PathBuf>,
+    /// List the models each unit lacks and look for them in every bundle of the install (not only the ones the reader opens).
+    #[arg(long)]
+    find_missing: bool,
 }
 
 fn line(unit: u32, stats: &Stats) -> String {
@@ -51,7 +57,7 @@ fn line(unit: u32, stats: &Stats) -> String {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let options = Options { max_texture: args.max_texture };
+    let options = Options { max_texture: args.max_texture, brightness: args.brightness };
     let opened = Instant::now();
     let install = Install::open(&args.install)?;
     println!("opened the install in {} ms: {} units", opened.elapsed().as_millis(), install.zones().len());
@@ -63,6 +69,7 @@ fn main() -> Result<()> {
         .collect();
     anyhow::ensure!(!wanted.is_empty(), "unit {:?} is not in the zone list", args.unit);
     let (mut total_bytes, mut total_ms, mut worst) = (0usize, 0u128, 0u128);
+    let mut missing: Vec<u64> = Vec::new();
     for &(unit, section) in &wanted {
         let converted = match convert_unit(&install, unit, section, &options) {
             Ok(converted) => converted,
@@ -72,11 +79,25 @@ fn main() -> Result<()> {
             }
         };
         println!("{}", line(unit, &converted.stats));
+        for &id in &converted.stats.missing_ids {
+            if !missing.contains(&id) {
+                missing.push(id);
+            }
+        }
         total_bytes += converted.bytes.len();
         total_ms += converted.stats.millis;
         worst = worst.max(converted.stats.millis);
         if let (Some(path), 1) = (&args.out, wanted.len()) {
             std::fs::write(path, &converted.bytes).with_context(|| format!("writing {}", path.display()))?;
+        }
+    }
+    if args.find_missing {
+        println!("{} models are missing; looking for them in every bundle of the install", missing.len());
+        for (id, bundles) in fairhaven::install::bundles_with(&args.install, &missing) {
+            println!(
+                "   {id:016X}: {}",
+                if bundles.is_empty() { "in no bundle".to_owned() } else { bundles.join(", ") }
+            );
         }
     }
     println!(

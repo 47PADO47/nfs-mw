@@ -7,17 +7,19 @@ four commits of `feat/2012-content-more` that Fairhaven needs (range-read bundle
 host side: [specs/second-world.md](../specs/second-world.md#pieces-made-when-asked-for-built). Updated after every layer; the top
 section is where to pick up.
 
-## Where it stands (2026-11-08)
+## Where it stands (2026-11-08, after the polish round on `feat/worlds-polish`)
 
 | Layer | State |
 |---|---|
 | Host seam: `placed = "file"` packs read through the install on one shared streamer, `blackbox_scenery::write_section` | built, unit-tested (`mod_tiles.rs` test: manifest, lazy source, streamer, assemble) |
 | F0 geometry and pictures per unit, streamed from the install | **built and seen**: the harbour district, the mountain highway and the districts between render offscreen; all 169 units convert with no error |
-| F0 materials | diffuse picture by the technique's sampler; cut-outs and two sides; terrain tiling ratios and the three terrain layers cut by the mask; the sea as one flat colour; no lightmaps, reflections, lit windows, normal maps |
+| F0 materials | diffuse picture by the technique's sampler; cut-outs and two sides; terrain tiling ratios and the three terrain layers cut by the mask; the sea as one flat colour; a `brightness` gain on every picture (default 70) because the shader doubles a picture; no lightmaps, reflections, lit windows, normal maps |
+| Models in no unit | **found and added**: 69 models over the 169 units were in `ARENA_*.BNDL` (59) and in the units the zone list leaves out (10); their tables join the pool; `fairhaven-unit --find-missing` |
+| Sea | a flat 120 km square at 9.6 m under the whole world (`sea.rs`, 4 KB, made by the mod), the coast's own sea mesh still draws over it |
 | F1 collision from the soups | **built and driven on**: a BMW M3 GTR and a KTM 450 drive on the mountain road and the harbour plaza; surface = drive bit asphalt, else grass **[unconfirmed]** |
 | F2 spawn, lighting, frame time | start = the largest flat road face of the unit with most road; the host's sun and sky; frame times measured (below) |
 | F3 props | placed: props, compound and dynamic objects (428 in the harbour unit) drawn as still models |
-| F3 ground cover (8.8 M instances), road graph for traffic, water as water, minimap | not built |
+| F3 ground cover (8.8 M instances), road graph for traffic, water as water, a drawn minimap | not built; the original HUD's map dial no longer draws empty (it is hidden in a second world) |
 
 ## Commands
 
@@ -51,16 +53,26 @@ in all, frame time p50 1.5 ms on a quiet machine and 3 to 10 ms on a loaded one,
 
 ## Open issues and next steps
 
-1. **Shading.** Ground and roofs are too light: the 2012 pictures are lit by a lightmap and a sun the game does not have, and the game's
-   pre-lit shader takes a constant vertex colour (0x58 now). A per-technique brightness, or the baked lightmap (second UV, `World*_Lightmap`),
-   would help.
-2. **Surfaces.** The face flag word's index bits (10 bits, 1 to 0xDE) look like a surface table; `SURFACELIST.BNDL` names are hashed, so the
-   map is unknown. Bit 0 stands for road.
+1. **Shading** (done as a gain, not as a model). Roofs and quays were clipped to cream because the shader draws
+   `2 * picture * (ambient * vertex colour + sun * N.L)` and the 2012 pictures are authored brighter; `brightness` = 70 gives roofs about
+   200 of 255 instead of 247 (the mean of a 120 by 40 pixel patch of a roof in the harbour view: 247,244,212 before, 198,185,150 at 70, 237,224,180 at 85).
+   The baked lightmap (second UV, `World*_Lightmap`) is still not read.
+2. **Surfaces.** `SURFACELIST.BNDL` holds about 30 `SurfaceType` objects (effects, not names), fewer than the flag word's index range, so the
+   index is not a `SurfaceType` id. Read off the faces of seven units (28 distinct values of bits 16 to 23): the low nibble of that byte
+   separates flat road (0 and 3: bit 0 set on every face, |normal y| 0.98 to 1.00), a mix (1 and 2: 0.3 to 0.6), walls (5: no bit 0,
+   |normal y| 0.36 to 0.48) and other steep faces (6 and 7); the high nibble (1 to 4) follows the height of the unit, so it is a
+   district or layer number and not a surface. This supports "bit 0 is road" and nothing about grass, sand or water: a surface table
+   needs the game's collision material list, which was not found. The classification stays asphalt for bit 0, grass for the rest.
 3. **Terrain mask.** The weights of the three layers (red, green, blue) are guessed from the slope each channel covers; a baked blend
    would give soft edges. `Plot*` materials draw layer 1.
-4. **Ground cover** (`GroundcoverInstances`, 8.8 M instances: packed 16-byte records, dequantisation not decoded) and the **sea** as water.
-5. **Roads and traffic.** `TrafficLaneData` (2.35 MB) starts with a spatial grid of rectangles of about 400 m (min and max x and z as
-   floats, `-FLT_MAX` to `FLT_MAX` in height) and a table of imports at its end; the lane records after the grid were not decoded. A
-   `RoadNetwork` for traffic and police needs the lanes; this is the spike the plan names.
-6. **Minimap.** The dial draws empty in a world (the city's tiles are not its map); `MAPS/*.BNDL` (86 textures) were not read.
-7. Missing models (3 to 6 per unit) are in no unit or shared bundle: arena content, probably.
+4. **Ground cover** (`GroundcoverInstances`, 8.8 M instances: packed 16-byte records, dequantisation not decoded). Plan, not built: decode
+   the records of one unit (about 52,000 a unit on average), place only the instances within 80 m of the camera as scenery placements of an
+   `Option`-toggled pack (`ground_cover = false` by default, a Gameplay or Video row, translations in every language file),
+   instanced through the model swap's tree path (`libs`/`crates` trees), and measure p50 and p95 with it on and off before turning
+   it on by default: an estimate, not measured, is 3 % of a unit's instances in range at 80 m, about 1,500 placements.
+5. **Roads and traffic.** `TrafficLaneData` (2.35 MB) starts with a spatial grid of rectangles of about 400 m (min and max x and z as floats,
+   `-FLT_MAX` to `FLT_MAX` in height) and a table of imports at its end; the lane records after the grid were not decoded. A `RoadNetwork`
+   for traffic and police needs the lanes (the spike the plan names); with it the Custom HUD's map (`map_roads`) would draw the city.
+6. **A drawn minimap.** Hidden in a second world now; a map needs the roads of item 5 (Custom HUD) or 64 tile pictures drawn from them
+   (original HUD): [specs/second-world.md](../specs/second-world.md#what-the-ride-6-worlds-add-on-top-built).
+7. **The sea as water.** Flat colour only; the 2012 water is a normal map and a reflection.

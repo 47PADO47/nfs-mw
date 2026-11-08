@@ -244,7 +244,11 @@ and other flat ground (|normal y| of 0.93 to 1.00 for the faces with it, area 27
 faces with the low byte `0x00`, `0x20`, `0x40` or `0xC0` are mostly steep (terrain slopes and building walls, mean |normal y|
 0.2 to 0.4) or flat terrain (`0x40`); bits 14 to 23 (10 bits) vary between 1 and 0xDE and look like an index into a surface or
 material table; bits 24 to 31 are `0x0A` or 0. The surface names are hashed in `SURFACELIST.BNDL`, so the map from the index to a
-surface is **not** known: `mods/fairhaven/src/collision.rs` takes bit 0 as asphalt and the rest as grass **[unconfirmed]**.
+surface is **not** known: `mods/fairhaven/src/collision.rs` takes bit 0 as asphalt and the rest as grass **[unconfirmed]**. Over seven units
+the byte at bits 16 to 23 has 28 values (0x10 to 0x47) **[measured]**: its low nibble separates flat road (0 and 3: bit 0 set on every
+face, |normal y| 0.98 to 1.00), a mix of ground and walls (1 and 2), walls (5: no bit 0, |normal y| 0.36 to 0.48) and other steep
+faces (6 and 7), and its high nibble (1 to 4) follows the mean height of the unit's faces, so it is a district or layer number. The
+~30 `SurfaceType` objects of `SURFACELIST.BNDL` are fewer than the index range: it is not their id.
 
 The **flag word** has 2,674 distinct values over the world (most common 0x0392C000, 0x0B90E001, 0x0472C000, 0x00608001); the low
 bits carry flags (0x8000/0x4000/0x0001 patterns) and the middle bits look like a surface and a material index that the
