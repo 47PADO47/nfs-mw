@@ -199,10 +199,8 @@ fn a_corner_leaned_hard_reads_nothing_while_both_tyres_hold_their_peak() {
         });
         assert!(run.lean > 0.6, "{name}: the bike leans hard: {run:?}");
         assert!(!run.heard_while_gripping, "{name}: {run:?}");
-        match run.slide.iter().all(|slide| *slide <= 1.0) {
-            true => assert!(run.skid == [0.0; 2] && run.loop_volume == 0.0, "{name}: {run:?}"),
-            false => {}
-        }
+        let held = run.slide.iter().all(|slide| *slide <= 1.0);
+        assert!(!held || (run.skid == [0.0; 2] && run.loop_volume == 0.0), "{name}: {run:?}");
     }
 }
 
@@ -215,11 +213,14 @@ fn a_car_still_screeches_in_a_hard_turn() {
     assert!(run.skid.iter().any(|skid| *skid > 0.0), "{run:?}");
 }
 
+/// A case of the report: its name, the speed it starts at and the driver.
+type Case = (&'static str, f32, fn(f32, f32) -> DriveInput);
+
 #[test]
 #[ignore = "a report: prints what the effects read of every bike in the hard cases"]
 fn report_the_hard_cases() {
     for (name, spec) in bikes() {
-        let cases: [(&str, f32, fn(f32, f32) -> DriveInput); 4] = [
+        let cases: [Case; 4] = [
             ("rear brake", 35.0, |_, _| DriveInput { handbrake: true, ..DriveInput::default() }),
             ("both brakes", 35.0, |_, _| DriveInput { brake: 1.0, ..DriveInput::default() }),
             ("burnout", 0.0, |_, _| DriveInput { throttle: 1.0, brake: 1.0, ..DriveInput::default() }),
