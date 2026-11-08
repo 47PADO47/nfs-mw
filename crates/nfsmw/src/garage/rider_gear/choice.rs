@@ -12,7 +12,15 @@
 //!
 //! A part left out wears the rider's own gear (the empty id). One choice belongs to the player for every bike, since the rider
 //! is the same on each. The original save is untouched.
+//!
+//! What the shop sold is kept in the same file, as the items the player owns (`part:id`), so wearing a bought item again costs
+//! nothing:
+//!
+//! ```toml
+//! owned = ["helmet:HL_AGV_Corsa-R_Mono-Black", "suit:SU_Alpinestars_GP-Force_Black"]
+//! ```
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -21,6 +29,20 @@ use super::catalogue::Part;
 
 /// The table of the file.
 const TABLE: &str = "gear";
+/// The list of the items the profile bought.
+const OWNED: &str = "owned";
+
+/// What the profile's file holds: what the rider wears and what the player owns.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Kept {
+    pub choice: Choice,
+    pub owned: BTreeSet<String>,
+}
+
+/// How the file names an owned item: `helmet:HL_AGV_Corsa-R_Mono-Black`.
+pub fn owned_key(part: Part, id: &str) -> String {
+    format!("{}:{id}", part.key())
+}
 
 /// What the player wears: for each part the id of an item of the catalogue, the empty id being the rider's own gear.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -79,12 +101,12 @@ pub(super) fn path() -> Option<PathBuf> {
     Some(slots.with_file_name(name))
 }
 
-/// What the file at `path` holds (the rider's own gear when it is missing or does not read).
-pub(super) fn read(path: &Path) -> Choice {
-    let Ok(text) = std::fs::read_to_string(path) else { return Choice::default() };
+/// What the file at `path` holds (the rider's own gear and nothing owned when it is missing or does not read).
+pub(super) fn read_kept(path: &Path) -> Kept {
+    let Ok(text) = std::fs::read_to_string(path) else { return Kept::default() };
     let Ok(file) = text.parse::<toml::Table>() else {
         log::warn!("{}: the rider's gear does not read", path.display());
-        return Choice::default();
+        return Kept::default();
     };
     let table = file.get(TABLE).and_then(toml::Value::as_table);
     let mut choice = Choice::default();
@@ -92,20 +114,24 @@ pub(super) fn read(path: &Path) -> Choice {
         let id = table.and_then(|table| table.get(part.key())).and_then(toml::Value::as_str);
         choice.set(part, id.unwrap_or_default());
     }
-    choice
+    let owned = file.get(OWNED).and_then(toml::Value::as_array).into_iter().flatten();
+    Kept { choice, owned: owned.filter_map(|key| key.as_str().map(str::to_owned)).collect() }
 }
 
 /// The file replaced atomically, as the My Cars slots are. Parts that wear the rider's own gear are left out.
-pub(super) fn write(path: &Path, choice: &Choice) -> Result<()> {
+pub(super) fn write_kept(path: &Path, kept: &Kept) -> Result<()> {
     let mut gear = toml::Table::new();
     for part in Part::ALL {
-        let id = choice.get(part);
+        let id = kept.choice.get(part);
         if !id.is_empty() {
             gear.insert(part.key().into(), toml::Value::String(id.to_owned()));
         }
     }
     let mut file = toml::Table::new();
     file.insert(TABLE.into(), toml::Value::Table(gear));
+    if !kept.owned.is_empty() {
+        file.insert(OWNED.into(), toml::Value::Array(kept.owned.iter().cloned().map(toml::Value::String).collect()));
+    }
     let text = toml::to_string(&file).context("Serializing the rider's gear")?;
     let parent = path.parent().context("Missing rider gear folder")?;
     std::fs::create_dir_all(parent).context("Creating the rider gear folder")?;
