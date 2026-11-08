@@ -282,6 +282,10 @@ impl RenderBackend for Renderer {
         Renderer::redirect_texture(self, from, to);
     }
 
+    fn update_texture(&mut self, handle: TextureHandle, region: [u32; 4], rgba: &[u8]) -> bool {
+        Renderer::update_texture(self, handle, region, rgba)
+    }
+
     fn set_texture_uv_offset(&mut self, texture: TextureHandle, offset: [f32; 2]) {
         self.touch_scene();
         Renderer::set_texture_uv_offset(self, texture, offset);

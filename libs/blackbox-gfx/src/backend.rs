@@ -116,6 +116,16 @@ pub trait RenderBackend {
     /// Draw `to` wherever `from` is used, or stop redirecting `from` when `to` is `None`.
     fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>);
 
+    /// Overwrite `region` (`[x, y, width, height]` in texels) of the base level of a texture made with
+    /// [`create_texture`](Self::create_texture) in [`PixelFormat::Rgba8`](crate::PixelFormat::Rgba8) with `rgba` (`width * height * 4`
+    /// bytes, rows top to bottom), for a texture that changes while it is drawn (an instrument screen). The texture keeps its other
+    /// levels, so it is made with one. Returns whether the texels were written: `false` means the backend cannot update a texture in
+    /// place (the default), the handle is not an RGBA texture, the region is outside it or `rgba` is the wrong size, and the caller
+    /// keeps the picture the texture was made with.
+    fn update_texture(&mut self, _handle: TextureHandle, _region: [u32; 4], _rgba: &[u8]) -> bool {
+        false
+    }
+
     /// Set the authored diffuse UV translation, in texture repeats.
     fn set_texture_uv_offset(&mut self, _texture: TextureHandle, _offset: [f32; 2]) {}
 
