@@ -197,6 +197,8 @@ impl Bike {
         state.slip_ratio = output.slip_ratio;
         state.slip_speed = tyre::effective_radius(wheel_spec, camber, deformation) * new_spin - input.v_long;
         state.normalised_x = output.normalised_x;
+        state.normalised_y = output.normalised_y;
+        state.slide = output.slide;
         state.aligning = output.aligning;
         state.traction = output.longitudinal;
         state.side = frame.right;
