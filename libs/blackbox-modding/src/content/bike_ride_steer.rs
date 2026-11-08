@@ -125,6 +125,8 @@ struct Steady {
     steer: f32,
     front_use: f32,
     rear_use: f32,
+    /// The strongest slide of the front and the rear tyre in the last 3 s (1 = the tyre's force peak; the host's skid marks start at 1.05).
+    slide: [f32; 2],
     speed: f32,
 }
 
@@ -179,6 +181,7 @@ fn steady(spec: &BikeSpec, speed: f32, stick: f32, seconds: f32) -> Steady {
         out.front_slip += bike.wheel(0).slip_angle.abs();
         out.steer += bike.steer_angle().abs();
         out.speed += v;
+        out.slide = [out.slide[0].max(bike.wheel(0).slide), out.slide[1].max(bike.wheel(1).slide)];
         for (index, share) in [(0, &mut out.front_use), (1, &mut out.rear_use)] {
             let w = bike.wheel(index);
             let tyre = match index {
@@ -301,7 +304,7 @@ fn bike_steer_audit() {
     }
     println!("==== medians over {} bikes (full stick held 10 s; flip left to right after 5 s)", all.len());
     println!(
-        "speed | falls | radius m | g | lean deg | limit deg | base deg | heading deg | f slip deg | bar deg | f use | r use | t80 s | t95 s | worst t80 | path t80 s"
+        "speed | falls | radius m | g | lean deg | limit deg | base deg | heading deg | f slip deg | bar deg | f use | r use | worst slide f / r | t80 s | t95 s | worst t80 | path t80 s"
     );
     for (i, &speed) in speeds.iter().enumerate() {
         let rows = &table[i];
@@ -311,7 +314,7 @@ fn bike_steer_audit() {
         let worst = flips.iter().map(|f| f.t80).filter(|t| t.is_finite()).fold(0.0_f32, f32::max);
         let stuck = flips.iter().filter(|f| !f.t80.is_finite()).count();
         println!(
-            "{speed:>4.0} | {} turn, {} flip | {:>6.0} | {:.2} | {:.1} | {:.1} | {:.1} | {:.1} | {:.1} | {:.1} | {:.2} | {:.2} | {:.2} | {:.2} | {worst:.2} ({stuck} never)",
+            "{speed:>4.0} | {} turn, {} flip | {:>6.0} | {:.2} | {:.1} | {:.1} | {:.1} | {:.1} | {:.1} | {:.1} | {:.2} | {:.2} | {:.2} / {:.2} | {:.2} | {:.2} | {worst:.2} ({stuck} never)",
             rows.iter().filter(|r| r.0.fell).count(),
             rows.iter().filter(|r| r.1.fell).count(),
             pick(&|s| s.radius),
@@ -324,6 +327,8 @@ fn bike_steer_audit() {
             pick(&|s| s.steer.to_degrees()),
             pick(&|s| s.front_use),
             pick(&|s| s.rear_use),
+            ok.iter().map(|s| s.slide[0]).fold(0.0_f32, f32::max),
+            ok.iter().map(|s| s.slide[1]).fold(0.0_f32, f32::max),
             median(flips.iter().map(|f| f.t80).collect::<Vec<_>>()),
             median(flips.iter().map(|f| f.t95).collect::<Vec<_>>()),
         );
