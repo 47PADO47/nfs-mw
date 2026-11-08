@@ -32,5 +32,12 @@ repeat of its picture (a few quads for a 3 m mark); the splash costs at most 8 g
 
 ## What was not heard or seen
 
-`docs/modding/effect-variants-marks-rain.md` lists what is chosen and not decoded. The offscreen screenshots of the marks, the splash
-and the lens drops are the ones named in the pull request description; no comparison with the running 2012 game was made.
+`docs/modding/effect-variants-marks-rain.md` lists what is chosen and not decoded. No comparison with the running 2012 game was made,
+and the frame time of the variants was not measured.
+
+Offscreen checks (release build, isolated profile, `--muted`): the skid marks variant was seen in the drift and braking scripts (the
+tread-streaked marks replace the game's strips: `view-world --drive BMWM3GTR --at 985,4430 --camera-mode chase --no-traffic --muted
+--wait-for-load --drive-script "3:throttle=1;3:brake=1" --screenshot-delay 6 --screenshot out.png` with
+`[mod_values.nfsmw] option_skid_marks_variant = "mw2012"` in the profile's `config.toml`). The rain splash, the lens drops and the wet
+road at night were **not seen**: the first attempt set rain in `config.toml`, which does not carry it; rain is the `[Weather]
+AlwaysRain = 1` and `GeneralRainAmount = 1.0` lines of `NFSMWExtraOptionsSettings.ini` beside it (`settings/extra_options`).

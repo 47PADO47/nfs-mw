@@ -79,8 +79,8 @@ of another game could ship a wet set. The run pictures, the normal maps and the 
 
 ## Cost
 
-Measured with `cargo test -p nfsmw-2012-content --lib -- --ignored real_install --nocapture` (the two real-install tests): see the
-numbers in the pull request description; the test asserts the mod reads under a quarter of the two bundles' bytes. Disk: six
+Measured with `MW2012_GAME_DIR=... cargo test -p nfsmw-2012-content --lib -- --ignored marks_assets::tests::the_real --nocapture`:
+**129,816 bytes read of the two bundles' 4,903,585** (2.6 percent); the test asserts under a quarter. Disk: six
 tiny PNGs (the pictures are 32 x 32; four of them, about 4 KB with the profile).
 
 ## Not decoded

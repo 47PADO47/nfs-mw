@@ -92,6 +92,6 @@ fn the_real_install_gives_the_three_pictures_for_a_few_kib() {
         write_drops(Path::new(&dump), &pictures).unwrap();
     }
     assert_eq!((pictures.ring.width, pictures.spray.width), (64, 256));
-    assert!(pictures.drop.rgba.chunks_exact(4).filter(|pixel| pixel[3] > 128).count() > 500);
+    assert!(pictures.drop.rgba.as_chunks::<4>().0.iter().filter(|pixel| pixel[3] > 128).count() > 500);
     assert!(read < 400 * 1024, "read {read} bytes");
 }

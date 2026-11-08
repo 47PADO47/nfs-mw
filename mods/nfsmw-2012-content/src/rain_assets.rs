@@ -69,12 +69,14 @@ fn whitened(mut picture: Picture) -> Picture {
     let pixels = picture.rgba.len() / 4;
     let mean = picture
         .rgba
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|pixel| u64::from(pixel[0]) + u64::from(pixel[1]) + u64::from(pixel[2]))
         .sum::<u64>()
         / (3 * pixels.max(1)) as u64;
     if mean < 64 {
-        picture.rgba.chunks_exact_mut(4).for_each(|pixel| pixel[..3].fill(255));
+        picture.rgba.as_chunks_mut::<4>().0.iter_mut().for_each(|pixel| pixel[..3].fill(255));
     }
     picture
 }

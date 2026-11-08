@@ -107,10 +107,10 @@ fn tally(surfaces: &Bundle) -> Tally {
         let at = |slot: u32| {
             resource.imports.iter().find(|import| import.offset == TYPE_FLAG | slot).map(|import| import.id)
         };
-        if resource.imports.iter().any(|import| import.offset == TYPE_FLAG && vfxs.contains(&import.id)) {
-            if let Some(material) = at(FIRST_MARK_MATERIAL) {
-                materials.insert(entry.id, material);
-            }
+        if resource.imports.iter().any(|import| import.offset == TYPE_FLAG && vfxs.contains(&import.id))
+            && let Some(material) = at(FIRST_MARK_MATERIAL)
+        {
+            materials.insert(entry.id, material);
         }
         if resource.imports.iter().any(|import| import.offset == TYPE_FLAG && types.contains(&import.id)) {
             roads.push((at(DRY_VFX), at(WET_VFX)));
@@ -151,7 +151,7 @@ fn pictures(effects: &Bundle, shaders: &Bundle, material: u64) -> Result<MarkPic
 /// Whether a set's marks are brown (loose road): the mean colour of the slip picture's visible pixels.
 fn is_brown(pictures: &MarkPictures) -> bool {
     let (mut sums, mut weight) = ([0.0f32; 3], 0.0f32);
-    for pixel in pictures.slip.rgba.chunks_exact(4) {
+    for pixel in pictures.slip.rgba.as_chunks::<4>().0 {
         let alpha = f32::from(pixel[3]) / 255.0;
         weight += alpha;
         for (sum, channel) in sums.iter_mut().zip(pixel) {

@@ -111,6 +111,7 @@ impl RainSplash {
     }
 
     /// Live splashes.
+    #[cfg(test)]
     pub(in crate::scenes::world) fn len(&self) -> usize {
         self.splashes.len()
     }

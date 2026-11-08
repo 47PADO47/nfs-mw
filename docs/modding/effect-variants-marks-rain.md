@@ -140,6 +140,7 @@ car conversion needed), each with a setting in the mod's `config.toml`: `skid_ma
 
 ## Cost
 
-Measured in `docs/formats/chameleon-tyre-marks.md#cost`. With no variant chosen nothing is loaded and nothing is drawn: the marks
+The conversion reads 129,816 bytes (skid marks) and 111,710 bytes (rain pictures) of the 2012 bundles
+([chameleon-tyre-marks.md](../formats/chameleon-tyre-marks.md#cost)). **The frame time of the variants was not measured.** With no variant chosen nothing is loaded and nothing is drawn: the marks
 cost one test per mark per frame (`covers`) and the splash one early return; with a variant, the marks cost one textured batch per
 picture in use and the splash at most 8 ground queries a frame.
