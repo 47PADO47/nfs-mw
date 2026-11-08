@@ -50,7 +50,8 @@ impl GearPage {
         let price = match (entry.id.is_empty(), cost) {
             (true, _) => String::new(),
             (false, 0) => " (owned)".to_owned(),
-            (false, cost) => format!(" (${})", crate::i18n::fmt::grouped(i64::from(cost))),
+            // No `$`: the screens' text treats it as the start of a variable.
+            (false, cost) => format!(" (cost {})", crate::i18n::fmt::grouped(i64::from(cost))),
         };
         format!("{} {} of {}: {}{price}", self.part.label(), self.at + 1, self.entries.len(), entry.label)
     }

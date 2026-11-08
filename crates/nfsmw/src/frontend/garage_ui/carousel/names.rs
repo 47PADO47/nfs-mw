@@ -7,7 +7,9 @@ use crate::ui::Text;
 use nfsmw_data::car::customization::Category as Part;
 
 pub(super) fn refresh(cx: &mut Cx, page: Page, item: &Item, model: &Model) {
-    if matches!(item.row, Some(Row::Performance(_) | Row::Junkman(_))) {
+    // The original's package names are the 2005 cars'; a vehicle's own component keeps its name.
+    let own = item.row.is_some_and(|row| crate::garage::menu_slots::label(model, row).is_some());
+    if matches!(item.row, Some(Row::Performance(_) | Row::Junkman(_))) && !own {
         return;
     }
     let label = match item.row.zip(item.option) {

@@ -216,7 +216,10 @@ default = "t:mirrors.on"
     let spec = Arc::new(BikeSpec::example());
     let stock = PerformancePackage::default();
     let mut parts = Selection::default();
-    assert!(Arc::ptr_eq(&upgraded("COMPTESTBIKE3", Arc::clone(&spec), stock, &parts), &spec), "nothing fitted, nothing changed");
+    assert!(
+        Arc::ptr_eq(&upgraded("COMPTESTBIKE3", Arc::clone(&spec), stock, &parts), &spec),
+        "nothing fitted, nothing changed"
+    );
     parts.parts[Category::Spoiler as usize] = Some(choice_hash("COMPTESTBIKE3", "t:exhaust.race"));
     let faster = upgraded("COMPTESTBIKE3", Arc::clone(&spec), stock, &parts);
     assert!((faster.engine.peak_torque - spec.engine.peak_torque * 1.04).abs() < 1e-3);
