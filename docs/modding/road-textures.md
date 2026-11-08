@@ -141,7 +141,14 @@ that use it share the decoded picture. The game's texture detail setting drops t
 **Reading the install.** The bundle is opened by byte range: the table (about 100 KiB of 97 MB) and, for each picture the recipes use,
 the compressed graphics block (0.2 to 3 MB): the asphalt, the slabs, the grass, the paint, the covers and the signs are 15 textures in all.
 
-**Time and frames.** MEASURED_PLACEHOLDER
+**Time.** Making all 81 pictures one after the other from the real install took **10.4 s** in the test build (optimised, with debug
+information; the game's loader threads do it a few pictures at a time, only for the textures a loaded section holds, never on the render
+thread): 130 ms a picture on average, 38.6 MB made, 11.8 MiB read from the install (`MW2012_GAME_DIR=... cargo test -p
+nfsmw-2012-content road_textures -- --include-ignored --nocapture`). Most of it is the resize of the 256 x 2048 and 512 x 2048 strips
+(a separable float filter in `resample.rs`); a faster filter is the first thing to do if a tile that streams in stalls.
+**Frame cost: not measured** (the run of `view-world --bench-seconds` before and after was stopped by the order not to run the game): the
+replacement changes no draw call and no shader, only the size and the number of mips of 81 textures, so the cost to expect is the 27 MiB
+of extra texture memory and the bandwidth of its larger mips.
 
 **What is lost.** The 2005 road strips carry cracks, wheel tracks and the grime of their lane; the replacement is the 2012 asphalt,
 which is uniform, so the cracks go (the leaves and the decals of the 2005 road are separate and stay). The golf green's mowing
@@ -157,10 +164,27 @@ the mod's `config.toml` with only `road_textures` and one car on, the choice sav
 BLACKBOX_PROFILE_DIR=C:6work\profile-roadtex nfsmw view-world --muted --wait-for-load --at 2080,1504 --height 4 --heading 90 --pitch -55 --screenshot road_close.png
 ```
 
-The places (`--at X,Y --height H --heading D --pitch P`): road close `2080,1504 4 90 -55`; road far `2060,1504 9 90 -6`; crosswalk and
-lines `2102,1476 6 90 -40`; speed limit 55 `2050,1575 2.5 100 0`; STOP face `3160,1845 2.5 90 0`; grate `3700,700 3 90 -60`; grass
-`2187,1334 6 90 -40`; concrete lot `2075,1548 3 90 -4`; slabs of the sidewalk `2060,1535 3 105 -2`. The pictures are in
-`C:6workoadtex-shots` (`<place>_before.png`, `<place>_after.png`); they show the game's textures, so they are not in the repository.
+The places that were taken (`--at X,Y --height H --heading D --pitch P`), with what each shows:
+
+| Name | Arguments | Shows | Taken |
+|---|---|---|---|
+| `road_close` | `2080,1504 4 90 -55` | asphalt close, dashed and yellow lines, a crosswalk | before and after |
+| `road_far` | `2060,1504 9 90 -6` | the road in the distance, the sidewalk slabs | before and after |
+| `crosswalk` | `2102,1476 6 90 -40` | crosswalk bars, lines, sidewalk, lawn | before and after |
+| `grass` | `2187,1334 6 90 -40` | lawn, lines, a grass triangle at the junction | before and after |
+| `concrete` | `1837,2097 8 90 -40` | road, a wall, the lawns on both sides | before and after |
+| `speed_sign` | `2075,1548 3 90 -4` | the concrete lot of the petrol station (slabs for the cracked concrete) | before and after |
+| `stop_sign` | `3162,1841 3 180 -5` | a road edge and lawn behind a fence (the STOP face is not in this frame) | before and after |
+| `grate` | `2072,1492 3 90 -55` | a fence blocks the grate: not usable | before and after |
+| `probe55_105` | `2060,1535 3 105 -2` | the speed limit 55 sign, 60 m ahead, with the new face | after only |
+| `stop_gate` | `3160,1845 2.5 90 0` | the STOP face on the barrier next to the portable toilets, far | before only |
+
+**Not obtained:** a close, unobstructed picture of the STOP face and of the storm grate, and the before shot of the 55 sign (the
+second batch of shots that was to take them, `grate2`/`grate3` at the `XO_MANHOLE` instances `3700,700` and `3726,730`, `speed55` at
+`2050,1575 2.5 100 0` and `stop_gate`, was stopped). The picture of every row, made from the real install, is also written as a PNG by
+the ignored test (`ROADTEX_OUT`), and those of the STOP, the 50 and the cover were looked at there. The pictures of the world are in
+`C:6workoadtex-shots` (`<name>_before.png`, `<name>_after.png`, `pair_<name>.png` with the two one above the other); they show the
+game's textures, so they are not in the repository.
 
 ## Using and changing it
 
