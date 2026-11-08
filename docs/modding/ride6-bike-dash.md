@@ -47,7 +47,7 @@ color = [..]  background = [..]  align = "right"  segments = 1
 ## The painter [M]
 
 **With fields** the host erases each rectangle with its background and draws the value in it, scaled to the rectangle (the 5 by 7 dot font, the field's colour and justification): the
-speed in whole km/h, the gear (`N` when the bike stands at idle: a bike's gearbox has no neutral, so standing at idle is shown as `N`; `R`; else its number), the revs as the
+speed in whole km/h, the gear (`N` when the bike stands still (under 0.5 m/s): a bike has no neutral, so standing still is shown as `N`; `R`; else its number), the revs as the
 lit part of the bar from the left (in its segments). Only those rectangles are uploaded. The glyphs of RIDE 6's fonts are not reproduced (the dot font is the host's), the position,
 size and colour are the cluster's. **Without fields** it is the generic panel below.
 

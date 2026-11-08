@@ -69,9 +69,8 @@ impl Drive {
         }
         let t = &self.telemetry;
         let rpm_max = if t.max_rpm > 0.0 { t.max_rpm } else { t.red_line };
-        // A bike has no neutral (its gearbox is always in a gear): standing at idle, the cluster shows `N` as the baked picture does.
-        let idling = t.speed_mps.abs() < 0.3 && t.rpm < t.idle.max(1.0) * 1.5;
-        let gear = if idling { 0 } else { t.gear };
+        // A bike has no neutral (its gearbox is always in a gear): standing still (under 0.5 m/s), the cluster shows `N` as the baked picture does.
+        let gear = if t.speed_mps.abs() < 0.5 { 0 } else { t.gear };
         self.rig.feed_dash(renderer, &DashState { speed_kmh: t.speed_mps * 3.6, gear, rpm: t.rpm, rpm_max }, now)
     }
 
