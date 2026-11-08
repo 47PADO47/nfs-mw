@@ -119,6 +119,23 @@ view empty).
   the horizon is then at the top edge of the picture and tipped, where it was a fifth to a quarter down before; it is still in view at the
   usual lean of a bend, `pan-lean.png`/`ktm-lean.png`). The front camera is not changed.
 
+### 5.1 Are the hands in the helmet picture? (clip-on bikes, checked) [M]
+
+`nfsmw view-world --drive <ID> --at 985,4430 --no-traffic --muted --camera-mode hood --wait-for-load --drive-script "4:throttle=0.5" --screenshot <file> --screenshot-delay 0`
+(isolated profile with the three bikes imported, the rider's files copied; the pictures are `C:\r6work\bikegaps-shots\helmet\*_hood.png`, 1280 by 720):
+
+| Bike | What the picture shows |
+|---|---|
+| BMW S 1000 RR 2019 | both gloves and wrists at the bottom, inside the picture, on either side of the clamp and the dash; the mirrors at the top corners. **Fine.** |
+| Ducati Panigale V4 S 2025 | the left glove is at the picture's lower left edge, its wrist cut by the edge; the right glove is at the lower right, mostly under the HUD's tachometer and speed readout. The grips of a clip-on bike are far to the side and low (the contacts: 0.32 m ahead, 0.32 m out, 0.30 m below the eye), about 50 degrees out and 47 below the horizon, at the 60 degrees the 120 degree picture reaches. |
+| KTM RC 390 2023 | the same: the left hand at the left edge, the right behind the HUD gauge. |
+
+So the helmet camera keeps the bars, the clamp, the dash and the mirrors in the picture on all three and the hands inside it on the BMW; on the two bikes with the grips
+furthest out the hands touch the picture's edge. The right hand's cover is the **HUD** (the original game's tachometer is drawn in that corner), not the camera. Not changed: the
+camera, because the other change in flight moves the hands (along the grip, forward and out), which moves them nearer the edge, so the framing is best settled after it. The
+options, each a one-line change in `viewer/camera/bike.rs` `Mount::helmet`: a per-bike horizontal field of view from the grips' azimuth (the contacts are in the car's rider files; about 130 degrees across for the Panigale by this estimate, not tried), or a larger `HELMET_VIEW_DOWN_DEG` (the hands move towards the centre as the axis nears
+them, at the price of the road: 16 to 24 degrees). Neither was applied without the hands' final place.
+
 ## 6. Following the bike's motion [D][C]
 
 For a bike with heading `psi`, pitch `p` (nose up positive) and roll `r` (right positive) a mounted camera (`Mount`) looks along

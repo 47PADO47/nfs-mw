@@ -165,7 +165,7 @@ Panigale V2 2021`), its physics, cameras and sound tables are its own, the meshe
 rewrites `components/ride6-bikes.toml` from the bikes it imported, so a partial run leaves the others without their catalog):
 
 ```
-python -I toolside6-exporterorrow.py --out C:6workikes --physdump C:6work\physdump-all [--only <regex>] [--dry-run]
+python -I tools\ride6-exporter\borrow.py --out C:\r6work\bikes --physdump C:\r6work\physdump-all [--only <regex>] [--dry-run]
 ```
 
 The lenders (the same model, a variant of it, or the nearest of the family; a choice [C], edit `borrow.json` to change one):
@@ -200,7 +200,7 @@ The lenders (the same model, a variant of it, or the nearest of the family; a ch
 | 666 | Yamaha XTZ 750 Super Tenere 1989 | own | BMW R 1300 GS 2024 |
 
 **Checked [M]**: four of them imported (`import-all` of a folder with the Panigale V2, the Husqvarna FS 450, the RS 457 Trofeo and the DR 800 S Big: 4 imported, 0 left out) and
-seen with `view-car` (`C:6workikegaps-shotsorrow\*.png`: the V2 wears the V4 2018's fairing and the FS 450 the KTM 450 SMR's, with the rider on). Not done: the bikes are not in the
+seen with `view-car` (`C:\r6work\bikegaps-shots\borrow\*.png`: the V2 wears the V4 2018's fairing and the FS 450 the KTM 450 SMR's, with the rider on). Not done: the bikes are not in the
 installed mod (the lead imports them with the other 293 if wanted), the liveries and the colours are the lender's, a lender's mirrors and plate holder come with it, and the sound of the
 bikes with no sound bank of their own is the game's built-in engine as for any bike without tables.
 
