@@ -229,6 +229,8 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
     }
     host.set_world_tuning(WorldTuning::from(&*settings));
     crate::garage::rider_gear::set_enabled(settings.rider_gear);
+    crate::scenes::world::bike_assist::set_easy_wheelie(settings.easy_wheelie);
+    crate::scenes::world::bike_assist::set_live_dash(settings.live_dash);
     crate::scenes::world::drive::rider::set_choices(&settings);
     if applied.as_ref().is_none_or(|before| before.spark_style != settings.spark_style) {
         host.set_spark_style(settings.spark_style);

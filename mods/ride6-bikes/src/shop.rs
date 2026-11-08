@@ -8,7 +8,7 @@ use std::sync::{Mutex, PoisonError};
 
 use crate::build_pieces::{PIECES, mounts_of, present};
 use crate::exports::Exports;
-use crate::options::Catalogue;
+use crate::options::{BikeOptions, Catalogue};
 use crate::options_manifest::Plan;
 use crate::partfile::PartTable;
 
@@ -20,10 +20,12 @@ pub struct Shop<'a> {
 }
 
 impl Shop<'_> {
-    /// The plan of the bike in `dir` (its part table `table`) imported as `car`; `None` when the catalogue offers it nothing, or
-    /// its frames cannot be found (the bike is then imported as it was, and the log says why).
+    /// The plan of the bike in `dir` (its part table `table`) imported as `car`; `None` when the catalogue offers it nothing and it
+    /// has no road equipment, or its frames cannot be found (the bike is then imported as it was, and the log says why). A bike
+    /// the catalogue does not list still gets the road equipment's slot when it has the parts.
     pub fn plan(&self, table: &PartTable, dir: &Path, car: &str) -> Option<Plan> {
-        let options = self.catalogue.bike(&table.vehicle)?;
+        let none = BikeOptions::default();
+        let options = self.catalogue.bike(&table.vehicle).unwrap_or(&none);
         let frames = Exports::scan(&dir.join("glb")).and_then(|exports| mounts_of(table, &exports));
         let mounts = match frames {
             Ok(mounts) => mounts,

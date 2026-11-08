@@ -86,6 +86,8 @@ pub struct Built {
     /// The solids after the first of the frame, the handlebar group and the fork (`<ID>_KIT00_BODY2`, ...): at the finest levels of
     /// detail they do not fit one solid. The manifest binds each as a base part.
     pub extra_solids: Vec<ExtraSolid>,
+    /// The live screen of the instrument cluster, when its picture has a display (`[bike.dash]`, [`crate::dash`]).
+    pub dash: Option<crate::dash::Screen>,
 }
 
 impl Built {
@@ -206,6 +208,7 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
         solids.list.extend(made.list);
     }
     let liveries = add_liveries(&mut surfaces, folder, &livery_pictures)?;
+    let dash = surfaces.dash.clone();
     let geometry = write_geometry_pack(&solids.list).context("writing GEOMETRY.BIN")?;
     let textures = write_tpk(folder, &surfaces.palette.into_textures()).context("writing TEXTURES.BIN")?;
     let (bounds, half) = bounds(&solids.points, folder)?;
@@ -226,6 +229,7 @@ pub fn build(dir: &std::path::Path, folder: &str, options: Options) -> Result<Bu
         liveries,
         levels,
         extra_solids,
+        dash,
     })
 }
 
@@ -357,6 +361,7 @@ mod tests {
             liveries: Vec::new(),
             levels: Vec::new(),
             extra_solids: Vec::new(),
+            dash: None,
         };
         assert!((built.wheelbase() - 1.4745).abs() < 1e-4);
     }

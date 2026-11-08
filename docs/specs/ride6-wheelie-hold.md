@@ -63,7 +63,8 @@ at 20 m/s) and the Suzuki Turbo Martek (it dips to 21 degrees). Lift within 1.5 
 
 ## 5. Not changed, open
 
-- The lever released: no launch lifts the front (section 1). If the players want the throttle alone to start a wheelie, the rider help's cut (`throttle_pitch`) and the
+- The lever released: no launch lifts the front (section 1). **Done since, as a game-specific switchable assist: [ride6-wheelie-throttle.md](ride6-wheelie-throttle.md).**
+  Original note: If the players want the throttle alone to start a wheelie, the rider help's cut (`throttle_pitch`) and the
   auto-rider's forward weight under the throttle are the two things to open for a launch; neither was touched.
 - The second-gear and upshift dips of a held wheelie are the gearbox's (the clutch cut).
 - The lowering is for the assist's wheelie only; a wheelie without the lever (lifted by a kerb, a jump) lands as before.

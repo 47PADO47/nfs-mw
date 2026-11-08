@@ -463,8 +463,10 @@ impl CarSim {
 
     /// The start of a step takes what the rest of the game did to a bike's body double since the last one.
     pub(super) fn pull_bike(&mut self) {
+        let player = self.collision_role.player;
         if let Some(ride) = self.ride.as_deref_mut() {
             ride.pull(&self.vehicle);
+            ride.bike.set_throttle_wheelie(crate::scenes::world::bike_assist::throttle_wheelie(player));
         }
     }
 }

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use glam::{Mat4, Quat, Vec3};
 use nfsmw_data::car::mods::bike_camera::{self, BikeCamera};
 
+use super::rig::DashState;
 use super::{Drive, RiderVisibility};
 use crate::input::{Action, ActionState};
 use crate::viewer::camera::head_look::HeadLook;
@@ -56,6 +57,23 @@ impl Drive {
             return;
         }
         self.rider.look_around([actions.value(Action::HeadLookX), actions.value(Action::HeadLookY)], dt);
+    }
+
+    /// Paint the bike's cluster screen with what the bike does now (`rig/dash.rs`), when it has one and the live screen is on. Returns the
+    /// microseconds a repaint took.
+    pub fn feed_dash(&self, renderer: &mut dyn blackbox_gfx::RenderBackend, live: bool) -> Option<u128> {
+        let now = std::time::Instant::now();
+        if !live {
+            self.rig.rest_dash(renderer, now);
+            return None;
+        }
+        let t = &self.telemetry;
+        let rpm_max = if t.max_rpm > 0.0 { t.max_rpm } else { t.red_line };
+        self.rig.feed_dash(
+            renderer,
+            &DashState { speed_kmh: t.speed_mps * 3.6, gear: t.gear, rpm: t.rpm, rpm_max },
+            now,
+        )
     }
 
     /// What the camera shows of the rider (`RiderVisibility`): the helmet and visor are left out of the picture from inside the

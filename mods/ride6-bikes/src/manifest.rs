@@ -177,6 +177,10 @@ pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'
     text.push_str(&wheels.into_string());
     text.push('\n');
     text.push_str(&tables.bike.text);
+    if let Some(dash) = &built.dash {
+        text.push('\n');
+        text.push_str(&dash.table());
+    }
     if built.liveries.len() >= 2 {
         text.push('\n');
         text.push_str(&customization(&built.liveries));
@@ -271,6 +275,7 @@ mod tests {
             liveries: Vec::new(),
             levels: Vec::new(),
             extra_solids: Vec::new(),
+            dash: None,
         }
     }
 

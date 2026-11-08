@@ -384,13 +384,10 @@ The draw follows Unreal's rules:
   `fuel`, `limiter`, `warning`, `led_light`, the shift lights `led_rpm`) and the miles units, which a bike at rest with metric units
   does not show. The bar graph is drawn at the idle fill with the sweep texture as the mask.
 
-Not done: the odometer strips, the riding aid cycling, night colours, the warning lamps, the game's fonts, and **a live panel**. A live
-dash needs the host to write a changing picture into a car texture each frame. The renderer cannot: a car's textures are created once
-(`RenderBackend::create_texture`) and the only way to change what a surface shows is `redirect_texture`, a swap to another texture that
-is already uploaded (the texture animations use it, driven by time: `scenes/car/texture_anim.rs`); `update_ui_texture` exists for UI
-pictures only. A mod would need a new host call (a per-frame RGBA update of one named texture of a car, a versioned mod interface
-entry and the renderer's upload path) and a run-time renderer of the widgets above (the layout, the fonts, the lamps' rules), which is
-not a small feature, so the dash stays a picture of the bike at rest.
+Not done: the odometer strips, the riding aid cycling, night colours, the warning lamps and the game's fonts. **A live panel (generic) is done since**: the renderer has
+`update_texture` (a region of a 32-bit texture written in place), a cluster with a display window is stored as 32-bit colour with a `[bike.dash]` table, and the host paints the speed,
+the gear and the revs into the display up to 15 times a second ([modding/ride6-bike-dash.md](../modding/ride6-bike-dash.md)). What stays open there is RIDE 6's own live layouts
+(the widgets above, drawn at run time with the game's fonts and needles); the generic panel replaces the display's contents on the bikes that have a window.
 
 **The older fallback [choice].** A bike with no widget classes (15 of the 400 `HUD` assets name none) fills the black window of
 `gauge<chassis>_d` by `dash.rs`: the largest rectangle of texels whose brightest channel is at most 12, at least 4 percent of the

@@ -106,15 +106,16 @@ A **group** is the set of slots a vehicle's data lists under one `group` name. A
 component slot that can be emptied (`optional = true`, or no default): `off` empties them, `on` puts back the default component (or the
 first one when there is no default), `stock` puts back the stock choice. This is data-driven: the tools name no group.
 
-The **Panigale V4 S's road equipment** (side mirrors, the homologation plate holder, the lights) **is not in the bike's data**, so
-`vehicle groups` says so and the panel shows it under the list. What exists and what would be needed:
+A bike's **road equipment** (side mirrors, the homologation plate holder; 159 of the 293 bikes have some) is the optional slot
+`road_equipment`, group `road`, that the importer writes ([modding/ride6-road-equipment.md](modding/ride6-road-equipment.md)):
+`vehicle group road off` takes the mirrors and the plate holder off and `on` puts them back, and the panel's checkbox does the same. A bike
+imported without the shop's options, or with neither part, has no such slot: `vehicle groups` then says so and the panel shows it under the list.
+What the importer writes (the lights are still not offered):
 
-- The exporter already writes the parts `mirrors` and `homologation` for the Panigale V4 S 2025 (`parts.json`); a lights preset is a
-  field (`neutral`). The importer (`mods/ride6-bikes`) keeps the mirrors in the body solid and drops the plate holder
-  ([ride6-bikes.md](modding/ride6-bikes.md), "Not part of the converted bike"), as it keeps a stock exhaust in the body of a bike with no
-  exhaust slot.
-- The importer would give each of them a solid of its own, as it does the exhaust and the bar pad (`<ID>_KIT00_MIRRORS`,
-  `<ID>_KIT00_HOMOLOGATION`), bind them as parts (`role = "body"`) and write one optional slot and one component showing them:
+- The exporter writes the parts `mirrors` and `homologation` (`parts.json`); a lights preset is a field (`neutral`). The importer kept
+  them in the body solid, as it keeps a stock exhaust in the body of a bike with no exhaust slot.
+- The importer gives each of them a solid of its own, as it does the exhaust and the bar pad (`<ID>_KIT00_MIRRORS`,
+  `<ID>_KIT00_HOMOLOGATION`), binds them as parts (`role = "body"`) and writes one optional slot and one component showing them:
 
   ```toml
   [[slot]]

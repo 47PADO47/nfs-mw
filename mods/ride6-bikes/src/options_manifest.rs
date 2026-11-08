@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::build_pieces::{At, Mounts, Piece};
+use crate::build_pieces::{At, Mounts, Piece, ROAD_HOMOLOGATION, ROAD_MIRRORS};
 use crate::options::{BikeOptions, Pair, Upgrade};
 use crate::options_pack::{pack_path, solid_name};
 use crate::physics::toml_text::{Toml, quote};
@@ -17,6 +17,9 @@ use crate::physics::toml_text::{Toml, quote};
 pub const ENGINE_LEVELS: u32 = 3;
 pub const CHASSIS_LEVELS: u32 = 2;
 pub const BRAKE_LEVELS: u32 = 2;
+
+/// The id of the component that shows the road equipment.
+pub const ROAD_ON: &str = "r6:road.on";
 
 /// One component of the catalog file.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -36,6 +39,8 @@ pub struct Slot {
     pub group: &'static str,
     pub accepts: Vec<String>,
     pub default: String,
+    /// The slot can be emptied (the road equipment's: `vehicle group road off`).
+    pub optional: bool,
 }
 
 /// One part bound to a solid.
@@ -138,7 +143,7 @@ impl Plan {
             accepts.push(offer.clone());
             self.add(&offer, component);
         }
-        self.slots.push(Slot { id: slot.0, group: slot.1, accepts, default: id.to_owned() });
+        self.slots.push(Slot { id: slot.0, group: slot.1, accepts, default: id.to_owned(), optional: false });
     }
 
     fn exhaust(&mut self, bike: &Bike<'_>, options: &BikeOptions) {
@@ -213,6 +218,29 @@ impl Plan {
         self.slot(("bar_pad", "looks"), ("r6:barpad.stock", &["barpad.stock"]), offered);
     }
 
+    /// The road equipment: one optional slot, group `road`, whose only component shows the side mirrors and the homologation kit the
+    /// bike has as solids of their own. Shown by default; `vehicle group road off` and the panel's checkbox take them off.
+    fn road(&mut self, bike: &Bike<'_>) {
+        let pieces: Vec<&Piece> = [bike.piece("MIRRORS"), bike.piece("HOMOLOGATION")].into_iter().flatten().collect();
+        if pieces.is_empty() {
+            return;
+        }
+        // One component for every bike: a part id a bike does not bind is skipped when the car is drawn.
+        let shows = [ROAD_MIRRORS, ROAD_HOMOLOGATION].map(str::to_owned).to_vec();
+        self.add(ROAD_ON, component("Road equipment".to_owned(), shows));
+        for piece in pieces {
+            self.parts.push(bike.stock(piece));
+        }
+        let slot = Slot {
+            id: "road_equipment",
+            group: "road",
+            accepts: vec![ROAD_ON.to_owned()],
+            default: ROAD_ON.to_owned(),
+            optional: true,
+        };
+        self.slots.push(slot);
+    }
+
     /// The upgrade ladders of the bike's physics asset: a slot for each number its upgrade tables change.
     fn upgrades(&mut self, upgrade: Upgrade) {
         let ladders: [(&'static str, &str, f64, u32, &[&'static str]); 3] = [
@@ -259,6 +287,7 @@ impl Plan {
         if let Some(upgrade) = options.upgrade {
             plan.upgrades(upgrade);
         }
+        plan.road(&bike);
         plan
     }
 
@@ -272,6 +301,9 @@ impl Plan {
             let accepts: Vec<&str> = slot.accepts.iter().map(String::as_str).collect();
             t.strings("accepts", &accepts);
             t.string("default", &slot.default);
+            if slot.optional {
+                t.raw("optional = true");
+            }
         }
         for part in &self.parts {
             t.table(&format!("parts.{}", quote(&part.id)));

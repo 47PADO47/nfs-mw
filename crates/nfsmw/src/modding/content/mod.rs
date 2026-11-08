@@ -6,6 +6,7 @@
 //! The rules and the file layout are in docs/modding/api-content.md.
 
 mod bike_camera;
+mod bike_dash;
 mod cars;
 mod components;
 mod engine_layers;

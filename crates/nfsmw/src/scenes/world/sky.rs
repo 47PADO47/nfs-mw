@@ -14,6 +14,7 @@ use super::resident::SectionResources;
 impl WorldScene {
     /// Refresh before captures, including frames whose simulation is paused.
     pub(super) fn update_sky(&mut self, renderer: &mut dyn RenderBackend) {
+        self.feed_dash(renderer);
         let options = renderer.render_experiments();
         // Showroom and capture refreshes call this without a frame update; selecting is a no-op when unchanged.
         self.select_cycle(options.full_day_night);

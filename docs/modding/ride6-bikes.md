@@ -135,9 +135,9 @@ the size code only). The front tyre's radius is 0.288 m and the rear's 0.312 m; 
 skeleton's origin, so the lowest tyre point is 0.0797 m below it and the front tyre floats 0.017 m above a flat road in the
 bind pose.
 
-Not part of the converted bike: the side mirrors (`MI_Stock_..` is `mirrorNone`), the homologation plate (no row), the
-lights preset (`NoLight`), the bike stand (a display prop; `bikestand_369` only places it), the number-plate projectors
-(decal projectors), the glass-scratch decal, the rider. `BRAKES_KIT_OVERRIDE` has a row for this bike (`brake711`: a front
+Not part of the converted bike: the lights preset (`NoLight`), the bike stand (a display prop; `bikestand_369` only places it), the number-plate projectors
+(decal projectors), the glass-scratch decal, the rider. The side mirrors and the homologation kit are in it, as solids of their own
+with an optional component slot ([ride6-road-equipment.md](ride6-road-equipment.md)). `BRAKES_KIT_OVERRIDE` has a row for this bike (`brake711`: a front
 disc 711 and a rear disc 709); the stock kit `brake369` (the row named `Brakes-Stock-Kit` in `BRAKES_KIT`) is used, and
 what the override is for (a conversion kit, or a replacement the game applies in some mode) is **open**; the script logs it
 in `notes`.

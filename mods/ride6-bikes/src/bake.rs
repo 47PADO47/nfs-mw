@@ -99,6 +99,8 @@ pub struct Surfaces {
     /// The base colour picture (file stem) of the livery surfaces of a bike that has liveries to offer: its diffuse texture is the
     /// car's paint placeholder `<CAR>_SKIN1`, which the game draws a chosen livery over ([`Surfaces::with_paint`]).
     paint: Option<String>,
+    /// The live screen of the bike's instrument cluster, when its picture has a display ([`crate::dash::Screen`]): the first baked.
+    pub dash: Option<dash::Screen>,
 }
 
 /// The longest side a texture of a part of `kind` may have.
@@ -215,7 +217,7 @@ fn upper(stem: &str) -> String {
 
 impl Surfaces {
     pub fn new(store: TexStore, options: Options) -> Self {
-        Self { store, palette: Palette::default(), options, cache: HashMap::new(), paint: None }
+        Self { store, palette: Palette::default(), options, cache: HashMap::new(), paint: None, dash: None }
     }
 
     /// Name the diffuse texture of every surface whose base colour picture is `stem` `<CAR>_SKIN1`, the placeholder the game
@@ -299,7 +301,11 @@ impl Surfaces {
         };
         let clip = material.cutout();
         let mut picture = Picture { width: base.width, height: base.height, rgba: base.rgba.clone() };
+        // The display of a cluster, found in the static picture before the widgets are composed over it: a cluster that has one is
+        // stored as 32-bit colour at `dash::LIVE_SIZE` so the host can paint the speed, gear and revs into it.
+        let mut live = None;
         if material.name.to_ascii_lowercase().starts_with("mat_gauge") {
+            live = dash::find_window(&picture).map(|window| (window, (picture.width, picture.height)));
             // The screen of an instrument cluster is drawn by widgets at run time: take the exporter's composition of them at rest,
             // or else draw a small panel into the black window of the static picture.
             match dash::composed(&mut self.store, base_stem)? {
@@ -309,13 +315,20 @@ impl Surfaces {
                 }
             }
         }
-        let level = picture.shrunk(cap);
-        let level = bake_diffuse(level, pbr.as_deref(), material.pbr_has_occlusion, self.grade(material), clip);
+        let level = picture.shrunk(if live.is_some() { cap.min(dash::LIVE_SIZE) } else { cap });
+        let grade = self.grade(material);
+        let level = bake_diffuse(level, pbr.as_deref(), material.pbr_has_occlusion, grade, clip);
         let cut_out = level.rgba.as_chunks::<4>().0.iter().any(|t| t[3] < 255);
         if !self.palette.contains(&diffuse) {
-            let (format, alpha) =
-                if cut_out { (PixelFormat::Dxt5, Alpha::CutOut) } else { (PixelFormat::Dxt1, Alpha::Opaque) };
-            self.add_level(&diffuse, level.clone(), format, alpha);
+            if let Some((window, from)) = live {
+                let screen = dash::Screen::new(&diffuse, window, from, (level.width, level.height), grade.gain);
+                self.dash.get_or_insert(screen);
+                self.add_level_mips(&diffuse, level.clone(), PixelFormat::Argb8888, Alpha::Opaque, 1);
+            } else {
+                let (format, alpha) =
+                    if cut_out { (PixelFormat::Dxt5, Alpha::CutOut) } else { (PixelFormat::Dxt1, Alpha::Opaque) };
+                self.add_level(&diffuse, level.clone(), format, alpha);
+            }
         }
         let (mut normal, mut specular) = (None, None);
         if self.options.normal_maps {

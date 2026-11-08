@@ -43,6 +43,62 @@ const GREEN: [u8; 3] = [70, 225, 100];
 const SEGMENTS: u32 = 24;
 const LIT_SEGMENTS: u32 = 3;
 
+/// The longest side of the cluster picture of a bike with a live screen: it is stored as 32-bit colour (the host writes into it), so it
+/// is kept small; a display of a cluster is a quarter of it.
+pub const LIVE_SIZE: u32 = 512;
+
+/// The live screen of a bike's cluster: the texture it is on, the display in it and the colours to paint with (`[bike.dash]`,
+/// `docs/modding/ride6-bike-dash.md`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Screen {
+    pub texture: String,
+    /// `[x, y, width, height]` in texels of the stored texture.
+    pub window: [u32; 4],
+    /// Background, lit segment, unlit segment, text, label, gear: texel colours, the lift of the picture applied.
+    pub colors: [[u8; 3]; 6],
+}
+
+impl Screen {
+    /// The screen of `texture` (`picture_size` its stored size, `from` the size of the picture the `window` was found on), with the
+    /// colours of the idle panel lifted by `gain` as the picture is.
+    pub fn new(texture: &str, window: Window, from: (u32, u32), picture_size: (u32, u32), gain: f32) -> Self {
+        let scale = |value: u32, to: u32, of: u32| (u64::from(value) * u64::from(to) / u64::from(of.max(1))) as u32;
+        let (x, y) = (scale(window.x, picture_size.0, from.0), scale(window.y, picture_size.1, from.1));
+        let (width, height) =
+            (scale(window.width, picture_size.0, from.0), scale(window.height, picture_size.1, from.1));
+        let lifted = [BACKGROUND, LIT, DIM, WHITE, GREY, GREEN].map(|colour| crate::grade::lift_colour(colour, gain));
+        Self { texture: texture.to_owned(), window: [x, y, width, height], colors: lifted }
+    }
+
+    /// The `[bike.dash]` table.
+    pub fn table(&self) -> String {
+        let [x, y, w, h] = self.window;
+        let [background, lit, dim, text, label, gear] = self.colors;
+        let colour = |[r, g, b]: [u8; 3]| format!("[{r}, {g}, {b}]");
+        format!(
+            "[bike.dash]
+texture = \"{}\"
+window = [{x}, {y}, {w}, {h}]
+
+[bike.dash.colors]
+background = {}
+lit = {}
+dim = {}
+text = {}
+label = {}
+gear = {}
+",
+            self.texture,
+            colour(background),
+            colour(lit),
+            colour(dim),
+            colour(text),
+            colour(label),
+            colour(gear)
+        )
+    }
+}
+
 /// A rectangle of the picture in texels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Window {
@@ -228,6 +284,32 @@ mod tests {
         assert!(black < 40 * 24 / 4, "the black is mostly painted over: {black}");
         // The bezel around the display is untouched.
         assert_eq!(&picture.rgba[..4], &[40, 40, 40, 255]);
+    }
+
+    #[test]
+    fn a_screen_scales_its_window_to_the_stored_picture_and_lifts_its_colours() {
+        let window = Window { x: 100, y: 200, width: 400, height: 200 };
+        let screen = Screen::new("CAR_GAUGE1_D", window, (1024, 1024), (512, 512), 2.0);
+        assert_eq!(screen.window, [50, 100, 200, 100]);
+        assert!(
+            screen.colors[0].iter().zip(BACKGROUND).all(|(lifted, plain)| *lifted >= plain),
+            "the lift only brightens"
+        );
+        assert!(screen.colors[1][2] > LIT[2] || screen.colors[1][2] == 255, "{:?}", screen.colors[1]);
+        let table = screen.table();
+        assert!(
+            table.starts_with(
+                "[bike.dash]
+texture = \"CAR_GAUGE1_D\"
+window = [50, 100, 200, 100]
+"
+            ),
+            "{table}"
+        );
+        assert!(table.contains(
+            "[bike.dash.colors]
+background = ["
+        ));
     }
 
     #[test]
