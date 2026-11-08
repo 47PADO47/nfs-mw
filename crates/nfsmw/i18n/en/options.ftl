@@ -6,6 +6,7 @@
 ## Values several rows share
 
 options-off = Off
+options-auto = Auto
 options-low = Low
 options-medium = Medium
 options-high = High
@@ -32,6 +33,8 @@ options-police-dispatch-volume = Police Dispatch
 options-hud-layout = HUD Layout
 options-hud-layout-centered = Centered
 options-hud-style = HUD style
+# The third-party CustomHUD plugin's gauge skin (`custom_hud_skin`): drawn when the install has the plugin.
+options-custom-hud-skin = CustomHUD skin
 options-hud-theme = HUD theme
 options-nitrous-variant = Nitrous variant
 options-nitrous-variant-original = Original
@@ -46,12 +49,20 @@ options-xenon-spark-variant-original = Original
 # The wind of the speed: the game's own is the 2005 wind module; a mod may add loops that play with the car's speed.
 options-wind-variant = Wind variant
 options-wind-variant-original = Original
+# The trees of the world: the game's own are the models of the 2005 game; a mod may replace their models and textures.
+options-trees-variant = Trees
+options-trees-variant-original = Original
 options-speed-units = Speed units
 options-speed-units-metric = Metric (km/h)
 options-speed-units-imperial = Imperial (mph)
 options-minimap-fixed = Fixed
 options-minimap-rotating = Rotating
 options-turn-signals = Turn Signals
+options-rider-gear = Rider Gear
+options-riding-style = Riding Style
+options-riding-style-balanced = Balanced
+options-riding-style-shoulders-out = Shoulders Out
+options-riding-style-old-school = Old School
 options-cop-health-bars = Cop Health Bars
 # The kinds of moment the Game Moment Camera plays (the row itself is the game's own label).
 options-game-moment-breakers = Moments: Pursuit Breakers

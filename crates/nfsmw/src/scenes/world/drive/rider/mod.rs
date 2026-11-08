@@ -14,6 +14,7 @@
 
 mod attach;
 mod contacts;
+mod demo;
 mod fall;
 mod fall_anim;
 mod fall_file;
@@ -21,7 +22,9 @@ mod fall_space;
 #[cfg(test)]
 mod fit_tests;
 mod foot_out;
+mod gear;
 mod graph_params;
+mod hands;
 mod lean_pose;
 mod params;
 mod parts;
@@ -34,10 +37,13 @@ mod script;
 mod seat;
 #[cfg(test)]
 mod smooth_tests;
+mod standstill;
 mod style;
 mod view;
+mod worn;
 
-use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use anyhow::{Context, Result};
 use blackbox_gfx::{DrawRange, Instance, MeshDesc, MeshHandle, RenderBackend, TextureHandle, Vertex};
@@ -45,15 +51,32 @@ use blackbox_skeleton::{Graph, Pack, SkinVertex, skin_matrices, skin_vertices};
 use game_install::GameDir;
 use glam::{Mat4, Vec3};
 use nfsmw_data::car::CarModel;
+use nfsmw_data::car::mods::bike_camera::BikeCamera;
 
 use self::attach::Attach;
+pub use self::demo::parse as parse_state;
 pub use self::fall::FallStep;
 pub use self::graph_params::param_values;
 pub use self::params::RiderSample;
 use self::params::Smoothed;
 use self::pose::{Frame, Resolved, Steering};
+pub use self::view::RiderVisibility;
 use super::CarPose;
+use crate::garage::rider_gear::{self, Choice};
 use crate::scenes::world::keys;
+use crate::viewer::camera::rider_follow::Phase;
+
+/// The riding style the player picked (`riding_style`, the blueprint's `RidingStyle` 0 to 2): every rider plays its lean set.
+static RIDING_STYLE: AtomicU8 = AtomicU8::new(0);
+
+/// Tell the riders the player's riding style (the host pushes it each frame with the other settings).
+pub fn set_riding_style(style: crate::settings::RidingStyle) {
+    RIDING_STYLE.store(style.blueprint(), Ordering::Relaxed);
+}
+
+fn riding_style() -> u8 {
+    RIDING_STYLE.load(Ordering::Relaxed)
+}
 
 /// The first part number a rider's meshes take in the instance keys of the player's car (the car's own placements come
 /// before it).
@@ -111,11 +134,19 @@ struct RiderRig {
     fall: fall::Fall,
     /// Where his eyes are and which meshes the first-person camera leaves out (`view.rs`).
     view: view::EyeView,
+    /// The folder the rig was read from, the entries of its `parts.json` (his own gear) and how many meshes its pack had: the
+    /// gear he wears adds meshes after those (`gear.rs`).
+    folder: String,
+    stock: Vec<parts::Entry>,
+    base_meshes: usize,
+    /// The gear on him now, and the camera table whose helmet names say which meshes to leave out from inside.
+    gear: Choice,
+    cameras: Option<Arc<BikeCamera>>,
 }
 
 impl RiderRig {
-    /// Read and upload the rider of `model`. `Ok(None)` when the car has no rider files.
-    fn load(renderer: &mut dyn RenderBackend, dir: &GameDir, model: &CarModel) -> Result<Option<Self>> {
+    /// Read and upload the rider of `model`, in the gear `choice`. `Ok(None)` when the car has no rider files.
+    fn load(renderer: &mut dyn RenderBackend, dir: &GameDir, model: &CarModel, choice: Choice) -> Result<Option<Self>> {
         let Some(folder) = folders(&model.name).into_iter().find(|f| dir.exists(&format!("{f}/attach.json"))) else {
             return Ok(None);
         };
@@ -124,7 +155,7 @@ impl RiderRig {
         let attach = Attach::parse(&read("attach.json")?)?;
         // The bike's own seat, grips and pegs (`CARS/<ID>/RIDER/contacts.json`) over the rig's.
         let (attach, kind) = contacts::lay_over(attach, dir, &model.name);
-        let pack = Pack::parse(&read("rider.bbsk")?).context("rider.bbsk")?;
+        let mut pack = Pack::parse(&read("rider.bbsk")?).context("rider.bbsk")?;
         // The blend tree of this bike's kind (`styles.json`), else the rig's own.
         let selection = style::select(dir, &folder, kind.as_deref());
         let graph: Graph = serde_json::from_slice(&read(&selection.graph)?).with_context(|| selection.graph.clone())?;
@@ -134,73 +165,41 @@ impl RiderRig {
         log::info!("rider: {} plays {} ({})", model.name, selection.graph, kind.as_deref().unwrap_or("no kind"));
         let mut resolved = Resolved::new(&attach, &pack.skeleton).map_err(anyhow::Error::msg)?;
         resolved.seat = seat::Seat::new(&attach, &pack);
-        let entries = parts::parse_entries(&read("parts.json")?)?;
+        let stock = parts::parse_entries(&read("parts.json")?)?;
         let corners = model.corners.as_ref().context("the car has no wheel mounts")?;
         let (front, rear) = (corners[0], corners[2]);
         let frame =
             Frame::new(&attach.rider_root_in_bike.transform(), attach.frame_offset(front.centre(), rear.centre()));
 
-        let (plans, skipped) = parts::plan(&pack, &entries);
-        skipped.iter().for_each(|why| log::warn!("rider: {why}"));
-        let mut textures: HashMap<String, TextureHandle> = HashMap::new();
-        for picture in plans.iter().flat_map(|p| &p.draws).filter_map(|d| d.picture.as_deref()) {
-            if textures.contains_key(picture) {
-                continue;
-            }
-            let decoded = read(&format!("textures/{picture}")).and_then(|bytes| parts::decode_png(&bytes));
-            match decoded {
-                Ok(image) => {
-                    textures.insert(picture.to_owned(), parts::upload_picture(renderer, picture, &image));
-                }
-                Err(error) => log::warn!("rider: the picture {picture} is not drawn: {error:#}"),
-            }
+        let base_meshes = pack.meshes.len();
+        if rider_gear::loaded().is_none() {
+            rider_gear::scan(dir);
         }
-        let lookup = |name: &str| textures.get(name).copied();
-        let mut gpu_parts = Vec::new();
-        for plan in plans {
-            let mesh = &pack.meshes[plan.mesh];
-            let lod = &mesh.lods[plan.level];
-            let (positions, normals): (Vec<Vec3>, Vec<Vec3>) =
-                lod.vertices.iter().map(|v| (v.position, v.normal)).unzip();
-            let mut vertices = Vec::new();
-            fill(&mut vertices, &lod.vertices, &positions, &normals);
-            let draws = parts::draw_ranges(&plan, &lookup);
-            let label = format!("rider: {}", mesh.name);
-            let handle = renderer.create_mesh(&MeshDesc {
-                label: &label,
-                vertices: &vertices,
-                tangents: None,
-                secondary_uvs: None,
-                indices: &plan.indices,
-                draws: draws.clone(),
-            });
-            gpu_parts.push(GpuPart {
-                mesh: plan.mesh,
-                level: plan.level,
-                handle,
-                label,
-                vertices,
-                indices: plan.indices,
-                draws,
-            });
-        }
+        let catalogue = rider_gear::loaded();
+        let wearing = catalogue.as_deref().map(|catalogue| (catalogue, &choice));
+        let worn = worn::wear(renderer, dir, &folder, &mut pack, &stock, wearing);
+        let cameras = nfsmw_data::car::mods::bike_camera::of(&model.name);
+        let names: Vec<&str> = worn.parts.iter().map(|part| pack.meshes[part.mesh].name.as_str()).collect();
+        let view = view::EyeView::new(cameras.as_ref().map(|set| &set.helmet), &pack.skeleton, &names);
         log::info!(
-            "rider: {} meshes, {} pictures, {} bones from {folder}; {}",
-            gpu_parts.len(),
-            textures.len(),
+            "rider: {} meshes, {} pictures, {} bones from {folder}; {}; gear: {}",
+            worn.parts.len(),
+            worn.textures.len(),
             pack.skeleton.len(),
             match resolved.seat.is_some() {
                 true => "sat on the bike's seat",
                 false => "no seat surface for this bike: he sits at the socket",
+            },
+            match choice.is_stock() {
+                true => "his own".to_owned(),
+                false => gear::describe(&choice),
             }
         );
         let mut smoothed = Smoothed::default();
         smoothed.set_walk(selection.walk);
-        smoothed.set_kind(selection.bike_type, selection.riding_style);
+        smoothed.set_kind(selection.bike_type, selection.stand.clone());
+        smoothed.set_riding_style(riding_style());
         let fall = fall::Fall::load(dir, &folder, &pack);
-        let cameras = nfsmw_data::car::mods::bike_camera::of(&model.name);
-        let names: Vec<&str> = gpu_parts.iter().map(|part| pack.meshes[part.mesh].name.as_str()).collect();
-        let view = view::EyeView::new(cameras.as_ref().map(|set| &set.helmet), &pack.skeleton, &names);
         Ok(Some(Self {
             pack,
             graph,
@@ -210,15 +209,41 @@ impl RiderRig {
             steering: front.steering_axis(),
             smoothed,
             time: 0.0,
-            parts: gpu_parts,
-            textures: textures.into_values().collect(),
+            parts: worn.parts,
+            textures: worn.textures,
             matrices: Vec::new(),
             positions: Vec::new(),
             normals: Vec::new(),
             failed: false,
             fall,
             view,
+            folder,
+            stock,
+            base_meshes,
+            gear: choice,
+            cameras,
         }))
+    }
+
+    /// Frees the meshes and pictures he is drawn with.
+    fn drop_parts(&mut self, renderer: &mut dyn RenderBackend) {
+        self.parts.drain(..).for_each(|part| renderer.destroy_mesh(part.handle));
+        self.textures.drain(..).for_each(|texture| renderer.destroy_texture(texture));
+    }
+
+    /// Dresses him in the gear `choice` instead: his meshes and pictures are made again, the animation goes on.
+    fn dress_again(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir, choice: Choice) {
+        self.drop_parts(renderer);
+        self.pack.meshes.truncate(self.base_meshes);
+        let catalogue = rider_gear::loaded();
+        let wearing = catalogue.as_deref().map(|catalogue| (catalogue, &choice));
+        let worn = worn::wear(renderer, dir, &self.folder, &mut self.pack, &self.stock, wearing);
+        self.parts = worn.parts;
+        self.textures = worn.textures;
+        let names: Vec<&str> = self.parts.iter().map(|part| self.pack.meshes[part.mesh].name.as_str()).collect();
+        let view = view::EyeView::new(self.cameras.as_ref().map(|set| &set.helmet), &self.pack.skeleton, &names);
+        self.view = view;
+        self.gear = choice;
     }
 
     /// One physics step of `dt` seconds with the bike in state `sample`.
@@ -231,8 +256,10 @@ impl RiderRig {
 
     /// Pose the rider with the handlebar at `steer` (rad, positive left), skin it and write the vertices to the renderer.
     fn update(&mut self, renderer: &mut dyn RenderBackend, steer: f32, world: Mat4) {
+        self.smoothed.set_riding_style(riding_style());
         let steering = self.steering.map(|(axis, point)| Steering { axis, point, angle: steer });
-        let targets = pose::rider_targets(&self.attach, &self.frame, steering);
+        let mut targets = pose::rider_targets(&self.attach, &self.frame, steering);
+        pose::roll_wrist(&self.attach, &mut targets, self.smoothed.values().wrist);
         let body = pose::body(&self.frame, self.smoothed.shift(), self.smoothed.rotation());
         let params = param_values(&self.graph.param_names, &self.smoothed.values());
         let skeleton = &self.pack.skeleton;
@@ -284,14 +311,14 @@ impl RiderRig {
     }
 
     /// The rider's instances for a bike at `world` (the model's frame in the world).
-    fn instances(&self, world: Mat4, first_person: bool, out: &mut Vec<Instance>) {
+    fn instances(&self, world: Mat4, visibility: RiderVisibility, out: &mut Vec<Instance>) {
         let transform = match self.fall.active() {
             true => self.fall.instance(),
             false => world * self.frame.to_model,
         };
         for (n, part) in self.parts.iter().enumerate() {
-            // From inside his helmet the rider's helmet and visor are not in the picture.
-            if first_person && self.view.hidden.contains(&n) {
+            // From inside his helmet his helmet and visor are not in the picture, looking back none of him is.
+            if !self.view.is_drawn(n, visibility) {
                 continue;
             }
             out.push(Instance::keyed(part.handle, transform, keys::car_part(keys::PLAYER_CAR, KEY_BASE + n)));
@@ -323,13 +350,32 @@ pub struct Rider {
     loaded_for: String,
     /// The rider is not drawn: the arrest scene plays the player's bike on its own, and the rider is not part of it.
     hidden: bool,
-    /// The camera is inside his helmet: the helmet and the visor are not drawn (`view.rs`).
-    first_person: bool,
+    /// What the camera shows of him: no helmet or visor from inside it, none of him looking back (`view.rs`).
+    visibility: RiderVisibility,
     /// Where he looks from straight ahead, turned by the player's look stick (`viewer/camera/head_look.rs`).
     head_look: crate::viewer::camera::head_look::HeadLook,
+    /// The rider of the garage's backdrop: he wears the gear on show there before it is kept, not only the kept gear.
+    previewing: bool,
+    /// The state of the gear (`garage/rider_gear`) as of the last frame: he is dressed again only when it moved.
+    seen: u64,
+    /// His pelvis and whether he is down or on his way back while off the bike: what the cameras follow (`fall.rs`).
+    off_bike: Option<(Phase, Vec3)>,
 }
 
 impl Rider {
+    /// A rider for a bike on show in the garage or the car viewer: he wears the gear being looked at (`rider_gear::set_preview`).
+    pub fn previewing() -> Self {
+        Self { previewing: true, ..Self::default() }
+    }
+
+    /// The gear he is to wear now.
+    fn wanted(&self) -> Choice {
+        match self.previewing {
+            true => rider_gear::current(),
+            false => rider_gear::committed(),
+        }
+    }
+
     /// One frame of the look stick (`stick`: x right, y up, -1 to 1): his head follows it and springs back when it is let go.
     pub fn look_around(&mut self, stick: [f32; 2], dt: f32) {
         self.head_look.update(stick, dt);
@@ -352,7 +398,15 @@ impl Rider {
     /// has got up (or there is no rider who falls).
     pub fn fall_step(&mut self, step: FallStep, pose: &CarPose, ground: &dyn blackbox_vehicle::Ground) -> bool {
         let State::Ready(rig) = &mut self.state else { return true };
-        rig.fall_step(step, pose.transform(), ground)
+        let ready = rig.fall_step(step, pose.transform(), ground);
+        self.off_bike = rig.fall.focus(&rig.pack.skeleton, pose.transform() * rig.frame.to_model);
+        ready
+    }
+
+    /// Where the rider is while he is off the bike (his pelvis in the render space, and whether he is down or on his way back);
+    /// `None` while he rides, and for a bike with no rider who falls.
+    pub fn off_bike(&self) -> Option<(Phase, Vec3)> {
+        self.off_bike
     }
 
     /// Once per frame: load the rider the first time a bike is drawn, then pose, skin and upload it for the bike's pose
@@ -369,13 +423,16 @@ impl Rider {
                 rig.release(renderer);
             }
             self.loaded_for.clear();
+            self.off_bike = None;
         }
         if matches!(self.state, State::Unloaded) {
             if !bike {
                 return;
             }
             self.loaded_for.clone_from(&model.name);
-            self.state = match RiderRig::load(renderer, dir, model) {
+            rider_gear::reload();
+            self.seen = rider_gear::generation();
+            self.state = match RiderRig::load(renderer, dir, model, self.wanted()) {
                 Ok(Some(rig)) => State::Ready(Box::new(rig)),
                 Ok(None) => {
                     log::info!("rider: {} has no rider files (attach.json); it is drawn without one", model.name);
@@ -387,6 +444,16 @@ impl Rider {
                 }
             };
         }
+        let generation = rider_gear::generation();
+        if self.seen != generation {
+            self.seen = generation;
+            let wanted = self.wanted();
+            if let State::Ready(rig) = &mut self.state
+                && rig.gear != wanted
+            {
+                rig.dress_again(renderer, dir, wanted);
+            }
+        }
         if let State::Ready(rig) = &mut self.state {
             rig.update(renderer, pose.wheels[0].steer, pose.transform());
         }
@@ -397,9 +464,9 @@ impl Rider {
         self.hidden = hidden;
     }
 
-    /// Whether the camera is inside the rider's helmet, so his helmet and visor are left out of the picture.
-    pub fn set_first_person(&mut self, on: bool) {
-        self.first_person = on;
+    /// What the camera shows of the rider.
+    pub fn set_visibility(&mut self, visibility: RiderVisibility) {
+        self.visibility = visibility;
     }
 
     /// Where the rider's eyes are in the bike's model frame as of the last frame's pose: `None` with no rider, off the bike, or
@@ -417,7 +484,7 @@ impl Rider {
             return;
         }
         if let State::Ready(rig) = &self.state {
-            rig.instances(pose.transform(), self.first_person, out);
+            rig.instances(pose.transform(), self.visibility, out);
         }
     }
 
@@ -429,39 +496,5 @@ impl Rider {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use blackbox_skeleton::Influences;
-
-    #[test]
-    fn the_rider_files_are_looked_for_in_the_cars_folder_first() {
-        assert_eq!(folders("KTM450"), ["CARS/KTM450/RIDER".to_owned(), "RIDER".to_owned()]);
-    }
-
-    #[test]
-    fn skinned_positions_become_white_vertices_with_the_meshs_texture_coordinates() {
-        let source =
-            |uv: [f32; 2]| SkinVertex { position: Vec3::ZERO, normal: Vec3::Z, uv, influences: Influences::default() };
-        let sources = [source([0.25, 0.5]), source([1.0, 0.0])];
-        let positions = [Vec3::new(1.0, 2.0, 3.0), Vec3::new(4.0, 5.0, 6.0)];
-        let normals = [Vec3::X, Vec3::Y];
-        let mut out = vec![Vertex { position: [9.0; 3], normal: [9.0; 3], color_bgra: [0; 4], uv: [9.0; 2] }; 5];
-        fill(&mut out, &sources, &positions, &normals);
-        assert_eq!(out.len(), 2, "the old contents are replaced");
-        assert_eq!(out[0].position, [1.0, 2.0, 3.0]);
-        assert_eq!(out[1].normal, [0.0, 1.0, 0.0]);
-        assert_eq!(out[0].uv, [0.25, 0.5]);
-        assert_eq!(out[1].color_bgra, [255; 4]);
-    }
-
-    #[test]
-    fn a_rider_that_is_not_loaded_is_not_stepped_or_drawn() {
-        let mut rider = Rider::default();
-        assert!(matches!(rider.state, State::Unloaded));
-        rider.step(Some(RiderSample::default()), 0.016);
-        let pose = CarPose { position: Vec3::ZERO, rotation: glam::Quat::IDENTITY, wheels: [Default::default(); 4] };
-        let mut out = Vec::new();
-        rider.instances(&pose, &mut out);
-        assert!(out.is_empty());
-    }
-}
+#[path = "mod_tests.rs"]
+mod tests;

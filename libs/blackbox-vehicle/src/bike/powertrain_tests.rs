@@ -316,3 +316,20 @@ fn an_engine_turned_far_over_its_limit_stays_cut_instead_of_alternating() {
     assert!(near.iter().any(|&t| t > 0.0) && near.contains(&0.0), "just over the limit it alternates: {near:?}");
     assert!(throttles(1.3).iter().all(|&t| t == 0.0), "far over it the fuel stays cut");
 }
+
+#[test]
+fn the_clutch_lever_is_pulled_at_a_standstill_and_let_go_when_the_bike_rolls_on_the_throttle() {
+    let spec = BikeSpec::example();
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    assert_eq!(train.clutch_pulled(), 0.0, "a bike nobody has stepped yet has its clutch engaged");
+    step(&mut train, &spec, 0.0, 0.0);
+    assert!(
+        train.clutch_pulled() > 0.99,
+        "the handler pulls the clutch while the bike stands: {}",
+        train.clutch_pulled()
+    );
+    let mut rolling = Powertrain::new(&spec.engine, &spec.transmission);
+    rolling.match_speed(&spec.engine, &spec.transmission, 80.0, 0.32);
+    step(&mut rolling, &spec, 0.5, 80.0);
+    assert!(rolling.clutch_pulled() < 0.01, "{}", rolling.clutch_pulled());
+}

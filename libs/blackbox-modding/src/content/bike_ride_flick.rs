@@ -3,13 +3,13 @@
 //!
 //! - `bike_flick`: a pad: the throttle held at 1.0 (the bike's own axis rate opens it, 3 per second in the data), the stick moved at
 //!   `1 / rise` per second towards +1 and -1 in turn (`RIDE6_RISES`, `RIDE6_HOLDS`), from a standstill and from several speeds
-//!   (`RIDE6_SPEEDS`), through what the game's `command()` does to the stick (the share by speed). Prints how many bikes fall in
+//!   (`RIDE6_SPEEDS`), with the stick as it is at any speed. Prints how many bikes fall in
 //!   every configuration, how, and which.
 //!
 //! `RIDE6_WEIGHT=arc` adds the thumb's arc: the weight lever (the stick's other axis) is pulled back by a quarter of the stick's
 //! deflection. `RIDE6_VERBOSE=1` prints a line for every fall.
 
-use blackbox_vehicle::bike::{Bike, BikeInput, BikeSpec, choices};
+use blackbox_vehicle::bike::{Bike, BikeInput, BikeSpec};
 use blackbox_vehicle::{FIXED_STEP, FlatGround};
 
 use super::bike_ride_sweep::specs;
@@ -57,10 +57,8 @@ pub(super) fn ride(spec: &BikeSpec, start: f32, seconds: f32, rise: f32, half: f
     for step in 0..(seconds / FIXED_STEP) as usize {
         let t = step as f32 * FIXED_STEP;
         let stick = flick(t, 0.3, rise, half);
-        // What the game's `command()` does to the stick: the share by speed.
-        let share = choices::stick_share(bike.forward_speed());
         bike.set_weight(if arc { -0.25 * stick.abs() } else { 0.0 });
-        bike.step(FIXED_STEP, &BikeInput { throttle: 1.0, steer: stick * share, ..Default::default() }, &ground);
+        bike.step(FIXED_STEP, &BikeInput { throttle: 1.0, steer: stick, ..Default::default() }, &ground);
         out.top_pitch = out.top_pitch.max(bike.pitch());
         if bike.fallen() {
             out.fell = Some((t, format!("{:?}", bike.fall_kind())));

@@ -8,6 +8,7 @@
 use blackbox_collision::CollisionWorld;
 mod audio;
 mod bike_fall;
+mod bike_slide;
 mod cinematic;
 mod hits;
 pub(in crate::scenes::world) mod memo;
@@ -302,7 +303,8 @@ impl CarSim {
             let (sin, cos) = wheel.steer_angle.sin_cos();
             let forward = self.vehicle.rotation() * Vec3::new(sin, 0.0, cos);
             // The rear-wheel permutation is its own inverse: physics order -> model order.
-            let visual = self.visual_tires.map(|tires| tires[PHYSICS_WHEEL[i]]);
+            // A bike's marks start from the contact patch of the tyre (a lean moves it off the bottom of the drawn tyre).
+            let visual = self.visual_tires.filter(|_| self.ride.is_none()).map(|tires| tires[PHYSICS_WHEEL[i]]);
             if let Some(tire) = visual {
                 let point = pose.transform().transform_point3(tire.point(pose.wheels[PHYSICS_WHEEL[i]]));
                 wheel.position = Vec3::from_array(space::to_physics(point));
@@ -310,6 +312,9 @@ impl CarSim {
             let mut contact = effects::project(wheel, forward, collision)?;
             if let Some(tire) = visual {
                 contact.width = tire.width;
+            }
+            if let Some(ride) = &self.ride {
+                contact.width = ride.mark_width(i);
             }
             Some(contact)
         })
@@ -350,11 +355,6 @@ impl CarSim {
     /// The body rests on the ground itself (a corner touches, or it sleeps supported): with no wheel down, beached.
     pub fn body_on_ground(&self) -> bool {
         self.vehicle.body_on_ground()
-    }
-
-    /// The dot product of the car's up vector with the world's.
-    pub fn up_dot(&self) -> f32 {
-        self.vehicle.rotation().y_axis.y
     }
 
     /// Whether the state is usable (no NaN or runaway values). Covers the rotation, the wheels and the engine
@@ -494,6 +494,10 @@ mod trailer;
 
 #[cfg(test)]
 mod bike_curb_tests;
+#[cfg(test)]
+mod bike_skid_tests;
+#[cfg(test)]
+mod bike_sound_tests;
 #[cfg(test)]
 mod bike_tests;
 #[cfg(test)]

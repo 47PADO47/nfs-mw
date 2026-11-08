@@ -84,6 +84,9 @@ fn publish_hinges(mods: &[ModDir], car: &car_mods::ModCar) {
         if let Some(bike) = &manifest.bike {
             car_mods::bike::publish(&car.folder, BikeSpec::from(bike));
         }
+        if let Some(own) = &manifest.components {
+            super::components::publish(&owner.dir, &car.folder, own);
+        }
         if let Some(cameras) = super::bike_camera::cameras_of(&manifest) {
             nfsmw_data::car::mods::bike_camera::publish(&car.folder, cameras);
         }
@@ -220,7 +223,7 @@ fn specs_of(dir: &GameDir, m: &ModDir) -> Vec<(CarSpec, Option<custom::Customiza
 }
 
 /// The `.toml` files directly in `folder`, sorted by name. A missing folder has none.
-fn manifest_files(folder: &Path) -> Vec<PathBuf> {
+pub(super) fn manifest_files(folder: &Path) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(folder) else { return Vec::new() };
     let mut files: Vec<PathBuf> = entries
         .filter_map(Result::ok)

@@ -25,6 +25,8 @@ impl Drive {
         }
         let mut body = self.sim.as_ref()?.original_camera_body(self.speedbreaker_zoom(), self.chase.look_back_held());
         if !interpolate {
+            // The rider's body while he is thrown (`rider_cam.rs`).
+            self.blend_rider_body(&mut body, None);
             return Some(body);
         }
         let shown = self.pose();
@@ -32,6 +34,7 @@ impl Drive {
         body.position = shown.position + rotation * (body.position - self.current.position);
         body.forward = rotation * body.forward;
         body.up = rotation * body.up;
+        self.blend_rider_body(&mut body, Some(self.alpha));
         Some(body)
     }
 

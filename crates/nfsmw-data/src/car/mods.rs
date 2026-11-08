@@ -15,12 +15,14 @@ use crate::pursuit::HEAT_LEVELS;
 
 pub mod bike;
 pub mod bike_camera;
+pub mod components;
 pub mod cop;
 pub mod custom;
 pub mod driver_poses;
 mod engine;
 pub mod hinged;
 pub mod lamp_flares;
+pub mod levels;
 pub(super) mod parts;
 pub mod traffic;
 pub mod wheel_layout;

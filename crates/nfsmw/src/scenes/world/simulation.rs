@@ -206,6 +206,8 @@ impl WorldScene {
             if drive.take_manual_resets() > 0 {
                 traffic.note_manual_reset();
             }
+            // A bike's rider off the bike, or just back on it, cannot be busted (`drive/rider_cam.rs`).
+            traffic.note_bust_grace(drive.bust_grace());
             let clear = super::drive::sight::heli_clear(collision);
             let drivable = super::drive::sight::drivable_cast(collision);
             traffic.note_player_height(drive.half_height());

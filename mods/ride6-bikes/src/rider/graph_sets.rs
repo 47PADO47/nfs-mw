@@ -38,10 +38,6 @@ pub struct ClipSet {
     pub name: &'static str,
     /// The blueprint's `BikeType` value.
     pub bike_type: u8,
-    /// The riding style a bike of this type plays when the importer is not told one (`RidingStyle`, 0 to 2): a modelling choice,
-    /// the setting is the rider's own (`docs/specs/ride6-rider-knee-foot.md`, section 4). The supermoto plays the old-school style,
-    /// the only one whose inside foot leaves the peg in a lean; every other type the first, the one with the knee out.
-    pub riding_style: u8,
     /// The lean clips of the three riding styles, by `RidingStyle`.
     pub lean: [Lean; STYLES],
     /// The centre poses of the three styles. A style whose own pose is missing from the pack uses the first entry.
@@ -57,6 +53,23 @@ pub struct ClipSet {
     /// `Drift_L`, `Drift_R`.
     pub drift: Option<[&'static str; 2]>,
     pub walk: Walk,
+    /// The clips of the standstill, one set per foot choice (`StandingLeg`): both feet down, the left foot, the right foot.
+    pub legs: [StandLeg; 3],
+}
+
+/// The standing, start and stop clips of one foot choice (`Standing`, `Start` and `Stop` states of the blueprint's `Main_SM`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StandLeg {
+    /// The state the rider waits in with his foot (or feet) on the ground.
+    pub stand: &'static str,
+    /// The clip that puts the feet back on the pegs as the bike pulls away.
+    pub start: &'static str,
+    /// The clip that puts them down as the bike stops.
+    pub stop: &'static str,
+}
+
+const fn leg(stand: &'static str, start: &'static str, stop: &'static str) -> StandLeg {
+    StandLeg { stand, start, stop }
 }
 
 const fn lean(low: [&'static str; 2], high: [&'static str; 2]) -> Lean {
@@ -72,7 +85,6 @@ const fn centre(low: &'static str, high: &'static str) -> Centre {
 pub const RACE: ClipSet = ClipSet {
     name: "race",
     bike_type: 0,
-    riding_style: 0,
     lean: [
         lean(
             ["race_Rossi_standard_Left", "race_Rossi_standard_Right"],
@@ -99,13 +111,17 @@ pub const RACE: ClipSet = ClipSet {
     ]),
     drift: None,
     walk: Walk { start: "race_retro", looped: "race_retro_loop" },
+    legs: [
+        leg("race_stand_both_feet", "race_start_both_feet", "race_stop_both_feet"),
+        leg("race_stand_foot_L", "race_start_foot_L", "race_stop_foot_L"),
+        leg("race_stand_foot_R", "race_start_foot_R", "race_stop_foot_R"),
+    ],
 };
 
 /// Bike types 1 and 5: naked bikes and baggers (the blueprint sends both to the same clips).
 pub const NAKED: ClipSet = ClipSet {
     name: "naked",
     bike_type: 1,
-    riding_style: 0,
     lean: [
         lean(
             ["naked_Balanced_Standard_Left", "naked_Balanced_Standard_Right"],
@@ -132,13 +148,17 @@ pub const NAKED: ClipSet = ClipSet {
     ]),
     drift: None,
     walk: Walk { start: "naked_retro", looped: "naked_retro_loop" },
+    legs: [
+        leg("naked_stand_both_feet", "naked_start_both_feet", "naked_stop_both_feet"),
+        leg("naked_stand_foot_L", "naked_start_foot_L", "naked_stop_foot_L"),
+        leg("naked_stand_foot_R", "naked_start_foot_R", "naked_stop_foot_R"),
+    ],
 };
 
 /// Bike type 2: supermotos.
 pub const MOTARD: ClipSet = ClipSet {
     name: "motard",
     bike_type: 2,
-    riding_style: 2,
     lean: [
         lean(
             ["motard_Leaning_Knee_LowSpeed_L", "motard_Leaning_Knee_LowSpeed_R"],
@@ -169,13 +189,17 @@ pub const MOTARD: ClipSet = ClipSet {
     ]),
     drift: Some(["motard_drift_pose_L", "motard_drift_pose_R"]),
     walk: Walk { start: "motard_retro_both_feet", looped: "motard_retro_loop_R" },
+    legs: [
+        leg("motard_restart_idle_both_feet", "motard_start_both_feet", "motard_stop_both_feet"),
+        leg("motard_restart_idle_foot_L", "motard_start_foot_L", "motard_stop_foot_L"),
+        leg("motard_restart_idle_foot_R", "motard_start_foot_R", "motard_stop_foot_R"),
+    ],
 };
 
 /// Bike type 3: scooters (the on-road lean set of `TrackCategoryAnimationModifier` 0).
 pub const SCOOTER: ClipSet = ClipSet {
     name: "scooter",
     bike_type: 3,
-    riding_style: 0,
     lean: [lean(
         ["rider_scooter_Leaning_standard_L", "rider_scooter_Leaning_standard_R"],
         ["rider_scooter_Leaning_aero_L", "rider_scooter_Leaning_aero_R"],
@@ -192,6 +216,11 @@ pub const SCOOTER: ClipSet = ClipSet {
     standing: None,
     drift: Some(["rider_scooter_drift_pose_L", "rider_scooter_drift_pose_R"]),
     walk: Walk { start: "rider_scooter_retro", looped: "rider_scooter_retro_loop_R" },
+    legs: [
+        leg("rider_scooter_stand_BothFeet", "rider_scooter_start_BothFeet", "rider_scooter_stop_BothFeet"),
+        leg("rider_scooter_stand_foot_L", "rider_scooter_start_foot_L", "rider_scooter_stop_foot_L"),
+        leg("rider_scooter_stand_foot_R", "rider_scooter_start_foot_R", "rider_scooter_stop_foot_R"),
+    ],
 };
 
 /// Bike type 4: enduro and adventure bikes. The lean and wheelie clips are the motard's; the poses, the drift and the walk
@@ -199,7 +228,6 @@ pub const SCOOTER: ClipSet = ClipSet {
 pub const ENDURO: ClipSet = ClipSet {
     name: "enduro",
     bike_type: 4,
-    riding_style: 0,
     lean: [
         MOTARD.lean[0],
         MOTARD.lean[1],
@@ -215,6 +243,11 @@ pub const ENDURO: ClipSet = ClipSet {
     standing: MOTARD.standing,
     drift: Some(["enduro_drift_pose_L", "enduro_drift_pose_R"]),
     walk: Walk { start: "enduro_retro_both_feet", looped: "enduro_retro_loop_R" },
+    legs: [
+        leg("enduro_restart_idle_both_feet", "enduro_start_both_feet", "enduro_stop_both_feet"),
+        leg("enduro_restart_idle_foot_L", "enduro_start_foot_L", "enduro_stop_foot_L"),
+        leg("enduro_restart_idle_foot_R", "enduro_start_foot_R", "enduro_stop_foot_R"),
+    ],
 };
 
 /// Every set, in the order of the blueprint's `BikeType`.
@@ -241,6 +274,9 @@ pub fn clip_names(set: &ClipSet) -> Vec<&'static str> {
     out.extend(set.drift.into_iter().flatten());
     out.push(set.walk.start);
     out.push(set.walk.looped);
+    for leg in set.legs {
+        out.extend([leg.stand, leg.start, leg.stop]);
+    }
     out.sort_unstable();
     out.dedup();
     out
@@ -256,13 +292,6 @@ mod tests {
             assert_eq!(by_name(set.name).map(|s| s.bike_type), Some(set.bike_type));
         }
         assert!(by_name("cruiser").is_none());
-    }
-
-    #[test]
-    fn the_supermoto_plays_the_old_school_style_and_the_other_types_the_first() {
-        assert_eq!(MOTARD.riding_style, 2);
-        assert!(SETS.iter().filter(|set| set.name != "motard").all(|set| set.riding_style == 0));
-        assert!(SETS.iter().all(|set| usize::from(set.riding_style) < STYLES));
     }
 
     #[test]

@@ -177,6 +177,7 @@ fn visual(model: &Model, backroom: bool) -> Vec<Item> {
     if !backroom {
         result.push(Item::page("Numbers", 0x45a1_c644, Page::Numbers, Row::Number(0).enabled(model)));
         result.extend(plate_pages(model.selected().and_then(|car| car.parts.as_deref())));
+        result.extend(rider_pages(model));
     }
     result.push(Item::page(
         "Custom Gauges",
@@ -200,6 +201,24 @@ fn plate_pages(catalog: Option<&Catalog>) -> Vec<Item> {
         result.push(Item::page("Plate Design", 0x45a1_c644, Page::PlateDesign, true));
     }
     result
+}
+
+/// The rider's gear entries of the Visual category (`docs/specs/ride6-rider-gear.md`): one page for each part a mod offers
+/// items for, on a bike (a mod car of `kind = "bike"`), while the setting `rider_gear` is on. A car lists none.
+fn rider_pages(model: &Model) -> Vec<Item> {
+    let bike = model.selected().is_some_and(|car| nfsmw_data::car::mods::bike::is_bike(&car.folder));
+    gear_pages(bike && crate::garage::rider_gear::enabled(), crate::garage::rider_gear::loaded().as_deref())
+}
+
+/// The pages for `catalogue`, when `offered`: the parts with something to choose from. They have no icon of their own: they take
+/// the Numbers one, as the plate pages do.
+fn gear_pages(offered: bool, catalogue: Option<&crate::garage::rider_gear::Catalogue>) -> Vec<Item> {
+    let Some(catalogue) = catalogue.filter(|_| offered) else { return Vec::new() };
+    crate::garage::rider_gear::Part::ALL
+        .into_iter()
+        .filter(|part| catalogue.entries(*part).len() > 1)
+        .map(|part| Item::page(part.label(), 0x45a1_c644, Page::Rider { part }, true))
+        .collect()
 }
 
 fn options(row: Row, model: &Model) -> Vec<Item> {
@@ -443,3 +462,6 @@ pub(super) fn positions(model: &Model, zone: usize) -> usize {
 #[cfg(test)]
 #[path = "choices/plate_tests.rs"]
 mod plate_tests;
+#[cfg(test)]
+#[path = "choices/rider_tests.rs"]
+mod rider_tests;

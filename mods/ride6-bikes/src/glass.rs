@@ -9,7 +9,7 @@
 
 use blackbox_tpk::Level;
 
-use crate::bake::srgb_to_linear;
+use crate::bake::{linear_to_srgb, srgb_to_linear};
 use crate::textures::{Picture, interior_points};
 
 /// The light material of clear and lightly tinted glass: the stock windows' (`WINDSHIELD`). Its diffuse alpha is the
@@ -50,13 +50,40 @@ fn stored_alpha(opacity: f32) -> u8 {
     ((opacity / scale).clamp(0.0, 1.0) * 255.0 + 0.5) as u8
 }
 
-/// The transmittance picture as the car's glass texture: the colour is the picture's (the tint of the glass; where the
-/// glass is clear it is white, which the low alpha makes a faint veil), the alpha the opacity divided by the alpha of the
-/// light material that will draw the texel.
+/// The luminance of the scene a thin translucent surface is lit and seen against, linear: the middle of the range (the tint
+/// colour is chosen for it). A choice.
+const SCENE_LEVEL: f32 = 0.5;
+/// The opacity below which the tint is no longer scaled up (see [`blend_colour`]).
+const MIN_TINT_ALPHA: f32 = 0.25;
+
+/// The colour a glass texel is blended with (sRGB). The car shader blends `alpha * colour + (1 - alpha) * scene`, where RIDE 6's
+/// thin translucent surface shows `scene * transmittance`; with the opacity `alpha = 1 - mean(transmittance)` the blend equals
+/// the transmittance for a scene of [`SCENE_LEVEL`] when the colour is `(transmittance - mean) * SCENE_LEVEL / alpha` (linear,
+/// never below black). Grey glass (the smoked screen of a sports bike, the clear screen of a tourer) is therefore **black**
+/// with the opacity as its alpha, and a coloured lens keeps only the colour its transmittance has over the grey. The texture's
+/// own colour was drawn as the surface colour before, which made a light grey transmittance (a smoked screen of 0.5) an
+/// opaque white shell.
+pub fn blend_colour(texel: [u8; 4], max: f32) -> [u8; 3] {
+    let max = max.clamp(0.0, 1.0);
+    let transmittance = [texel[0], texel[1], texel[2]].map(|c| srgb_to_linear(c) * max);
+    let mean = transmittance.iter().sum::<f32>() / 3.0;
+    let alpha = 1.0 - mean;
+    if alpha <= 1e-6 {
+        return [0, 0, 0];
+    }
+    // Where the glass is nearly clear the opacity is tiny and the division would amplify rounding noise into a tint: capped.
+    let scale = SCENE_LEVEL / alpha.max(MIN_TINT_ALPHA);
+    transmittance.map(|t| linear_to_srgb((t - mean).max(0.0) * scale))
+}
+
+/// The transmittance picture as the car's glass texture: the blend colour ([`blend_colour`]) and the alpha of the opacity
+/// divided by the alpha of the light material that will draw the texel.
 pub fn bake(picture: Level, max: f32) -> Level {
     let Level { width, height, mut rgba } = picture;
     for texel in rgba.as_chunks_mut::<4>().0.iter_mut() {
-        texel[3] = stored_alpha(opacity(*texel, max));
+        let [r, g, b] = blend_colour(*texel, max);
+        let alpha = stored_alpha(opacity(*texel, max));
+        *texel = [r, g, b, alpha];
     }
     Level { width, height, rgba }
 }
@@ -104,11 +131,21 @@ mod tests {
     }
 
     #[test]
-    fn the_colour_is_kept_and_the_light_material_follows_the_opacity() {
+    fn grey_glass_is_black_with_its_opacity_and_a_lens_keeps_the_colour_it_has_over_the_grey() {
+        // The smoked screen of the RC 390: a light grey transmittance (190) is a dark, half transparent surface.
+        let smoke = Level { width: 1, height: 1, rgba: vec![190, 191, 190, 4] };
+        let baked = bake(smoke, 0.95);
+        assert!(baked.rgba[..3].iter().all(|&c| c < 24), "the colour of grey glass is black: {:?}", &baked.rgba[..3]);
+        assert!(baked.rgba[3] > 100 && baked.rgba[3] < 160, "{}", baked.rgba[3]);
         let picture = Level { width: 2, height: 1, rgba: vec![255, 250, 255, 3, 173, 0, 5, 36] };
         let baked = bake(picture, 0.95);
-        assert_eq!(&baked.rgba[..3], &[255, 250, 255]);
-        assert_eq!(&baked.rgba[4..7], &[173, 0, 5]);
+        assert!(
+            baked.rgba[..3].iter().all(|&c| c < 60),
+            "clear glass is dark with a faint alpha: {:?}",
+            &baked.rgba[..3]
+        );
+        let red = &baked.rgba[4..7];
+        assert!(red[0] > 40 && red[1] == 0 && red[2] == 0, "{red:?}");
         assert_eq!(light_material(0.05), CLEAR_GLASS);
         assert_eq!(light_material(CLEAR_ALPHA), CLEAR_GLASS);
         assert_eq!(light_material(0.87), TINTED_GLASS);

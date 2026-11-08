@@ -16,14 +16,14 @@
 
 use blackbox_vehicle::bike::{AbsLevelSpec, Bike, BikeInput, FRONT, REAR, choices};
 use blackbox_vehicle::input::Controls;
-use blackbox_vehicle::math::ramp;
 use blackbox_vehicle::rigid_body::box_inertia;
-use blackbox_vehicle::{Ground, InputState, SKID_RANGE, SMOKE_RANGE, Vehicle, VehicleSpec, WheelState};
+use blackbox_vehicle::{Ground, InputState, Vehicle, VehicleSpec, WheelState};
 use glam::{Mat3, Vec3};
 use nfsmw_data::car::WheelPose;
 use nfsmw_data::car::physics::CarPhysics;
 
 use super::super::rider::RiderSample;
+use super::bike_slide::{Slide, slide_of};
 use super::step::StepStart;
 use super::{CarSim, MAX_VISIBLE_TRAVEL, Telemetry};
 
@@ -126,6 +126,8 @@ impl BikeRide {
 
     /// The first half of a step: the bike integrates the forces of the last one, and the double follows.
     pub(super) fn begin_body(&mut self, vehicle: &mut Vehicle, dt: f32) {
+        // The double's ground contacts are those of this step only (the car's own begin does this).
+        vehicle.clear_body_contacts();
         self.sync_double(vehicle);
         self.bike.begin_body(dt);
         self.push(vehicle);
@@ -169,7 +171,7 @@ impl BikeRide {
         // On the grid of a race the rider holds the bike with both brakes until the start.
         let rider = match vehicle.staging() {
             true => BikeInput { throttle: 0.0, front_brake: 1.0, rear_brake: 1.0, steer: 0.0 },
-            false => command(input, self.bike.forward_speed()),
+            false => command(input),
         };
         self.bike.set_weight(start.weight);
         self.bike.respond(start.delta, &rider, ground);
@@ -248,6 +250,7 @@ impl BikeRide {
             weight: self.bike.rider_weight(),
             steer: self.controls.steering,
             drift_deg: self.drift_angle_deg(),
+            clutch: self.bike.clutch_pulled(),
         }
     }
 
@@ -261,6 +264,11 @@ impl BikeRide {
             true => (-right).atan2(forward).to_degrees(),
             false => 0.0,
         }
+    }
+
+    /// The width of the mark library wheel `index` leaves (m).
+    pub(super) fn mark_width(&self, index: usize) -> f32 {
+        super::bike_slide::mark_width(&self.bike, index)
     }
 
     /// The bike wheel behind library wheel `index` (0 front left, 1 front right, 2 rear left, 3 rear right).
@@ -281,17 +289,11 @@ impl BikeRide {
             _ => (spec.rear.radius, 0.0),
         };
         let rotation = Mat3::from_quat(self.bike.orientation());
-        // The sideways slide is the slip angle against the speed along the bike, at least 1 m/s (the tyre model's own
-        // regularisation). The slide along the wheel is the tyre's own slip speed, not the slip ratio times that speed: below
-        // 1 m/s the ratio is scaled down, and a rear wheel spinning on the spot in a burnout would show no smoke and no marks.
+        // What slides is the tyre's own slide past the peak of its force curve, not the slip speeds, which grow with the speed
+        // of the bike (`bike_slide.rs`). The sideways slide is the slip angle against the speed along the bike, at least 1 m/s
+        // (the tyre model's own regularisation).
         let along = self.bike.forward_speed().abs().max(1.0);
-        let slip = wheel.slip_speed;
-        let lateral_speed = wheel.slip_angle.tan() * along;
-        let slide_speed = match wheel.on_ground {
-            true => slip.hypot(lateral_speed),
-            false => 0.0,
-        };
-        let skid = ramp(slide_speed, SKID_RANGE.0, SKID_RANGE.1);
+        let Slide { slip, lateral_speed, speed: slide_speed, skid, smoke } = slide_of(wheel, along);
         let position = match wheel.on_ground {
             true => wheel.contact,
             false => self.bike.wheel_pose(which).0 - Vec3::Y * radius,
@@ -314,7 +316,7 @@ impl BikeRide {
             longitudinal_force: wheel.force.dot(rotation.z_axis),
             slide_speed,
             skid,
-            smoke: ramp(slide_speed, SMOKE_RANGE.0, SMOKE_RANGE.1),
+            smoke,
         }
     }
 
@@ -385,17 +387,27 @@ fn signed_unit(value: f32) -> f32 {
 /// What the rider asks of the bike for the game's input: the throttle and the stick as they are; the brake pedal pulls both
 /// brakes and the handbrake only the rear one (the input layer has one brake axis). The gearbox is automatic: the shift
 /// buttons, the gear keys and the clutch are not read.
-pub(super) fn command(input: &InputState, speed: f32) -> BikeInput {
+pub(super) fn command(input: &InputState) -> BikeInput {
     BikeInput {
         throttle: unit(input.throttle),
         front_brake: unit(input.brake),
         rear_brake: unit(input.brake).max(unit(input.handbrake)),
-        // The full stick up to `choices::STICK_FULL_UNTIL` m/s, less above (`ride6-feel-round9.md`, section 4).
-        steer: signed_unit(input.steer) * choices::stick_share(speed),
+        // The stick reaches its end at `choices::STEER_REACH` of its travel, and is the whole of it at any speed: nothing here narrows
+        // with speed (`ride6-feel-round12.md`, section 2; `ride6-feel-round13.md`, section 2).
+        steer: signed_unit(input.steer / choices::STEER_REACH),
     }
 }
 
 impl CarSim {
+    /// The dot product of the car's up vector with the world's. A bike under its rider is never "tipped over": it rides leaned to
+    /// 50 or 60 degrees, which is a car on its side to the sound and the police speech; only a fallen bike has its real value.
+    pub fn up_dot(&self) -> f32 {
+        match self.ride.as_deref() {
+            Some(ride) if !ride.bike.fallen() => 1.0,
+            _ => self.vehicle.rotation().y_axis.y,
+        }
+    }
+
     /// Whether the car is a bike.
     pub fn is_bike(&self) -> bool {
         self.ride.is_some()

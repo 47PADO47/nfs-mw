@@ -40,7 +40,7 @@ pub use camera::{
 };
 pub use commands::{BbCommandCallbackFn, BbCommands, BbCommandsRegisterFn, BbCommandsRunFn, BbCommandsUnregisterFn};
 pub use config::{BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn};
-pub use content::{BbContent, BbContentRescanFn};
+pub use content::{BbContent, BbContentBytesSinkFn, BbContentProvideLazyFn, BbContentReadLazyFn, BbContentRescanFn};
 pub use engine::{
     BB_ENGINE_OFF, BB_ENGINE_RUNNING, BB_ENGINE_STARTING, BbEngine, BbEngineCarFn, BbEngineStartFn, BbEngineState,
     BbEngineStateFn, BbEngineStopFn,
@@ -94,8 +94,8 @@ pub const IFACE_INPUT_VERSION: (u16, u16) = (1, 0);
 
 /// Id of the content interface: tell the host that the files a mod keeps in its folder have changed.
 pub const IFACE_CONTENT: &str = "bb.content";
-/// The version the host implements for [`IFACE_CONTENT`], as `(major, minor)`.
-pub const IFACE_CONTENT_VERSION: (u16, u16) = (1, 0);
+/// The version the host implements for [`IFACE_CONTENT`], as `(major, minor)`. 1.1 added `provide_lazy_files`.
+pub const IFACE_CONTENT_VERSION: (u16, u16) = (1, 1);
 /// Id of the time-of-day interface: read and set the world clock.
 pub const IFACE_TIME: &str = "bb.time";
 /// The version the host implements for [`IFACE_TIME`], as `(major, minor)`.

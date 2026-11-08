@@ -85,6 +85,10 @@ pub struct WheelState {
     pub tyre_compression: f32,
     /// The longitudinal slip normalised to the force peaks (-1 at the braking peak).
     pub normalised_x: f32,
+    /// The lateral slip normalised to the force peaks, and the length of the two together (1 = the combined force peaks, above it
+    /// the tyre skids): the measure of a skid at any speed (`TyreOutput::slide`).
+    pub normalised_y: f32,
+    pub slide: f32,
     /// The self-aligning moment of the tyre (N m); 0 for the rear wheel.
     pub aligning: f32,
     /// The tyre's longitudinal force (N) and the unit direction of its side force on the ground.
@@ -106,6 +110,8 @@ impl WheelState {
         self.slip_speed = 0.0;
         self.tyre_compression = 0.0;
         self.normalised_x = 0.0;
+        self.normalised_y = 0.0;
+        self.slide = 0.0;
         self.aligning = 0.0;
         self.traction = 0.0;
     }

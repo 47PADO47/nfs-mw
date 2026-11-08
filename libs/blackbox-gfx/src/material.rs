@@ -105,6 +105,11 @@ pub struct GlossyMaterial {
     /// Preserve authored diffuse response and skip primary-subject reflection correction.
     /// Suitable for background actors that share the reflection capture.
     pub background_actor: bool,
+    /// A hemispheric ambient floor for a surface of a converted mod car (the original shader has no ambient term, so a
+    /// panel that faces away from every light is black). The light a surface gets is raised to `ambient_floor` times the
+    /// rig's fill colours, strongest for upward normals and 40 percent weaker for downward ones. Zero (the default) adds
+    /// nothing, which is what the stock cars use; it applies to every `GlossyModel` of the material.
+    pub ambient_floor: f32,
     /// Optional Custom-only surface response. None preserves the legacy equations.
     pub surface: Option<GlossySurface>,
     /// RGBA multiplier of the lit texture; alpha scales the highlight and the reflection, and
@@ -128,6 +133,7 @@ impl Default for GlossyMaterial {
         Self {
             model: GlossyModel::Custom,
             background_actor: false,
+            ambient_floor: 0.0,
             surface: None,
             diffuse_min: [1.0; 4],
             diffuse_range: [0.0; 4],

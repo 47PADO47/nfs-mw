@@ -8,7 +8,15 @@ use crate::config::Config;
 
 /// Bump when the importer changes what it writes for the same input.
 /// 2: the rider's contact points per car (`RIDER/contacts.json`).
-const CONVERSION: u32 = 2;
+/// 4: the shop's options: the stock exhaust, rims, discs and bar pad as solids of their own, `components/`, `PARTS/R6/`.
+/// 3: glass blended as its transmittance, metals spared most of the baked occlusion, more stock parts, liveries, the finest level
+/// of detail whose solids fit, colours not veiled by the reflection, the idle panel in the instrument clusters' displays.
+/// 5: the rider's gear catalogue (`files/RIDER/GEAR`).
+/// 6: the clusters' screens composed from RIDE 6's gauge widgets (`tex/*_dash.png`), the livery paint's occlusion floor, the hue-keeping
+/// lift and satin metal drawn as painted metal.
+/// 7: the finest level of detail for every body (the frame is as many solids as it needs, `BODY2`, ...), the pictures of the old rims,
+/// silencers and headers whose master names them differently, the far levels' paint taken from the chassis' livery.
+const CONVERSION: u32 = 7;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";
 
@@ -21,6 +29,7 @@ pub fn of(
     physics: &Path,
     sound: Option<&Path>,
     rider: Option<&Path>,
+    gear: Option<&Path>,
 ) -> String {
     let mut parts = vec![format!("conversion {CONVERSION}"), format!("{config:?}")];
     let mut inputs: Vec<String> = bikes
@@ -39,9 +48,19 @@ pub fn of(
     if let Some(dir) = rider {
         inputs.extend(files_below(dir));
     }
+    if let Some(dir) = gear {
+        inputs.extend(files_below(dir));
+    }
     inputs.sort();
     parts.extend(inputs);
     parts.join("\n")
+}
+
+/// `stamp` with the shop's inputs: the catalogue and the shared part table of the folder of the optional parts, when there is one.
+pub fn with_parts(stamp: String, parts: Option<&Path>) -> String {
+    let Some(dir) = parts else { return stamp };
+    let files = ["catalogue.json", "parts.json"].map(|name| fingerprint(&dir.join(name), dir.file_name()));
+    format!("{stamp}\n{}", files.join("\n"))
 }
 
 /// The fingerprints of the files one and two levels below `dir`.
@@ -106,6 +125,18 @@ mod tests {
     }
 
     #[test]
+    fn the_optional_parts_change_the_stamp() {
+        let dir = temp("parts");
+        assert_eq!(with_parts("s".to_owned(), None), "s");
+        let without = with_parts("s".to_owned(), Some(&dir));
+        fs::write(dir.join("catalogue.json"), "{}").unwrap();
+        let with = with_parts("s".to_owned(), Some(&dir));
+        assert_ne!(without, with);
+        assert_eq!(with, with_parts("s".to_owned(), Some(&dir)));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn settings_and_inputs_change_the_stamp() {
         let dir = temp("inputs");
         let bike = dir.join("ktm450");
@@ -113,18 +144,22 @@ mod tests {
         fs::write(bike.join("parts.json"), "{}").unwrap();
         let bikes = vec![bike.clone()];
         let nowhere = dir.join("none");
-        let base = of(&Config::default(), &bikes, &nowhere, None, None);
-        assert_eq!(base, of(&Config::default(), &bikes, &nowhere, None, None), "the same input gives the same stamp");
+        let base = of(&Config::default(), &bikes, &nowhere, None, None, None);
+        assert_eq!(
+            base,
+            of(&Config::default(), &bikes, &nowhere, None, None, None),
+            "the same input gives the same stamp"
+        );
         let smaller = Config { max_texture: 512, ..Config::default() };
-        assert_ne!(base, of(&smaller, &bikes, &nowhere, None, None));
+        assert_ne!(base, of(&smaller, &bikes, &nowhere, None, None, None));
         // The meshes being there counts: a cleaned folder is another input.
         fs::create_dir_all(bike.join("glb")).unwrap();
-        assert_ne!(base, of(&Config::default(), &bikes, &nowhere, None, None));
+        assert_ne!(base, of(&Config::default(), &bikes, &nowhere, None, None, None));
         // So does a physics file.
-        let with_glb = of(&Config::default(), &bikes, &nowhere, None, None);
+        let with_glb = of(&Config::default(), &bikes, &nowhere, None, None, None);
         fs::create_dir_all(dir.join("dump/vehicles/KTM")).unwrap();
         fs::write(dir.join("dump/vehicles/KTM/a.json"), "{}").unwrap();
-        assert_ne!(with_glb, of(&Config::default(), &bikes, &dir.join("dump"), None, None));
+        assert_ne!(with_glb, of(&Config::default(), &bikes, &dir.join("dump"), None, None, None));
         fs::remove_dir_all(&dir).unwrap();
     }
 }
