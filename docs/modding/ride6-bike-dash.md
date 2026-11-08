@@ -22,22 +22,34 @@ trait as asked; a mod that wants to draw its own picture would call the same fun
 
 ## The importer [R]
 
-`bake::Surfaces::bake` finds the display in the static `gauge<chassis>_d` picture (`dash::find_window`, the existing search for the largest black rectangle that is a display),
-composes the exporter's widgets at rest over it as before, shrinks the picture to `dash::LIVE_SIZE` = 512 and stores it as `Argb8888` with one level; the window is scaled to the
-stored size. The colours of the painter are the idle panel's, lifted by the same gain as the picture (`grade::lift_colour`), so a painted texel and the baked ones agree. A
-cluster without such a window (the analogue dials, a bezel on a black ground) is baked as before and gets no table. The table is kept in `built.json` (`Summary::dash`) so
-`remanifest` keeps it.
+`bake::Surfaces::bake` finds the display in the static `gauge<chassis>_d` picture (`dash::find_window`, the existing search for the largest black rectangle that is a display).
+The picture stays the exporter's composition of the widgets at rest (shrunk to `dash::LIVE_SIZE` = 512 and stored as `Argb8888` with one level; the window is scaled to the stored
+size). The **places of the values come from RIDE 6's own widgets**: `tools/ride6-exporter/dash.py` now writes `<picture>_dash.json` beside `_dash.png`, the rectangles (1024 canvas)
+of the text boxes named `speedtext`/`speed` and `gear`/`gear_` (with their colour, justification and size) and of the rev bar's drawn part (with the number of its segments; a dial
+whose arc is not a bar is left out). The importer scales them to the stored picture, lifts their colours like the picture and takes as each field's `background` the median colour of the
+picture under it (the few glyph texels voted out) and writes them as `[[bike.dash.field]]`. A cluster with a display and no layout (a bike exported before this change; run
+`python -I tools\ride6-exporter\dash.py` again) keeps the bezel with the idle panel in the window and gets the generic panel below.
 
 ```toml
 [bike.dash]
 texture = "DUCATI_PANIGALE-V4-S-2025_GAUGE162_D"
 window = [..]            # texels of the stored 512 px texture
 
-[bike.dash.colors]
+[bike.dash.colors]       # the generic panel's colours
 background = [..]  lit = [..]  dim = [..]  text = [..]  label = [..]  gear = [..]
+
+[[bike.dash.field]]      # one per place the cluster shows a value
+channel = "speed"        # speed | gear | rpm_bar
+rect = [x, y, w, h]      # texels of the stored texture, erased with `background` and redrawn
+color = [..]  background = [..]  align = "right"  segments = 1
 ```
 
 ## The painter [M]
+
+**With fields** the host erases each rectangle with its background and draws the value in it, scaled to the rectangle (the 5 by 7 dot font, the field's colour and justification): the
+speed in whole km/h, the gear (`N` when the bike stands at idle: a bike's gearbox has no neutral, so standing at idle is shown as `N`; `R`; else its number), the revs as the
+lit part of the bar from the left (in its segments). Only those rectangles are uploaded. The glyphs of RIDE 6's fonts are not reproduced (the dot font is the host's), the position,
+size and colour are the cluster's. **Without fields** it is the generic panel below.
 
 The generic panel is the idle panel of `mods/ride6-bikes/src/dash.rs` with live values: a 24 segment rev bar along the top (the share of the engine's `MAX_RPM`), the gear on the
 left (`R`, `N`, `1`..), the speed on the right in km/h with `KM/H` under it, in a 5 by 7 dot font scaled to the display. A bike with the table gets this panel whatever the
