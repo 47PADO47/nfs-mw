@@ -86,7 +86,7 @@ fn a_mods_lazy_files_are_read_through_its_function_until_it_unloads() {
     let attached = attach(fake.clone(), "example.cars");
     // SAFETY: the header is the first field of the `BbContent` this module boxed, which `attached` keeps alive.
     let table = unsafe { &*attached.header().cast::<BbContent>() };
-    assert_eq!(table.head.minor, 1, "lazy files came with 1.1");
+    assert_eq!(table.head.minor, 2, "lazy files came with 1.1, the capabilities and the report with 1.2");
     let provide = table.provide_lazy_files.expect("the table has provide_lazy_files");
     let calls = AtomicUsize::new(0);
     crate::host::gate::mark_main_thread();
@@ -124,4 +124,28 @@ fn lazy_files_need_a_function_and_a_backend_that_takes_them() {
     // SAFETY: `ctx` is that table's own slot pointer; `make` is never called by this backend.
     let status = unsafe { provide(old_table.ctx, Some(make), core::ptr::null_mut()) };
     assert_eq!(status, BB_ERR_UNSUPPORTED, "a game without lazy files says so");
+}
+
+unsafe extern "C" fn take_text(sink: *mut core::ffi::c_void, bytes: *const u8, len: u64) {
+    // SAFETY: `sink` is the `Vec<u8>` the test passed; the host gives `len` readable bytes.
+    let out = unsafe { &mut *sink.cast::<Vec<u8>>() };
+    out.extend_from_slice(unsafe { core::slice::from_raw_parts(bytes, len as usize) });
+}
+
+#[test]
+fn the_capabilities_and_the_report_of_a_backend_come_through_and_an_old_backend_says_none() {
+    let fake = Rc::new(Fake::default());
+    let attached = attach(fake.clone(), "example.cars");
+    // SAFETY: the header is the first field of the `BbContent` this module boxed, which `attached` keeps alive.
+    let table = unsafe { &*attached.header().cast::<BbContent>() };
+    crate::host::gate::mark_main_thread();
+    let _scope = crate::host::gate::enter();
+    // SAFETY: `ctx` is the table's own slot pointer.
+    assert_eq!(unsafe { table.capabilities.expect("capabilities")(table.ctx) }, 0, "a backend with none says 0");
+    let mut text: Vec<u8> = Vec::new();
+    let report = table.report.expect("report");
+    // SAFETY: `ctx` is the table's own slot; `text` outlives the call and `take_text` only appends to it.
+    let status = unsafe { report(table.ctx, Some(take_text), (&mut text as *mut Vec<u8>).cast()) };
+    assert_eq!(status, BB_ERR_UNSUPPORTED, "the default backend has no report");
+    assert!(text.is_empty());
 }
