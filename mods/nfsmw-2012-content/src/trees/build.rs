@@ -1,6 +1,6 @@
 //! Making the variant's files out of the 2012 trees: `GEOMETRY.BIN` with one solid per species and level of detail
-//! (`MW12_<SPECIES>_L<level>`), `TEXTURES.BIN` with the textures they use, and the `profile.toml` that says which solid of the
-//! 2005 world each replaces (`docs/modding/effect-variants.md`, "Profile format of the trees").
+//! (`MW12_<SPECIES>_L<level>`), `TEXTURES.BIN` with the textures they use, and the manifests of `manifest.rs` that say which solid of the
+//! 2005 world each replaces (`docs/modding/api-replace.md`).
 //!
 //! A solid is in 2005 space (x forward, y left, z up) with its origin at the foot of the trunk, the way the game's own tree solids
 //! stand. Its leaf cards are effect 6 (the game's tree shader) with the punch-through textures of a cut-out; its trunk is effect 0
@@ -16,7 +16,6 @@ use blackbox_tpk::write_tpk;
 use super::light;
 use super::read::{Level, Role, TreeModel};
 use super::species::{self, Species};
-use super::stock;
 use crate::fit::to_car_space;
 use crate::textures::Palette;
 
@@ -31,12 +30,6 @@ const MAX_GROUP_VERTICES: usize = 60_000;
 /// own top, and its top reaches at least [`STANDING_TOP`] of the finest level's.
 const STANDING_FLOOR: f32 = 0.1;
 const STANDING_TOP: f32 = 0.6;
-/// The limits the game keeps a replacement to (`blackbox_modding::content::FitLimits`, the `[fit]` table of the profile): a
-/// tree is at most this much wider than the footprint it replaces, is squeezed sideways to no less than this share of its
-/// height scale, and is not used if it would be shorter than this share of the replaced height.
-const FIT_SPREAD: f32 = 1.25;
-const FIT_SQUEEZE: f32 = 0.5;
-const FIT_MIN_HEIGHT: f32 = 0.7;
 /// The folder of the variant under the mod's `files/`, and the files in it.
 pub const FOLDER: &str = "TREES/MW2012";
 pub const GEOMETRY_FILE: &str = "GEOMETRY.BIN";
@@ -46,7 +39,6 @@ pub const TEXTURES_FILE: &str = "TEXTURES.BIN";
 pub struct Pack {
     pub geometry: Vec<u8>,
     pub textures: Vec<u8>,
-    pub profile: String,
     /// The species that made it into the pack, and how many levels of detail each has.
     pub species: Vec<(&'static str, usize)>,
 }
@@ -77,8 +69,7 @@ pub fn build(models: &[(&'static Species, TreeModel)], max_texture_size: u32) ->
     }
     let geometry = write_geometry_pack(&solids).context("writing the tree models")?;
     let textures = write_tpk("TREES", &palette.into_textures()).context("writing the tree textures")?;
-    let profile = profile_text(&built);
-    Ok(Pack { geometry, textures, profile, species: built })
+    Ok(Pack { geometry, textures, species: built })
 }
 
 /// The solids of one species, one per level of detail, and its textures added to `palette`. The levels stop at the first one
@@ -195,68 +186,4 @@ fn level_solid(name: String, level: &Level) -> Result<Option<SolidSource>> {
     solid.flags = 0;
     solid.texture_hashes = hashes;
     Ok(Some(solid))
-}
-
-/// The text of the variant as a replacement set (`replace/trees-mw2012.toml`, `docs/modding/api-replace.md`): the same swaps as
-/// [`profile_text`], declared through the one API. The host adds the value to the trees option from it, so the mod needs no code.
-pub fn replace_manifest(built: &[(&str, usize)], value: &str, label: &str) -> String {
-    let mut text = format!(
-        "format = 1
-
-[set]
-kind = \"trees\"
-kind_label = \"Trees\"
-value = \"{value}\"
-value_label = \"{label}\"
-fit = \"height\"
-
-[files]
-geometry = \"{FOLDER}/{GEOMETRY_FILE}\"
-textures = \"{FOLDER}/{TEXTURES_FILE}\"
-
-[fit]
-spread = {FIT_SPREAD}
-squeeze = {FIT_SQUEEZE}
-min_height = {FIT_MIN_HEIGHT}
-"
-    );
-    for family in stock::FAMILIES {
-        let Some(&(_, levels)) = built.iter().find(|(key, _)| *key == family.species) else { continue };
-        for (solid, code) in family.names() {
-            let model = species::solid_name(family.species, stock::level(code, family.row, levels));
-            let fit = match family.row {
-                true => "row",
-                false => "height",
-            };
-            text.push_str(&format!(
-                "
-[[model]]
-target = \"{solid}\"
-model = \"{model}\"
-fit = \"{fit}\"
-"
-            ));
-        }
-    }
-    text
-}
-
-/// The text of the variant's `profile.toml`: a swap for every solid of [`stock::FAMILIES`] whose species is in `built` (the
-/// species and the number of levels each has).
-pub fn profile_text(built: &[(&str, usize)]) -> String {
-    let mut text = format!(
-        "format = 1\ngeometry = \"{FOLDER}/{GEOMETRY_FILE}\"\ntextures = \"{FOLDER}/{TEXTURES_FILE}\"\n\n[fit]\nspread = {FIT_SPREAD}\nsqueeze = {FIT_SQUEEZE}\nmin_height = {FIT_MIN_HEIGHT}\n"
-    );
-    for family in stock::FAMILIES {
-        let Some(&(_, levels)) = built.iter().find(|(key, _)| *key == family.species) else { continue };
-        for (solid, code) in family.names() {
-            let model = species::solid_name(family.species, stock::level(code, family.row, levels));
-            let fit = match family.row {
-                true => "row",
-                false => "height",
-            };
-            text.push_str(&format!("\n[[swap]]\nsolid = \"{solid}\"\nmodel = \"{model}\"\nfit = \"{fit}\"\n"));
-        }
-    }
-    text
 }

@@ -101,6 +101,12 @@ traffic = true
 # (mods/nfsmw-2012-content/README.md, \"Trees\"); the max_texture_size key applies to their textures.
 trees = true
 
+# Add the 2012 game's bushes and hedges as a value of the gameplay setting \"Bushes\": the shrubs, hedges and bush patches of the 2005 world's
+# scenery (about 480 solids) are drawn with the 2012 game's shrub models while the setting says so. They come from the same
+# conversion as the trees (same pictures, a few hundred KB more), so they need `trees = true`. false adds no Bushes setting and
+# leaves the three bush families of the old Trees value (round bushes) in it as they were.
+bushes = true
+
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
 # weight, grip the tyres, brakes the brake torque (0.25 to 4 each, grip 0.25 to 3), nitrous_power the extra torque of
@@ -207,6 +213,8 @@ pub struct Config {
     pub traffic: bool,
     /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
     pub trees: bool,
+    /// Whether the 2012 game's bushes and hedges are offered as their own variant (`trees/bushes.rs`); needs `trees`.
+    pub bushes: bool,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -230,6 +238,7 @@ impl Default for Config {
             lazy: false,
             traffic: true,
             trees: true,
+            bushes: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),
@@ -322,6 +331,23 @@ mod tests {
     fn defaults_want_everything() {
         let config = Config::default();
         assert!(config.wants("POR911CARR12", "Porsche 911 Carrera S 2012"));
+    }
+
+    #[test]
+    fn the_bushes_are_on_by_default_and_a_change_converts_again() {
+        assert!(Config::default().bushes);
+        assert!(
+            !Config::parse(
+                "bushes = false
+"
+            )
+            .unwrap()
+            .bushes
+        );
+        assert_ne!(
+            crate::stamp::of(&Config::default(), Path::new("definitely/not/here")),
+            crate::stamp::of(&Config { bushes: false, ..Config::default() }, Path::new("definitely/not/here")),
+        );
     }
 
     #[test]

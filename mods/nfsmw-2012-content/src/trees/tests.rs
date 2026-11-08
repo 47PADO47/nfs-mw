@@ -10,9 +10,11 @@ use blackbox_tpk::{AlphaUsage, PixelFormat, read_texture_packs};
 use chameleon_gfx::{PixelFormat as SourceFormat, Texture, mip_size};
 
 use super::build::{self, texture_name};
+use super::manifest;
 use super::read::{Level, Part, Role, TreeModel};
 use super::species::{SPECIES, solid_name};
 use super::stock::{self, FAMILIES};
+use super::trees_set;
 
 const LEAF: u64 = 0x0100_0000_0010_4f52;
 const BARK: u64 = 0x0100_0000_0010_4f49;
@@ -109,7 +111,7 @@ fn a_species_with_a_texture_the_old_engine_cannot_draw_is_left_out_and_the_other
 
 #[test]
 fn the_profile_swaps_every_stock_solid_of_the_species_built_and_the_game_accepts_it() {
-    let text = build::profile_text(&[("BROADLEAF_M", 4), ("BUSH", 4), ("POPLAR", 2)]);
+    let text = manifest::profile_text(&trees_set(false), &[("BROADLEAF_M", 4), ("BUSH", 4), ("POPLAR", 2)]);
     let profile = parse_model_swap_profile(&text).unwrap();
     assert_eq!(profile.geometry, "TREES/MW2012/GEOMETRY.BIN");
     assert_eq!(profile.textures, "TREES/MW2012/TEXTURES.BIN");
@@ -134,7 +136,7 @@ fn the_profile_swaps_every_stock_solid_of_the_species_built_and_the_game_accepts
 
 #[test]
 fn a_profile_of_no_species_has_no_swap_and_the_game_refuses_it() {
-    assert!(parse_model_swap_profile(&build::profile_text(&[])).is_err());
+    assert!(parse_model_swap_profile(&manifest::profile_text(&trees_set(false), &[])).is_err());
 }
 
 #[test]
@@ -193,7 +195,7 @@ fn a_level_that_hovers_over_the_ground_is_dropped_so_far_trees_stand() {
     assert_eq!(pack.species, [("BROADLEAF_S", 2)], "the crown-only level is not in the pack");
     let solids = read_solids(&pack.geometry).unwrap();
     assert_eq!(solids.len(), 2);
-    let swapped = parse_model_swap_profile(&build::profile_text(&pack.species)).unwrap();
+    let swapped = parse_model_swap_profile(&manifest::profile_text(&trees_set(false), &pack.species)).unwrap();
     let far = swapped.swaps.iter().find(|swap| swap.solid == "XO_CT_CAMPUSSMACKTREE_1Z_JG_00").unwrap();
     assert_eq!(far.model, "MW12_BROADLEAF_S_L1", "the far solids take the coarsest level that stands");
 }
@@ -209,7 +211,7 @@ fn a_level_that_is_short_of_the_finest_is_dropped_too() {
 
 #[test]
 fn the_profile_carries_the_limits_the_game_keeps_a_replacement_to() {
-    let limits = parse_model_swap_profile(&build::profile_text(&[("BUSH", 4)])).unwrap().limits;
+    let limits = parse_model_swap_profile(&manifest::profile_text(&trees_set(false), &[("BUSH", 4)])).unwrap().limits;
     assert_eq!((limits.spread, limits.squeeze, limits.min_height), (1.25, 0.5, 0.7));
 }
 
@@ -217,9 +219,8 @@ fn the_profile_carries_the_limits_the_game_keeps_a_replacement_to() {
 fn the_replacement_set_declares_the_same_swaps_as_the_profile_and_the_game_accepts_it() {
     use blackbox_modding::content::{ReplaceTarget, parse_model_swap_profile, parse_replace_set};
     let built = [("BROADLEAF_M", 4), ("BUSH", 4), ("POPLAR", 2)];
-    let set =
-        parse_replace_set("trees-mw2012", &build::replace_manifest(&built, "mw2012", "NFS Most Wanted 2012")).unwrap();
-    let profile = parse_model_swap_profile(&build::profile_text(&built)).unwrap();
+    let set = parse_replace_set("trees-mw2012", &manifest::replace_manifest(&trees_set(false), &built)).unwrap();
+    let profile = parse_model_swap_profile(&manifest::profile_text(&trees_set(false), &built)).unwrap();
     assert_eq!(
         (set.kind.as_str(), set.value.as_str(), set.option().as_deref()),
         ("trees", "mw2012", Some("trees_variant"))
