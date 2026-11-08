@@ -68,6 +68,12 @@ fn try_write(source: &Source, config: &Config, out: &Path) -> Result<()> {
         std::fs::write(folder.join(file), bytes).with_context(|| format!("writing {file}"))?;
         written += bytes.len();
     }
+    // The same variant declared through the one replacement API; written last, so a host that reads it finds the files in place.
+    let manifest = build::replace_manifest(&pack.species, VARIANT, LABEL);
+    let replace_folder = out.join(blackbox_modding::content::REPLACE_FOLDER);
+    std::fs::create_dir_all(&replace_folder).with_context(|| format!("creating {}", replace_folder.display()))?;
+    std::fs::write(replace_folder.join("trees-mw2012.toml"), manifest.as_bytes())
+        .context("writing the replacement set")?;
     let names: Vec<String> = pack.species.iter().map(|(key, levels)| format!("{key} ({levels})")).collect();
     log::info!("trees variant: {}", names.join(", "));
     log::info!(
