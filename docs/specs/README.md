@@ -6,7 +6,13 @@ before the Rust implementation. Required wherever the only source is decompiled 
 
 Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 
+The CustomHUD plugin's gauge skins (the mod `scripts/CustomHud.asi`): [custom-hud-gauges.md](custom-hud-gauges.md), with the file
+format in [../formats/custom-hud-skin.md](../formats/custom-hud-skin.md).
+
 Player countdown follow-up: [clutch state and comparison boundaries](player-countdown-drivetrain.md).
+
+Vehicle components (ADR 0014): [vehicle-components/](vehicle-components/README.md) (data model, resolution, manifest, runtime and worked
+examples for the 2005, 2012 and RIDE 6 vehicles; the plan is [plans/vehicle-components.md](../plans/vehicle-components.md)).
 
 Driving extensions: [performance-upgrades.md](performance-upgrades.md),
 [speedbreaker.md](speedbreaker.md), [vehicle-jump-stabilizers.md](vehicle-jump-stabilizers.md),

@@ -3,7 +3,7 @@
 //! focus filter takes the grade from it (`focus_feed.rs`) and the chase lens takes the nudge (`camera_choice.rs`).
 //! Without a variant, or with one that has no `[screen]`, nothing here moves.
 
-use blackbox_gfx::ScreenGrade;
+use blackbox_gfx::{Projection, ScreenGrade};
 use blackbox_modding::content::{BurnFollower, ScreenProfile};
 use glam::{Mat4, Vec3};
 
@@ -51,7 +51,12 @@ impl CameraNudge {
             Lens { view: lens.view * Mat4::from_translation(-offset), position: lens.position + offset, ..lens };
         if self.fov != 0.0 {
             nudged.fov_y_degrees = (lens.fov_y_degrees + self.fov).clamp(FOV_LIMITS.0, FOV_LIMITS.1);
-            nudged.projection = projection(nudged.fov_y_degrees, aspect, NEAR_PLANE);
+            // A camera keeps its own near plane (the helmet camera's is 10 cm: 30 would cut its instrument panel off).
+            let near = match lens.projection {
+                Projection::PerspectiveInfiniteReverse { near, .. } => near,
+                _ => NEAR_PLANE,
+            };
+            nudged.projection = projection(nudged.fov_y_degrees, aspect, near);
         }
         nudged
     }

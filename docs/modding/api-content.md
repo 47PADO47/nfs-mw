@@ -25,6 +25,7 @@ follow-up; it would live in `libs/blackbox-chunk`).
 | Who provides | `vfs.provider(path: &str) -> Option<Provider { Install or Mod(String) }>` | G | same |
 | Layers | `vfs.layers() -> Vec<LayerInfo { owner, priority, files }>` | G | same |
 | Add layer | `vfs.add_overlay(dir: &str, priority: i32) -> Result<()>` for a folder a mod generates; `Load` only | G | same |
+| Lazy file | a stub in a mod's layer that `GameDir::read` replaces with bytes made by the mod when the file is read ([Lazy files](#lazy-files)); `GameDir::add_lazy_source(owner, source)` | G | `libs/game-install/src/vfs/lazy.rs` |
 | Mod data dir | `ctx.data_dir() -> PathBuf` a writable folder for the mod (`<local data dir>/<app>/mod-data/<id>/`) | G | `modding/runtime.rs` (new), `libs/game-install/src/discover/config.rs` for the base dir |
 
 The console command `vfs <path>` (new, host) prints which layer provides a path; `mods` lists the layers.
@@ -41,7 +42,31 @@ running game); the host rejects an entry whose source game has no reader or layo
 | Registry list | `content.list(kind: Kind) -> Vec<EntryInfo { key, owner }>` (any kind, including the game's own) | G | `modding/content.rs` (new) |
 | Lookup | `content.get(kind, key) -> Option<EntryInfo>` | G | same |
 | Unregister (own) | `content.remove(kind, key)`, valid in `Load` | G | same |
-| Rescan | `ctx.content() -> Option<Content>`, `content.rescan() -> Result<()>` (built, `bb.content` 1.0): the mod's `files/` and `cars/` changed since start-up. The host adds `files/` as a late layer of the install (shared by every copy, `GameDir::add_late_overlay`) and publishes the new cars (`car::mods::publish`); what the game opens afterwards lists them. A layer that exists is not re-indexed; a car already published is not added twice. Main thread only: a worker thread tells the mod's event callback, which calls it | G (interface), MW (cars) | `libs/blackbox-modding/src/{abi/iface,host/table,sdk}/content.rs`, `crates/nfsmw/src/modding/backends/content.rs`, `modding/content/mod.rs` (`rescan`) |
+| Rescan | `ctx.content() -> Option<Content>`, `content.rescan() -> Result<()>` (built, `bb.content` 1.0; 1.1 added [lazy files](#lazy-files)): the mod's `files/` and `cars/` changed since start-up. The host adds `files/` as a late layer of the install (shared by every copy, `GameDir::add_late_overlay`) and publishes the new cars (`car::mods::publish`); what the game opens afterwards lists them. A layer that exists is not re-indexed; a car already published is not added twice. Main thread only: a worker thread tells the mod's event callback, which calls it | G (interface), MW (cars) | `libs/blackbox-modding/src/{abi/iface,host/table,sdk}/content.rs`, `crates/nfsmw/src/modding/backends/content.rs`, `modding/content/mod.rs` (`rescan`) |
+
+### Lazy files
+
+Works now (`bb.content` 1.1). A mod that can make a file on demand (a car converted from another game's files when it is first
+opened) writes a **stub** in its `files/` layer in place of the file and gives the host the function that makes it. The host
+asks that function when the game **reads** the stub, so nothing is written for the file and the mod's folder stays small.
+Why and what it saved: [lean-content.md](lean-content.md).
+
+```
+BBLAZY1                    first line
+example.cars               the owner: the mod's id
+car/FASTCOUPE/GEOMETRY.BIN the key: any one line of text the mod understands
+```
+
+- A stub is text of at most 1,024 bytes; anything else is a plain file. The layer indexes it like any file, so the file exists, lists
+  in its folder, resolves and has the mod as its provider. `GameDir::read` returns the bytes the maker made; `open_file`,
+  `read_range` and `size` see the stub, so only callers that read the whole file see a lazy file as its real contents.
+- ABI (`bb.content` 1.1): `provide_lazy_files(ctx, read, user)`, where `read(user, key, sink, sink_ctx)` calls `sink(sink_ctx, bytes, len)`
+  once with the whole file and returns `BB_OK`, or returns an error status. **`read` is called on any thread**, several at once, outside
+  a mod callback, so it may not call the host's functions and must be thread-safe; a mod keeps what it made (a few recent results) itself.
+  The host never calls it after the mod unloads (a read then is an error). SDK: `Content::provide_lazy_files(impl LazyFiles)`.
+- Register in `Mod::load` or later on the main thread; the host holds the function until the install is known, so a mod may
+  register before any file is read. `Content::supports_lazy_files()` is `false` on a host older than 1.1: write the real files then.
+- A read of a stub with no maker (the mod is not loaded, or did not register) is an `io` error naming the mod and the key.
 
 ### Cars
 
@@ -170,10 +195,51 @@ Known gaps: body kits and hoods (a mod car has none), and a code form (`content.
 | Traffic role | `role = "traffic"` and `[traffic]` (`class`, `weight`, `max_instances`, `speed_factor`, `patterns`): the car joins the traffic patterns with a rule made from its weight; `car::mods::{traffic_unit, traffic_cars, traffic_rules}` give the unit and the rules; a traffic-only car is usage type 2 | G (schema), MW (spawner) | [api-traffic.md](api-traffic.md), `libs/blackbox-modding/src/content/traffic.rs`, `crates/nfsmw-data/src/car/mods/traffic.rs`, `crates/nfsmw/src/scenes/world/ai/mod_traffic.rs` |
 | Planned: code form | `content.cars().register(CarDef { .. }) -> Result<CarId>`, paint (`CARSKIN`), part models | G | not built |
 
+### Components
+
+A car manifest may list **slots** and bind **parts** (ADR 0014, [specs/vehicle-components/manifest.md](../specs/vehicle-components/manifest.md)); the
+components the slots accept are in the mod's `components/*.toml`, read in path order, ids unique across the mod. Unknown keys refuse
+the car (or the file) and the log names the key. The first delivery binds a **bike** ([ride6-bike-upgrades.md](ride6-bike-upgrades.md)).
+
+```toml
+# cars/<id>.toml
+[[slot]]                       # in screen order; see the spec for `accepts`, `default`, `when`, `inputs`
+id = "exhaust"                 # lower case, digits and _ . : -, up to 64 bytes
+group = "looks"
+accepts = ["mod:exhaust.stock", { component = "mod:exhaust.race", price = 900 }]
+default = "mod:exhaust.stock"
+
+[parts."exhaust.race"]         # a part a component shows, bound to a solid
+solid = "MYBIKE_KIT00_RACE"    # the solid without its level-of-detail letter (A to E)
+pack = "PARTS/R6/MUF974_001"   # optional: a folder under files/ with its own GEOMETRY.BIN and TEXTURES.BIN, shared by cars; left out: the car's own files
+role = "body"                  # body | steered (a bike's bars) | steered_slid (its fork) | wheel_front | wheel_rear: the frame the solid is modelled in
+matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0]   # optional: three rows of a 3 by 4 matrix, solid to the frame of `role`
+
+[parts."body.2"]               # a base part: drawn with the car whatever its slots hold (a body whose mesh is more than one solid)
+solid = "MYBIKE_KIT00_BODY2"
+base = true                    # optional, default false; the solid is drawn at the levels of detail its file has it at and no other
+```
+
+```toml
+# components/parts.toml
+[[component]]
+id = "mod:engine.l1"
+tier = 1                       # the level of an upgrade ladder
+effects = [{ kind = "param", key = "bike.engine.peak_torque_nm", op = "mul", value = 1.04 }]
+```
+
+The slots map onto the garage by id: `exhaust` (Spoiler), `bar_pad` (Hood), `rims` (Rims), `brake_discs` (Body kit), and the ladders
+`perf_engine`, `perf_chassis`, `perf_brakes` (the Engine, Suspension and Brakes performance levels; the components' `tier` is the
+level). Other slot ids are checked and kept but not listed. The parameter keys a bike binds are `bike.engine.peak_torque_nm`,
+`bike.chassis.mass_kg`, `bike.brakes.front_force_n` and `bike.brakes.rear_force_n` (`op` `set`, `add`, `mul`, `min`, `max`; a stack stays within
+0.5 to 2 times the base); a `surface` or `behaviour` effect is logged as not bound. A slot that does not fit the catalog
+(`VehicleDef::check`) leaves the car without components. A component whose pack is not in the install is not offered.
+
 ### Music
 
-Works now in NFS:MW. A mod ships its tracks in a `music/` folder, as audio files (`mp3`, `ogg`, `flac`, `wav`) and/or
-playlists (`.m3u` or `.m3u8`, whose entries are relative to the playlist). `mod.toml` names the contexts:
+Works now in NFS:MW. A mod ships its tracks in a `music/` folder, as audio files (`mp3`, `ogg`, `flac`, `wav`, and `sps`, the song format
+of the 2012 game) and/or playlists (`.m3u` or `.m3u8`, whose entries are relative to the playlist **or absolute**: a playlist may name files outside the
+mod, which is how the 2012 mod streams the songs of the player's own 2012 install with nothing copied). `mod.toml` names the contexts:
 
 ```toml
 [music]
@@ -314,6 +380,14 @@ promised for the first delivery, because the index and the road network are read
 | Place at runtime | `world.spawn_prop(model: &str, pos: Vec3, yaw: f32) -> Result<PropId>`, `despawn_prop(PropId)` **W** | G | `scenes/world/props.rs`, `cargo.rs` |
 | Remove original | `content.scenery().hide(model_or_id: &str)` hides an install instance | G | `libs/blackbox-scenery` |
 | Road data | `content.roads().register(...)` adds a road network piece; **reserved** | G | `libs/blackbox-roads` |
+
+**Replacing models of the world by name (built).** A mod that wants the models of existing scenery changed (the 2012 trees in place of the
+2005 trees) does not need a registry call: the overlay replaces whole files, and the world's solids are 20,000 entries of one 533 MB
+stream. The **trees variant** ([effect-variants.md](effect-variants.md#profile-format-of-the-trees)) is the file-level answer: the mod adds a
+value to the `trees_variant` option (`bb.settings`) and ships `TREES/<ID>/profile.toml` with a pack of solids and a pack of textures; the
+game replaces, by name, the listed solids of every section it streams in (and the world-space `_DEINST` copies of them), fitted into the
+bounds of the solid each replaces, and uploads the pack's textures once, into the shared sets. No new
+interface or ABI entry: it is `bb.settings` plus files, so any mod may offer another set of models the same way.
 
 Cross-game: scenery from another Black Box game works only where `libs/blackbox-solid`, `blackbox-tpk` and
 `blackbox-scenery` have a layout table for that game's version. The mod, or a tool, converts anything else.

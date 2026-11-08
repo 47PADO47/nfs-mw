@@ -1,9 +1,11 @@
 use std::io::Write;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
-use crate::{Bundle, Error, ResourceKind};
+use crate::{Bundle, Error, Ranges, ResourceKind};
 
 fn zlib(bytes: &[u8]) -> Vec<u8> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -104,4 +106,54 @@ fn a_damaged_stream_is_an_error_not_a_panic() {
     file[last - 4] ^= 0xFF;
     let bundle = Bundle::parse(&file).unwrap();
     assert!(bundle.resource(0).is_err());
+}
+
+/// A file in memory that counts the bytes it was asked for.
+#[derive(Debug)]
+struct Counting {
+    bytes: Vec<u8>,
+    read: AtomicUsize,
+}
+
+impl Ranges for Counting {
+    fn size(&self) -> u64 {
+        self.bytes.len() as u64
+    }
+
+    fn read(&self, start: u64, count: usize) -> std::io::Result<Vec<u8>> {
+        let start = (start as usize).min(self.bytes.len());
+        let end = (start + count).min(self.bytes.len());
+        self.read.fetch_add(end - start, Ordering::Relaxed);
+        Ok(self.bytes[start..end].to_vec())
+    }
+}
+
+#[test]
+fn a_bundle_read_in_ranges_gives_the_same_resources_and_reads_only_what_it_needs() {
+    let main = main_block(0x0100_0000_0000_ABCD);
+    let graphics: Vec<u8> = (0..=255).collect();
+    for compressed in [false, true] {
+        let mut file = build(compressed, &main, &graphics);
+        // Data after the last block that nobody asks for: the rest of a big bundle.
+        file.extend(std::iter::repeat_n(0xAA, 100_000));
+        let memory = Bundle::parse(&file).unwrap();
+        let source = Arc::new(Counting { bytes: file.clone(), read: AtomicUsize::new(0) });
+        let ranged = Bundle::parse_ranges(source.clone()).unwrap();
+        assert_eq!(ranged.entries(), memory.entries());
+        assert_eq!(ranged.header(), memory.header());
+        assert!(source.read.load(Ordering::Relaxed) < 200, "only the header and the table are read at the start");
+        let id = ranged.entries()[0].id;
+        assert_eq!(ranged.resource_by_id(id).unwrap(), memory.resource_by_id(id).unwrap());
+        assert!(source.read.load(Ordering::Relaxed) < 1000, "the resource's own blocks, not the file");
+    }
+}
+
+#[test]
+fn a_ranged_bundle_that_ends_early_is_an_error_not_a_panic() {
+    let file = build(false, &main_block(1), &[1, 2, 3, 4]);
+    let cut = file[..file.len() - 2].to_vec();
+    let ranged = Bundle::parse_ranges(Arc::new(Counting { bytes: cut, read: AtomicUsize::new(0) })).unwrap();
+    assert!(matches!(ranged.resource(0), Err(Error::Truncated { .. })));
+    let head = file[..10].to_vec();
+    assert!(Bundle::parse_ranges(Arc::new(Counting { bytes: head, read: AtomicUsize::new(0) })).is_err());
 }

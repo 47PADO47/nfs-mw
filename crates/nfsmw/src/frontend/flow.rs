@@ -224,6 +224,8 @@ impl Frontend {
         super::quick_race::load_in_background(&dir);
         super::challenge_series::load_in_background(&dir);
         super::quick_play::load_in_background(&dir);
+        // The rider's gear a mod offers: the Gameplay options list one row for each part, before any garage has opened.
+        crate::garage::rider_gear::scan(&dir);
         Self {
             screens,
             dir,

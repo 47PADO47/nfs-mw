@@ -11,8 +11,11 @@ use std::rc::Rc;
 use anyhow::Result;
 use blackbox_tpk::{AlphaUsage, Level, PixelFormat, TextureSource, full_mip_count};
 
+use crate::dash;
 use crate::glass;
-use crate::grade::{DEFAULT_AO_FLOOR, DEFAULT_GAIN, DEFAULT_REFLECTED, Grade, lift};
+use crate::grade::{
+    DEFAULT_AO_FLOOR, DEFAULT_GAIN, DEFAULT_REFLECTED, Grade, MAX_GAIN, PAINT_AO_FLOOR, lift_colour, metal_floor,
+};
 use crate::partfile::{Kind, Material};
 use crate::textures::{Palette, Picture, TexStore};
 
@@ -33,6 +36,10 @@ pub struct Options {
     pub normal_maps: bool,
     /// Invert the green channel of the normal maps (Unreal's convention against the shader's).
     pub flip_green: bool,
+    /// The stock parts written as solids of their own so that the shop can swap them (`docs/modding/ride6-bike-upgrades.md`): bit
+    /// `n` is `PIECES[n]` of [`crate::build_pieces`] (the exhaust, the bar pad, the rims, the brake discs); 0, none: they are
+    /// part of the body, bars and wheel solids.
+    pub split_parts: u8,
 }
 
 impl Default for Options {
@@ -44,6 +51,7 @@ impl Default for Options {
             reflected: DEFAULT_REFLECTED,
             normal_maps: false,
             flip_green: false,
+            split_parts: 0,
         }
     }
 }
@@ -88,6 +96,9 @@ pub struct Surfaces {
     pub palette: Palette,
     options: Options,
     cache: HashMap<(String, Kind), Rc<Surface>>,
+    /// The base colour picture (file stem) of the livery surfaces of a bike that has liveries to offer: its diffuse texture is the
+    /// car's paint placeholder `<CAR>_SKIN1`, which the game draws a chosen livery over ([`Surfaces::with_paint`]).
+    paint: Option<String>,
 }
 
 /// The longest side a texture of a part of `kind` may have.
@@ -108,7 +119,7 @@ pub(crate) fn srgb_to_linear(byte: u8) -> f32 {
     ((v + 0.055) / 1.055).powf(2.4)
 }
 
-fn linear_to_srgb(linear: f32) -> u8 {
+pub(crate) fn linear_to_srgb(linear: f32) -> u8 {
     let v = linear.clamp(0.0, 1.0);
     if v <= 0.003_130_8 {
         return (v * 12.92 * 255.0 + 0.5) as u8;
@@ -122,7 +133,6 @@ pub fn bake_diffuse(base: Level, pbr: Option<&Picture>, occlusion: bool, grade: 
     let Grade { ao_floor, gain, reflected } = grade;
     let Level { width, height, mut rgba } = base;
     let threshold = clip.map(|c| (c * 255.0).round() as u8);
-    let lifted: Vec<u8> = (0..=255).map(|v| lift(v, gain)).collect();
     for y in 0..height {
         for x in 0..width {
             let at = ((y * width + x) * 4) as usize;
@@ -130,17 +140,22 @@ pub fn bake_diffuse(base: Level, pbr: Option<&Picture>, occlusion: bool, grade: 
                 let uv = [(x as f32 + 0.5) / width as f32, (y as f32 + 0.5) / height as f32];
                 let packed = pbr.sample(uv);
                 let ao = if occlusion { f32::from(packed[3]) / 255.0 } else { 1.0 };
-                let factor = ao_floor + (1.0 - ao_floor) * ao;
-                // The reflection of a dielectric: `F0 = 0.08 * specular` of the environment, none for a metal.
                 let metal = f32::from(packed[2]) / 255.0;
+                let floor = metal_floor(ao_floor, metal);
+                let factor = floor + (1.0 - floor) * ao;
+                // The reflection of a dielectric: `F0 = 0.08 * specular` of the environment, none for a metal.
                 let reflection = (1.0 - metal) * 0.08 * (f32::from(packed[0]) / 255.0) * reflected;
+                let linear = [0, 1, 2].map(|c| srgb_to_linear(rgba[at + c]));
+                // A veil of one grey on every texel washes a saturated paint out (a red of (184, 0, 26) turned pink), and what
+                // the veil stands for, the reflection of the sky, is white where the paint is white and the paint's own tint
+                // where it is coloured: it is therefore applied in proportion to how little saturated the texel is.
+                let reflection = reflection * (1.0 - saturation(linear));
                 for c in 0..3 {
-                    rgba[at + c] = linear_to_srgb(srgb_to_linear(rgba[at + c]) * factor + reflection);
+                    rgba[at + c] = linear_to_srgb(linear[c] * factor + reflection);
                 }
             }
-            for c in 0..3 {
-                rgba[at + c] = lifted[usize::from(rgba[at + c])];
-            }
+            let lifted = lift_colour([rgba[at], rgba[at + 1], rgba[at + 2]], gain);
+            rgba[at..at + 3].copy_from_slice(&lifted);
             rgba[at + 3] = match threshold {
                 Some(t) if rgba[at + 3] >= t => 255,
                 Some(_) => 0,
@@ -149,6 +164,16 @@ pub fn bake_diffuse(base: Level, pbr: Option<&Picture>, occlusion: bool, grade: 
         }
     }
     Level { width, height, rgba }
+}
+
+/// The saturation of a linear colour, `(max - min) / max` (0 for black and for greys, 1 for a pure hue).
+fn saturation(linear: [f32; 3]) -> f32 {
+    let max = linear.iter().copied().fold(0.0, f32::max);
+    if max <= 1e-4 {
+        return 0.0;
+    }
+    let min = linear.iter().copied().fold(f32::MAX, f32::min);
+    (max - min) / max
 }
 
 /// The specular colour for the tangent-space shader: the base colour for metal and a grey for the rest, scaled by how
@@ -190,7 +215,44 @@ fn upper(stem: &str) -> String {
 
 impl Surfaces {
     pub fn new(store: TexStore, options: Options) -> Self {
-        Self { store, palette: Palette::default(), options, cache: HashMap::new() }
+        Self { store, palette: Palette::default(), options, cache: HashMap::new(), paint: None }
+    }
+
+    /// Name the diffuse texture of every surface whose base colour picture is `stem` `<CAR>_SKIN1`, the placeholder the game
+    /// repaints for the livery a player picks (`docs/modding/car-customization.md#liveries`). The picture itself is baked into
+    /// that texture, so the car wears its stock livery whether or not the game draws another over it.
+    pub fn with_paint(mut self, stem: Option<String>) -> Self {
+        self.paint = stem;
+        self
+    }
+
+    /// How the base colour of `material` is graded: the options, with the occlusion of a livery (paint) at least [`PAINT_AO_FLOOR`].
+    fn grade(&self, material: &Material) -> Grade {
+        let name = material.name.to_ascii_lowercase();
+        let ao_floor =
+            if name.contains("livery") { self.options.ao_floor.max(PAINT_AO_FLOOR) } else { self.options.ao_floor };
+        // A cluster's screen is emissive in RIDE 6 and the car shader lights it like paint (about half its brightness): the
+        // strongest lift the grade allows. A choice, made against the RC 390 and Panigale V4 screens in the helmet camera.
+        let gain = if name.starts_with("mat_gauge") { MAX_GAIN } else { self.options.gain };
+        Grade { ao_floor, gain, reflected: self.options.reflected }
+    }
+
+    /// The texture of a livery picture: the base colour of `material` graded like a body texture, opaque, one level (the game
+    /// reads the first level only), named `name`. Returns false when the material has no picture to bake.
+    pub fn add_livery_picture(&mut self, name: &str, material: &Material) -> Result<bool> {
+        let Some(base_stem) = &material.base_color else { return Ok(false) };
+        let Some(base) = self.store.picture(base_stem)? else { return Ok(false) };
+        let pbr = match &material.pbr {
+            Some(stem) => self.store.picture(stem)?,
+            None => None,
+        };
+        let cap = size_cap(Kind::Body, self.options.max_texture);
+        let level = Picture { width: base.width, height: base.height, rgba: base.rgba.clone() }.shrunk(cap);
+        let level = bake_diffuse(level, pbr.as_deref(), material.pbr_has_occlusion, self.grade(material), None);
+        if !self.palette.contains(name) {
+            self.add_level_mips(name, level, PixelFormat::Dxt1, Alpha::Opaque, 1);
+        }
+        Ok(true)
     }
 
     /// The textures of `material` for a part of `kind`, baking them the first time.
@@ -231,16 +293,24 @@ impl Surfaces {
                 glass: None,
             });
         };
-        let diffuse = format!("{car}_{}", upper(base_stem));
+        let diffuse = match &self.paint {
+            Some(paint) if paint.eq_ignore_ascii_case(base_stem) => format!("{}_SKIN1", car.to_ascii_uppercase()),
+            _ => format!("{car}_{}", upper(base_stem)),
+        };
         let clip = material.cutout();
-        let level = Picture { width: base.width, height: base.height, rgba: base.rgba.clone() }.shrunk(cap);
-        let level = bake_diffuse(
-            level,
-            pbr.as_deref(),
-            material.pbr_has_occlusion,
-            Grade { ao_floor: self.options.ao_floor, gain: self.options.gain, reflected: self.options.reflected },
-            clip,
-        );
+        let mut picture = Picture { width: base.width, height: base.height, rgba: base.rgba.clone() };
+        if material.name.to_ascii_lowercase().starts_with("mat_gauge") {
+            // The screen of an instrument cluster is drawn by widgets at run time: take the exporter's composition of them at rest,
+            // or else draw a small panel into the black window of the static picture.
+            match dash::composed(&mut self.store, base_stem)? {
+                Some(screen) => picture = screen,
+                None => {
+                    dash::fill_screen(&mut picture);
+                }
+            }
+        }
+        let level = picture.shrunk(cap);
+        let level = bake_diffuse(level, pbr.as_deref(), material.pbr_has_occlusion, self.grade(material), clip);
         let cut_out = level.rgba.as_chunks::<4>().0.iter().any(|t| t[3] < 255);
         if !self.palette.contains(&diffuse) {
             let (format, alpha) =
@@ -269,7 +339,7 @@ impl Surfaces {
                 specular = Some(name);
             }
         }
-        let ao_floor = (material.pbr_has_occlusion && pbr.is_some()).then_some(self.options.ao_floor);
+        let ao_floor = (material.pbr_has_occlusion && pbr.is_some()).then_some(self.grade(material).ao_floor);
         Ok(Surface { diffuse, normal, specular, pbr, base: Some(base), ao_floor, glass: None })
     }
 
@@ -291,6 +361,10 @@ impl Surfaces {
 
     fn add_level(&mut self, name: &str, level: Level, format: PixelFormat, alpha: Alpha) {
         let mips = full_mip_count(level.width, level.height);
+        self.add_level_mips(name, level, format, alpha, mips);
+    }
+
+    fn add_level_mips(&mut self, name: &str, level: Level, format: PixelFormat, alpha: Alpha, mips: u32) {
         let Some(mut source) = TextureSource::from_rgba(name, level, format, mips) else { return };
         match alpha {
             Alpha::Opaque => {}
@@ -309,166 +383,5 @@ impl Surfaces {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn level(width: u32, height: u32, texel: [u8; 4]) -> Level {
-        Level { width, height, rgba: texel.repeat((width * height) as usize) }
-    }
-
-    #[test]
-    fn occlusion_darkens_down_to_the_floor_and_no_occlusion_keeps_the_colour() {
-        let pbr = Picture { width: 1, height: 1, rgba: vec![128, 100, 0, 0] };
-        let dark = bake_diffuse(
-            level(2, 2, [200, 200, 200, 255]),
-            Some(&pbr),
-            true,
-            Grade { ao_floor: 0.3, ..Grade::NONE },
-            None,
-        );
-        // Fully occluded: 0.3 of the linear colour.
-        let expected = linear_to_srgb(srgb_to_linear(200) * 0.3);
-        assert_eq!(dark.rgba[0], expected);
-        assert!(expected < 200 && expected > 60);
-        let kept = bake_diffuse(
-            level(2, 2, [200, 200, 200, 255]),
-            Some(&pbr),
-            false,
-            Grade { ao_floor: 0.3, ..Grade::NONE },
-            None,
-        );
-        assert_eq!(kept.rgba[0], 200);
-        let open = Picture { width: 1, height: 1, rgba: vec![128, 100, 0, 255] };
-        let lit = bake_diffuse(
-            level(2, 2, [200, 200, 200, 255]),
-            Some(&open),
-            true,
-            Grade { ao_floor: 0.3, ..Grade::NONE },
-            None,
-        );
-        assert_eq!(lit.rgba[0], 200, "an unoccluded texel keeps its colour");
-    }
-
-    #[test]
-    fn the_lift_is_applied_after_the_occlusion_and_leaves_the_alpha() {
-        let pbr = Picture { width: 1, height: 1, rgba: vec![128, 100, 0, 0] };
-        let plain = bake_diffuse(
-            level(1, 1, [200, 200, 200, 255]),
-            Some(&pbr),
-            true,
-            Grade { ao_floor: 0.3, ..Grade::NONE },
-            None,
-        );
-        let lifted = bake_diffuse(
-            level(1, 1, [200, 200, 200, 77]),
-            Some(&pbr),
-            true,
-            Grade { ao_floor: 0.3, gain: 1.35, reflected: 0.0 },
-            None,
-        );
-        assert_eq!(lifted.rgba[0], lift(plain.rgba[0], 1.35));
-        assert_eq!(lifted.rgba[3], 255, "no clip value means opaque");
-        let no_pictures = bake_diffuse(
-            level(1, 1, [100, 100, 100, 255]),
-            None,
-            false,
-            Grade { ao_floor: 0.3, gain: 1.35, reflected: 0.0 },
-            None,
-        );
-        assert_eq!(no_pictures.rgba[0], lift(100, 1.35), "the lift needs no occlusion picture");
-    }
-
-    #[test]
-    fn a_dielectric_reflects_the_environment_and_a_metal_does_not() {
-        let grade = Grade { reflected: 0.5, ..Grade::NONE };
-        // Specular 0.5 (F0 = 0.04) reflecting a radiance of 0.5: 0.02 linear, which is sRGB 38 on a black texel.
-        let plastic = Picture { width: 1, height: 1, rgba: vec![128, 100, 0, 255] };
-        let lit = bake_diffuse(level(1, 1, [0, 0, 0, 255]), Some(&plastic), true, grade, None);
-        assert!((36..=40).contains(&lit.rgba[0]), "{}", lit.rgba[0]);
-        let steel = Picture { width: 1, height: 1, rgba: vec![128, 100, 255, 255] };
-        let dark = bake_diffuse(level(1, 1, [0, 0, 0, 255]), Some(&steel), true, grade, None);
-        assert_eq!(dark.rgba[0], 0, "a metal takes its reflection from the light material");
-        let none = bake_diffuse(level(1, 1, [0, 0, 0, 255]), Some(&plastic), true, Grade::NONE, None);
-        assert_eq!(none.rgba[0], 0);
-    }
-
-    #[test]
-    fn the_opacity_is_cut_at_the_clip_value() {
-        let mut base = level(2, 1, [10, 20, 30, 0]);
-        base.rgba[3] = 200;
-        base.rgba[7] = 40; // 40 / 255 is below the clip of 1/3
-        let cut = bake_diffuse(base, None, false, Grade { ao_floor: 0.3, ..Grade::NONE }, Some(0.3333));
-        assert_eq!((cut.rgba[3], cut.rgba[7]), (255, 0));
-        let opaque = bake_diffuse(level(1, 1, [1, 2, 3, 9]), None, false, Grade { ao_floor: 0.3, ..Grade::NONE }, None);
-        assert_eq!(opaque.rgba[3], 255, "no clip value means opaque");
-    }
-
-    #[test]
-    fn srgb_round_trips() {
-        for v in [0u8, 1, 17, 128, 200, 255] {
-            assert_eq!(linear_to_srgb(srgb_to_linear(v)), v);
-        }
-    }
-
-    #[test]
-    fn the_specular_is_bright_for_smooth_metal_and_dark_for_rough_dielectric() {
-        let like = level(1, 1, [0; 4]);
-        let base = Picture { width: 1, height: 1, rgba: vec![255, 255, 255, 255] };
-        let smooth_metal = Picture { width: 1, height: 1, rgba: vec![128, 0, 255, 255] };
-        let rough_plastic = Picture { width: 1, height: 1, rgba: vec![128, 255, 0, 255] };
-        assert_eq!(bake_specular(&like, &base, &smooth_metal).rgba[0], 255);
-        assert_eq!(bake_specular(&like, &base, &rough_plastic).rgba[0], 0);
-    }
-
-    #[test]
-    fn a_normal_map_can_have_its_green_flipped() {
-        let picture = Picture { width: 1, height: 1, rgba: vec![10, 20, 250, 7] };
-        let flipped = bake_normal(picture, 8, true);
-        assert_eq!(flipped.rgba, vec![10, 235, 250, 255]);
-    }
-
-    fn write_png(path: &std::path::Path, width: u32, height: u32, rgba: &[u8]) {
-        let mut encoder = png::Encoder::new(std::fs::File::create(path).unwrap(), width, height);
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
-        encoder.write_header().unwrap().write_image_data(rgba).unwrap();
-    }
-
-    #[test]
-    fn a_translucent_material_bakes_a_blended_texture_with_the_opacity_in_the_alpha() {
-        let dir = std::env::temp_dir().join(format!("ride6-bikes-glass-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        // Two texels of a 8 x 4 picture: clear on the left half, a red lens on the right.
-        let texel = |x: u32| if x < 4 { [255, 255, 255, 0] } else { [173, 0, 5, 36] };
-        let rgba: Vec<u8> = (0..32).flat_map(|i| texel(i % 8)).collect();
-        write_png(&dir.join("glass_d.png"), 8, 4, &rgba);
-        let material = Material {
-            name: "mat_glass".into(),
-            blend_mode: Some("BLEND_TranslucentGreyTransmittance".into()),
-            base_color: Some("glass_d".into()),
-            transmittance: Some("glass_d".into()),
-            transmittance_max: Some(0.95),
-            ..Material::default()
-        };
-        let mut surfaces = Surfaces::new(TexStore::open(&dir).unwrap(), Options::default());
-        let surface = surfaces.surface("CAR", &material, Kind::Body).unwrap();
-        assert_eq!(surface.diffuse, "CAR_GLASS_D");
-        assert!(surface.normal.is_none() && surface.pbr.is_none());
-        assert!((surface.glass.as_ref().unwrap().max - 0.95).abs() < 1e-6);
-        let textures = std::mem::take(&mut surfaces.palette).into_textures();
-        std::fs::remove_dir_all(&dir).unwrap();
-        let [glass] = textures.as_slice() else { panic!("{} textures", textures.len()) };
-        assert_eq!(glass.format, PixelFormat::Dxt5);
-        assert!(glass.alpha_sorting && glass.alpha_blend == 1);
-        assert_eq!(glass.alpha_usage, AlphaUsage::Modulated);
-        assert_eq!(glass.flags & TWO_SIDED, 0, "a blended surface is drawn one-sided like the stock windows");
-    }
-
-    #[test]
-    fn the_size_cap_follows_the_part() {
-        assert_eq!(size_cap(Kind::Body, 2048), 2048);
-        assert_eq!(size_cap(Kind::Rim, 2048), 1024);
-        assert_eq!(size_cap(Kind::Brake, 2048), 512);
-        assert_eq!(size_cap(Kind::Brake, 8), 4);
-    }
-}
+#[path = "bake_tests.rs"]
+mod tests;

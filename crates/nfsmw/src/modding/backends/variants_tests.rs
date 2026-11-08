@@ -24,14 +24,19 @@ fn spec<'a>(kind: &EffectKind, value: &'a str) -> OptionSpec<'a> {
     }
 }
 
-/// A folder with `TIRESMOKE/MYMOD/profile.toml`, opened as the install.
-fn install_with(name: &str, text: &str) -> (std::path::PathBuf, game_install::GameDir) {
+/// A folder with the profile of `kind` at `<folder of the kind>/MYMOD/profile.toml`, opened as the install.
+fn install_with_kind(name: &str, kind: &EffectKind, text: &str) -> (std::path::PathBuf, game_install::GameDir) {
     let root = std::env::temp_dir().join(format!("nfsmw-variants-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("TIRESMOKE/MYMOD")).unwrap();
-    std::fs::write(root.join("TIRESMOKE/MYMOD/profile.toml"), text).unwrap();
-    let dir = game_install::GameDir::open(&root).unwrap();
-    (root, dir)
+    let dir = root.join(kind.variant.folder).join("MYMOD");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("profile.toml"), text).unwrap();
+    (root.clone(), game_install::GameDir::open(&root).unwrap())
+}
+
+/// The same for the tire smoke, the kind most of the tests below read.
+fn install_with(name: &str, text: &str) -> (std::path::PathBuf, game_install::GameDir) {
+    install_with_kind(name, &TIRE_SMOKE_KIND, text)
 }
 
 const PROFILE: &str = "format = 1\n[[layer]]\ntexture = \"TIRESMOKE/MYMOD/A.PNG\"\nrate = 5.0\n";
@@ -42,6 +47,8 @@ fn every_kind_has_its_own_option_and_folder_and_texts() {
         assert!(kind.variant.option.ends_with("_variant"), "{}", kind.name);
         assert_eq!(kind.label, format!("options-{}", kind.variant.option.replace('_', "-")));
         assert_eq!(kind.original, format!("{}-original", kind.label));
+        assert_eq!(kind.variant.folder, kind.variant.folder.to_ascii_uppercase(), "{}", kind.name);
+        assert_eq!(kind.variant.profile_path("mymod"), format!("{}/MYMOD/profile.toml", kind.variant.folder));
         for other in &KINDS[at + 1..] {
             assert_ne!(kind.variant.option, other.variant.option);
             assert_ne!(kind.variant.folder, other.variant.folder);
@@ -58,6 +65,8 @@ fn without_a_mod_every_kind_is_the_original_and_no_option_is_listed() {
         assert_eq!((chosen.value.as_str(), chosen.owner), ("original", None), "{}", kind.name);
     }
     assert!(bridge.tire_smoke_profile().is_none() && bridge.nitrous_profile().is_none());
+    assert!(bridge.wind_profile().is_none() && bridge.trees_profile().is_none());
+    assert!(bridge.effect_variants().wind.is_none(), "no kind has a profile in effect");
 }
 
 #[test]
@@ -142,16 +151,6 @@ fn a_profile_that_was_not_there_is_looked_for_again_after_a_while() {
     assert!(found.is_some(), "found within {PROFILE_RETRY_CALLS} calls");
     let _ = std::fs::remove_dir_all(&root);
     let _ = std::fs::remove_dir_all(&layer);
-}
-
-/// A folder with the profile of a spark kind at `<folder>/MYMOD/profile.toml`, opened as the install.
-fn install_with_kind(name: &str, kind: &EffectKind, text: &str) -> (std::path::PathBuf, game_install::GameDir) {
-    let root = std::env::temp_dir().join(format!("nfsmw-variants-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
-    let dir = root.join(kind.variant.folder).join("MYMOD");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("profile.toml"), text).unwrap();
-    (root.clone(), game_install::GameDir::open(&root).unwrap())
 }
 
 const SPARKS_PROFILE: &str = "format = 1\n[hit]\nclosing_speed_full = 20.0\nintensity_floor = 0.2\n[[hit.layer]]\nkind = \"streak\"\nburst = 30.0\n";
@@ -247,5 +246,45 @@ gain = [[0.0, 1.0], [1.0, 1.0]]
     change(&bridge, visible(&bridge)[0], true);
     assert!(bridge.wind_profile().is_none(), "a file that is not a WAV is refused: the game's wind plays");
     assert!(bridge.effect_variants().wind.is_none());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+const TREES_PROFILE: &str = "format = 1
+geometry = \"TREES/MYMOD/GEOMETRY.BIN\"
+textures = \"TREES/MYMOD/TEXTURES.BIN\"
+[[swap]]
+solid = \"XT_STOCK\"
+model = \"MYTREE_L0\"
+fit = \"row\"
+";
+
+#[test]
+fn the_trees_profile_is_read_through_its_own_folder_and_a_refused_one_is_none() {
+    let (bridge, store, port) = setup();
+    let (root, dir) = install_with_kind("trees", &TREES_KIND, TREES_PROFILE);
+    bridge.set_install(dir);
+    assert!(bridge.trees_profile().is_none(), "the original: nothing is read");
+    port.add_option("mymod", &spec(&TREES_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    assert_eq!(store.saved_text("nfsmw", "option_trees_variant").as_deref(), Some("mymod"));
+    let profile = bridge.trees_profile().expect("the mod's profile");
+    assert_eq!((profile.swaps.len(), profile.swaps[0].fit), (1, blackbox_modding::content::SwapFit::Row));
+    assert!(Arc::ptr_eq(&profile, &bridge.trees_profile().unwrap()), "read once for the chosen value");
+    assert!(bridge.wind_profile().is_none(), "the other kinds are untouched");
+    let _ = std::fs::remove_dir_all(&root);
+
+    let (bridge, _, port) = setup();
+    let (root, dir) = install_with_kind(
+        "trees-bad",
+        &TREES_KIND,
+        "format = 1
+geometry = \"G.BIN\"
+textures = \"T.BIN\"
+",
+    );
+    bridge.set_install(dir);
+    port.add_option("mymod", &spec(&TREES_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    assert!(bridge.trees_profile().is_none(), "a profile with no swap is refused: the game's trees stay");
     let _ = std::fs::remove_dir_all(&root);
 }

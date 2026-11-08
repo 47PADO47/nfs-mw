@@ -45,8 +45,8 @@ pub struct OptionHandler {
 pub fn builtin() -> Vec<OptionDef> {
     let variants =
         KINDS.iter().map(|kind| OptionDef::game_list(kind.variant.option, kind.label, &[(ORIGINAL, kind.original)]));
-    let lists = ["hud_layout", "ui_style", "ui_theme", "speed_units", "minimap", "language"];
-    let toggles = ["rear_view_mirror", "turn_signals", "cop_health_bars"];
+    let lists = ["hud_layout", "ui_style", "ui_theme", "speed_units", "riding_style", "minimap", "language"];
+    let toggles = ["rear_view_mirror", "turn_signals", "cop_health_bars", "rider_gear"];
     let mut options: Vec<OptionDef> = variants.collect();
     options.extend(lists.iter().map(|id| OptionDef::fixed(id, OptionKind::List)));
     options.extend(toggles.iter().map(|id| OptionDef::fixed(id, OptionKind::Toggle)));

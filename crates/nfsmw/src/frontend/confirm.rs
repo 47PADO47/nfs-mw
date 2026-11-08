@@ -361,9 +361,15 @@ pub struct AlertLogic {
 
 /// Sets `Dialog.fng` up as a notice: the middle button alone, labelled Continue, with the focus on it.
 pub(super) fn prepare_notice(cx: &mut Cx) {
+    set_text(cx, YES_BUTTON, &Text::Game(CONTINUE));
+    keep_notice(cx);
+}
+
+/// Hides the notice's other buttons and puts the focus on the middle one. A page that uses Left and Right for its own choice calls
+/// this every frame: the package moves its focus on those keys to a hidden button, which then shows as a ghost ("Button 2").
+pub(super) fn keep_notice(cx: &mut Cx) {
     cx.hide(UNUSED_BUTTON, true);
     cx.hide(NO_BUTTON, true);
-    set_text(cx, YES_BUTTON, &Text::Game(CONTINUE));
     for guid in [NO_HOLDER, UNUSED_HOLDER] {
         if let Some(o) = by_guid(cx, guid) {
             cx.rt.set_hidden(o, true);

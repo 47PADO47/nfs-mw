@@ -44,6 +44,40 @@ impl Palette {
     }
 }
 
+impl Palette {
+    /// Add the leaf texture of a tree under `name` (once): a copy cut down to `max_size`, drawn as a cut-out (punch-through alpha, so
+    /// a texel with no alpha is not drawn) from both sides, which is how the 2005 game draws its own leaf cards. The 2012 leaf
+    /// textures are mostly BC1, whose one-bit alpha is the cut-out; the 2005 trees use DXT3 and DXT5 but the engine reads either.
+    pub fn add_foliage(&mut self, name: &str, texture: &Texture, max_size: u32) -> Option<String> {
+        if self.names.contains_key(name) {
+            return Some(name.to_owned());
+        }
+        let mut source = convert(name, texture, max_size, false)?;
+        source.alpha_usage = AlphaUsage::PunchThrough;
+        source.flags = TWO_SIDED;
+        Some(self.push(name, source))
+    }
+
+    /// Add the bark texture of a tree under `name` (once): an opaque copy cut down to `max_size` that repeats in both directions.
+    pub fn add_bark(&mut self, name: &str, texture: &Texture, max_size: u32) -> Option<String> {
+        if self.names.contains_key(name) {
+            return Some(name.to_owned());
+        }
+        let mut source = convert(name, texture, max_size, false)?;
+        source.tilable_uv = REPEATS;
+        Some(self.push(name, source))
+    }
+
+    fn push(&mut self, name: &str, source: TextureSource) -> String {
+        self.names.insert(name.to_owned(), self.textures.len());
+        self.textures.push(source);
+        name.to_owned()
+    }
+}
+
+/// `TilableUV` of a texture that repeats across and down.
+const REPEATS: u8 = 3;
+
 /// The name of the translucent tint every window and lamp lens uses.
 pub const GLASS: &str = "GLASS_TINT";
 
@@ -159,6 +193,23 @@ mod tests {
         let source = convert("T", &texture(2048, 1024, 12, SourceFormat::Bc1), 1024, false).unwrap();
         assert_eq!((source.width, source.height, source.mip_count), (1024, 512, 11));
         assert_eq!(source.data.len(), source.expected_data_len());
+    }
+
+    #[test]
+    fn a_leaf_texture_is_a_two_sided_cut_out_even_in_bc1_and_bark_repeats() {
+        let mut palette = Palette::default();
+        let leaf = texture(512, 512, 10, SourceFormat::Bc1);
+        assert_eq!(palette.add_foliage("LEAF", &leaf, 1024), Some("LEAF".to_owned()));
+        assert_eq!(palette.add_foliage("LEAF", &leaf, 1024), Some("LEAF".to_owned()), "added once");
+        assert_eq!(palette.add_bark("BARK", &texture(256, 256, 9, SourceFormat::Bc1), 1024), Some("BARK".to_owned()));
+        assert!(palette.add_bark("NOPE", &texture(64, 64, 7, SourceFormat::Bc5), 1024).is_none());
+        let textures = palette.into_textures();
+        assert_eq!(textures.len(), 2);
+        assert_eq!(
+            (textures[0].alpha_usage, textures[0].flags, textures[0].format),
+            (AlphaUsage::PunchThrough, 2, PixelFormat::Dxt1)
+        );
+        assert_eq!((textures[1].alpha_usage, textures[1].tilable_uv), (AlphaUsage::None, 3));
     }
 
     #[test]

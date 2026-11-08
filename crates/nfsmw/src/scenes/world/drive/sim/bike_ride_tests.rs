@@ -77,20 +77,52 @@ fn what_a_contact_does_to_the_double_the_bike_takes() {
 #[test]
 fn the_pedals_and_the_stick_become_the_riders_levers() {
     let input = InputState { throttle: 0.5, brake: 0.3, steer: -2.0, ..Default::default() };
-    let rider = command(&input, 10.0);
+    let rider = command(&input);
     assert_eq!(rider, BikeInput { throttle: 0.5, front_brake: 0.3, rear_brake: 0.3, steer: -1.0 });
-    // The full stick gives the whole of the lean limit at any speed (`choices::STICK_SHARE_AT_TOP`).
-    assert!((command(&input, 40.0).steer + choices::stick_share(40.0)).abs() < 1e-6);
-    assert!((command(&input, 55.0).steer + 1.0).abs() < 1e-6);
     // The handbrake is the rear brake alone.
-    let handbrake = command(&InputState { handbrake: 1.0, ..Default::default() }, 0.0);
+    let handbrake = command(&InputState { handbrake: 1.0, ..Default::default() });
     assert_eq!((handbrake.front_brake, handbrake.rear_brake), (0.0, 1.0));
     // A harder brake pedal than the handbrake wins at the rear.
-    let both = command(&InputState { brake: 0.8, handbrake: 0.5, ..Default::default() }, 0.0);
+    let both = command(&InputState { brake: 0.8, handbrake: 0.5, ..Default::default() });
     assert_eq!((both.front_brake, both.rear_brake), (0.8, 0.8));
     // Shift requests and the clutch are not read, and a number that is not a number is no input.
-    let odd = command(&InputState { throttle: f32::NAN, shift_up: true, clutch: 1.0, ..Default::default() }, 0.0);
+    let odd = command(&InputState { throttle: f32::NAN, shift_up: true, clutch: 1.0, ..Default::default() });
     assert_eq!(odd, BikeInput::default());
+}
+
+#[test]
+fn a_pad_stick_reads_its_end_before_the_end_of_its_travel_and_a_key_is_unchanged() {
+    let at = |steer: f32| command(&InputState { steer, ..Default::default() }).steer;
+    assert!((at(choices::STEER_REACH) - 1.0).abs() < 1e-6 && (at(-choices::STEER_REACH) + 1.0).abs() < 1e-6);
+    assert_eq!(at(1.0), 1.0);
+    assert!((at(0.45) - 0.5).abs() < 1e-6, "linear below the reach: {}", at(0.45));
+    assert_eq!(at(0.0), 0.0);
+}
+
+#[test]
+fn the_ground_contacts_of_the_double_are_those_of_the_step_and_not_of_the_last_fall() {
+    let (mut ride, mut vehicle) = ride_and_double();
+    let ground = FlatGround::new(0.0);
+    assert!(ride.place(&ground, (0.0, 0.0, 2.0), 0.0, 5.0));
+    ride.push(&mut vehicle);
+    // Tip it over: it lies on its box and the double meets the ground in every step.
+    ride.bike.body_mut().set_orientation(Quat::from_rotation_z(-1.5));
+    ride.bike.respond(FIXED_STEP, &BikeInput::default(), &ground);
+    assert!(ride.bike.fallen());
+    let mut met = false;
+    for _ in 0..30 {
+        ride.begin_body(&mut vehicle, FIXED_STEP);
+        ride.finish_body(&mut vehicle, FIXED_STEP, &ground);
+        met |= !vehicle.body_contacts().is_empty();
+        let step = StepStart { input: InputState::default(), weight: 0.0, delta: FIXED_STEP, terrain: None };
+        ride.respond(&mut vehicle, &step, &ground);
+    }
+    assert!(met, "a bike on its side meets the ground");
+    // Stood up again by hand: the next step has no contact left over from the fall.
+    assert!(ride.place(&ground, (0.0, 0.0, 2.0), 0.0, 5.0));
+    ride.begin_body(&mut vehicle, FIXED_STEP);
+    ride.finish_body(&mut vehicle, FIXED_STEP, &ground);
+    assert!(vehicle.body_contacts().is_empty(), "{} contacts left over", vehicle.body_contacts().len());
 }
 
 #[test]

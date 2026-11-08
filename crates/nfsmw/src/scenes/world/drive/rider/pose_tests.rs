@@ -45,7 +45,7 @@ fn plain_frame() -> Frame {
 }
 
 fn at(position: Vec3) -> Placed {
-    Placed { position, rotation: None }
+    Placed { position, rotation: None, anchor: None }
 }
 
 /// The pose of `skeleton` in the plain frame with the given targets and body.
@@ -155,7 +155,8 @@ fn a_hand_with_a_frame_takes_the_targets_place_and_turn_composed_with_it() {
     let mut limb = resolved.limbs[0];
     limb.frame = Some(frame);
     let resolved = Resolved { limbs: vec![limb], ..resolved };
-    let target = Placed { position: Vec3::new(0.2, 0.1, 0.8), rotation: Some(Quat::from_rotation_y(0.7)) };
+    let target =
+        Placed { position: Vec3::new(0.2, 0.1, 0.8), rotation: Some(Quat::from_rotation_y(0.7)), anchor: None };
     let component = run(&skeleton, &resolved, &[target], Body::REST);
     let (position, turn) = tip_goal(&limb, &target);
     let want_position = target.position + Quat::from_rotation_y(0.7) * Vec3::new(0.02, 0.0, 0.0);
@@ -262,4 +263,86 @@ fn a_pitch_or_a_yaw_turns_about_the_axes_of_the_cars_frame() {
     // A body that is not moved or turned is the rest pose.
     assert_eq!(body(&plain_frame(), Vec3::ZERO, Vec3::ZERO).rotation, Quat::IDENTITY);
     assert_eq!(body(&plain_frame(), Vec3::ZERO, Vec3::splat(f32::NAN)).rotation, Quat::IDENTITY);
+}
+
+#[test]
+fn the_throttle_rolls_the_right_grips_target_about_its_own_frame_and_only_that_one() {
+    use super::super::attach::{Rigid, Target};
+    let mut attach = attach();
+    let turn = Quat::from_rotation_z(0.5);
+    attach.targets.push(Target {
+        name: "right_grip".into(),
+        position: [0.12, -0.33, 1.14],
+        rotation: Some(turn.to_array()),
+        steers: true,
+        anchor: None,
+        anchor_rotation: None,
+    });
+    let roll = Quat::from_rotation_z(-0.5236);
+    attach.wrist_throttle = Some(Rigid { translation: [-0.006, -0.05, 0.0], rotation: roll.to_array() });
+    let frame = frame();
+    let rest = rider_targets(&attach, &frame, None);
+    let mut targets = rest.clone();
+    roll_wrist(&attach, &mut targets, 0.0);
+    assert_eq!(targets, rest, "a closed throttle changes nothing");
+    roll_wrist(&attach, &mut targets, 1.0);
+    assert_eq!(targets[0], rest[0], "the left grip is not the throttle's");
+    let (before, after) = (rest[2], targets[2]);
+    // The offset is in the grip's own frame: its turn carries it into the rider's space.
+    let moved = after.position - before.position;
+    assert!(moved.distance(before.rotation.unwrap() * Vec3::new(-0.006, -0.05, 0.0)) < 1e-6, "{moved:?}");
+    let rolled = before.rotation.unwrap().inverse() * after.rotation.unwrap();
+    assert!(rolled.angle_between(roll) < 1e-5);
+    // Half the throttle is half the roll.
+    let mut half = rest.clone();
+    roll_wrist(&attach, &mut half, 0.5);
+    let share = before.rotation.unwrap().inverse() * half[2].rotation.unwrap();
+    assert!((share.angle_between(Quat::IDENTITY) - roll.angle_between(Quat::IDENTITY) / 2.0).abs() < 1e-4);
+    // A file without the offset, or a grip without a turn, is left alone.
+    attach.wrist_throttle = None;
+    let mut plain = rest.clone();
+    roll_wrist(&attach, &mut plain, 1.0);
+    assert_eq!(plain, rest);
+}
+
+#[test]
+fn a_hand_keeps_its_place_and_turn_against_the_grip_bone_it_holds() {
+    let mut limb = Resolved::new(&attach(), &skeleton()).unwrap().limbs[0];
+    // The wrist is 10 cm behind the grip bone along the bone's own x axis, turned as it.
+    limb.frame = Some(Transform::IDENTITY);
+    limb.anchor = Some(Transform::from_rt(Quat::IDENTITY, Vec3::new(-0.1, 0.0, 0.0)));
+    let turn = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
+    let placed = Placed {
+        position: Vec3::new(5.0, 5.0, 5.0),
+        rotation: Some(Quat::IDENTITY),
+        anchor: Some((Vec3::new(0.3, 0.2, 0.9), turn)),
+    };
+    let (position, rotation) = tip_goal(&limb, &placed);
+    // The bone's x axis, turned a quarter about z, points along +y: the wrist is 10 cm behind the bone along it.
+    assert!(position.distance(Vec3::new(0.3, 0.1, 0.9)) < 1e-6, "{position:?}");
+    assert!(rotation.unwrap().angle_between(turn) < 1e-3);
+    // Without the bike's anchor (an older file) the hand goes to the socket as it did.
+    let socket_only = Placed { anchor: None, ..placed };
+    assert!(tip_goal(&limb, &socket_only).0.distance(Vec3::new(5.0, 5.0, 5.0)) < 1e-6);
+    // The throttle turns the grip bone's frame about the socket's axis and moves it with the offset.
+    let mut attach = attach();
+    attach.targets.push(super::super::attach::Target {
+        name: "right_grip".into(),
+        position: [0.1, 0.1, 0.1],
+        rotation: Some(turn.to_array()),
+        steers: false,
+        anchor: Some([0.3, 0.2, 0.9]),
+        anchor_rotation: Some(Quat::IDENTITY.to_array()),
+    });
+    attach.wrist_throttle = Some(super::super::attach::Rigid {
+        translation: [0.0, 0.01, 0.0],
+        rotation: Quat::from_rotation_z(0.5).to_array(),
+    });
+    let frame = plain_frame();
+    let mut targets = rider_targets(&attach, &frame, None);
+    let before = targets[2];
+    roll_wrist(&attach, &mut targets, 1.0);
+    let (at, bone) = (targets[2].anchor.unwrap(), before.anchor.unwrap());
+    assert!((at.0 - bone.0).distance(turn * Vec3::new(0.0, 0.01, 0.0)) < 1e-6, "{at:?}");
+    assert!(at.1.angle_between(bone.1) > 0.4, "the hand is turned about the bar: {at:?}");
 }

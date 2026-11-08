@@ -76,6 +76,7 @@ impl SoundFeed {
             nos_empty: input.nos && t.has_nos && t.nos <= 0.0,
             wheels: sim.wheel_sounds(surfaces),
             up_dot: sim.up_dot(),
+            two_wheeler: sim.is_bike(),
             pre_race,
             ..Default::default()
         };

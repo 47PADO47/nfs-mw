@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 
 use super::graph_reverse::{RATE, RATE_SPEED_KMH, START_SECONDS, START_SPEED_KMH};
 use super::graph_sets::{self, ClipSet};
+use super::graph_stand;
 
 /// The file name in `files/RIDER/`.
 pub const FILE: &str = "styles.json";
@@ -105,12 +106,12 @@ pub fn graph_file(set: &ClipSet) -> String {
     format!("graph_{}.json", set.name)
 }
 
-/// One entry of `styles.json`: the graph, the riding style it was built for and the numbers of the reverse walk.
-pub fn entry(set: &ClipSet, riding_style: u8, loop_seconds: Option<f32>) -> Value {
+/// One entry of `styles.json`: the graph and the numbers of the reverse walk and of the standstill.
+pub fn entry(set: &ClipSet, loop_seconds: Option<f32>) -> Value {
     let mut out = json!({
         "bike_type": set.bike_type,
         "graph": graph_file(set),
-        "riding_style": riding_style,
+        "stand": graph_stand::entry(set),
     });
     if let Some(seconds) = loop_seconds {
         out["reverse"] = json!({

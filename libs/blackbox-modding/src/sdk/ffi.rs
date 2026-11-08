@@ -13,6 +13,8 @@ pub(crate) mod config;
 #[cfg(all(test, feature = "host"))]
 mod config_tests;
 pub(crate) mod content;
+#[cfg(all(test, feature = "host"))]
+mod content_tests;
 pub(crate) mod engine;
 mod event;
 pub(crate) mod hud;

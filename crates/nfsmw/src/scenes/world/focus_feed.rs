@@ -62,6 +62,12 @@ impl WorldScene {
             self.pursuit_look.hold();
         }
         let (heat, pursued) = self.traffic.as_ref().map_or((0.0, false), |t| (t.vehicle_heat(), t.is_pursuing()));
-        Some(self.pursuit_look.update(heat, pursued, sim_dt, real_dt))
+        let frame = self.pursuit_look.update(heat, pursued, sim_dt, real_dt);
+        // From inside a bike's helmet the start of a chase is shown at a fraction of its strength: the flash and the blur would hide
+        // the road, and the other cameras keep them.
+        Some(match self.bike_helmet_active() {
+            true => frame.scaled(super::pursuit_look::HELMET_SHARE),
+            false => frame,
+        })
     }
 }

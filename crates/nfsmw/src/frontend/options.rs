@@ -17,8 +17,8 @@ use crate::i18n::Args;
 #[cfg(test)]
 use crate::settings::Transmission;
 use crate::settings::{
-    CameraMode, HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, SpeedUnits, UiStyle, UiTheme,
-    UpscaleMode, WindowMode,
+    CameraMode, HudLayout, MinimapMode, Partial, Percent, RidingStyle, Settings, SmokeQuality, SpeedUnits, UiStyle,
+    UiTheme, UpscaleMode, WindowMode,
 };
 
 /// A setting a row edits.
@@ -45,6 +45,9 @@ pub enum Setting {
     ExhaustFlames,
     CustomFonts,
     TurnSignals,
+    RiderGear,
+    /// One part of the rider's gear, picked among a mod's items (`options_gear.rs`): its value is the profile's, not a setting.
+    Gear(crate::garage::rider_gear::Part),
     CopHealthBars,
     RearViewMirror,
     Autosave,
@@ -68,7 +71,10 @@ pub enum Setting {
     Renderer(RendererSetting),
     HudLayout,
     UiStyle,
+    /// The CustomHUD plugin's gauge skin: Auto or Off (`settings/custom_hud_skin.rs`).
+    CustomHudSkin,
     SpeedUnits,
+    RidingStyle,
     UiTheme,
     ContextMinimap(crate::settings::MinimapContext),
     RenderScale,
@@ -169,6 +175,9 @@ pub(super) mod hud_options;
 #[path = "options_caps.rs"]
 mod caps_rows;
 
+#[path = "options_gear.rs"]
+mod gear;
+
 #[path = "options_steps.rs"]
 mod steps;
 use steps::{cycle, next_scale, nudge};
@@ -244,6 +253,8 @@ impl Setting {
             Setting::DiscordTimePlayed | Setting::DiscordJoin => s.discord,
             // The kinds of game moment are dimmed while the Game Moment Camera is off.
             Setting::GameMoment(_) => s.game_moments.camera,
+            // The gear is dimmed while the switch is off: the rider wears his own gear then.
+            Setting::Gear(_) => s.rider_gear,
             Setting::CustomHud(setting) => setting.enabled(s),
             Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
             // The upscalers that sharpen: FSR 1 (its RCAS pass) and FSR 3 (the RCAS of its own pipeline).
@@ -288,6 +299,7 @@ impl Setting {
                 super::custom_race::options::step(row, forward);
                 return true;
             }
+            Setting::Gear(part) => return gear::step(part, forward),
             Setting::Input(setting) => return setting.step(s, changed, forward),
             Setting::Post(setting) => return setting.step(s, changed, forward),
             Setting::Graphics(setting) => return setting.step(s, changed, forward),
@@ -306,10 +318,21 @@ impl Setting {
                 s.ui_style = UiStyle::ALL[cycle(at, UiStyle::ALL.len(), forward)];
                 changed.ui_style = Some(s.ui_style);
             }
+            Setting::CustomHudSkin => {
+                let all = crate::settings::CustomHudSkin::ALL;
+                let at = all.iter().position(|choice| *choice == s.custom_hud_skin).unwrap_or(0);
+                s.custom_hud_skin = all[cycle(at, all.len(), forward)];
+                changed.custom_hud_skin = Some(s.custom_hud_skin);
+            }
             Setting::SpeedUnits => {
                 let at = SpeedUnits::ALL.iter().position(|units| *units == s.speed_units).unwrap_or(0);
                 s.speed_units = SpeedUnits::ALL[cycle(at, SpeedUnits::ALL.len(), forward)];
                 changed.speed_units = Some(s.speed_units);
+            }
+            Setting::RidingStyle => {
+                let at = RidingStyle::ALL.iter().position(|style| *style == s.riding_style).unwrap_or(0);
+                s.riding_style = RidingStyle::ALL[cycle(at, RidingStyle::ALL.len(), forward)];
+                changed.riding_style = Some(s.riding_style);
             }
             Setting::UiTheme => {
                 let at = UiTheme::ALL.iter().position(|theme| *theme == s.ui_theme).unwrap_or(0);
@@ -387,6 +410,7 @@ impl Setting {
                 changed.custom_fonts.enabled = Some(s.custom_fonts.enabled);
             }
             Setting::TurnSignals => toggle!(s, changed, turn_signals),
+            Setting::RiderGear => toggle!(s, changed, rider_gear),
             Setting::CopHealthBars => toggle!(s, changed, cop_health_bars),
             Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
             Setting::Discord => toggle!(s, changed, discord),

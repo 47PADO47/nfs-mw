@@ -50,13 +50,23 @@ pub const WIND: Kind = Kind {
     value_label: crate::wind_assets::LABEL,
 };
 
-/// Every kind this mod adds a value to, besides the nitrous.
+/// The trees of the world (`trees.rs`): the models and textures of the 2012 game's trees in place of the 2005 game's. Offered
+/// only while the mod's setting `trees` is on.
+pub const TREES: Kind =
+    Kind { option: "trees_variant", label: "Trees", value: crate::trees::VARIANT, value_label: crate::trees::LABEL };
+
+/// Every kind this mod adds a value to, besides the nitrous and the trees.
 pub const ALL: [&Kind; 4] = [&TIRE_SMOKE, &COLLISION_SPARKS, &XENON_SPARKS, &WIND];
 
-/// Add the value of every kind. A game without `bb.settings` keeps its own effects.
-pub fn add_all(ctx: &Ctx) {
+/// Add the value of every kind, and the trees' when `trees` (the setting of that name) is on. A game without `bb.settings`
+/// keeps its own effects.
+pub fn add_all(ctx: &Ctx, trees: bool) {
     let Some(settings) = ctx.settings() else { return };
-    for kind in ALL {
+    let trees_kind: &[&Kind] = match trees {
+        true => &[&TREES],
+        false => &[],
+    };
+    for kind in ALL.iter().chain(trees_kind).copied() {
         let values = [SettingValue { id: kind.value, label: kind.value_label }];
         if let Err(error) = settings.add_option(kind.option, kind.label, &values) {
             ctx.log(Level::Warn, &format!("nfsmw-2012-content: the {} value is not added: {error}", kind.option));
@@ -91,6 +101,14 @@ mod tests {
         assert_eq!(folder(GAME_SPARKS.folder, COLLISION_SPARKS.value), crate::spark_assets::SPARKS_FOLDER);
         assert_eq!(folder(GAME_XENON.folder, XENON_SPARKS.value), crate::spark_assets::XENON_FOLDER);
         assert!(XENON_SPARKS.label.contains("sparks only"), "the menu says what the variant leaves out");
+    }
+
+    #[test]
+    fn the_trees_option_is_the_games_and_names_the_folder_the_mod_writes() {
+        assert_eq!(TREES.option, blackbox_modding::content::TREES.option);
+        let folder = format!("{}/{}", blackbox_modding::content::TREES.folder, TREES.value.to_ascii_uppercase());
+        assert_eq!(folder, crate::trees::FOLDER);
+        assert!(TREES.option.ends_with("_variant") && ALL.iter().all(|other| other.option != TREES.option));
     }
 
     #[test]
