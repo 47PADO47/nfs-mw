@@ -12,7 +12,7 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use blackbox_modding::content::{
-    COLLISION_SPARKS, ContentError, NITROUS, TIRE_SMOKE, TREES, VariantKind, WIND, XENON_SPARKS,
+    COLLISION_SPARKS, ContentError, GRADING, NITROUS, TIRE_SMOKE, TREES, VariantKind, WIND, XENON_SPARKS,
 };
 
 use super::bridge::Bridge;
@@ -80,9 +80,18 @@ pub const TREES_KIND: EffectKind = EffectKind {
     original: "options-trees-variant-original",
 };
 
+/// The colour grading of the finished picture: cubes a mod ships, by hour and weather (`grading.rs`). The game has none of its
+/// own, so the one value is "Off". Its row is on the Video page.
+pub const GRADING_KIND: EffectKind = EffectKind {
+    variant: GRADING,
+    name: "colour grading",
+    label: "options-grading-variant",
+    original: "options-grading-variant-original",
+};
+
 /// Every kind the game offers variants of. A new kind is added here.
-pub const KINDS: [EffectKind; 6] =
-    [NITROUS_KIND, TIRE_SMOKE_KIND, COLLISION_SPARKS_KIND, XENON_SPARKS_KIND, WIND_KIND, TREES_KIND];
+pub const KINDS: [EffectKind; 7] =
+    [NITROUS_KIND, TIRE_SMOKE_KIND, COLLISION_SPARKS_KIND, XENON_SPARKS_KIND, WIND_KIND, TREES_KIND, GRADING_KIND];
 
 /// The variant of a kind in effect: the chosen value, and the mod that provides it (`None` for the game's own "Original").
 #[derive(Debug, Clone, PartialEq, Eq)]

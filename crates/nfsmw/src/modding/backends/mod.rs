@@ -16,6 +16,7 @@ pub mod commands;
 mod config;
 mod content;
 mod engine;
+mod grading;
 mod hud;
 mod i18n;
 mod input;

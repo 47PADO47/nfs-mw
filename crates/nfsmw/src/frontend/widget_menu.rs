@@ -369,6 +369,9 @@ impl ScreenLogic for WidgetMenu {
                 rows.extend(mod_options::gameplay_rows(cx.mods));
                 rows
             }
+            super::logic::Category::Video => {
+                mod_options::with_video_rows(options::rows(super::logic::Category::Video, &cx.caps), cx)
+            }
             category => options::rows(category, &cx.caps),
         };
         self.find_rows(cx);

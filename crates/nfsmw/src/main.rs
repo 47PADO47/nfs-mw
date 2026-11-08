@@ -17,6 +17,7 @@ mod engine_switch;
 mod extra_options;
 mod frontend;
 mod garage;
+mod grading;
 mod gui;
 mod hud;
 mod i18n;

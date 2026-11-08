@@ -294,6 +294,7 @@ impl WorldScene {
                 race_mods: Default::default(),
                 mod_blips: Vec::new(),
                 nitrous_fx: None,
+                grading: Default::default(),
                 wind_fx: None,
                 nitrous_screen: Default::default(),
                 career: Default::default(),

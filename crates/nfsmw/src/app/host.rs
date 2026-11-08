@@ -169,6 +169,7 @@ impl Host {
         renderer.set_colour_treatment(None, None);
         renderer.set_focus_mask(None);
         renderer.set_focus_filter(Default::default());
+        renderer.set_colour_grade(None);
         renderer.set_reflection_scene(None);
         renderer.set_projected_reflection_scene(None);
         let mut old = std::mem::replace(&mut self.scene, menu);
@@ -197,6 +198,7 @@ impl Host {
         renderer.set_colour_treatment(None, None);
         renderer.set_focus_mask(None);
         renderer.set_focus_filter(Default::default());
+        renderer.set_colour_grade(None);
         // A local environment belongs to the old scene; menus and viewers must not inherit its capture.
         renderer.set_reflection_scene(None);
         renderer.set_projected_reflection_scene(None);

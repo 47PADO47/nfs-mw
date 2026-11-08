@@ -13,11 +13,12 @@ use blackbox_modding::host::MenuKind;
 
 use super::ids::{LABEL_OFF, LABEL_ON};
 use super::options::{Control, Data, Row, Setting, Title, message};
+use super::post_options::PostSetting;
 use crate::i18n::t;
 use crate::modding::manager::Row as Switch;
 use crate::modding::{
     Mods, RowInfo, change_gameplay_option, change_menu_row, gameplay_option, has_ui_themes, menu_rows,
-    step_ui_theme_choice, ui_theme_display, visible_gameplay_options,
+    step_ui_theme_choice, ui_theme_display, visible_gameplay_options, visible_option_index,
 };
 
 /// The title of a Mods row: its label is the mod's, shown in its place (`shown`).
@@ -50,10 +51,36 @@ pub fn gameplay_rows(mods: Option<&Mods>) -> Vec<Row> {
     let Some(mods) = mods else {
         return Vec::new();
     };
+    // The colour grading choice is on the Video page (`video_rows`), with the effects it belongs to.
+    let grading = visible_option_index(mods.bridge(), blackbox_modding::content::GRADING.option);
     visible_gameplay_options(mods.bridge())
         .into_iter()
+        .filter(|index| Some(*index) != grading)
         .map(|index| Row { setting: Setting::GameplayOption(index), title: MOD_TITLE })
         .collect()
+}
+
+/// The Video page's rows with the colour grading a mod offers added (`video_rows`), when the renderer has the pass.
+pub fn with_video_rows(mut rows: Vec<Row>, cx: &super::logic::Cx) -> Vec<Row> {
+    if cx.caps.colour_cube {
+        rows.extend(video_rows(cx.mods));
+    }
+    rows
+}
+
+/// The rows the Video page adds after its own: the colour grading choice (the `grading_variant` option, "Off" and the looks
+/// mods offer) and its strength, once a mod gives the option a second value. None without such a mod, as before.
+pub fn video_rows(mods: Option<&Mods>) -> Vec<Row> {
+    let Some(mods) = mods else {
+        return Vec::new();
+    };
+    let Some(index) = visible_option_index(mods.bridge(), blackbox_modding::content::GRADING.option) else {
+        return Vec::new();
+    };
+    vec![
+        Row { setting: Setting::GameplayOption(index), title: MOD_TITLE },
+        Row { setting: Setting::Post(PostSetting::GradingStrength), title: PostSetting::GradingStrength.title() },
+    ]
 }
 
 /// The UI theme row, when `offered`: a mod registered a theme, so there is a choice to make.

@@ -14,9 +14,9 @@ use std::sync::Arc;
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
 use blackbox_modding::content::{
-    ModelSwapProfile, NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile,
-    parse_model_swap_profile, parse_nitrous_profile, parse_sparks_profile, parse_tire_smoke_profile,
-    parse_wind_profile, parse_xenon_profile,
+    GradingProfile, ModelSwapProfile, NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile,
+    parse_grading_profile, parse_model_swap_profile, parse_nitrous_profile, parse_sparks_profile,
+    parse_tire_smoke_profile, parse_wind_profile, parse_xenon_profile,
 };
 use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;
@@ -33,7 +33,8 @@ use super::settings::{self, OptionHandler};
 use super::time::{self, Clock, ClockRequest};
 use super::ui::UiRecord;
 use super::variants::{
-    COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, TIRE_SMOKE_KIND, TREES_KIND, WIND_KIND, XENON_SPARKS_KIND,
+    COLLISION_SPARKS_KIND, CacheCell, GRADING_KIND, NITROUS_KIND, TIRE_SMOKE_KIND, TREES_KIND, WIND_KIND,
+    XENON_SPARKS_KIND,
 };
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
@@ -89,6 +90,10 @@ pub struct Bridge {
     /// (`publish_trees`).
     pub(super) trees_cache: CacheCell<ModelSwapProfile>,
     pub(super) trees_published: RefCell<Option<Arc<ModelSwapProfile>>>,
+    /// The same for the colour grading variant (`grading_profile`), and the look made from the profile last read, with its cubes
+    /// (`grading_look`; `None` for a profile whose cubes did not read).
+    pub(super) grading_cache: CacheCell<GradingProfile>,
+    pub(super) grading_look_cache: RefCell<Option<(Arc<GradingProfile>, Option<Arc<crate::grading::GradingLook>>)>>,
     /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
     pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync
@@ -137,6 +142,8 @@ impl Bridge {
             wind_cache: RefCell::default(),
             trees_cache: RefCell::default(),
             trees_published: RefCell::default(),
+            grading_cache: RefCell::default(),
+            grading_look_cache: RefCell::default(),
             ui_themes: RefCell::default(),
             ui_theme_choice: Cell::new(None),
             store,
@@ -224,6 +231,11 @@ impl Bridge {
         self.variant_profile(&TREES_KIND, &self.trees_cache, parse_model_swap_profile)
     }
 
+    /// The colour grading variant the player chose, when it is a mod's: `GRADING/<value>/profile.toml`.
+    pub fn grading_profile(&self) -> Option<Arc<GradingProfile>> {
+        self.variant_profile(&GRADING_KIND, &self.grading_cache, parse_grading_profile)
+    }
+
     /// The profiles of every kind of variant the player chose, for the scene (`EffectVariants`). A new kind adds its field here.
     pub fn effect_variants(&self) -> EffectVariants {
         EffectVariants {
@@ -232,6 +244,7 @@ impl Bridge {
             collision_sparks: self.collision_sparks_profile(),
             xenon_sparks: self.xenon_sparks_profile(),
             wind: self.wind_profile(),
+            grading: self.grading_look(),
         }
     }
 

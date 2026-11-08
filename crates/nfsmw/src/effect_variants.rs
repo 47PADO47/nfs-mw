@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use blackbox_modding::content::{NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile};
 
+use crate::grading::GradingLook;
+
 /// The profiles of the variants in effect, one field per kind.
 #[derive(Debug, Clone, Default)]
 pub struct EffectVariants {
@@ -23,6 +25,8 @@ pub struct EffectVariants {
     pub xenon_sparks: Option<Arc<XenonProfile>>,
     /// The loops of the wind (`WIND/<value>/profile.toml`), played by the car's sound in place of the game's own wind.
     pub wind: Option<Arc<WindProfile>>,
+    /// The colour grading: the cubes of the look the player chose, read from the install (`GRADING/<value>/profile.toml`).
+    pub grading: Option<Arc<GradingLook>>,
 }
 
 #[cfg(test)]
@@ -34,6 +38,7 @@ mod tests {
         let variants = EffectVariants::default();
         assert!(variants.nitrous.is_none() && variants.tire_smoke.is_none());
         assert!(variants.collision_sparks.is_none() && variants.xenon_sparks.is_none() && variants.wind.is_none());
+        assert!(variants.grading.is_none());
     }
 
     #[test]

@@ -12,10 +12,13 @@ pub enum PostSetting {
     Aa,
     MotionBlur,
     MotionBlurStrength,
+    /// How far the colour grading of a mod goes (`grading_strength`); listed with the grading choice (`mod_options::video_rows`).
+    GradingStrength,
 }
 
 impl PostSetting {
-    pub const ALL: [Self; 5] = [Self::Aa, Self::Tonemap, Self::Bloom, Self::MotionBlur, Self::MotionBlurStrength];
+    pub const ALL: [Self; 6] =
+        [Self::Aa, Self::Tonemap, Self::Bloom, Self::MotionBlur, Self::MotionBlurStrength, Self::GradingStrength];
 
     pub fn title(self) -> Title {
         Title::Key(match self {
@@ -24,6 +27,7 @@ impl PostSetting {
             Self::Aa => "options-anti-aliasing",
             Self::MotionBlur => "options-motion-blur",
             Self::MotionBlurStrength => "options-motion-blur-strength",
+            Self::GradingStrength => "options-grading-strength",
         })
     }
 
@@ -33,6 +37,7 @@ impl PostSetting {
             Self::MotionBlurStrength => {
                 Data::Text(crate::i18n::fmt::percent((s.motion_blur_strength * 100.0).round() as i64))
             }
+            Self::GradingStrength => Data::Text(crate::i18n::fmt::percent((s.grading_strength * 100.0).round() as i64)),
             Self::MotionBlur => Data::Label(match s.motion_blur {
                 true => LABEL_ON,
                 false => LABEL_OFF,
@@ -76,6 +81,15 @@ impl PostSetting {
             Self::MotionBlur => {
                 s.motion_blur = !s.motion_blur;
                 changed.motion_blur = Some(s.motion_blur);
+            }
+            Self::GradingStrength => {
+                let (lo, hi) = crate::settings::grading::STRENGTH_RANGE;
+                let step = match forward {
+                    true => 0.1,
+                    false => -0.1,
+                };
+                s.grading_strength = (((s.grading_strength + step) * 10.0).round() / 10.0).clamp(lo, hi);
+                changed.grading_strength = Some(s.grading_strength);
             }
             Self::MotionBlurStrength => {
                 let (lo, hi) = MOTION_BLUR_STRENGTH_RANGE;
