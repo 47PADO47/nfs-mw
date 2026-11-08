@@ -110,7 +110,10 @@ mod tests {
 
     #[test]
     fn a_key_that_is_no_unit_is_refused_and_a_missing_install_is_reported_once_per_read() {
-        let maker = Maker::new(std::env::temp_dir().join("fairhaven-no-install"), Options { max_texture: 512 });
+        let maker = Maker::new(
+            std::env::temp_dir().join("fairhaven-no-install"),
+            Options { max_texture: 512, brightness: 100 },
+        );
         assert_eq!(maker.read("car/FASTCOUPE/GEOMETRY.BIN"), Err(Error::Arg));
         assert_eq!(maker.read("unit/161"), Err(Error::Host));
         let reports = maker.take_reports();

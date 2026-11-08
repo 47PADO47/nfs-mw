@@ -3,7 +3,7 @@
 //! (BC7, BC4, BC5, plain RGBA).
 
 use anyhow::{Result, bail};
-use blackbox_tpk::{AlphaUsage, Level, PixelFormat, TextureSource, full_mip_count};
+use blackbox_tpk::{AlphaUsage, Level, PixelFormat, TextureSource, full_mip_count, scale_dxt_colour};
 use chameleon_gfx::{PixelFormat as Source, Texture, mip_size};
 
 /// The flag of a texture the game draws on both sides (`TextureInfo.Flags`, bit 1).
@@ -57,8 +57,8 @@ fn levels_from(texture: &Texture, drop: u32) -> Option<(&[u8], u32)> {
     Some((texture.data.get(skipped..skipped + kept)?, texture.mip_levels - drop))
 }
 
-/// The texture of the game for `texture`, named `name`, at most `limit` pixels on a side.
-pub fn texture_source(name: &str, texture: &Texture, limit: u32, look: Look) -> Result<TextureSource> {
+/// The texture of the game for `texture`, named `name`, at most `limit` pixels on a side, its colour at `brightness` percent.
+pub fn texture_source(name: &str, texture: &Texture, limit: u32, brightness: u32, look: Look) -> Result<TextureSource> {
     let drop = levels_to_drop(texture, limit);
     let (width, height) = ((texture.width >> drop).max(1), (texture.height >> drop).max(1));
     let Some((pixels, levels)) = levels_from(texture, drop) else {
@@ -77,9 +77,11 @@ pub fn texture_source(name: &str, texture: &Texture, limit: u32, look: Look) -> 
     };
     let mut source = match kept {
         Some(format) => {
-            TextureSource::new(name, width, height, format, levels.min(full_mip_count(width, height)), pixels.to_vec())
+            let mut data = pixels.to_vec();
+            scale_dxt_colour(format, &mut data, brightness);
+            TextureSource::new(name, width, height, format, levels.min(full_mip_count(width, height)), data)
         }
-        None => reencode(name, texture, drop, (width, height), pixels, look)?,
+        None => reencode(name, texture, drop, (width, height), pixels, brightness, look)?,
     };
     source.alpha_usage = if look.cut_out { AlphaUsage::PunchThrough } else { AlphaUsage::None };
     source.flags = if look.two_sided { TWO_SIDED } else { 0 };
@@ -95,6 +97,7 @@ fn reencode(
     drop: u32,
     (width, height): (u32, u32),
     pixels: &[u8],
+    brightness: u32,
     look: Look,
 ) -> Result<TextureSource> {
     let level_bytes = mip_size(texture.format, texture.width, texture.height, drop).unwrap_or(0);
@@ -108,7 +111,16 @@ fn reencode(
         format: texture.format,
         data: pixels.get(..level_bytes).unwrap_or_default().to_vec(),
     };
-    let Some(rgba) = level.to_rgba8() else { bail!("{name}: the pixel format {:?} cannot be read", texture.format) };
+    let Some(mut rgba) = level.to_rgba8() else {
+        bail!("{name}: the pixel format {:?} cannot be read", texture.format)
+    };
+    if brightness != 100 {
+        for pixel in rgba.as_chunks_mut::<4>().0 {
+            for channel in &mut pixel[..3] {
+                *channel = ((u32::from(*channel) * brightness + 50) / 100).min(255) as u8;
+            }
+        }
+    }
     let has_alpha = !look.cut_out && rgba.as_chunks::<4>().0.iter().any(|pixel| pixel[3] < 255);
     let format = if has_alpha { PixelFormat::Dxt5 } else { PixelFormat::Dxt1 };
     let picture = Level { width, height, rgba };
@@ -152,7 +164,7 @@ mod tests {
     #[test]
     fn a_block_compressed_picture_keeps_its_pixels_and_loses_its_top_levels() {
         let texture = bc1(64, 7);
-        let source = texture_source("F1", &texture, 16, PLAIN).unwrap();
+        let source = texture_source("F1", &texture, 16, 100, PLAIN).unwrap();
         assert_eq!((source.width, source.height, source.mip_count), (16, 16, 5));
         assert_eq!(source.format, PixelFormat::Dxt1);
         // The first stored level is the third (level 2) of the original: its blocks are filled with 2.
@@ -163,19 +175,19 @@ mod tests {
     #[test]
     fn the_look_sets_the_alpha_use_the_sides_and_the_name() {
         let texture = bc1(8, 4);
-        let cut = texture_source("F1C", &texture, 512, Look { cut_out: true, two_sided: true }).unwrap();
+        let cut = texture_source("F1C", &texture, 512, 100, Look { cut_out: true, two_sided: true }).unwrap();
         assert_eq!(cut.alpha_usage, AlphaUsage::PunchThrough);
         assert_eq!(cut.flags, TWO_SIDED);
         assert_eq!(name_of(0x0123_4567_89AB_CDEF, Look { cut_out: true, two_sided: true }), "F0123456789ABCDEFE");
         assert!(name_of(u64::MAX, Look { cut_out: true, two_sided: true }).len() <= 23);
-        assert_eq!(texture_source("F1", &texture, 512, PLAIN).unwrap().alpha_usage, AlphaUsage::None);
+        assert_eq!(texture_source("F1", &texture, 512, 100, PLAIN).unwrap().alpha_usage, AlphaUsage::None);
     }
 
     #[test]
     fn short_pixel_data_is_refused() {
         let mut texture = bc1(16, 5);
         texture.data.truncate(100);
-        assert!(texture_source("F1", &texture, 512, PLAIN).is_err());
+        assert!(texture_source("F1", &texture, 512, 100, PLAIN).is_err());
     }
 
     #[test]
@@ -190,10 +202,10 @@ mod tests {
             format: Source::Rgba8,
             data: [10u8, 120, 30, 255].repeat(64),
         };
-        let source = texture_source("F2", &texture, 512, PLAIN).unwrap();
+        let source = texture_source("F2", &texture, 512, 100, PLAIN).unwrap();
         assert_eq!((source.format, source.mip_count), (PixelFormat::Dxt1, 4));
         assert_eq!(source.data.len(), source.expected_data_len());
         let alpha = Texture { data: [10u8, 120, 30, 100].repeat(64), ..texture };
-        assert_eq!(texture_source("F3", &alpha, 512, PLAIN).unwrap().format, PixelFormat::Dxt5);
+        assert_eq!(texture_source("F3", &alpha, 512, 100, PLAIN).unwrap().format, PixelFormat::Dxt5);
     }
 }

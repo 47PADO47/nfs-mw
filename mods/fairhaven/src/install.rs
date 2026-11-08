@@ -69,6 +69,11 @@ impl Install {
         for zone in &zones {
             shared.add(open_bundle(&world.join(format!("TRK_UNIT{}.BNDL", zone.unit)))?);
         }
+        // The models a unit lists that no bundle of the pool above has (3 to 6 a unit, 69 in all) are in the arena bundles and in
+        // the units the zone list does not name (found with `fairhaven-unit --find-missing`): their tables come last.
+        for path in extra_bundles(&world, &zones)? {
+            shared.add(open_bundle(&path)?);
+        }
         Ok(Self { root: root.to_path_buf(), shared, zones, shaders: Mutex::new(HashMap::new()) })
     }
 
@@ -148,6 +153,49 @@ fn read_zones(path: &Path) -> Result<Vec<Zone>> {
     };
     let resource = bundle.resource(index)?;
     pvs::parse(&resource.blocks[0]).with_context(|| format!("reading the zone list of {}", path.display()))
+}
+
+/// For each of `ids`, the bundles of the install (every `.BNDL` under `root`) that hold that resource, as paths relative to
+/// `root`. Reads each bundle's table once, which is slow: it is for finding where resources live, not for the game.
+pub fn bundles_with(root: &Path, ids: &[u64]) -> Vec<(u64, Vec<String>)> {
+    let mut found: Vec<(u64, Vec<String>)> = ids.iter().map(|&id| (id, Vec::new())).collect();
+    let mut folders = vec![root.to_path_buf()];
+    while let Some(folder) = folders.pop() {
+        let Ok(entries) = std::fs::read_dir(&folder) else { continue };
+        for path in entries.filter_map(|entry| entry.ok().map(|entry| entry.path())) {
+            if path.is_dir() {
+                folders.push(path);
+                continue;
+            }
+            let is_bundle = path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("bndl"));
+            let Some(bundle) = is_bundle.then(|| open_bundle(&path).ok()).flatten() else { continue };
+            let name = path.strip_prefix(root).unwrap_or(&path).display().to_string();
+            for (id, bundles) in &mut found {
+                if bundle.entries().iter().any(|entry| entry.id == *id) {
+                    bundles.push(name.clone());
+                }
+            }
+        }
+    }
+    found
+}
+
+/// The bundles of the world folder that the pool has not taken yet and that hold models units use: `ARENA_*.BNDL` and the
+/// `TRK_UNIT<n>.BNDL` files the zone list does not name, in file-name order.
+fn extra_bundles(world: &Path, zones: &[Zone]) -> Result<Vec<PathBuf>> {
+    let named: Vec<String> = zones.iter().map(|zone| format!("TRK_UNIT{}.BNDL", zone.unit)).collect();
+    let mut files: Vec<PathBuf> = std::fs::read_dir(world)
+        .with_context(|| format!("listing {}", world.display()))?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| {
+            let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default().to_ascii_uppercase();
+            let arena = name.starts_with("ARENA_") && name.ends_with(".BNDL");
+            let unit = name.starts_with("TRK_UNIT") && name.ends_with(".BNDL") && !named.contains(&name);
+            arena || unit
+        })
+        .collect();
+    files.sort();
+    Ok(files)
 }
 
 /// The district bundles of the world folder, in file-name order.
