@@ -51,6 +51,10 @@ pub struct OptionDef {
     pub values: Vec<OptionValue>,
     /// The mod that created the option, or `None` when the game has it.
     pub owner: Option<String>,
+    /// The title of the section of the menu the row is listed under (text, or a message id of the owner's catalogue), or
+    /// `None` for the default section, which has no title. Set only by the mod that created the option; values a mod adds to
+    /// the game's option leave the row where the game has it.
+    pub section: Option<String>,
     /// A toggle's starting state.
     pub default_on: bool,
     /// The game draws this row itself from its own data; mods cannot add values to it and it is not listed for drawing.
@@ -70,6 +74,7 @@ impl OptionDef {
             label: label.to_owned(),
             values,
             owner: None,
+            section: None,
             default_on: false,
             fixed: false,
         }
@@ -83,6 +88,7 @@ impl OptionDef {
             label: String::new(),
             values: Vec::new(),
             owner: None,
+            section: None,
             default_on: false,
             fixed: true,
         }
@@ -164,6 +170,8 @@ pub struct OptionSpec<'a> {
     pub label: &'a str,
     pub values: Vec<ValueSpec<'a>>,
     pub default_on: bool,
+    /// The section title the row goes under when the option is created; empty for the default section.
+    pub section: &'a str,
 }
 
 /// What an `add_option` did.
@@ -273,6 +281,7 @@ impl OptionsModel {
             label: spec.label.to_owned(),
             values,
             owner: Some(owner.to_owned()),
+            section: Some(spec.section).filter(|section| !section.is_empty()).map(str::to_owned),
             default_on: spec.default_on,
             fixed: false,
         });
@@ -356,6 +365,9 @@ fn check_spec(spec: &OptionSpec<'_>) -> Result<(), AddError> {
     }
     if spec.values.len() > MAX_OPTION_VALUES {
         return Err(AddError::Invalid("too many values"));
+    }
+    if spec.section.len() > 128 {
+        return Err(AddError::Invalid("the section title is longer than 128 bytes"));
     }
     match spec.kind {
         OptionKind::Toggle if !spec.values.is_empty() => {

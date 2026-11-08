@@ -147,6 +147,9 @@ pub struct OptionInfo {
     pub on: bool,
     /// A list's chosen value, as text in the player's language.
     pub text: String,
+    /// The title of the section the row is listed under, in the player's language; empty for the default section (an option
+    /// the game has, or a mod's that names no section).
+    pub section: String,
 }
 
 /// A text of the game (a catalogue message id) or of a mod (shown from the mod's catalogue, else as written).
@@ -165,10 +168,10 @@ pub fn visible(bridge: &Bridge) -> Vec<usize> {
 
 /// The option at `index` as the page shows it, or `None` when it is gone.
 pub fn info(bridge: &Bridge, index: usize) -> Option<OptionInfo> {
-    let (id, label, owner, kind, values) = {
+    let (id, label, owner, kind, values, section) = {
         let model = bridge.options.borrow();
         let def = model.options().get(index)?;
-        (def.id.clone(), def.label.clone(), def.owner.clone(), def.kind, def.values.clone())
+        (def.id.clone(), def.label.clone(), def.owner.clone(), def.kind, def.values.clone(), def.section.clone())
     };
     let value = chosen(bridge, &id)?;
     let text = values
@@ -182,6 +185,7 @@ pub fn info(bridge: &Bridge, index: usize) -> Option<OptionInfo> {
         toggle: kind == OptionKind::Toggle,
         on: value == "on",
         text,
+        section: section.map(|title| shown_text(owner.as_deref(), &title)).unwrap_or_default(),
     })
 }
 

@@ -21,6 +21,7 @@ fn spec<'a>(kind: &EffectKind, value: &'a str) -> OptionSpec<'a> {
         label: "x",
         values: vec![ValueSpec { id: value, label: "A mod's" }],
         default_on: false,
+        section: "",
     }
 }
 

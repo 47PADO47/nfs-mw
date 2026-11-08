@@ -317,6 +317,7 @@ impl ScreenLogic for ControlsLogic {
                 enabled: true,
                 value: MenuValue::Keys { primary: key(row, 0), secondary: key(row, 1), focus: Some(self.cell.slot) },
                 icon: None,
+                flags: crate::ui::theme::EntryFlags::ROW,
             })
             .collect();
         let style = if self.args.pause { MenuStyle::Pause } else { MenuStyle::Sub };

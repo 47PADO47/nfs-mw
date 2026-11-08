@@ -53,7 +53,16 @@ pub struct BbSettingOption {
     pub default_on: u32,
     /// Padding, zero.
     pub pad: u32,
+    /// The title of the section of the menu the row is listed under, or empty for the default section (which has no
+    /// title). Text, or a message id of the mod's catalogue (`bb.i18n`). Used only when the game does not have the option
+    /// yet. Appended after `BB_SETTING_OPTION_V0_SIZE`: a mod built without it sets `size` to that smaller size and the
+    /// host reads no section.
+    pub section: BbStr,
 }
+
+/// The size of `BbSettingOption` before `section` was appended (72 bytes). A mod that fills in only this much has the
+/// default section.
+pub const BB_SETTING_OPTION_V0_SIZE: u32 = 72;
 
 /// The callback an option calls with its new value: the value's id for a list, `"on"` or `"off"` for a toggle. `user` is
 /// the mod's pointer.

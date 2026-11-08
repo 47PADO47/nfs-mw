@@ -80,9 +80,9 @@ pub use iface::{
     IFACE_TIME_VERSION,
 };
 pub use iface::{
-    BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_TOGGLE, BbSettingCallbackFn, BbSettingOption, BbSettingValue,
-    BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn, IFACE_SETTINGS,
-    IFACE_SETTINGS_VERSION,
+    BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_OPTION_V0_SIZE, BB_SETTING_TOGGLE, BbSettingCallbackFn,
+    BbSettingOption, BbSettingValue, BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn,
+    IFACE_SETTINGS, IFACE_SETTINGS_VERSION,
 };
 pub use iface::{BB_TRAFFIC_FIELD, BbTraffic, BbTrafficListFn, BbTrafficSpawnFn, IFACE_TRAFFIC, IFACE_TRAFFIC_VERSION};
 pub use iface::{

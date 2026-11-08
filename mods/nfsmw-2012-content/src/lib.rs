@@ -17,6 +17,11 @@
 //! `TEXTURES.BIN` or recording: it writes stubs, and the game has the mod ([`lazy`]) convert a car from the 2012 install when
 //! it first opens one of those files.
 
+/// The section of the gameplay settings this mod's own options are listed under (a message of the mod's catalogue,
+/// `bb.settings` `section`): the options of this mod are together under its name. The game's own effect variant options
+/// that this mod adds values to stay where the game has them.
+pub const SECTION: &str = "nfsmw2012-section";
+
 mod body_panels;
 mod brands;
 mod cameras;

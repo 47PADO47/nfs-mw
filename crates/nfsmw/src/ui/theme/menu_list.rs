@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use blackbox_ui::SlotId;
+pub use blackbox_ui::menu::EntryFlags;
 
 use crate::input::Action;
 use crate::ui::prompts::Prompt;
@@ -75,12 +76,21 @@ pub struct MenuEntry {
     pub value: MenuValue,
     /// The picture the entry has beside its name, for a theme that shows pictures (`Tokens::icons`).
     pub icon: Option<MenuIcon>,
+    /// How the list treats the entry (`blackbox_ui::menu`): an ordinary row, a section title (centred, in the highlighted
+    /// text's colour, never selected) or an action. The frontend keeps the selection off an entry that cannot be highlighted.
+    pub flags: EntryFlags,
 }
 
 impl MenuEntry {
     /// An entry with no value, as an icon menu has.
     pub fn plain(label: impl Into<String>, enabled: bool) -> Self {
-        Self { label: label.into(), enabled, value: MenuValue::None, icon: None }
+        Self { label: label.into(), enabled, value: MenuValue::None, icon: None, flags: EntryFlags::ROW }
+    }
+
+    /// A section title: its label centred across the row in the colour of highlighted text, with no value, and never
+    /// selected, pressed or stopped on.
+    pub fn title(label: impl Into<String>) -> Self {
+        Self { flags: EntryFlags::TITLE, ..Self::plain(label, true) }
     }
 }
 

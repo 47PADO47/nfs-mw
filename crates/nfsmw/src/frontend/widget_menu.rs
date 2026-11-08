@@ -2,9 +2,12 @@
 //! (docs/specs/frontend-menus.md, section 3). The package supplies the row objects and the highlight scripts;
 //! this logic puts the settings on them, moves the selection and changes the values.
 
-use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_START, PAD_UP};
-use blackbox_feng::{ObjectRef, Runtime, fe_hash_upper};
-use glam::{Vec2, Vec3};
+use blackbox_feng::ids::{
+    BUTTON_PRESSED, PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_LTRIGGER, PAD_RIGHT, PAD_RTRIGGER, PAD_START, PAD_UP,
+};
+use blackbox_feng::{ObjectRef, fe_hash_upper};
+use blackbox_ui::menu::EntryFlags;
+use glam::Vec2;
 
 use super::disabled;
 use super::ids::{self, screen};
@@ -17,6 +20,8 @@ use super::widget_layout::{
 use crate::i18n::t;
 use crate::ui::theme::MenuEntry;
 
+mod heading;
+mod navigate;
 mod vertical;
 use vertical::{control_of, data_of};
 
@@ -27,7 +32,9 @@ const ROWS_ON_SCREEN_PAUSED: usize = 10;
 const SLIDER_DROP: f32 = 9.5;
 pub struct WidgetMenu {
     args: Args,
+    /// The rows, section titles included, and how the list treats each (`blackbox_ui::menu`).
     rows: Vec<Row>,
+    flags: Vec<EntryFlags>,
     objects: Vec<RowObjects>,
     layout: Option<Layout>,
     selected: usize,
@@ -44,6 +51,10 @@ pub struct WidgetMenu {
     /// Seconds since the page opened, and the last press on a row: its index, its way and the time it was made.
     clock: f32,
     nudge: Option<(usize, bool, f32)>,
+    /// The colour the package gave its row titles, and which slots showed a section title at the last frame
+    /// (`heading.rs`).
+    authored: Option<[u8; 3]>,
+    titled: Vec<bool>,
 }
 
 fn top_left(cx: &Cx, o: ObjectRef) -> Option<(Vec2, Vec2)> {
@@ -59,6 +70,7 @@ impl WidgetMenu {
         Self {
             args,
             rows: Vec::new(),
+            flags: Vec::new(),
             objects: Vec::new(),
             layout: None,
             selected: 0,
@@ -71,6 +83,8 @@ impl WidgetMenu {
             note: String::new(),
             clock: 0.0,
             nudge: None,
+            authored: None,
+            titled: Vec::new(),
         }
     }
 
@@ -108,6 +122,11 @@ impl WidgetMenu {
         let (Some(layout), Some(r)) = (&self.layout, self.objects.get(slot)) else { return };
         let top = layout.title.y + slot as f32 * layout.title_size.y;
         let middle = top + layout.title_size.y * 0.5;
+        // A section title is centred across the whole row, under no arrows (`heading.rs`).
+        if self.heading_in(slot) {
+            let (left, right) = (layout.title.x, layout.data.x + layout.data_size.x);
+            return heading::centre_string(cx, r.name, left, right - left, middle);
+        }
         // Each string sits in its column by its own justification (the title right aligned, the data centred).
         cx.align_string(r.name, layout.title.x, layout.title_size.x, middle);
         if let Some(data) = r.data {
@@ -137,6 +156,11 @@ impl WidgetMenu {
             if visible {
                 self.place(cx, slot);
                 self.draw_row(cx, first + slot, slot);
+                // A title is measured by its text, which is set by now.
+                self.style_title(cx, slot);
+                if self.heading_in(slot) {
+                    self.place(cx, slot);
+                }
             }
         }
         self.mark_selection(cx);
@@ -149,6 +173,13 @@ impl WidgetMenu {
             (Some(shown), _) => cx.rt.set_text(r.name, &shown.label),
             (None, Title::Label(label)) => cx.rt.set_label(r.name, label),
             (None, title @ Title::Key(_)) => cx.rt.set_text(r.name, title.text()),
+        }
+        // A section title has no value, arrows or slider, and is never dimmed (the slot may have held a dimmed row).
+        if row.setting.is_heading() {
+            for o in [r.data, r.left, r.right, r.base, r.fill].into_iter().flatten() {
+                cx.rt.set_hidden(o, true);
+            }
+            return Self::dim(cx, r, row, true);
         }
         let control = control_of(cx, row.setting);
         let slider = matches!(control, Control::Slider(_));
@@ -234,100 +265,6 @@ impl WidgetMenu {
         cx.rt.set_alpha(r.name, alpha);
     }
 
-    /// Selects the previous or next row, wrapping round, and scrolls the list when it must.
-    fn move_selection(&mut self, cx: &mut Cx, forward: bool) {
-        let n = self.rows.len();
-        if n == 0 || self.window() == 0 || self.leaving {
-            return;
-        }
-        self.selected = if forward { (self.selected + 1) % n } else { (self.selected + n - 1) % n };
-        if self.selected < self.top {
-            self.top = self.selected;
-        }
-        if self.selected >= self.top + self.window() {
-            self.top = self.selected + 1 - self.window();
-        }
-        self.layout_rows(cx);
-    }
-
-    /// The visible row under a point, as its slot on screen. A row runs across the title and the data columns.
-    /// The title master's box is one row high, and the row in slot `k` lies `k` boxes further down.
-    fn slot_at(&self, rt: &Runtime, point: Vec2) -> Option<usize> {
-        let layout = self.layout.as_ref()?;
-        let title = rt.object_quad(layout.title_object)?;
-        let data = rt.object_quad(layout.data_object)?;
-        let edges =
-            [title.transform_point3(Vec3::new(-0.5, 0.0, 0.0)).x, data.transform_point3(Vec3::new(0.5, 0.0, 0.0)).x];
-        let (left, right) = (edges[0].min(edges[1]), edges[0].max(edges[1]));
-        if point.x < left || point.x > right {
-            return None;
-        }
-        let row = (title.inverse().transform_point3(point.extend(0.0)).y + 0.5).floor();
-        if row < 0.0 {
-            return None;
-        }
-        let slot = row as usize;
-        (self.top + slot < (self.top + self.window()).min(self.rows.len())).then_some(slot)
-    }
-
-    /// Selects a row as if the arrows moved there one row at a time, down or up, whichever way is shorter.
-    fn select(&mut self, cx: &mut Cx, index: usize) {
-        let n = self.rows.len();
-        for _ in 0..n {
-            if self.selected == index {
-                return;
-            }
-            let down = (index + n - self.selected) % n;
-            self.move_selection(cx, down <= n - down);
-        }
-    }
-
-    /// A click on a row selects it; a click on one of its arrows then changes the setting in that direction.
-    fn click_row(&mut self, cx: &mut Cx, point: Vec2) -> bool {
-        if self.leaving {
-            return false;
-        }
-        let Some(slot) = self.slot_at(cx.rt, point) else { return false };
-        let Some((left, right)) = self.objects.get(slot).map(|r| (r.left, r.right)) else { return false };
-        let arrow = cx.hit_index(&[left, right], point);
-        self.select(cx, self.top + slot);
-        if self.rows[self.selected].setting == options::Setting::AdvancedGraphics {
-            self.change_from_pointer(cx, true);
-            return true;
-        }
-        if let Some(arrow) = arrow {
-            self.change_from_pointer(cx, arrow == 1);
-        }
-        true
-    }
-
-    /// Left or right on the selected row changes its setting; the new value is in effect at once.
-    fn change(&mut self, cx: &mut Cx, forward: bool) {
-        let Some(row) = self.rows.get(self.selected).copied() else { return };
-        if self.leaving {
-            return;
-        }
-        self.nudge = Some((self.selected, forward, self.clock));
-        if row.setting == options::Setting::AdvancedGraphics {
-            cx.send(Command::OpenGraphics);
-            return;
-        }
-        if let options::Setting::Mod(_) | options::Setting::ModManaged(_) | options::Setting::GameplayOption(_) =
-            row.setting
-        {
-            mod_options::change(cx.mods, row.setting, forward);
-            self.draw_visible(cx);
-            return;
-        }
-        if row.setting == options::Setting::Autosave {
-            options::autosave::change(cx);
-            self.draw_visible(cx);
-            return;
-        }
-        row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
-        self.draw_visible(cx);
-    }
-
     fn leave(&mut self, cx: &mut Cx) {
         if self.leaving {
             return;
@@ -365,13 +302,15 @@ impl ScreenLogic for WidgetMenu {
             super::logic::Category::Gameplay => {
                 // The rider's gear a mod offers and the profile's choice, as of now: the page lists one row for each part.
                 crate::garage::rider_gear::rescan();
-                let mut rows = options::rows(super::logic::Category::Gameplay, &cx.caps);
-                rows.extend(mod_options::gameplay_rows(cx.mods));
-                rows
+                options::page(super::logic::Category::Gameplay, &cx.caps, mod_options::gameplay_rows(cx.mods))
             }
-            category => options::rows(category, &cx.caps),
+            category => options::page(category, &cx.caps, Vec::new()),
         };
+        self.flags = self.rows.iter().map(Row::flags).collect();
+        // A page that opens on a section title starts on the first row under it.
+        self.selected = self.first_selection();
         self.find_rows(cx);
+        self.authored = self.objects.first().and_then(|r| cx.rt.colour_rgba(r.name)).map(|c| [c[0], c[1], c[2]]);
         // Packages supply reusable screen slots, not one object for every logical setting.
         self.on_screen = self.on_screen.min(self.objects.len());
         hide_short_scrollbar(cx, self.rows.len(), self.on_screen, self.top);
@@ -416,6 +355,8 @@ impl ScreenLogic for WidgetMenu {
             ids::INIT_COMPLETE => self.mark_selection(cx),
             PAD_UP => self.move_selection(cx, false),
             PAD_DOWN => self.move_selection(cx, true),
+            PAD_LTRIGGER => self.page(cx, false),
+            PAD_RTRIGGER => self.page(cx, true),
             PAD_LEFT => self.change(cx, false),
             PAD_RIGHT | BUTTON_PRESSED => self.change(cx, true),
             // The package runs its own leave animation for accept; back asks for the same one.
@@ -478,6 +419,7 @@ impl ScreenLogic for WidgetMenu {
         for index in first..last {
             let slot = index - first;
             self.place(cx, slot);
+            self.style_title(cx, slot);
             let (Some(row), Some(r)) = (self.rows.get(index), self.objects.get(slot)) else { continue };
             if let Control::Slider(percent) = control_of(cx, row.setting) {
                 draw_slider(cx, r, f32::from(percent) / 100.0);

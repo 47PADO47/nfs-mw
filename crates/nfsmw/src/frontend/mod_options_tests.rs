@@ -84,3 +84,30 @@ fn without_mods_the_gameplay_page_gets_no_extra_rows() {
     assert!(shown(None, Setting::GameplayOption(0)).is_none());
     change(None, Setting::GameplayOption(0), true);
 }
+
+#[test]
+fn the_options_of_the_model_are_grouped_by_the_section_each_declared() {
+    let options = vec![
+        (1, String::new()),
+        (4, "NFS: Most Wanted (2012)".to_owned()),
+        (5, "Elsewhere".to_owned()),
+        (6, "NFS: Most Wanted (2012)".to_owned()),
+    ];
+    assert_eq!(section_titles(&options), ["NFS: Most Wanted (2012)", "Elsewhere"], "each title once, in order");
+    let rows = sectioned(options);
+    let sections: Vec<&str> = rows.iter().map(|row| row.section.as_str()).collect();
+    assert_eq!(sections, ["", "NFS: Most Wanted (2012)", "Elsewhere", "NFS: Most Wanted (2012)"]);
+    let headings: Vec<Setting> = rows.iter().map(|row| row.heading.setting).collect();
+    assert_eq!(headings[1], Setting::ModHeading(0));
+    assert_eq!(headings[2], Setting::ModHeading(1));
+    assert_eq!(headings[3], Setting::ModHeading(0), "the same title is the same heading");
+    assert_eq!(rows[1].row.setting, Setting::GameplayOption(4));
+}
+
+#[test]
+fn options_that_name_no_section_have_no_title_to_show() {
+    let rows = sectioned(vec![(2, String::new()), (3, String::new())]);
+    assert!(rows.iter().all(|row| row.section.is_empty()), "they join the default section");
+    assert!(section_titles(&[(2, String::new())]).is_empty());
+    assert!(shown(None, Setting::ModHeading(0)).is_none());
+}

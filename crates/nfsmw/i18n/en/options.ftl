@@ -23,6 +23,13 @@ options-remastered = Remastered
 # A row whose setting the running renderer cannot do.
 options-unavailable = Unavailable
 
+## Section titles
+# The title of a group of rows on an option page, centred between the rows (`frontend/options_sections.rs`). The first group of a
+# page has no title. Experimental rows are the rewrite's own additions that are off by default or still being tuned.
+options-section-experimental = Experimental
+# The rider rows of the Gameplay page (the gear, the riding styles, the fingers on the levers): RIDE 6's bikes and riders.
+options-section-ride6 = RIDE 6
+
 ## Audio
 
 # The speech volume row: the police dispatch's radio lines (the setting `speech_volume`).

@@ -52,6 +52,8 @@ pub(crate) struct OptionSpec<'a> {
     pub(crate) label: &'a str,
     pub(crate) values: &'a [SettingValue<'a>],
     pub(crate) default_on: bool,
+    /// The title of the menu section the option is listed under; empty for the default section.
+    pub(crate) section: &'a str,
 }
 
 /// Add an option. The closure, if any, is kept in `keep` until the mod unloads.
@@ -81,6 +83,7 @@ pub(crate) fn add_option(
         value_count: values.len() as u64,
         default_on: u32::from(spec.default_on),
         pad: 0,
+        section: BbStr::new(spec.section),
     };
     let callback: Option<BbSettingCallbackFn> = entry.as_ref().map(|_| option_trampoline as BbSettingCallbackFn);
     let mut id = 0_u64;

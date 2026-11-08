@@ -354,6 +354,7 @@ impl ScreenLogic for Sheet {
                 enabled: self.page.status(at) != Status::Locked,
                 value: MenuValue::Choice { text: self.page.summary(at), arrows: false },
                 icon: None,
+                flags: crate::ui::theme::EntryFlags::ROW,
             })
             .collect();
         Some(MenuList {

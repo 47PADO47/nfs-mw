@@ -97,6 +97,9 @@ pub enum Setting {
     /// An option of the gameplay settings that the options model holds (`bb.settings`), by its position in the model: the
     /// nitrous variant, and the options mods added (`mod_options.rs`).
     GameplayOption(usize),
+    /// Section titles (`options_sections.rs`), never selected or pressed: the game's, a mod's by its place among its titles.
+    Heading,
+    ModHeading(usize),
 }
 
 /// What a row's title shows.
@@ -104,8 +107,8 @@ pub enum Setting {
 pub enum Title {
     /// A key of the language table.
     Label(u32),
-    /// A message of the rewrite's catalogue, for a setting the original has no label for. A Mods row has the empty id:
-    /// its label comes from the mod (`mod_options::shown`).
+    /// A message of the rewrite's catalogue, for a setting the original has no label for. A Mods row's id is empty: its
+    /// label comes from the mod (`mod_options::shown`).
     Key(&'static str),
 }
 
@@ -167,8 +170,8 @@ mod category_rows;
 
 #[path = "autosave_option.rs"]
 pub(super) mod autosave;
-pub use category_rows::rows;
-
+#[cfg_attr(not(test), allow(unused_imports))]
+pub use sections::{page, rows};
 #[path = "options_caps.rs"]
 mod caps_rows;
 #[path = "options_gear.rs"]
@@ -181,14 +184,15 @@ pub(super) mod hud_options;
 pub(super) mod rider_options;
 #[path = "options_steps.rs"]
 mod steps;
-use steps::{cycle, next_scale, nudge};
+use steps::{cycle, next_scale, nudge, on_off};
 #[path = "options_data.rs"]
 mod data;
-#[path = "minimap_options.rs"]
-mod map_options;
-
 #[path = "options_language.rs"]
 mod language;
+#[path = "minimap_options.rs"]
+mod map_options;
+#[path = "options_sections.rs"]
+pub mod sections;
 #[path = "options_world.rs"]
 mod world;
 
@@ -214,9 +218,6 @@ const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMet
 const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
 /// The most values any row cycles through; `advance` gives up after that many steps.
 const MAX_VALUES: usize = 16;
-fn on_off(on: bool) -> Data {
-    Data::Label(if on { LABEL_ON } else { LABEL_OFF })
-}
 
 fn percent_of(s: &Settings, setting: Setting) -> Option<Percent> {
     Some(match setting {
@@ -297,6 +298,7 @@ impl Setting {
             // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings. The theme choice lives in the
             // bridge too.
             Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme | Setting::GameplayOption(_) => return false,
+            Setting::Heading | Setting::ModHeading(_) => return false,
             Setting::Custom(row) => {
                 super::custom_race::options::step(row, forward);
                 return true;

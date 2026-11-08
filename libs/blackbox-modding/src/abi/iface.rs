@@ -54,8 +54,8 @@ pub use menus::{
     BbMenusRegisterFn, BbMenusSetFn, BbMenusUnregisterFn,
 };
 pub use settings::{
-    BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_TOGGLE, BbSettingCallbackFn, BbSettingOption, BbSettingValue,
-    BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn,
+    BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_OPTION_V0_SIZE, BB_SETTING_TOGGLE, BbSettingCallbackFn,
+    BbSettingOption, BbSettingValue, BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn,
 };
 pub use time::{BbTime, BbTimeFreezeFn, BbTimeGetFn, BbTimeOfDay, BbTimeSetDayLengthFn, BbTimeSetHourFn};
 pub use traffic::{BB_TRAFFIC_FIELD, BbTraffic, BbTrafficListFn, BbTrafficSpawnFn};

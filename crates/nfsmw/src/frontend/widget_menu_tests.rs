@@ -2,6 +2,7 @@
 use super::*;
 use blackbox_feng::Runtime;
 use game_install::GameDir;
+use glam::Vec3;
 use std::collections::HashMap;
 
 use crate::settings::{Partial, Settings};

@@ -82,7 +82,7 @@ pub fn register(ctx: &Ctx, mod_dir: &Path) {
         return;
     }
     let Some(settings) = ctx.settings() else { return };
-    if let Err(error) = settings.add_toggle(OPTION, LABEL, false, |_ctx, _on| {}) {
+    if let Err(error) = settings.section(crate::SECTION).add_toggle(OPTION, LABEL, false, |_ctx, _on| {}) {
         ctx.log(Level::Warn, &format!("nfsmw-2012-content: the soundtrack setting is not added: {error}"));
         return;
     }

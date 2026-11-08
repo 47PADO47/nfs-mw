@@ -128,7 +128,9 @@ impl EngineStop {
         let settings = ctx.settings()?;
         let enabled = Rc::new(Cell::new(false));
         let flag = enabled.clone();
-        if let Err(error) = settings.add_toggle(OPTION, LABEL, false, move |_ctx, on| flag.set(on)) {
+        if let Err(error) =
+            settings.section(crate::SECTION).add_toggle(OPTION, LABEL, false, move |_ctx, on| flag.set(on))
+        {
             ctx.log(Level::Warn, &format!("nfsmw-2012-content: the engine auto-stop setting is not added: {error}"));
             return None;
         }

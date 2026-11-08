@@ -214,7 +214,9 @@ fn settings_table_and_option() {
     assert_eq!(IFACE_SETTINGS_VERSION, (1, 0));
     assert_eq!(size_of::<BbSettingValue>(), 32);
     assert_eq!(offset_of!(BbSettingValue, label), 16);
-    assert_eq!(size_of::<BbSettingOption>(), 72);
+    assert_eq!(size_of::<BbSettingOption>(), 88);
+    assert_eq!(offset_of!(BbSettingOption, section), 72);
+    assert_eq!(BB_SETTING_OPTION_V0_SIZE as usize, offset_of!(BbSettingOption, section));
     assert_eq!(offset_of!(BbSettingOption, menu), 8);
     assert_eq!(offset_of!(BbSettingOption, id), 16);
     assert_eq!(offset_of!(BbSettingOption, label), 32);
