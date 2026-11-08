@@ -39,7 +39,7 @@ pub struct Target {
     pub rotation: Option<[f32; 4]>,
     /// Whether it turns with the handlebar (a grip) or stays on the frame (a peg).
     pub steers: bool,
-    /// For a grip: the place of the handlebar bone it is held on (the centre of the grip rubber), in the same frame. The hand holds
+    /// For a grip: the place of the handlebar bone it is held on (the inboard end of the grip rubber, on its axis), in the same frame. The hand holds
     /// the bike's grip there (`Limb::tip_anchor`), whatever distance the bike's hand socket is from it. Files written before it
     /// have none and the hand goes to the socket.
     #[serde(default)]
@@ -47,6 +47,37 @@ pub struct Target {
     /// The turn of that bone (`x, y, z, w`).
     #[serde(default)]
     pub anchor_rotation: Option<[f32; 4]>,
+    /// For a grip: where the grip rubber lies along its axis, `[inboard, outboard]` metres from the bone, outboard positive (measured on
+    /// the bike's mesh by the importer). The hand is centred on it ([`Target::hand_slide`]). Files without it assume [`DEFAULT_GRIP_SPAN`].
+    #[serde(default)]
+    pub grip_span: Option<[f32; 2]>,
+}
+
+/// The grip rubber's span along its axis when the file has none: from the bone to 12 cm outboard (the real bikes' are 11 to 14 cm, from
+/// 0 at the bone; `docs/specs/ride6-rider-hands.md`, section 3).
+pub const DEFAULT_GRIP_SPAN: [f32; 2] = [0.0, 0.12];
+/// Where the posed glove's middle lies along the grip, outboard of the grip bone, metres. Measured on eight bikes (the probe of
+/// `probe_tests.rs`): the glove's vertices span 4.6 cm inboard to 9.4 cm outboard of the bone on every one, because the hand is held
+/// by that bone with one `tip_anchor`; the bone sits at the inboard end of the grip rubber, so the hand sat 3.4 cm too far inboard
+/// of the rubber's middle and its cuff cut into the throttle housing and the lever perch.
+pub const GLOVE_CENTRE_M: f32 = 0.024;
+
+impl Target {
+    /// How far the hand is moved outboard along the grip bone's axis so that the glove is centred on the grip rubber, metres
+    /// (negative inboard).
+    pub fn hand_slide(&self) -> f32 {
+        let [inboard, outboard] = self.grip_span.unwrap_or(DEFAULT_GRIP_SPAN);
+        (inboard + outboard) / 2.0 - GLOVE_CENTRE_M
+    }
+
+    /// The bone's local axis that points outboard along the grip, as a sign of its y: the right bone's y points inboard (to the left), the
+    /// left bone's outboard (the importer's bones are the exporter's, whose z is the grip's axis: y in the car's axes).
+    pub fn outboard_sign(&self) -> f32 {
+        match self.name.starts_with("left") {
+            true => 1.0,
+            false => -1.0,
+        }
+    }
 }
 
 /// A limb solved with two-bone IK: the three bones, the bone its middle joint bends towards, the target it reaches for

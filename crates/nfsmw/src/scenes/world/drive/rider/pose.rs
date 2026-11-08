@@ -172,7 +172,10 @@ pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>)
                 anchor: target.anchor.zip(target.anchor_rotation).map(|(at, [x, y, z, w])| {
                     let own = Quat::from_xyzw(x, y, z, w).normalize();
                     let in_model = if target.steers { turned * own } else { own };
-                    (place(Vec3::from_array(at)), frame.rider_turn * in_model)
+                    let bone = frame.rider_turn * in_model;
+                    // The hand is centred on the grip rubber: the bone is the rubber's inboard end (`Target::hand_slide`).
+                    let slide = bone * (Vec3::Y * target.outboard_sign() * target.hand_slide());
+                    (place(Vec3::from_array(at)) + slide, bone)
                 }),
             }
         })
