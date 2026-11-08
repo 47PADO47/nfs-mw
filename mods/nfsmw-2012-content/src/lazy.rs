@@ -233,7 +233,7 @@ pub fn decide(ctx: &Ctx, config: &Config) -> bool {
         return false;
     }
     let Some(settings) = ctx.settings() else { return true };
-    if let Err(error) = settings.add_toggle(OPTION, LABEL, true, |_ctx, _on| {}) {
+    if let Err(error) = settings.section(crate::SECTION).add_toggle(OPTION, LABEL, true, |_ctx, _on| {}) {
         ctx.log(Level::Warn, &format!("nfsmw-2012-content: the stream setting is not added: {error}"));
         return true;
     }
