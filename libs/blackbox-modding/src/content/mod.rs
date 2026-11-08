@@ -25,6 +25,8 @@ mod bike_ride_radius;
 #[cfg(test)]
 mod bike_ride_real;
 #[cfg(test)]
+mod bike_ride_steer;
+#[cfg(test)]
 mod bike_ride_sweep;
 #[cfg(test)]
 mod bike_ride_wheelie_blip;

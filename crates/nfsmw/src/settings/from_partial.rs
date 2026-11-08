@@ -96,6 +96,7 @@ impl From<Partial> for Settings {
             riding_style_offroad: p.riding_style_offroad.unwrap_or_default(),
             brake_fingers: p.brake_fingers.unwrap_or_default(),
             clutch_fingers: p.clutch_fingers.unwrap_or_default(),
+            bike_steering: p.bike_steering.unwrap_or_default(),
             language: p.language,
             world: p.world,
             ui_theme: p.ui_theme.unwrap_or_default(),

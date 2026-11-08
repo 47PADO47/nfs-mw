@@ -1,0 +1,176 @@
+//! Arcade steering: **a modification made exclusively for the NFS:MW rewrite, not the behaviour of the reference game (RIDE 6).**
+//!
+//! The reference's bikes turn like real ones: the lean comes in over a second or more, slower with the speed, and the radius of a steady
+//! turn is `v^2 / (g tan(lean))` of a bike that cannot lean past its tyre's grip, which is 1.0 g and a radius of 40 m at 20 m/s, 300 m
+//! at 60 m/s. On the roads of a street racing game that is "the bike only leans and goes on into the wall"
+//! (`docs/specs/ride6-arcade-steering.md`). Every number that changes it is in [`ArcadeSteering`], and nowhere else:
+//!
+//! - [`ArcadeSteering::REFERENCE`] (also [`ArcadeSteering::disabled`]) is neutral in every field: a bike with it behaves exactly as the
+//!   data of the reference game says (the data's curves, the data's tyre, no extra force). **A game that wants the original behaviour
+//!   sets `spec.steering.arcade = ArcadeSteering::REFERENCE`** (the NFS:MW host does it for the setting `bike_steering = reference`).
+//! - [`ArcadeSteering::default`] is this game's tuned values. They are a project's choices, tagged as such in the spec.
+//!
+//! The levers, from the most physical to the least:
+//!
+//! 1. `lateral_grip`: the tyres' lateral force is scaled in the tyre model itself (`Bike::new`), so the lean limit (the arctangent of the
+//!    grip), the fall limit, the lean help's cap and the tyre curve that turns a wanted force into a slip all follow it.
+//! 2. `lean_rate`, `time_scale_speed_floor`, `mirror_stick_curve`, `roll_spring`: how fast the rider's controller brings the lean to its
+//!    target (the same controller, quicker filters, no slowing with the speed).
+//! 3. `lean_help`, `lean_help_limit`: the reference's lean help (a side force at the front contact towards the one the controller wants)
+//!    closes more of the gap and may give more, so a roll that the front tyre alone cannot deliver in time (it hops, its handlebar lags) is.
+//! 4. `cornering_assist`: a side force at the centre of gravity (no roll torque) towards the lean, which is what a higher grip gives a
+//!    bike that cannot lean further.
+//! 5. `stick_reach`: the share of the pad stick's travel that reads as the whole stick (the host's input layer).
+
+/// The values of the arcade steering; see the module's documentation. `REFERENCE` is neutral.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ArcadeSteering {
+    /// The factor on the lateral force of both tyres (the peak, the stiffness and the camber thrust). 1: the data's tyre.
+    pub lateral_grip: f32,
+    /// The factor on the lean limit the stick can ask for (the arctangent of the front tyre's grip, held to the steepest lean). A bike that
+    /// leans less has less far to flip from side to side, and `cornering_assist` supplies what the shallower lean does not. 1: the data's.
+    pub lean_limit: f32,
+    /// The factor on the time scale of the lean controller's target filter (how fast the rider brings the lean in). 1: the data's.
+    pub lean_rate: f32,
+    /// The least value of the data's speed curve of that time scale (`LeanTimeScaleSpeedTuning`: the data's slows the lean down to a third
+    /// at 330 km/h). 0: the data's curve unchanged; 1: no slowing with the speed at all.
+    pub time_scale_speed_floor: f32,
+    /// Read the data's curve of the time scale over the stick for both sides as its quicker one, so a left stick leans as fast as a right
+    /// one (the data's is slower to the left). false: the signed curve as the data states it.
+    pub mirror_stick_curve: bool,
+    /// The factor on the frequency of the roll spring-damper that pulls the lean to its target (the damping ratio is kept). 1: the data's.
+    pub roll_spring: f32,
+    /// The factor on the frequency of the filter on the stick (the rider's hand). 1: the data's.
+    pub stick_response: f32,
+    /// The factor on the frequency of the handlebar's filter (how fast the bars follow the controller). 1: the data's.
+    pub handlebar_response: f32,
+    /// The factor on the share of the gap between the front tyre's side force and the wanted one that the lean help closes (the data's
+    /// 0.16 above 10 km/h; the share is held to 1). 1: the data's.
+    pub lean_help: f32,
+    /// The factor on the most force the lean help may give (the data's `LeanHelpLimit` of the tyre's peak at the rest load). 1: the data's.
+    pub lean_help_limit: f32,
+    /// The factor on the fall test's limit of the body's angular speed (`FallSpec::angular_speed`): a quick flip of the bike from lean to
+    /// lean is the rider's own motion, not a tumble. 1: the data's limit.
+    pub fall_angular_speed: f32,
+    /// The side acceleration (in g) added at full lean, towards the lean, as a force at the centre of gravity. 0: none.
+    pub cornering_assist: f32,
+    /// The speeds (m/s) between which the cornering assist comes in (none below the first).
+    pub assist_speed: [f32; 2],
+    /// The share of the pad stick's travel that reads as the whole stick (the host's input layer). 1: the stick as it is.
+    pub stick_reach: f32,
+}
+
+impl ArcadeSteering {
+    /// Everything neutral: the reference game's steering.
+    pub const REFERENCE: Self = Self {
+        lateral_grip: 1.0,
+        lean_limit: 1.0,
+        lean_rate: 1.0,
+        time_scale_speed_floor: 0.0,
+        mirror_stick_curve: false,
+        roll_spring: 1.0,
+        stick_response: 1.0,
+        handlebar_response: 1.0,
+        lean_help: 1.0,
+        lean_help_limit: 1.0,
+        fall_angular_speed: 1.0,
+        cornering_assist: 0.0,
+        assist_speed: [2.0, 8.0],
+        stick_reach: 1.0,
+    };
+
+    /// The reference game's steering ([`ArcadeSteering::REFERENCE`]).
+    pub const fn disabled() -> Self {
+        Self::REFERENCE
+    }
+
+    /// Whether any lever is on.
+    pub fn is_enabled(&self) -> bool {
+        *self != Self::REFERENCE
+    }
+
+    /// The side acceleration (m/s^2, positive to the right) the cornering assist adds for a bike leaning `lean_share` of its limit
+    /// (-1 to 1, positive to the right) at `speed` m/s.
+    pub fn cornering_acceleration(&self, lean_share: f32, speed: f32) -> f32 {
+        let fade = super::curve::ramp(speed.abs(), self.assist_speed);
+        self.cornering_assist * 9.81 * lean_share.clamp(-1.0, 1.0) * fade
+    }
+
+    /// The speed factor of the lean time scale: the data's curve `table` at `speed`, held at `time_scale_speed_floor` at least (and never
+    /// above the curve's own value at a standstill, so a table that starts low is not raised). 1 for an empty table.
+    pub fn speed_scale(&self, table: &[(f32, f32)], speed: f32) -> f32 {
+        let start = super::curve::factor(table, 0.0);
+        let floor = self.time_scale_speed_floor.min(start);
+        super::curve::factor(table, speed.abs()).max(floor)
+    }
+
+    /// The factor of the data's time-scale curve over the stick at `stick`.
+    pub fn stick_scale(&self, table: &[(f32, f32)], stick: f32) -> f32 {
+        match self.mirror_stick_curve {
+            true => super::curve::factor_either_side(table, stick),
+            false => super::curve::factor(table, stick),
+        }
+    }
+}
+
+impl Default for ArcadeSteering {
+    /// This game's values (`docs/specs/ride6-arcade-steering.md`, section 5).
+    fn default() -> Self {
+        Self {
+            lateral_grip: 1.0,
+            lean_limit: 0.7,
+            lean_rate: 3.0,
+            time_scale_speed_floor: 1.0,
+            mirror_stick_curve: true,
+            roll_spring: 2.0,
+            stick_response: 2.0,
+            handlebar_response: 1.25,
+            lean_help: 6.25,
+            lean_help_limit: 3.0,
+            fall_angular_speed: 3.0,
+            cornering_assist: 1.1,
+            assist_speed: [2.0, 8.0],
+            stick_reach: 0.9,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_reference_is_neutral_and_the_default_is_not() {
+        assert!(!ArcadeSteering::REFERENCE.is_enabled());
+        assert_eq!(ArcadeSteering::disabled(), ArcadeSteering::REFERENCE);
+        assert!(ArcadeSteering::default().is_enabled());
+        assert_eq!(ArcadeSteering::REFERENCE.cornering_acceleration(1.0, 30.0), 0.0);
+    }
+
+    #[test]
+    fn the_speed_scale_is_the_datas_curve_in_the_reference_and_flat_in_the_arcade() {
+        let table = [(11.0, 1.0), (92.0, 0.333)];
+        let reference = ArcadeSteering::REFERENCE;
+        assert!((reference.speed_scale(&table, 92.0) - 0.333).abs() < 1e-6);
+        assert!((ArcadeSteering::default().speed_scale(&table, 92.0) - 1.0).abs() < 1e-6);
+        // A table that starts under the floor is not raised.
+        assert!((ArcadeSteering::default().speed_scale(&[(2.0, 0.5), (50.0, 0.4)], 30.0) - 0.5).abs() < 0.1);
+        assert_eq!(reference.speed_scale(&[], 30.0), 1.0);
+    }
+
+    #[test]
+    fn the_cornering_assist_follows_the_lean_and_fades_in_with_the_speed() {
+        let arcade = ArcadeSteering { cornering_assist: 0.5, ..ArcadeSteering::default() };
+        assert!((arcade.cornering_acceleration(1.0, 30.0) - 0.5 * 9.81).abs() < 1e-4);
+        assert!((arcade.cornering_acceleration(-0.5, 30.0) + 0.25 * 9.81).abs() < 1e-4);
+        assert_eq!(arcade.cornering_acceleration(1.0, 1.0), 0.0);
+        assert!(arcade.cornering_acceleration(1.0, 5.0) > 0.0 && arcade.cornering_acceleration(1.0, 5.0) < 0.5 * 9.81);
+    }
+
+    #[test]
+    fn the_stick_curve_is_signed_in_the_reference_and_mirrored_in_the_arcade() {
+        let table = [(-1.0, 0.4), (0.0, 1.0), (1.0, 0.5)];
+        assert!((ArcadeSteering::REFERENCE.stick_scale(&table, -1.0) - 0.4).abs() < 1e-6);
+        assert!((ArcadeSteering::default().stick_scale(&table, -1.0) - 0.5).abs() < 1e-6);
+    }
+}

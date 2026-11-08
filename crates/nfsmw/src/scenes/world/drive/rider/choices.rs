@@ -25,6 +25,8 @@ pub fn set(settings: &Settings) {
     }
     BRAKE_FINGERS.store(settings.brake_fingers.graph_index(), Ordering::Relaxed);
     CLUTCH_FINGERS.store(settings.clutch_fingers.graph_index(), Ordering::Relaxed);
+    // The bike steering is a choice of the player's for bikes too, but it is the bike's, not the rider's.
+    super::super::sim::set_bike_steering(settings.bike_steering);
 }
 
 /// The riding style the player chose for the bikes of `class`, as the blueprint's `RidingStyle` (0 balanced, 1 shoulders out, 2 old

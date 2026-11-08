@@ -14,10 +14,10 @@
 //! The two bodies have different origins (the bike's is on the ground between its tyres, the double's is the centre of the
 //! collision box) and share their centre of gravity, so a velocity is the same on both.
 
-use blackbox_vehicle::bike::{AbsLevelSpec, Bike, BikeInput, FRONT, REAR, choices};
+use blackbox_vehicle::bike::{AbsLevelSpec, Bike, BikeInput, FRONT, REAR};
 use blackbox_vehicle::input::Controls;
 use blackbox_vehicle::rigid_body::box_inertia;
-use blackbox_vehicle::{Ground, InputState, Vehicle, VehicleSpec, WheelState};
+use blackbox_vehicle::{Ground, Vehicle, VehicleSpec, WheelState};
 use glam::{Mat3, Vec3};
 use nfsmw_data::car::WheelPose;
 use nfsmw_data::car::physics::CarPhysics;
@@ -30,8 +30,13 @@ use super::{CarSim, MAX_VISIBLE_TRAVEL, Telemetry};
 /// The drift angle is 0 below this speed (m/s): the direction of a velocity that small means nothing. A modelling choice.
 const DRIFT_MIN_SPEED: f32 = 2.0;
 
+mod command;
 mod contact;
 mod lie;
+mod steering;
+use command::{command, signed_unit, unit};
+use steering::arcade_steering;
+pub use steering::set_bike_steering;
 
 /// The two-wheel dynamics of a bike and what joins them to the four-wheel body double.
 #[derive(Debug, Clone)]
@@ -57,7 +62,9 @@ impl BikeRide {
     /// The ride of a bike's physics, and the double's spec fitted to it. `None` for a car.
     pub(super) fn new(physics: &mut CarPhysics) -> Option<Self> {
         let data = physics.bike.as_ref()?;
-        let bike = Bike::new((*data.spec).clone());
+        let mut spec = (*data.spec).clone();
+        spec.steering.arcade = arcade_steering();
+        let bike = Bike::new(spec);
         let offset = physics.bounds.pivot - Vec3::new(0.0, 0.0, data.origin_x);
         let ride = Self {
             bike,
@@ -171,7 +178,7 @@ impl BikeRide {
         // On the grid of a race the rider holds the bike with both brakes until the start.
         let rider = match vehicle.staging() {
             true => BikeInput { throttle: 0.0, front_brake: 1.0, rear_brake: 1.0, steer: 0.0 },
-            false => command(input),
+            false => command(input, self.bike.spec().steering.arcade.stick_reach),
         };
         self.bike.set_weight(start.weight);
         self.bike.respond(start.delta, &rider, ground);
@@ -365,36 +372,6 @@ impl BikeRide {
     /// The engine's rev limit (rpm).
     pub(super) fn engine_spec_max_rpm(&self) -> f32 {
         self.bike.spec().engine.max_rpm
-    }
-}
-
-/// `value` held to 0 to 1; 0 when it is not a number.
-fn unit(value: f32) -> f32 {
-    if !value.is_finite() {
-        return 0.0;
-    }
-    value.clamp(0.0, 1.0)
-}
-
-/// `value` held to -1 to 1; 0 when it is not a number.
-fn signed_unit(value: f32) -> f32 {
-    if !value.is_finite() {
-        return 0.0;
-    }
-    value.clamp(-1.0, 1.0)
-}
-
-/// What the rider asks of the bike for the game's input: the throttle and the stick as they are; the brake pedal pulls both
-/// brakes and the handbrake only the rear one (the input layer has one brake axis). The gearbox is automatic: the shift
-/// buttons, the gear keys and the clutch are not read.
-pub(super) fn command(input: &InputState) -> BikeInput {
-    BikeInput {
-        throttle: unit(input.throttle),
-        front_brake: unit(input.brake),
-        rear_brake: unit(input.brake).max(unit(input.handbrake)),
-        // The stick reaches its end at `choices::STEER_REACH` of its travel, and is the whole of it at any speed: nothing here narrows
-        // with speed (`ride6-feel-round12.md`, section 2; `ride6-feel-round13.md`, section 2).
-        steer: signed_unit(input.steer / choices::STEER_REACH),
     }
 }
 

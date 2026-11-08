@@ -150,6 +150,8 @@ pub struct Partial {
     /// The fingers on a bike's brake and clutch levers (`brake_fingers`, `clutch_fingers`).
     pub brake_fingers: Option<super::BrakeFingers>,
     pub clutch_fingers: Option<super::ClutchFingers>,
+    /// How a bike turns (`bike_steering`).
+    pub bike_steering: Option<super::BikeSteering>,
     /// The language tag (`language`).
     pub language: Option<super::LanguageTag>,
     /// The second world to play (`world`).
@@ -301,6 +303,7 @@ impl Partial {
             riding_style_offroad: self.riding_style_offroad.or(lower.riding_style_offroad),
             brake_fingers: self.brake_fingers.or(lower.brake_fingers),
             clutch_fingers: self.clutch_fingers.or(lower.clutch_fingers),
+            bike_steering: self.bike_steering.or(lower.bike_steering),
             language: self.language.or(lower.language),
             world: self.world.or(lower.world),
             ui_theme: self.ui_theme.or(lower.ui_theme),

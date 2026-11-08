@@ -89,6 +89,7 @@ mod reflection_res_tests;
 mod renderer;
 mod road_reflections;
 pub use road_reflections::{RoadReflectionResolution, RoadReflections};
+mod bike_steering;
 mod fingers;
 #[cfg(test)]
 mod renderer_tests;
@@ -136,6 +137,7 @@ pub mod xenon_effects;
 pub use xenon_effects::XenonEffects;
 mod window;
 pub(crate) mod write;
+pub use bike_steering::BikeSteering;
 use blackbox_gfx::GraphicsApi;
 pub use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
 pub use blackbox_gfx::{AoMethod, AoQuality, ReflectionQuality, ShadowQuality, TextureFiltering};
@@ -304,6 +306,8 @@ pub struct Settings {
     /// How many fingers pull a bike's brake lever (`brake_fingers`: 1, 2 or 4) and its clutch lever (`clutch_fingers`: 2 or 4).
     pub brake_fingers: BrakeFingers,
     pub clutch_fingers: ClutchFingers,
+    /// How a bike turns (`bike_steering`: this game's arcade steering or the reference game's), read when a bike is loaded.
+    pub bike_steering: BikeSteering,
     /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
     pub language: Option<LanguageTag>,
     /// The second world to play instead of the city (`world`, `--world`); unset or `rockport` is the city.

@@ -12,9 +12,9 @@ use crate::settings::hd_content;
 use crate::settings::hud;
 use crate::settings::net;
 use crate::settings::{
-    BikeClass, BrakeFingers, CameraMode, ClutchFingers, HudLayout, MinimapMode, Percent, PostAa, PostBloom,
-    PostTonemap, RadioHudStyle, RenderScale, RendererKind, RidingStyle, Settings, SpeedUnits, Transmission, UiStyle,
-    parse_bool,
+    BikeClass, BikeSteering, BrakeFingers, CameraMode, ClutchFingers, HudLayout, MinimapMode, Percent, PostAa,
+    PostBloom, PostTonemap, RadioHudStyle, RenderScale, RendererKind, RidingStyle, Settings, SpeedUnits, Transmission,
+    UiStyle, parse_bool,
 };
 
 /// The text for `get <key>`, or an error naming the valid keys.
@@ -90,6 +90,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "riding_style_offroad" => settings.riding_style_offroad.to_string(),
         "brake_fingers" => settings.brake_fingers.to_string(),
         "clutch_fingers" => settings.clutch_fingers.to_string(),
+        "bike_steering" | "bike-steering" => settings.bike_steering.to_string(),
         "manual_clutch" => on_off(settings.manual_clutch).to_owned(),
         "h_shifter" => on_off(settings.h_shifter).to_owned(),
         key if hd_content::is_key(key) => hd_content::get(&settings.hd_content, key),
@@ -216,6 +217,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "riding_style_offroad" => settings.riding_style_offroad = RidingStyle::from_str(value)?,
         "brake_fingers" => settings.brake_fingers = BrakeFingers::from_str(value)?,
         "clutch_fingers" => settings.clutch_fingers = ClutchFingers::from_str(value)?,
+        "bike_steering" | "bike-steering" => settings.bike_steering = BikeSteering::from_str(value)?,
         // The legacy alias: ea_trax and custom, mapped onto the same setting.
         "radio_hud" | "radio-hud" => settings.ui_style = UiStyle::from(RadioHudStyle::from_str(value)?),
         "manual_clutch" => settings.manual_clutch = parse_bool(value)?,
@@ -335,6 +337,7 @@ fn syntax(key: &str) -> Option<&'static str> {
         "riding_style_road" | "riding_style_motard" | "riding_style_offroad" => "<balanced|shoulders-out|old-school>",
         "brake_fingers" => "<1|2|4>",
         "clutch_fingers" => "<2|4>",
+        "bike_steering" | "bike-steering" => "<arcade|reference>",
         "radio_hud" | "radio-hud" => "<ea_trax|custom> (alias of ui_style)",
         "post_tonemap" => "<off|aces>",
         "post_bloom" => "<off|low|medium|high>",

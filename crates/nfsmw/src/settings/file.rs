@@ -168,6 +168,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         clutch_fingers: field(&table, origin, "clutch_fingers", |v| {
             super::ClutchFingers::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))
         }),
+        bike_steering: field(&table, origin, "bike_steering", |v| super::BikeSteering::from_str(text_of(v)?)),
         language: field(&table, origin, "language", |v| super::LanguageTag::from_str(text_of(v)?)),
         world: field(&table, origin, "world", |v| super::world_id::WorldId::from_str(text_of(v)?)),
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),

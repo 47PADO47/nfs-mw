@@ -214,6 +214,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         riding_style_offroad: Some(s.riding_style_offroad),
         brake_fingers: Some(s.brake_fingers),
         clutch_fingers: Some(s.clutch_fingers),
+        bike_steering: Some(s.bike_steering),
         language: s.language,
         world: s.world,
         ui_theme: Some(s.ui_theme),

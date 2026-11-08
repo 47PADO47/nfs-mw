@@ -464,6 +464,7 @@ impl CarSim {
 
 mod ai;
 mod bike;
+pub use bike::set_bike_steering;
 mod camera;
 mod contact_damage;
 mod engine_off;

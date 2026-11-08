@@ -7,6 +7,9 @@ filters, see section 2.2), **[D]** data (the 288 imported manifests), **[C]** a 
 code. **Nothing of this round was compiled or run** (the agent's rule: the lead builds once at the end); every test named below is
 unverified, and the in-game check was not made.
 
+> The stick's reach of section 2 is now `ArcadeSteering::stick_reach` ([ride6-arcade-steering.md](ride6-arcade-steering.md)), which also replaces the
+> turning analysis' conclusions for this game: a full stick holds 1.6 g and a flip takes 0.65 s.
+
 ## 1. The crash sound
 
 ### 1.1 The path [R]

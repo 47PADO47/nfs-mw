@@ -74,6 +74,7 @@ pub const SPEED_UNITS: &str = "NFSMW_SPEED_UNITS";
 pub const RIDING_STYLE: &str = "NFSMW_RIDING_STYLE";
 pub const BRAKE_FINGERS: &str = "NFSMW_BRAKE_FINGERS";
 pub const CLUTCH_FINGERS: &str = "NFSMW_CLUTCH_FINGERS";
+pub const BIKE_STEERING: &str = "NFSMW_BIKE_STEERING";
 pub const LANGUAGE: &str = "NFSMW_LANGUAGE";
 pub const WORLD: &str = "NFSMW_WORLD";
 /// The legacy radio switch. Read only when `NFSMW_UI_STYLE` is unset or invalid.
@@ -202,6 +203,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         riding_style_offroad: riding_style(&get, BikeClass::Offroad),
         brake_fingers: value(&get, BRAKE_FINGERS, super::BrakeFingers::from_str),
         clutch_fingers: value(&get, CLUTCH_FINGERS, super::ClutchFingers::from_str),
+        bike_steering: value(&get, BIKE_STEERING, super::BikeSteering::from_str),
         language: value(&get, LANGUAGE, super::LanguageTag::from_str),
         world: value(&get, WORLD, super::world_id::WorldId::from_str),
         post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),

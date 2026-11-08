@@ -234,6 +234,7 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
         ("language", changes.language.map(|v| v.to_string())),
         ("world", changes.world.map(|v| v.to_string())),
         ("speed_units", changes.speed_units.map(|v| v.to_string())),
+        ("bike_steering", changes.bike_steering.map(|v| v.to_string())),
         ("ui_theme", changes.ui_theme.map(|v| v.to_string())),
         ("post_tonemap", changes.post_tonemap.map(|v| v.to_string())),
         ("post_bloom", changes.post_bloom.map(|v| v.to_string())),

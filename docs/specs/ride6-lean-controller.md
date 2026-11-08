@@ -11,6 +11,9 @@ states the algorithm in our own words, with the constants the binary and the dat
 Status tags: **[B]** read from the binary, **[I]** inferred from the structure of the code and the field names (not read
 line by line), **[D]** data only.
 
+> This is the reference game's controller. This game's arcade steering (quicker filters, a lower lean limit, the lean help closing the whole gap, a side force at the
+> centre of gravity) is a separate, switchable modification: [ride6-arcade-steering.md](ride6-arcade-steering.md).
+
 ## Notation
 
 `dt` the physics step. `Steer` the stick, -1 to 1. `speed` in km/h (the code multiplies cm/s by 0.036). All angles are
