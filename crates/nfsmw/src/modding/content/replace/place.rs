@@ -44,6 +44,9 @@ pub struct Measure {
     pub height: f32,
     /// How many vertices it has.
     pub vertices: usize,
+    /// The box that holds its vertices (the `stand` and `exact` fits place a model by its box, not by its origin).
+    pub low: [f32; 3],
+    pub high: [f32; 3],
 }
 
 /// What the replaced solid is, as the placement needs it.
@@ -101,6 +104,41 @@ pub fn single(model: &Measure, stock: &Stock, limits: &FitLimits) -> Option<Plac
     tree(model, &target, MAX_SCALE, limits)
 }
 
+/// The one copy of a model that **stands inside** the box of the solid it replaces (`fit = "stand"`, for lamps, signs, barriers and
+/// buildings): scaled evenly so that its footprint is within `spread` times the old one and its height within the old one, centred
+/// on the old box, its lowest point on the old floor. `None` when it would be shorter than `limits.min_height` of the old height
+/// (the solid keeps its own model), or when the model or the old box has no size.
+pub fn stand(model: &Measure, stock: &Stock, limits: &FitLimits) -> Option<Placement> {
+    let (low, high) = stock.bounds;
+    let size = |from: [f32; 3], to: [f32; 3]| [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+    let (old, new) = (size(low, high), size(model.low, model.high));
+    if new.iter().any(|side| *side <= 0.01) || old[2] <= 0.01 {
+        return None;
+    }
+    let across = (limits.spread * old[0] / new[0]).min(limits.spread * old[1] / new[1]);
+    let scale = across.min(old[2] / new[2]).min(MAX_SCALE);
+    if scale < MIN_SCALE || scale * new[2] < limits.min_height * old[2] {
+        return None;
+    }
+    let centre = |from: [f32; 3], to: [f32; 3], axis: usize| 0.5 * (from[axis] + to[axis]);
+    let offset = [
+        centre(low, high, 0) - scale * centre(model.low, model.high, 0),
+        centre(low, high, 1) - scale * centre(model.low, model.high, 1),
+        low[2] - scale * model.low[2],
+    ];
+    Some(Placement { across: scale, up: scale, yaw: 0.0, offset })
+}
+
+/// The model as authored (`fit = "exact"`): no scale, no turn, no move. `None` unless its box stays inside the old box grown by the
+/// spread (a half of `spread - 1` of the old size on every side, and a few centimetres).
+pub fn exact(model: &Measure, stock: &Stock, limits: &FitLimits) -> Option<Placement> {
+    let (low, high) = stock.bounds;
+    let room = |axis: usize| 0.5 * (limits.spread - 1.0) * (high[axis] - low[axis]) + 0.05;
+    let inside =
+        (0..3).all(|axis| model.low[axis] >= low[axis] - room(axis) && model.high[axis] <= high[axis] + room(axis));
+    inside.then_some(Placement { across: 1.0, up: 1.0, yaw: 0.0, offset: [0.0; 3] })
+}
+
 /// A stretch of the old geometry: the vertices that fall in one cell of the plan.
 #[derive(Clone, Copy)]
 struct Cell {
@@ -134,7 +172,7 @@ fn grid(vertices: &[Vertex], size: f32) -> Vec<Cell> {
 pub fn copies(model: &Measure, stock: &Stock, how: SwapFit, limits: &FitLimits) -> Vec<Placement> {
     let (low, high) = stock.bounds;
     let (cap, overlap) = match how {
-        SwapFit::Height => (MAX_SCALE, 1.0),
+        SwapFit::Height | SwapFit::Stand | SwapFit::Exact => (MAX_SCALE, 1.0),
         SwapFit::Row => (ROW_MAX_SCALE, OVERLAP),
     };
     let reference = ((high[2] - low[2]) / model.height.max(0.1)).clamp(MIN_SCALE, cap);

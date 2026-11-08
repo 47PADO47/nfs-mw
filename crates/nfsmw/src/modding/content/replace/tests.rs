@@ -4,15 +4,21 @@
 use std::sync::Arc;
 
 use blackbox_hash::bstring_hash;
-use blackbox_modding::content::{FitLimits, ModelSwapProfile, SwapFit, parse_model_swap_profile};
+use blackbox_modding::content::{FitLimits, ModelSwapProfile, SwapFit, from_model_swap, parse_model_swap_profile};
 use blackbox_solid::{GroupSource, Solid, SolidSource, Vertex, read_solids, write_geometry_pack};
 use blackbox_tpk::{AlphaUsage, PixelFormat, Texture};
 use nfsmw_data::world::SectionData;
 
+use super::active::{LoadedSet, world_copy_base};
 use super::fit::{Frame, Prepared, fit_prepared};
-use super::pack::world_copy_base;
 use super::place::{MAX_COPIES as ROW_COPIES_AT_MOST, MAX_SCALE};
-use super::{Pack, TEST_LOCK, active, rewrite, set_active};
+use super::{Active, TEST_LOCK, active, rewrite, set_active};
+
+/// The old trees profile as a set, merged: what the one mechanism makes of a profile.
+pub(super) fn build(profile: &ModelSwapProfile, models: Vec<Solid>, textures: Vec<Texture>) -> Active {
+    let set = Arc::new(from_model_swap("x", profile));
+    Active::build(vec![LoadedSet { owner: "mod".into(), order: 0, set, models, added: textures, replaced: Vec::new() }])
+}
 
 /// `model` fitted into the local solid `stock`.
 fn fit(model: &Solid, stock: &Solid, how: SwapFit) -> anyhow::Result<Solid> {
@@ -71,7 +77,7 @@ fn cloud(name: &str, points: &[[f32; 3]]) -> Solid {
 }
 
 /// A pack whose one swap replaces `solid` with the tree model, fitted as `fit` ("height" or "row").
-fn pack_for(solid: &str, fit: &str) -> Pack {
+fn pack_for(solid: &str, fit: &str) -> Active {
     let text = format!(
         r#"format = 1
 geometry = "TREES/X/GEOMETRY.BIN"
@@ -84,7 +90,7 @@ fit = "{fit}"
 "#
     );
     let models = vec![tree("MW12_TREE_L0", "MW12_LEAF", 10.0, 3.0, 0)];
-    Pack::build(&parse_model_swap_profile(&text).unwrap(), models, vec![texture("MW12_LEAF")])
+    build(&parse_model_swap_profile(&text).unwrap(), models, vec![texture("MW12_LEAF")])
 }
 
 /// A solid with only the bounds `low` to `high`: a quad across them.
@@ -269,9 +275,9 @@ fn profile(solid: &str, model: &str) -> ModelSwapProfile {
     .unwrap()
 }
 
-fn pack() -> Pack {
+fn pack() -> Active {
     let models = vec![tree("MW12_TREE_L0", "MW12_LEAF", 10.0, 3.0, 0)];
-    Pack::build(&profile("XT_STOCK", "MW12_TREE_L0"), models, vec![texture("MW12_LEAF"), texture("UNUSED")])
+    build(&profile("XT_STOCK", "MW12_TREE_L0"), models, vec![texture("MW12_LEAF"), texture("UNUSED")])
 }
 
 #[test]
@@ -405,9 +411,9 @@ fn the_same_stock_solid_in_two_sections_is_fitted_the_same() {
 #[test]
 fn a_swap_whose_model_or_texture_is_missing_is_left_out() {
     let models = vec![tree("MW12_TREE_L0", "MW12_LEAF", 10.0, 3.0, 0)];
-    let nobody = Pack::build(&profile("XT_STOCK", "NO_SUCH_MODEL"), models.clone(), vec![texture("MW12_LEAF")]);
+    let nobody = build(&profile("XT_STOCK", "NO_SUCH_MODEL"), models.clone(), vec![texture("MW12_LEAF")]);
     assert_eq!(nobody.swaps(), 0);
-    let bare = Pack::build(&profile("XT_STOCK", "MW12_TREE_L0"), models, vec![texture("OTHER")]);
+    let bare = build(&profile("XT_STOCK", "MW12_TREE_L0"), models, vec![texture("OTHER")]);
     assert_eq!(bare.swaps(), 0, "the texture of the model is not in the texture pack");
 }
 

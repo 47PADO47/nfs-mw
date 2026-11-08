@@ -9,8 +9,8 @@ use blackbox_modding::content::parse_model_swap_profile;
 use game_install::GameDir;
 use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex, parse_section};
 
-use super::Pack;
-use super::pack::world_copy_base;
+use super::active::world_copy_base;
+use super::tests::build;
 
 fn env_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("set {name}")))
@@ -37,7 +37,7 @@ fn report_what_the_trees_do_to_the_installed_world() {
     for pack in blackbox_tpk::read_texture_packs(&std::fs::read(pack_dir.join("TEXTURES.BIN")).unwrap()).unwrap() {
         pictures.extend(pack.textures);
     }
-    let pack = Pack::build(&profile, models, pictures);
+    let pack = build(&profile, models, pictures);
     let listed: std::collections::HashSet<&str> = profile.swaps.iter().map(|swap| swap.solid.as_str()).collect();
     let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
     let mut report = String::from(
