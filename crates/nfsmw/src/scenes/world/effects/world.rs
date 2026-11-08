@@ -62,6 +62,7 @@ impl WorldScene {
         self.object_fx.maintain(renderer, &self.dir, self.physics.database());
         self.car_damage_fx.maintain(renderer, &self.dir);
         self.impact_fx.maintain(renderer, &self.dir);
+        self.rain_splash.maintain(renderer, &self.dir);
         let cutscene = self.cutscene_playing();
         let environment = self.environment_effects(renderer);
         let mut street_glows = Vec::with_capacity(self.street_glows.len() * 18);
@@ -100,7 +101,9 @@ impl WorldScene {
                 traffic.lamp_glows(position, forward, self.residency.props(), &mut layer.glows);
             }
             rain.append(&mut layer);
+            self.rain_splash.geometry(forward, &mut layer);
             renderer.set_effects(&layer);
+            self.rain_splash.reclaim(&mut layer);
             return;
         };
         drive.flames.set_enhanced(self.tuning.enhanced_exhaust && renderer.info().renderer == "blackbox");
@@ -202,7 +205,9 @@ impl WorldScene {
         self.object_fx.textured(position, forward, &mut layer.textured);
         self.car_damage_fx.textured(position, forward, &mut layer.textured);
         self.impact_fx.textured(forward, &mut layer.textured);
+        self.rain_splash.geometry(forward, layer);
         renderer.set_effects(layer);
+        self.rain_splash.reclaim(layer);
         drive.flames.reclaim(layer);
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.reclaim_cop_flames(layer);

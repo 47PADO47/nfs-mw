@@ -321,6 +321,8 @@ impl WorldScene {
                 spark_style: crate::settings::SparkStyle::OriginalPc,
                 smoke_quality: crate::settings::SmokeQuality::Standard,
                 tire_smoke_variant: None,
+                skid_marks_variant: None,
+                rain_splash: Default::default(),
                 rain,
                 wind,
                 wet_road: Default::default(),

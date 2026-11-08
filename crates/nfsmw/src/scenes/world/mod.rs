@@ -324,6 +324,10 @@ pub struct WorldScene {
     smoke_quality: crate::settings::SmokeQuality,
     /// The tire smoke variant the player chose, if it is a mod's (`scene_effects.rs`).
     tire_smoke_variant: Option<std::sync::Arc<blackbox_modding::content::TireSmokeProfile>>,
+    /// The skid mark variant the player chose, if it is a mod's (`scene_effects.rs`).
+    skid_marks_variant: Option<std::sync::Arc<blackbox_modding::content::SkidMarksProfile>>,
+    /// The splashes of the rain on the road, when the player chose a mod's variant (`effects/rain_splash.rs`).
+    rain_splash: effects::rain_splash::RainSplash,
     rain: crate::weather::rain::Rain,
     /// The wind each player view hands to the scenery sway (`docs/specs/scenery-sway.md`).
     wind: crate::weather::wind::Wind,

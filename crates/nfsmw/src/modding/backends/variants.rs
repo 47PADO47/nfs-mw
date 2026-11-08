@@ -1,7 +1,7 @@
 //! Effect variants: an option per kind of effect (the nitrous, the tire smoke, ...) whose only value of the game's own is
 //! "Original" and to which a mod adds values (`docs/modding/effect-variants.md`).
 //!
-//! This is the shared part (kinds: the nitrous, the tire smoke, the collision sparks, the restored sparks, the wind, the trees). A kind is an [`EffectKind`]: the option's id and the folder of the profiles
+//! This is the shared part (kinds: the nitrous, the tire smoke, the collision sparks, the restored sparks, the wind, the trees, the skid marks, the rain splash, the wet road). A kind is an [`EffectKind`]: the option's id and the folder of the profiles
 //! (`blackbox_modding::content::VariantKind`) and the catalogue ids of its texts. The game declares one list option for each
 //! kind in [`KINDS`] (`settings::builtin`), [`choice`] says which value the player chose and which mod provides it, and
 //! [`Bridge::variant_profile`] reads the profile of the chosen value through the install's layers, once per chosen value, with
@@ -12,7 +12,8 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use blackbox_modding::content::{
-    COLLISION_SPARKS, ContentError, NITROUS, TIRE_SMOKE, TREES, VariantKind, WIND, XENON_SPARKS,
+    COLLISION_SPARKS, ContentError, NITROUS, RAIN_SPLASH, SKID_MARKS, TIRE_SMOKE, TREES, VariantKind, WET_ROAD, WIND,
+    XENON_SPARKS,
 };
 
 use super::bridge::Bridge;
@@ -80,9 +81,42 @@ pub const TREES_KIND: EffectKind = EffectKind {
     original: "options-trees-variant-original",
 };
 
+/// The marks the tyres leave on the road (`scenes/world/effects/marks_variant.rs`): the game's own are dark untextured strips.
+pub const SKID_MARKS_KIND: EffectKind = EffectKind {
+    variant: SKID_MARKS,
+    name: "skid marks",
+    label: "options-skid-marks-variant",
+    original: "options-skid-marks-variant-original",
+};
+
+/// The splashes where the rain meets the road (`scenes/world/effects/rain_splash.rs`); the game's own rain makes none.
+pub const RAIN_SPLASH_KIND: EffectKind = EffectKind {
+    variant: RAIN_SPLASH,
+    name: "rain splash",
+    label: "options-rain-splash-variant",
+    original: "options-rain-splash-variant-original",
+};
+
+/// How strongly and how fast the rain wets the road (`wet_reflections/state.rs`).
+pub const WET_ROAD_KIND: EffectKind = EffectKind {
+    variant: WET_ROAD,
+    name: "wet road",
+    label: "options-wet-road-variant",
+    original: "options-wet-road-variant-original",
+};
+
 /// Every kind the game offers variants of. A new kind is added here.
-pub const KINDS: [EffectKind; 6] =
-    [NITROUS_KIND, TIRE_SMOKE_KIND, COLLISION_SPARKS_KIND, XENON_SPARKS_KIND, WIND_KIND, TREES_KIND];
+pub const KINDS: [EffectKind; 9] = [
+    NITROUS_KIND,
+    TIRE_SMOKE_KIND,
+    COLLISION_SPARKS_KIND,
+    XENON_SPARKS_KIND,
+    WIND_KIND,
+    TREES_KIND,
+    SKID_MARKS_KIND,
+    RAIN_SPLASH_KIND,
+    WET_ROAD_KIND,
+];
 
 /// The variant of a kind in effect: the chosen value, and the mod that provides it (`None` for the game's own "Original").
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -14,9 +14,10 @@ use std::sync::Arc;
 use bevy_input::keyboard::KeyCode;
 use blackbox_attrib::Database;
 use blackbox_modding::content::{
-    ModelSwapProfile, NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile,
-    parse_model_swap_profile, parse_nitrous_profile, parse_sparks_profile, parse_tire_smoke_profile,
-    parse_wind_profile, parse_xenon_profile,
+    ModelSwapProfile, NitrousProfile, RainSplashProfile, SkidMarksProfile, SparksProfile, TireSmokeProfile,
+    WetRoadProfile, WindProfile, XenonProfile, parse_model_swap_profile, parse_nitrous_profile,
+    parse_rain_splash_profile, parse_skid_marks_profile, parse_sparks_profile, parse_tire_smoke_profile,
+    parse_wet_road_profile, parse_wind_profile, parse_xenon_profile,
 };
 use blackbox_modding::host::{HotkeyHandler, OptionsModel};
 use blackbox_ui::ThemeId;
@@ -33,7 +34,8 @@ use super::settings::{self, OptionHandler};
 use super::time::{self, Clock, ClockRequest};
 use super::ui::UiRecord;
 use super::variants::{
-    COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, TIRE_SMOKE_KIND, TREES_KIND, WIND_KIND, XENON_SPARKS_KIND,
+    COLLISION_SPARKS_KIND, CacheCell, NITROUS_KIND, RAIN_SPLASH_KIND, SKID_MARKS_KIND, TIRE_SMOKE_KIND, TREES_KIND,
+    WET_ROAD_KIND, WIND_KIND, XENON_SPARKS_KIND,
 };
 use super::world::{self, WorldRequest};
 use crate::devtools::Console;
@@ -85,6 +87,10 @@ pub struct Bridge {
     pub(super) xenon_sparks_cache: CacheCell<XenonProfile>,
     /// The same for the wind variant (`wind_profile`).
     pub(super) wind_cache: CacheCell<WindProfile>,
+    /// The same for the skid mark, rain splash and wet road variants.
+    pub(super) skid_marks_cache: CacheCell<SkidMarksProfile>,
+    pub(super) rain_splash_cache: CacheCell<RainSplashProfile>,
+    pub(super) wet_road_cache: CacheCell<WetRoadProfile>,
     /// The same for the trees variant (`trees_profile`), and the profile whose models are in effect in the world's loaders
     /// (`publish_replacements`).
     pub(super) trees_cache: CacheCell<ModelSwapProfile>,
@@ -135,6 +141,9 @@ impl Bridge {
             collision_sparks_cache: RefCell::default(),
             xenon_sparks_cache: RefCell::default(),
             wind_cache: RefCell::default(),
+            skid_marks_cache: RefCell::default(),
+            rain_splash_cache: RefCell::default(),
+            wet_road_cache: RefCell::default(),
             trees_cache: RefCell::default(),
             replace: RefCell::default(),
             ui_themes: RefCell::default(),
@@ -219,6 +228,21 @@ impl Bridge {
         self.variant_profile(&WIND_KIND, &self.wind_cache, parse_wind_profile)
     }
 
+    /// The skid mark variant the player chose, when it is a mod's: `SKIDMARKS/<value>/profile.toml`.
+    pub fn skid_marks_profile(&self) -> Option<Arc<SkidMarksProfile>> {
+        self.variant_profile(&SKID_MARKS_KIND, &self.skid_marks_cache, parse_skid_marks_profile)
+    }
+
+    /// The rain splash variant the player chose, when it is a mod's: `RAINSPLASH/<value>/profile.toml`.
+    pub fn rain_splash_profile(&self) -> Option<Arc<RainSplashProfile>> {
+        self.variant_profile(&RAIN_SPLASH_KIND, &self.rain_splash_cache, parse_rain_splash_profile)
+    }
+
+    /// The wet road variant the player chose, when it is a mod's: `WETROAD/<value>/profile.toml`.
+    pub fn wet_road_profile(&self) -> Option<Arc<WetRoadProfile>> {
+        self.variant_profile(&WET_ROAD_KIND, &self.wet_road_cache, parse_wet_road_profile)
+    }
+
     /// The trees variant the player chose, when it is a mod's: `TREES/<value>/profile.toml`.
     pub fn trees_profile(&self) -> Option<Arc<ModelSwapProfile>> {
         self.variant_profile(&TREES_KIND, &self.trees_cache, parse_model_swap_profile)
@@ -232,6 +256,9 @@ impl Bridge {
             collision_sparks: self.collision_sparks_profile(),
             xenon_sparks: self.xenon_sparks_profile(),
             wind: self.wind_profile(),
+            skid_marks: self.skid_marks_profile(),
+            rain_splash: self.rain_splash_profile(),
+            wet_road: self.wet_road_profile(),
         }
     }
 
