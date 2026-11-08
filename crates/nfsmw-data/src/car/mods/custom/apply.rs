@@ -26,6 +26,10 @@ pub fn apply(
     model: &mut CarModel,
 ) -> Result<()> {
     apply_choices(dir, folder, custom, selection, lod, model)?;
+    // A bike's components (docs/modding/ride6-bike-upgrades.md) draw their parts over the assembled model.
+    if let Some(components) = crate::car::mods::components::of(folder) {
+        crate::car::mods::components::parts::apply(dir, folder, components, selection, lod, model);
+    }
     let Some(plate) = &custom.plate else { return Ok(()) };
     // A sheet that cannot be drawn leaves the plate as authored: a car is still a car.
     if let Err(error) =
@@ -60,6 +64,10 @@ fn apply_choices(
     let mut parts: Vec<(Category, &Part)> = Vec::new();
     for (category, kind, list) in models {
         let Some(hash) = chosen(category) else { continue };
+        // A choice of the car's components (a bike's rims, exhaust) is drawn by `components::parts`, not from the model lists.
+        if crate::car::mods::components::is_choice_of(folder, hash) {
+            continue;
+        }
         let part = pick(folder, kind, list, |p| &p.name, hash)
             .with_context(|| format!("the {} is unknown", category.label()))?;
         parts.push((category, part));
@@ -163,7 +171,7 @@ fn add_model(model: &mut CarModel, pack: &HashMap<u32, Solid>, base: &str, level
 }
 
 /// The levels the model is drawn at, with the placements of each: the canonical level and the driving levels.
-fn lists(model: &mut CarModel, lod: usize) -> Vec<(usize, &mut Vec<Placement>)> {
+pub(in crate::car::mods) fn lists(model: &mut CarModel, lod: usize) -> Vec<(usize, &mut Vec<Placement>)> {
     let mut all = vec![(lod, &mut model.placements)];
     all.extend(model.driving_lods.levels.iter_mut().map(|l| (l.level, &mut l.placements)));
     all

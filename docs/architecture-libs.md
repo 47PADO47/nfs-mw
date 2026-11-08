@@ -28,6 +28,7 @@ Each lib has its own README and can move to a shared utilities repo unchanged. T
 | [`blackbox-sequence`](../libs/blackbox-sequence) | Event systems, states, action queues and timed event lists | — (event handlers and tag hashes supplied by the game) |
 | [`blackbox-feng`](../libs/blackbox-feng) | FEng user-interface packages and fonts: reader, script and message runtime, a retained `UiTree`; no rendering | — (one format version) |
 | [`blackbox-text`](../libs/blackbox-text) | Language string tables (`LANGUAGES/*.bin`) | — |
+| [`blackbox-gauge-skin`](../libs/blackbox-gauge-skin) | Gauge skins of a car HUD: the ini that places speedometer, tachometer, nitrous and similar gauges, needle, digit, bar and sector-mask geometry, a DDS decoder; a frame in, quads out | — (the skin's own ini names the layout) |
 | [`blackbox-anim`](../libs/blackbox-anim) | EAGL4 animation: objects, skeletons, animation banks, channel codecs and pose evaluation (being built) | — (bytes in, no layouts yet) |
 | [`blackbox-nis`](../libs/blackbox-nis) | EA NIS cutscene scenes: header, characters, scene clock, placement | — (one format version) |
 | [`ea-audio`](../libs/ea-audio) | EA audio: SCHl streams, ABK sound banks, MPF/MUS music and its node graph, `.big` speech, `.gin` engine loops; EA-XA, EA-XAS and MicroTalk decoders | self-describing headers |

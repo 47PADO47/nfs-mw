@@ -90,6 +90,9 @@ pub struct HudState {
     pub has_turbo: bool,
     /// Boost gauge, psi (negative in vacuum).
     pub boost_psi: f32,
+    /// The player's car by its folder name (`CORVETTE`), empty without one. The CustomHUD gauge skin looks up a car's own
+    /// skin by it (`hud/asi_skin`).
+    pub car_dir: String,
     /// The minimap shows this place; `None` hides it (a scene that has no map position).
     pub minimap: Option<MapPosition>,
     /// The second co-op player's car, for the world map's second mark (`scenes/world/hud.rs`); `None` outside a co-op
@@ -212,6 +215,7 @@ impl Default for HudState {
             speedbreaker_active: false,
             has_turbo: false,
             boost_psi: 0.0,
+            car_dir: String::new(),
             minimap: None,
             second_player: None,
             blips: Vec::new(),

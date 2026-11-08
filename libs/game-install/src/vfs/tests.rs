@@ -266,3 +266,87 @@ fn provider_reports_the_layer_that_serves_a_path() {
     assert_eq!(layers[1].file_count, 2);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+// Lazy files (`lazy.rs`).
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// A source that makes the key three times over, fails for the key `missing`, and counts its calls.
+struct Repeat {
+    calls: AtomicUsize,
+}
+
+impl Repeat {
+    fn new() -> Arc<Self> {
+        Arc::new(Repeat { calls: AtomicUsize::new(0) })
+    }
+}
+
+impl LazySource for Repeat {
+    fn read(&self, key: &str) -> io::Result<Vec<u8>> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        if key == "missing" {
+            return Err(io::Error::new(io::ErrorKind::NotFound, "no such key"));
+        }
+        Ok(key.repeat(3).into_bytes())
+    }
+}
+
+/// An install and a layer `example.mod` with one lazy file, `CARS/NEW/GEOMETRY.BIN`, and one plain one.
+fn layered(name: &str) -> (PathBuf, GameDir) {
+    let (root, mut dir) = install(name);
+    put(&root.join("mod"), "CARS/NEW/GEOMETRY.BIN", &lazy::stub("example.mod", "geometry"));
+    put(&root.join("mod"), "CARS/NEW/BOUNDS.BIN", b"plain");
+    put(&root.join("mod"), "CARS/NEW/BAD.BIN", &lazy::stub("example.mod", "missing"));
+    dir.add_overlay("example.mod", root.join("mod"), 0).unwrap();
+    (root, dir)
+}
+
+#[test]
+fn a_stub_reads_as_what_its_source_makes_and_looks_like_any_file_otherwise() {
+    let (root, dir) = layered("lazy-read");
+    let source = Repeat::new();
+    dir.add_lazy_source("example.mod", source.clone());
+    assert!(dir.exists("cars/new/geometry.bin"));
+    assert_eq!(dir.provider("CARS/NEW/GEOMETRY.BIN"), Some(Provider::Overlay("example.mod")));
+    assert_eq!(dir.files_in("CARS/NEW"), ["BAD.BIN", "BOUNDS.BIN", "GEOMETRY.BIN"]);
+    assert_eq!(dir.read("CARS/NEW/GEOMETRY.BIN").unwrap(), b"geometrygeometrygeometry");
+    assert_eq!(dir.read("CARS/NEW/BOUNDS.BIN").unwrap(), b"plain");
+    assert_eq!(dir.read("GLOBAL/GlobalB.lzc").unwrap(), b"x");
+    assert_eq!(source.calls.load(Ordering::SeqCst), 1, "only the stub reached the source");
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_source_added_after_a_copy_was_made_reaches_the_copy() {
+    let (root, dir) = layered("lazy-clone");
+    let copy = dir.clone();
+    dir.add_lazy_source("example.mod", Repeat::new());
+    assert_eq!(copy.read("CARS/NEW/GEOMETRY.BIN").unwrap(), b"geometrygeometrygeometry");
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_stub_with_no_source_or_a_failing_source_is_an_error_not_the_stub() {
+    let (root, dir) = layered("lazy-error");
+    let error = dir.read("CARS/NEW/GEOMETRY.BIN").unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert!(error.to_string().contains("example.mod"), "{error}");
+    dir.add_lazy_source("example.mod", Repeat::new());
+    assert_eq!(dir.read("CARS/NEW/BAD.BIN").unwrap_err().to_string(), "no such key");
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn only_a_whole_short_stub_is_one() {
+    assert_eq!(lazy::parse(&lazy::stub("owner", "a/b")), Some(("owner", "a/b")));
+    assert_eq!(lazy::parse(b"BBLAZY1\nowner\n"), None, "a key is needed");
+    assert_eq!(lazy::parse(b"BBLAZY1\n\nkey\n"), None, "an owner is needed");
+    assert_eq!(lazy::parse(b"BBLAZY2\nowner\nkey\n"), None, "another format");
+    assert_eq!(lazy::parse(b"BBLAZY1\nowner\nkey\nmore\n"), None, "nothing follows the key");
+    assert_eq!(lazy::parse(b"plain bytes"), None);
+    assert_eq!(lazy::parse(&[0xFF, 0xFE, 0x00]), None);
+    let mut long = lazy::stub("owner", "key");
+    long.extend(std::iter::repeat_n(b' ', lazy::MAX_STUB_BYTES));
+    assert_eq!(lazy::parse(&long), None, "a file over the limit is a plain file");
+}

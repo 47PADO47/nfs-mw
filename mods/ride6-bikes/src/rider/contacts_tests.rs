@@ -178,3 +178,27 @@ fn the_bikes_clip_set_is_its_overrides_or_its_handlers() {
     add_style(&mut json, None);
     assert!(json.get("style").is_none());
 }
+
+#[test]
+fn each_grip_target_names_the_handlebar_bone_it_is_held_on() {
+    let json = contacts_json(&sport(), None).unwrap();
+    let anchor = |role: &str| {
+        let targets = json["targets"].as_array().unwrap();
+        let target = targets.iter().find(|t| t["name"] == role).unwrap();
+        target.get("anchor").map(|a| {
+            let a = a.as_array().unwrap();
+            Vec3::new(a[0].as_f64().unwrap() as f32, a[1].as_f64().unwrap() as f32, a[2].as_f64().unwrap() as f32)
+        })
+    };
+    // The grip bones are where the sockets are parented: glTF (0.37, 0.91, -+0.21) is the car's (0.37, +-0.21, 0.91).
+    assert!(anchor("left_grip").unwrap().distance(Vec3::new(0.37, 0.21, 0.91)) < 1e-5);
+    assert!(anchor("right_grip").unwrap().distance(Vec3::new(0.37, -0.21, 0.91)) < 1e-5);
+    assert_eq!(anchor("left_foot"), None, "a peg is not held");
+    // A bike without the grip bones has targets and no anchors.
+    let mut bare = sport();
+    bare["bones"].as_object_mut().unwrap().retain(|name, _| !name.ends_with("_GRIP"));
+    bare["sockets"]["SOCKET_L_HANDLE_POSE"]["bone"] = json!("BONE_CHASSIS");
+    bare["sockets"]["SOCKET_R_HANDLE_POSE"]["bone"] = json!("BONE_CHASSIS");
+    let json = contacts_json(&bare, None).unwrap();
+    assert!(json["targets"].as_array().unwrap().iter().all(|t| t.get("anchor").is_none()));
+}

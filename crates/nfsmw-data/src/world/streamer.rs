@@ -25,12 +25,13 @@ enum Request {
 /// renderer (it stores the result in [`SectionData::prepared`]). Installed once ([`Streamer::set_prepare`]).
 pub type Prepare = dyn Fn(&mut SectionData) + Send + Sync;
 
-/// What the caller tells the workers while they run: stop, drop these requests, prepare sections like this.
+/// What the caller tells the workers while they run: stop, drop these requests, rewrite and prepare sections like this.
 struct Control {
     stop: AtomicBool,
     /// Per section index: the caller no longer wants the request that is still queued. [`Streamer::request`] clears it.
     cancelled: Vec<AtomicBool>,
     prepare: OnceLock<Box<Prepare>>,
+    rewrite: OnceLock<Box<Prepare>>,
 }
 
 impl Control {
@@ -39,6 +40,7 @@ impl Control {
             stop: AtomicBool::new(false),
             cancelled: (0..sections).map(|_| AtomicBool::new(false)).collect(),
             prepare: OnceLock::new(),
+            rewrite: OnceLock::new(),
         }
     }
 
@@ -104,6 +106,15 @@ impl Streamer {
     /// first call counts. Sections loaded before it arrive unprepared, so the receiver must cope with both.
     pub fn set_prepare(&self, prepare: Box<Prepare>) {
         let _ = self.control.prepare.set(prepare);
+    }
+
+    /// Have the workers run `rewrite` on every section they load from now on, right after it is parsed and before its
+    /// textures are decoded: it may change the section's solids (a mod's replacement models, `docs/modding/effect-variants.md`;
+    /// their textures are not added here, the residency uploads them once). It runs for every section, so it decides itself
+    /// whether it has anything to do.
+    /// Only the first call counts.
+    pub fn set_rewrite(&self, rewrite: Box<Prepare>) {
+        let _ = self.control.rewrite.set(rewrite);
     }
 
     pub fn request(&self, index: usize) {
@@ -182,6 +193,10 @@ fn worker(
         };
         let event = match sections.get(index).map(|s| load_section(&mut file, index, s)) {
             Some(Ok(mut data)) => {
+                if let Some(rewrite) = control.rewrite.get() {
+                    let _rewrite = blackbox_trace::scope("Streaming worker: section rewrite");
+                    rewrite(&mut data);
+                }
                 let _decode = blackbox_trace::scope("Streaming worker: texture decode");
                 data.decode_for_upload(bc_supported.load(Ordering::Relaxed));
                 if let Some(prepare) = control.prepare.get() {
@@ -220,6 +235,30 @@ mod tests {
         let control = Control::new(1);
         control.set_cancelled(9, true);
         assert!(!control.skips(&Request::Full(9)));
+    }
+
+    #[test]
+    fn only_the_first_rewrite_hook_counts() {
+        let streamer = Streamer::spawn(PathBuf::from("this-file-does-not-exist.bun"), Vec::new(), 1);
+        assert!(streamer.control.rewrite.get().is_none());
+        streamer.set_rewrite(Box::new(|data| data.index = 5));
+        streamer.set_rewrite(Box::new(|data| data.index = 9));
+        let mut data = SectionData {
+            index: 0,
+            solids: Vec::new(),
+            textures: Vec::new(),
+            decoded: Vec::new(),
+            anims: Vec::new(),
+            scrolls: Vec::new(),
+            scenery: Vec::new(),
+            spawners: Vec::new(),
+            emitters: Vec::new(),
+            collision: Vec::new(),
+            prepared: None,
+        };
+        let rewrite = streamer.control.rewrite.get().expect("the hook is set");
+        rewrite(&mut data);
+        assert_eq!(data.index, 5);
     }
 
     #[test]

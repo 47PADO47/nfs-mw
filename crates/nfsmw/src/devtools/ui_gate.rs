@@ -22,13 +22,35 @@ pub(super) struct Visible {
     pub platform_feedback: bool,
     /// The label of a `--hud-scenario` run.
     pub scenario: bool,
+    /// The devtools menu, the vehicle panel, or the controller's buttons over another panel.
+    pub devtools: bool,
 }
 
 impl Visible {
     /// Whether any panel is up.
     pub fn any(self) -> bool {
-        let Self { scene, console, garage, graphics_lab, metrics, readout, trace, platform_feedback, scenario } = self;
-        scene || console || garage || graphics_lab || metrics || readout || trace || platform_feedback || scenario
+        let Self {
+            scene,
+            console,
+            garage,
+            graphics_lab,
+            metrics,
+            readout,
+            trace,
+            platform_feedback,
+            scenario,
+            devtools,
+        } = self;
+        scene
+            || console
+            || garage
+            || graphics_lab
+            || metrics
+            || readout
+            || trace
+            || platform_feedback
+            || scenario
+            || devtools
     }
 }
 
@@ -75,6 +97,7 @@ mod tests {
             Visible { trace: true, ..Visible::default() },
             Visible { platform_feedback: true, ..Visible::default() },
             Visible { scenario: true, ..Visible::default() },
+            Visible { devtools: true, ..Visible::default() },
         ];
         for visible in each {
             assert!(egui_needed(visible, SETTLED), "{visible:?}");

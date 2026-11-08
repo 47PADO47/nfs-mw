@@ -69,18 +69,7 @@ pub(in crate::scenes::world) fn run(
             if appearance(&mut selection, pair)? {
                 continue;
             }
-            let category = match pair[0] {
-                "body" => Category::Body,
-                "spoiler" => Category::Spoiler,
-                "hood" => Category::Hood,
-                "roof" => Category::Roof,
-                "rims" => Category::Wheels,
-                "paint" => Category::Paint,
-                "tint" => Category::WindowTint,
-                "rimpaint" => Category::RimPaint,
-                "vinyl" => Category::Vinyl,
-                _ => return Err(USAGE.into()),
-            };
+            let category = Category::from_key(pair[0]).ok_or(USAGE)?;
             let hash = match pair[1] {
                 "stock" => None,
                 value => {

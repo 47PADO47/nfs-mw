@@ -82,6 +82,10 @@ which is an invented animation. When a standing pose and a walk exist the timeli
 - **Reset button** (`input.reset`, subject to `reset_collision_active`): allowed, skips the wait (above).
 - **Fell off the map / state not finite** (`check_road`): places the bike again; the same path as the button.
 - **Fall-end on speed**: none; `GET_UP_SPEED` only gates `lie`.
+- **Flip reset** (a car or bike on its side or roof for over 4 s, [vehicle-reset](vehicle-reset.md)): it used to put a fallen bike back on its
+  path at 4 s, whatever the rider was doing (seen in the offscreen runs of the thrown-rider camera: the bike jumped 60 m while he was
+  still on the ground, and the whole get-up and walk back was lost). It does not run while the rider is off the bike
+  (`reset_trail::flip_runs`); the bike waits for him as above, and the wait has its own limit (`TUMBLE_LIMIT`).
 - **Car "reset after crash"**: cars only; a bike's fall does not reach it.
 
 ## 6. Verified by tests

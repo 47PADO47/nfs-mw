@@ -5,9 +5,10 @@ use bevy_ecs::prelude::*;
 use bevy_time::Time;
 use bevy_window::{PrimaryWindow, Window};
 
+use super::dev_parse::DEV_COMMANDS;
 use super::net_parse::NET_COMMANDS;
 use super::parse::{self, BUILT_IN, Command};
-use super::{Console, gfx_cmd, net_cmd, settings_cmd};
+use super::{Console, dev_cmd, gfx_cmd, net_cmd, settings_cmd};
 use crate::app::Host;
 use crate::app::pacing::FrameLimiter;
 use crate::app::window::WindowModes;
@@ -30,6 +31,7 @@ pub fn execute(
     mods: Option<NonSend<crate::modding::Mods>>,
     mut lab: Option<ResMut<crate::devtools::GraphicsLab>>,
     mut lan: Option<NonSendMut<crate::frontend::lan::LanBackend>>,
+    mut dev: ResMut<crate::devtools::panels::DevPanels>,
 ) {
     let _trace = blackbox_trace::scope("Console: execute commands");
     let host = &mut *host;
@@ -72,6 +74,7 @@ pub fn execute(
             Ok(Some(Command::Bindings { name, args })) => {
                 crate::input::commands::run(&mut bindings, &settings, &name, &args)
             }
+            Ok(Some(Command::Dev(command))) => dev_cmd::run(command, host, &mut dev),
             Ok(Some(Command::Net(command))) => {
                 let net = lan.as_deref_mut().and_then(crate::frontend::lan::LanBackend::get);
                 net_cmd::run(command, net, &settings)
@@ -117,6 +120,9 @@ fn run(
         Command::Mods => Err("mods is answered by the console before commands run".into()),
         Command::Bindings { .. } => Err("bindings are answered by the console before commands run".into()),
         Command::Net(_) => Err("net commands are answered by the console before commands run".into()),
+        Command::Dev(_) => {
+            Err("vehicle, gear and devtools commands are answered by the console before commands run".into())
+        }
         Command::Set { key, value } => set_live(settings, host, &key, &value),
         Command::Resolution { width, height } => {
             if host.screenshot.is_some() {
@@ -200,14 +206,9 @@ pub(super) fn gfx(settings: &Settings, host: &mut Host) -> Result<String, String
 fn help(scene: &[(&str, &str)], mods: &[(String, String)]) -> String {
     let others: Vec<(&str, &str)> =
         scene.iter().copied().chain(mods.iter().map(|(usage, what)| (usage.as_str(), what.as_str()))).collect();
-    let width = BUILT_IN.iter().chain(&NET_COMMANDS).chain(&others).map(|(usage, _)| usage.len()).max().unwrap_or(0);
-    BUILT_IN
-        .iter()
-        .chain(&NET_COMMANDS)
-        .chain(&others)
-        .map(|(usage, what)| format!("  {usage:<width$}  {what}"))
-        .collect::<Vec<_>>()
-        .join("\n")
+    let listed = || BUILT_IN.iter().chain(&NET_COMMANDS).chain(&DEV_COMMANDS).chain(&others);
+    let width = listed().map(|(usage, _)| usage.len()).max().unwrap_or(0);
+    listed().map(|(usage, what)| format!("  {usage:<width$}  {what}")).collect::<Vec<_>>().join("\n")
 }
 
 impl Console {
@@ -227,6 +228,8 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
         host.set_rain(settings.always_rain, settings.rain_amount.amplitude());
     }
     host.set_world_tuning(WorldTuning::from(&*settings));
+    crate::garage::rider_gear::set_enabled(settings.rider_gear);
+    crate::scenes::world::drive::rider::set_riding_style(settings.riding_style);
     if applied.as_ref().is_none_or(|before| before.spark_style != settings.spark_style) {
         host.set_spark_style(settings.spark_style);
     }

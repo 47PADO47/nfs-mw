@@ -73,10 +73,33 @@ role = \"player\"
 # mod's folder. false gives the cars no recordings: they play the game's built-in engine and have no other car sounds.
 own_engine_sound = true
 
+# Offer the 2012 game's soundtrack (43 songs, read from your 2012 install while they play: nothing is converted or copied) as the
+# gameplay option \"2012 soundtrack\", which is off until you turn it on. false adds neither the songs nor the option. Changing it
+# never converts the cars again (mods/nfsmw-2012-content/README.md, \"The soundtrack\").
+music = true
+
+# Pose each car's driver for the steering and the look back (seven steering poses and one reverse pose of the figure, in the car's
+# files: about 1.7 MB a car, 110 MB over 67 cars, and nothing on disk with stream_cars). false keeps the driver seated and still
+# (mods/nfsmw-2012-content/README.md, \"The driver's poses\").
+driver_poses = true
+
+# Make the cars' heavy files (GEOMETRY.BIN, TEXTURES.BIN, the engine and effect recordings) when the game opens a car instead of
+# writing them: the mod's folder then holds small stubs and a recipe, and each car is converted from your 2012 install the first
+# time the game needs it (a moment, then kept in memory). false writes every file, which takes the disk space and the first start's
+# time. Needs a game with bb.content 1.1; the gameplay option \"Stream 2012 cars\" switches it too. A change converts again at the
+# next start (mods/nfsmw-2012-content/README.md, \"Streamed cars\").
+stream_cars = true
+
 # Add the 2012 game's eleven traffic cars (Audi A3, Dodge Ram 1500, GMC Topkick, ...) to the roads, among the game's own
 # traffic. They are cars of their own (ids ending in _TR) that nobody drives. false adds none. The cars, exclude and
 # max_texture_size keys apply to them (the name of each has \"traffic\" in it).
 traffic = true
+
+# Add the 2012 game's trees as a value of the gameplay setting \"Trees\": the models and textures of its trees (broadleaf, poplar,
+# spruce, autumn and bare trees, bushes) replace those of the 2005 game's tree scenery while the setting says so. false adds
+# neither the trees nor the value. They are converted from your 2012 install into the mod's folder
+# (mods/nfsmw-2012-content/README.md, \"Trees\"); the max_texture_size key applies to their textures.
+trees = true
 
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
@@ -169,8 +192,21 @@ pub struct Config {
     pub role: Role,
     /// Whether each car gets the recordings of its 2012 bundle (engine loops, shifts, turbo, backfire, pops).
     pub own_engine_sound: bool,
+    /// Whether the 2012 game's songs are offered to the custom music player (`soundtrack.rs`). Not part of the conversion's
+    /// fingerprint: the songs are streamed from the install, so changing it converts nothing.
+    pub music: bool,
+    /// Whether each car's driver is posed for the steering and the look back (`driver_poses.rs`).
+    pub driver_poses: bool,
+    /// Whether the cars' heavy files are made when the game opens them instead of being written (`lazy.rs`).
+    pub stream_cars: bool,
+    /// Whether this conversion writes lazy files: `stream_cars`, a host that can make them and the gameplay option on. Decided at
+    /// every start (`lazy::decide`) and never read from a file; it is part of the import stamp.
+    #[serde(skip)]
+    pub lazy: bool,
     /// Whether the 2012 game's traffic cars are added as traffic cars (`traffic.rs`).
     pub traffic: bool,
+    /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
+    pub trees: bool,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -188,7 +224,12 @@ impl Default for Config {
             max_texture_size: 1024,
             role: Role::Player,
             own_engine_sound: true,
+            music: true,
+            driver_poses: true,
+            stream_cars: true,
+            lazy: false,
             traffic: true,
+            trees: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),
@@ -284,6 +325,17 @@ mod tests {
     }
 
     #[test]
+    fn the_trees_are_on_by_default_and_the_setting_turns_them_off() {
+        assert!(Config::default().trees);
+        assert!(!Config::parse("trees = false\n").unwrap().trees);
+        assert_ne!(
+            crate::stamp::of(&Config::default(), Path::new("definitely/not/here")),
+            crate::stamp::of(&Config { trees: false, ..Config::default() }, Path::new("definitely/not/here")),
+            "a change of the setting converts again"
+        );
+    }
+
+    #[test]
     fn selection_and_exclusion_match_ids_and_name_fragments() {
         let config: Config = toml::from_str("cars = ['porsche', 'LAM']\nexclude = ['GT2']").unwrap();
         assert!(config.wants("POR911CARR12", "Porsche 911 Carrera S 2012"));
@@ -372,5 +424,25 @@ mod tests {
         assert!(toml::from_str::<Config>("typo = 1").is_err());
         let config: Config = toml::from_str("max_texture_size = 1000").unwrap();
         assert!(config.check().is_err());
+    }
+
+    #[test]
+    fn the_drivers_are_posed_by_default_and_the_setting_turns_the_poses_off() {
+        assert!(Config::default().driver_poses);
+        assert!(!Config::parse("driver_poses = false\n").unwrap().driver_poses);
+    }
+
+    #[test]
+    fn the_cars_stream_by_default_and_the_setting_and_the_decision_change_the_stamp() {
+        assert!(Config::default().stream_cars && !Config::default().lazy);
+        assert!(!Config::parse("stream_cars = false\n").unwrap().stream_cars);
+        assert!(toml::from_str::<Config>("lazy = true").is_err(), "the decision is not a setting");
+        let nowhere = Path::new("definitely/not/here");
+        let lazy = Config { lazy: true, ..Config::default() };
+        assert_ne!(
+            crate::stamp::of(&Config::default(), nowhere),
+            crate::stamp::of(&lazy, nowhere),
+            "stubs and files are different content"
+        );
     }
 }

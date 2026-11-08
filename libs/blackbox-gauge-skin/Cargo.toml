@@ -1,0 +1,16 @@
+[package]
+name = "blackbox-gauge-skin"
+description = "Gauge skins: the ini format that places and colours speedometer, tachometer, nitrous and similar gauges, with the needle, digit, bar and sector-mask geometry and a DDS picture decoder. Pure text and bytes in, numbers and pixels out."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+blackbox-tpk.workspace = true
+ini-tuning.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

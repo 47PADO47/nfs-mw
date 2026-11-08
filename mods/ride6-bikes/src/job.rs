@@ -24,7 +24,7 @@ const STAGING: &str = ".staging";
 const RAGDOLL_ASSET: &str = "RiderGP_PhysicsAsset.json";
 const RAGDOLL_BLUEPRINT: &str = "RiderBP.json";
 /// The folders the game reads, which a promotion replaces together.
-const CONTENT: [&str; 2] = ["files", "cars"];
+const CONTENT: [&str; 3] = ["files", "cars", "components"];
 
 /// An import running on its own thread.
 pub struct Job {
@@ -79,6 +79,11 @@ struct Inputs {
     tyre_tables: Option<PathBuf>,
     sound: Option<PathBuf>,
     rider: Option<PathBuf>,
+    /// The rider gear catalogue and the longest side of its pictures.
+    gear: Option<PathBuf>,
+    gear_texture: u32,
+    /// The exporter's folder of the optional parts, when the bikes get the shop's options.
+    bike_parts: Option<PathBuf>,
 }
 
 impl Inputs {
@@ -86,7 +91,18 @@ impl Inputs {
         let physics = config.physics_dir(&source);
         let tyre_tables = config.tyre_dir(&physics);
         let rider = config.rider_dir(&source);
-        Self { source, physics, tyre_tables, sound: config.sound.clone(), rider }
+        let gear = config.gear_dir(&source);
+        let bike_parts = config.bike_parts_dir(&source);
+        Self {
+            source,
+            physics,
+            tyre_tables,
+            sound: config.sound.clone(),
+            rider,
+            gear,
+            gear_texture: config.gear_texture,
+            bike_parts,
+        }
     }
 }
 
@@ -103,7 +119,15 @@ pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Star
     let inputs = Inputs::of(&config, source);
     let (found, _) = batch::discover(&inputs.source)?;
     let dirs: Vec<PathBuf> = found.into_iter().map(|bike| bike.dir).collect();
-    let stamp = stamp::of(&config, &dirs, &inputs.physics, inputs.sound.as_deref(), inputs.rider.as_deref());
+    let stamp = stamp::of(
+        &config,
+        &dirs,
+        &inputs.physics,
+        inputs.sound.as_deref(),
+        inputs.rider.as_deref(),
+        inputs.gear.as_deref(),
+    );
+    let stamp = stamp::with_parts(stamp, inputs.bike_parts.as_deref());
     if stamp::is_current(mod_dir, &stamp) {
         return Ok(Start::UpToDate { cars: count_cars(mod_dir) });
     }
@@ -135,13 +159,25 @@ fn spawn(max_texture: u32, inputs: Inputs, mod_dir: PathBuf, stamp: String) -> R
 /// The rider's pack from his export folder: the riding pack, and the fall's `ragdoll.json` when the folder also holds the two
 /// files it is made from (`RiderGP_PhysicsAsset.json`, `RiderBP.json`); without them the rider stays on a bike that falls.
 fn rider_files(export: &Path, files: &Path) -> Result<()> {
-    crate::rider::import(export, files, None)?;
+    crate::rider::import(export, files)?;
     let (asset, blueprint) = (export.join(RAGDOLL_ASSET), export.join(RAGDOLL_BLUEPRINT));
     if !asset.is_file() || !blueprint.is_file() {
         return Ok(());
     }
     crate::rider_ragdoll::import(&asset, &blueprint, files)?;
     Ok(())
+}
+
+/// The rider's gear from its catalogue; why it is missing or incomplete, if it is (the bikes are still imported).
+fn gear_files(catalogue: &Path, output: &Path, max_texture: u32) -> Option<String> {
+    match crate::rider::gear::import(catalogue, output, max_texture) {
+        Err(error) => Some(format!("{error:#}")),
+        Ok(summary) if summary.left_out.is_empty() => None,
+        Ok(summary) => {
+            let first: Vec<&str> = summary.left_out.iter().take(3).map(String::as_str).collect();
+            Some(format!("{} items or files were left out: {}", summary.left_out.len(), first.join("; ")))
+        }
+    }
 }
 
 fn build(max_texture: u32, inputs: &Inputs, staging: &Path, stamp: &str, cancel: &AtomicBool) -> Result<Report> {
@@ -151,6 +187,7 @@ fn build(max_texture: u32, inputs: &Inputs, staging: &Path, stamp: &str, cancel:
         tyre_tables: inputs.tyre_tables.as_deref(),
         sound: inputs.sound.as_deref(),
         max_texture,
+        bike_parts: inputs.bike_parts.as_deref(),
         threads: batch::default_threads(),
         cancel,
     };
@@ -159,6 +196,10 @@ fn build(max_texture: u32, inputs: &Inputs, staging: &Path, stamp: &str, cancel:
     if let Some(rider) = &inputs.rider {
         let files = staging.join("files").join("RIDER");
         report.rider_failed = rider_files(rider, &files).err().map(|error| format!("{error:#}"));
+    }
+    if let Some(gear) = &inputs.gear {
+        let output = staging.join("files").join("RIDER").join(crate::rider::gear::FOLDER);
+        report.gear_failed = gear_files(gear, &output, inputs.gear_texture);
     }
     // The stamp is written last: a staging folder without one was cut short and is thrown away.
     stamp::save(staging, stamp).context("saving the import stamp")?;

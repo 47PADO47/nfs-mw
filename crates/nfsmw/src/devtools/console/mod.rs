@@ -3,6 +3,10 @@
 //! The console's state is the [`Console`] resource and the log buffer, both plain data. Typed lines are
 //! parsed into [`parse::Command`]s and run by [`exec`]; [`view`] is the thin egui panel over all of it.
 
+mod dev_cmd;
+mod dev_parse;
+#[cfg(test)]
+mod dev_tests;
 #[cfg(test)]
 mod environment_sync_tests;
 mod exec;

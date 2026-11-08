@@ -71,6 +71,16 @@ keeps the raw value outside the deadzone, matching the per-axis cutoff approach 
 affects analog steering, and camera sensitivity affects the stick independently of mouse sensitivity.
 The rewrite's default mappings remain available; a mod's ASI does not supply bindings to the rewrite.
 
+## Developer tools with a controller
+
+Every developer panel (the F12 console, the F8 graphics lab, F5 extra options, the F6 garage, the F11 vehicle panel and the devtools
+menu) can be walked and closed with a gamepad. Both stick clicks together (**L3 + R3**, a chord read from the controller itself, so it
+works whatever is rebound) open the devtools menu, or close whatever panel is up. While a panel is up the game does not read the
+controller (`UiFocus`), and these buttons are the panel's: D-pad or left stick move the focus (left and right change a slider or a
+stepper), **A** presses the focused widget, **B** closes a popup or the panel (back to the menu), **LB / RB** go to the previous / next
+widget; a line of buttons is shown at the bottom. `nfsmw keys` lists them under "Other". See
+[the developer tools page](devtools-vehicle.md#the-controller).
+
 ## Config file
 
 Run `nfsmw check-install` to find the per-user `config.toml`. On Windows it normally lives at

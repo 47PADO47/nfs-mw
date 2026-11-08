@@ -86,22 +86,36 @@ view empty).
   the lens is made in (`Mount::place`: section 6 says how the lean enters), so the camera and the bike never differ by a frame of
   travel. Without a rider (a bike with no rider files,
   or the rider off the bike in a fall) it is `fixed_position_m`: RIDE 6's own `RelativeLocation` (x 5 to 10 cm, z 1.2 m on a sport bike).
-- **Not drawn:** the meshes named in `hide_meshes` (`helmetRacing_default`, `visorClosedRacing_default`); his suit, gloves and boots
-  are drawn, so his arms are in the picture. The near plane is the data's 10 cm.
+- **Not drawn:** looking ahead, the meshes named in `hide_meshes` (`helmetRacing_default`, `visorClosedRacing_default`); his suit,
+  gloves and boots are drawn, so his arms are in the picture. **Looking back (key B) none of the rider is drawn**: the lens is inside
+  his own back and shoulders, which the wide view would show as a dark wall (`RiderVisibility::LookingBack`, `drive/rider/view.rs`,
+  set every frame from the camera state in `scenes/world/camera_bike.rs`, `bike_rider_visibility`; the bike stays). The look stick's
+  turn (section 6.2) is 11 degrees and does not move his body, so the freelook needs no further hiding. The near plane is the data's 10
+  cm, and a nitrous variant's field-of-view nudge keeps it (it used to put the chase camera's 30 cm back, which cut the panel off).
 - **Optics:** RIDE 6's 91.49284 degrees, which is exactly a 60 degree vertical field of view at 16:9 (the evidence that its fields of view are
-  the horizontal ones at 16:9) [M]; held as that vertical field of view for any aspect (a wider screen shows more at the sides) [C].
+  the horizontal ones at 16:9) [M], is **not used as it is** [C]: from the eyes the grips of the 277 imported bikes are 20 to 60
+  degrees down (median 48, 90th percentile 54) and 33 to 65 to the side (median 45, 90th percentile 52) [M: the eye is the manifest's
+  `fixed_position_m`, the grips are the rider's `contacts.json` in the model's frame], so a 60 degree picture tilted 18 degrees down
+  ended 48 degrees below the horizon and 46 to the side and cut the handlebar and the instrument panel at the picture's edges. The
+  helmet camera sees `HELMET_FOV_DEG` = **88 degrees vertical** (120 horizontal at 16:9; a bike whose data is wider keeps its own),
+  tilted `HELMET_VIEW_DOWN_DEG` = 16 degrees on top of the data's, so its bottom edge is about 70 degrees below the horizon and its sides
+  56 degrees out (`viewer/camera/bike.rs`). The vertical field of view is held for any aspect, so a wider screen shows more at the
+  sides (Hor+); a narrower one (16:10, 4:3, a split screen) is widened to keep the same 120 degrees across, up to 110 degrees
+  vertical [C]. At speed it widens by up to `HELMET_SPEED_WIDEN_DEG` = 8 degrees along the dynamic field of view's speed curve, scaled
+  by the field-of-view intensity and off with "change distance and FOV with speed"; it never narrows.
 - **Look:** along the bike's heading, tilted by the data's `RelativeRotation.Pitch` (-10 degrees on 312 of the 344 bikes; 23 have none,
-  and 5, 7, 15, 20, 50 and 60 occur a few times) [D] and `HELMET_VIEW_DOWN_DEG` = 8 degrees further down [C] (`viewer/camera/bike.rs`,
+  and 5, 7, 15, 20, 50 and 60 occur a few times) [D] and `HELMET_VIEW_DOWN_DEG` = 16 degrees further down [C] (`viewer/camera/bike.rs`,
   `Mount::helmet`). The extra is the player's request ("pointed a little more down so I can see more of the bike"), not RIDE 6's:
   the data's -10 shows the road and the sky with the dash only as a strip at the bottom, and no real value gives more, since the
   `PitchFactor` is the share of the bike's own pitch (a quarter of a wheelie), not a tilt, and the larger tilts are two supermotards'
   whose frame of reference is not in the data (their -50 and -60 are capped to `MAX_HELMET_DOWN_DEG` = 10 [C]: 60 degrees would show
-  the front tyre). With the 8 the straight view looks 18 degrees down: the horizon is at about a fifth of the picture's height
-  from the top (the Panigale; `C:/r6/shots/cams/j/pan-straight.png`, against about a third before), the fairing, the dash and the
+  the front tyre). With the 8 the straight view looked 18 degrees down with 60 degrees of field of view (the horizon at about a fifth of the
+  picture's height from the top; `C:/r6/shots/cams/j/pan-straight.png`); the 10 and the 80 degrees above show the whole cockpit (the
+  horizon is at 28 percent from the top, not measured in a picture): the fairing, the dash and the
   handlebars fill its lower half and the road and the traffic ahead the middle; on the KTM 450 SMR, whose cockpit sits lower, the
   dash's top, the clocks and the bars' ends show at the bottom (`ktm-straight.png`). It is a
   host constant, not a table value, so it applies to every bike, those already imported too; it is on top of the lean's own
-  tilt (section 6.1: the view looks at most 23 degrees down at 60 degrees of lean: at the hard lean of the script
+  tilt (section 6.1: the view looks at most 25 degrees down at 60 degrees of lean: at the hard lean of the script
   the horizon is then at the top edge of the picture and tipped, where it was a fifth to a quarter down before; it is still in view at the
   usual lean of a bend, `pan-lean.png`/`ktm-lean.png`). The front camera is not changed.
 
@@ -158,7 +172,7 @@ third, tipped by about 10 degrees, and the road ahead fills the rest, where the 
 its fairing. A KTM 450 SMR leaned with a stick of 0.55 and 0.75 shows the same (`ktm-s55`, `ktm-s75`); at a full stick (1.0) it
 falls at that speed and the camera is the fixed one of the fallen bike (section 7).
 
-The bounds that follow (tests, lean 0 to 60 degrees either side): the look is between 23 degrees down (10 of the data, 8 of
+The bounds that follow (tests, lean 0 to 60 degrees either side): the look is between 25 degrees down (10 of the data, 10 of
 section 5, 5 of the lean) and the horizon, turned at
 most 20 degrees from the heading, the horizon is tipped at most 17 degrees (5 followed and 12), and the lens is at most 35 cm below,
 16 + 12 cm sideways and 28 cm ahead of its upright place.
@@ -230,9 +244,55 @@ do not, and the physics never sees it (`input/head_look_tests.rs`, `viewer/camer
 - A bike without a container (16 of 293) has no `[bike.camera]`, and the game derives its cameras from its wheelbase
   (`BikeCamera::derived`: distances and heights as fractions of the wheelbase [C]). The dump and the containers name 47 bikes with another
   model year; the importer takes the container of the same name nearest in time, which found 31 of them.
-- While the rider is thrown the helmet camera is at the fixed place of the bike lying down; it does not ride the ragdoll.
+- The camera on the thrown rider is a chase camera of this port's, not RIDE 6's (its data has no fall camera): section 8.
 
-## 8. Tests and pictures
+## 8. While the rider is thrown [C]
+
+The player's report: "when crashing with bikes the center of attention should be on the driver, not on the bike; the camera should
+follow the driver". Every camera mode follows the **rider** from the moment the bike lets him go until he has remounted
+(`viewer/camera/rider_follow.rs`, `scenes/world/drive/rider_cam.rs`). RIDE 6's data has no such camera; everything here is a modelling
+choice **[C]**.
+
+- **Who is the subject** (`rider_follow::subject`, from the rider's `Phase`, which the host reads from his fall every physics step):
+  `Riding` (never fell, or remounted) is the bike; `Fallen` (in the air, sliding, lying, getting up: the ragdoll and the get-up clip)
+  and `Jogging` (back on his feet, the return blend of [the get-up spec](ride6-rider-getup.md) from where he stood to the seat) are the
+  rider. A bike with no rider files, or one whose rider cannot fall, has no body to follow: the subject stays the bike.
+- **The point** is his pelvis in the pose drawn (`Fall::focus`: the ragdoll's pose while he is down, the get-up clip included, the
+  blend between where he stood and the seat on the way back). The chase camera looks `RIDER_LOOK_UP_M` = 0.25 m above it.
+- **The blend** (`RiderCam::weight`): the camera's attention moves from the bike to the rider in `TO_RIDER_S` = 0.35 s and back in
+  `TO_BIKE_S` = 0.9 s once he has remounted (a linear ramp, smoothstep applied), on the physics clock. At every weight the followed
+  point is the bike's and the rider's blended, so the camera glides to him instead of cutting. After the remount the rider's point
+  keeps its offset to the (moving) bike, so the ease back has no jump. A placement of the bike (reset by hand, a respawn) cuts the
+  camera to the bike at once and keeps it there until the rider is on it.
+- **The heading** the chase camera sits behind: while he slides, the direction of his horizontal motion (above `HEADING_MIN_SPEED` =
+  1.5 m/s; held when he lies still, starting from the bike's heading), so the camera is behind the slide and sees him ahead; while he
+  jogs, the direction to the bike (held within `FACE_BIKE_MIN_M` = 0.5 m), so the camera sits behind him and sees the bike ahead.
+  The chase camera's own turn rate (4 per second) smooths it.
+- **The cameras:**
+
+| Setting | While the rider is down or jogging |
+|---|---|
+| `chase`, `dynamic-fov` | the custom chase camera at the bike's near distance and height (section 3), on the rider's blended point and heading (`Drive::followed`) |
+| `close`, `far`, `superfar`, `drift`, `pursuit` | the original view on a body moved to the rider: position (raised `ORIGINAL_ANCHOR_RAISE_M` = 0.35 m, the height of a bike's centre of gravity over a lying pelvis), forward, up, velocity, speed and drift blended (`Drive::blend_rider_body`) |
+| `hood` (the helmet camera), `bumper` (the front camera) | **a chase camera on the rider**: the original near-chase view the mode holds on a bike (section 2), whose body is the rider's; the lens is mixed from the mounted one by the same weight (`Lens::mix`: place and field of view linear, the turn on the short arc), so the helmet camera gives way to the chase in `TO_RIDER_S` and returns to the eyes in `TO_BIKE_S`. The camera is never in a thrown rider's head. |
+
+  His helmet and visor are drawn again from the moment the camera has left his eyes (`HELMET_SHOWN_FROM_FOLLOW` = 0.15 of the weight)
+  and hidden again when it is back within that share; the rest of the rider is drawn as before.
+- **Not followed:** a car; the free camera and the cut scenes; the pursuit and moment cameras (they take the car as before).
+
+## 9. After a reset, and the start of a chase [C]
+
+- **Grace from the busted timer** (`docs/specs/fairbusts-reset.md` section 6): a bike's rider cannot be busted while he is off the
+  bike (down, getting up, jogging back: `RiderCam::bust_grace`) nor for `BIKE_RESET_GRACE_S` = 4 s after he remounts or after a reset of
+  the bike by hand (and the flip reset). The timer does not fill, whatever the stock reset penalty says (90 m reach, no speed gate, x4),
+  and drains at its usual rate. The original has no such grace: its 2 s flash after a reset makes busting faster (fairbusts-reset
+  section 1), so the number is this port's.
+- **The chase's start in the helmet camera** (`docs/specs/pursuit-look.md`): the pursuit look's grade change (the cold blue blend), its
+  flash and its radial blur are shown at `HELMET_SHARE` = 0.35 of their strength while the camera is the bike's helmet camera
+  (`scenes/world/pursuit_look.rs`, `Frame::scaled`), so the road stays readable at the start of the chase and when the heat level
+  rises; every other camera, and the arrest look, are unchanged.
+
+## 10. Tests and pictures
 
 - `viewer/camera/bike_tests.rs`: the chase views and the fit scale with the wheelbase; `close` < `far` < `superfar`; heights above the
   ground; the 16:9 to 4:3 field-of-view conversion; attitude from a rotation; the lean follow (5 degrees at most for the helmet, 0.8 for the
@@ -247,10 +307,21 @@ do not, and the physics never sees it (`input/head_look_tests.rs`, `viewer/camer
   `input/head_look_tests.rs`: the right stick's X is the look and its Y still shifts, the camera dead zone, the names.
   `drive/script.rs`: `look` and `lookup`.
 - `drive/rider/view.rs`: the eye is the middle of the eye bones, in the model's frame; the head bone is the fallback; none off the bike;
-  the helmet and visor are the hidden parts.
+  the helmet and visor are the hidden parts; the visibility (whole, from the helmet, looking back) draws all, all but those, none.
+- `viewer/camera/bike_fov_tests.rs`: the helmet field of view (88 degrees, wider than the data's, kept when a bike's is wider), Hor+ and
+  the floor on narrow pictures, the grips and the panel of a sample cockpit inside the picture at 16:9, 21:9, 16:10 and 4:3 and at
+  speed (and outside the old 60 degree one), the speed widening curve, the 10 cm near plane; `scenes/world/nitrous_screen_tests.rs`:
+  the nudge keeps a camera's own near plane.
 - `modding/content/bike_camera.rs`, `libs/blackbox-modding` (`bike_camera.rs`), `nfsmw-data` (`mods/bike_camera.rs`): the table's schema,
   ranges, defaults, derived cameras, the lean table (partial tables, ramps, the root default).
 - `mods/ride6-bikes/src/camera_tests.rs`: the layers of the container, units and frames, the schema round trip, replacing a table, the
   year match, the cap, the lean slots read into the lean table (and zeros for a bike with none).
 - Offscreen pictures of every mode on the KTM 450 SMR and the Ducati Panigale V4 R, leaned and straight: `C:\r6\shots\cams\`
   (`nfsmw view-world --drive KTM450 --muted --camera-mode <mode> --drive-script "..." --screenshot ...`).
+- `viewer/camera/rider_follow_tests.rs`: the subject by phase (fallen, jogging, remounted, no body), the ramp to the rider and back
+  and its ends, the chase point's blend and its follow of a moving rider, the heading (slide, held, facing the bike while jogging), the
+  ease back without a jump, the cut at a placement, the grace (down, jogging, after the remount, after a reset). `lens_mix_tests.rs`:
+  the ends, the middle, the roll, the projection. `libs/blackbox-pursuit` (`busted.rs`): a grace stops the fill and drains.
+  `scenes/world/pursuit_look_tests.rs`: the helmet share of the grade, the flash and the blur.
+- The rider-following camera offscreen: `docs/modding/drive-script.md` (`fall=`), three frames (the fall, down, the jog back), in
+  `chase` and `hood`.
