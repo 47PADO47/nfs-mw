@@ -107,8 +107,8 @@ RIDE 6 Okayama on the author's machine (release build, an SSD, 12 hardware threa
 
 All 39 tracks convert, 0.2 to 10 s each, 24 to 522 MB (typically 50 to 100 MB; the open maps are the large ones: Cappadocia Trails 522
 MB, Stelvio Park 351 MB, Blue Wave Circuit 184 MB, Nevada 162 MB). The lap checked against the collision (`ride6-track-import --check`):
-on Okayama, 1,854 of 1,863 samples of the lap are asphalt; a few tracks have a lap with large stretches with no ground under it
-(Nurburgring GP: 1,781 of 2,541), which means their racing surface is in another level than the terrain one, not read yet.
+on Okayama, 1,854 of 1,863 samples of the lap are asphalt. Nurburgring GP had no ground under 1,781 of its 2,541 samples: its ground
+pieces are all 70 m from the origin by their component's transform, which the exporter ignored (fixed: 9 samples without ground).
 
 ## What the RIDE 6 worlds add on top **[built]**
 
@@ -116,18 +116,29 @@ on Okayama, 1,854 of 1,863 samples of the lap are asphalt; a few tracks have a l
   triangles), 2 m below the real ground so a loaded near cell always covers it, and a sea at the water's height (or a plain under the
   lowest ground when the track has no water). Its placements name themselves as their low-detail model: the game's density rule
   chooses slot 2 for a flat solid beyond 25 m, and an empty slot draws nothing.
-- **Objects:** the barriers, buildings and props are placed in the cell nearest to each (`rotation = [[..], ..]` rows in the pack
-  manifest) with the models they use in the cell's own section, and each **solid** model puts a box of its size into the cell's
-  collision, so a car or a bike meets the wall (`mods/ride6-tracks/src/objects.rs`). The boxes are 12 triangles each, not the meshes:
-  the barriers' meshes would be 1.8 million triangles. Seen: a BMW M3 GTR driven into the pit wall at 32 km/h stops against it.
+- **Objects:** the barriers, buildings and props are placed, `rotation = [[..], ..]` rows in the pack manifest, in cells of their own:
+  one section for each 500 m square of track (`objects.rs`, `groups`), holding the models its placements use once and their pictures,
+  so a barrier piece is in a square's section once and not in every ground cell beside a placement (Okayama with objects 180 MB
+  before, 147 MB now; one section for the whole track would be 132 MB but keeps every object resident). Each **solid** model also
+  puts a box of its size into the collision of the ground cell nearest to the placement, so a car or a bike meets the wall
+  (`import.rs`, `objects::walls`). The boxes are 12 triangles each, not the meshes: the barriers' meshes would be 1.8 million
+  triangles. Seen: a BMW M3 GTR driven into the pit wall at 32 km/h stops against it. **A placement can only name a model of its own
+  section** (the residency resolves a section's solids from its own file and the city's shared sets, `resident.rs`
+  `upload_solid_list`), and so can a solid its pictures: sharing models or ground pictures between the cells would need a world-level
+  shared set in the host (ground pictures are 44 of the 106 MB of Okayama's ground, about 30 MB of it repeated).
 - **Racing line:** a 0.7 m ribbon, 4 cm above the collision, along the ideal trajectory, as one more always-loaded cell (`line.rs`);
   the heights come from the collision just written.
 - **Lap timing:** the mod times laps on `worlds/<id>.lap` and shows the time as a HUD message (`bb.hud`); on a world's first tick it
   says that timing is on, which is how the message path was seen offscreen. The crossing messages could not be seen offscreen:
   a scripted run advances the world in one batch, so the mod sees the car only after it has crossed. Unit-tested in `lap.rs`.
-- **Minimap:** the scene gives the HUD no map position in a second world, so the city's tiles are not drawn. The radar's dark disc
-  stays (it is part of the original HUD package and neither its backing group's alpha nor the layout's `radar` flag removed it; not
-  solved). A map drawn from the spline would be the next step.
+- **Minimap:** the scene gives the HUD no map position in a second world (`state.second_world`, `scenes/world/scene_hud.rs`), and the
+  original HUD's disc, heat ring and flame are hidden: they sit under the tachometer's root in the PC layout, so the layout's flags
+  did not remove them (the earlier attempts set the backing group's alpha and the radar flag). `Layout::update` now takes the minimap,
+  heat and detector roots and everything under them out of what shows when `Shown::mapless` is set, and `Layout::hide_mapless` hides
+  them again after the frame's scripts ran (a script of the package may unhide an object). The Remastered and Custom HUDs drew
+  nothing there. **A drawn map is the next step**: the Custom HUD draws `state.map_roads` (polylines, `hud/map_roads`) and the car's
+  `map_car`; feeding it the lap spline needs a `[world]` key naming the line file and no `map_picture` (it takes the city's) in a
+  second world; the original HUD's map needs 64 tile textures per world (`<stem>_CHOP<n>`) in the UI assets.
 
 ## Pieces made when asked for **[built]**
 
