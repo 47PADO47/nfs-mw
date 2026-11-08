@@ -164,6 +164,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         always_rain: Some(s.always_rain),
         motion_blur: Some(s.motion_blur),
         motion_blur_strength: Some(s.motion_blur_strength),
+        grading_strength: Some(s.grading_strength),
         hd_content: s.hd_content.into(),
         custom_fonts: s.custom_fonts.into(),
         fe_shadows: s.fe_shadows.into(),

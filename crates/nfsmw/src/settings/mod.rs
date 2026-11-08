@@ -46,6 +46,7 @@ pub use detail::{CarGeometry, DetailSettings, WorldDetail};
 mod graphics;
 mod latency;
 pub use latency::{FrameGeneration, PresentMode, ReflexMode, Swapchain, parse_frame_latency};
+pub mod grading;
 mod graphics_preset;
 #[cfg(test)]
 mod graphics_preset_tests;
@@ -357,6 +358,9 @@ pub struct Settings {
     pub motion_blur: bool,
     /// The radial blur's strength multiplier, 0 to 2 (`motion_blur_strength`); 1 is the curve as it is.
     pub motion_blur_strength: f32,
+    /// How far the colour grading of a mod's variant goes from the frame's own colour, 0 to 1 (`grading_strength`); 1 is the
+    /// grade as the mod made it. Without a grading variant chosen (`grading_variant`) it does nothing.
+    pub grading_strength: f32,
     /// The HD content options: HD font glyphs, the HD pointer hotspot and HD movie framing (`[hd_content]`).
     pub hd_content: hd_content::HdContent,
     /// The custom fonts: fonts from a folder, per resolution tier (`[custom_fonts]`, `docs/specs/custom-fonts.md`).

@@ -134,6 +134,7 @@ impl From<Partial> for Settings {
                 .motion_blur_strength
                 .unwrap_or(motion_blur::DEFAULT_MOTION_BLUR_STRENGTH)
                 .clamp(motion_blur::MOTION_BLUR_STRENGTH_RANGE.0, motion_blur::MOTION_BLUR_STRENGTH_RANGE.1),
+            grading_strength: grading::clamp_strength(p.grading_strength.unwrap_or(grading::DEFAULT_STRENGTH)),
             hd_content: hd_content::HdContent::from_layer(p.hd_content),
             custom_fonts: custom_fonts::CustomFonts::from_layer(p.custom_fonts),
             fe_shadows: fe_shadows::FeShadows::from_layer(p.fe_shadows),

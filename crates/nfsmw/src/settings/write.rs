@@ -342,6 +342,9 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.motion_blur_strength {
         put("motion_blur_strength", Value::Float(f64::from(v)));
     }
+    if let Some(v) = changes.grading_strength {
+        put("grading_strength", Value::Float(f64::from(v)));
+    }
     fe_shadows::put_into(&changes.fe_shadows, &mut put);
     super::net::put_into(&changes.net, &mut put);
     hd_content::merge_into(&mut table, &changes.hd_content);

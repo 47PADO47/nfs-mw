@@ -198,6 +198,8 @@ pub struct Partial {
     pub motion_blur: Option<bool>,
     /// The radial blur's strength multiplier, 0 to 2 (`motion_blur_strength`).
     pub motion_blur_strength: Option<f32>,
+    /// The colour grading strength, 0 to 1 (`grading_strength`).
+    pub grading_strength: Option<f32>,
     /// The HD content options (`[hd_content]`).
     pub hd_content: HdContentLayer,
     /// The custom fonts (`[custom_fonts]`).
@@ -339,6 +341,7 @@ impl Partial {
             h_shifter: self.h_shifter.or(lower.h_shifter),
             motion_blur: self.motion_blur.or(lower.motion_blur),
             motion_blur_strength: self.motion_blur_strength.or(lower.motion_blur_strength),
+            grading_strength: self.grading_strength.or(lower.grading_strength),
             hd_content: self.hd_content.or(lower.hd_content),
             custom_fonts: self.custom_fonts.or(lower.custom_fonts),
             fe_shadows: self.fe_shadows.or(lower.fe_shadows),

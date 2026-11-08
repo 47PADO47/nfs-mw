@@ -45,7 +45,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 70] = [
+pub const BUILT_IN: [(&str, &str); 71] = [
     ("trace start [seconds]|stop|mark [label]|status", "performance trace; F9 record/stop, F10 bookmark"),
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
@@ -89,6 +89,7 @@ pub const BUILT_IN: [(&str, &str); 70] = [
     ("post_aa <off|fxaa|smaa|taa>", "anti-aliasing of the 3D scene (smaa, taa: bevy renderer)"),
     ("motion_blur <on|off>", "motion blur at high speed"),
     ("motion_blur_strength <0-2>", "strength of the high-speed motion blur; 1 is the default"),
+    ("grading_strength <0-1>", "how far a mod's colour grading goes from the frame's own colour; 1 is the default"),
     ("visual_treatment <off|low|high>", "installed midday colour look (native renderer)"),
     ("reflections <off|low|medium|high>", "local car reflections; off restores the static sky"),
     ("reflection_cube_size <auto|25%-400%|pixels>", "size of the car reflection capture"),

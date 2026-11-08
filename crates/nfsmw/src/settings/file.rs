@@ -223,6 +223,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         h_shifter: field(&table, origin, "h_shifter", boolean),
         motion_blur: field(&table, origin, "motion_blur", boolean),
         motion_blur_strength: field(&table, origin, "motion_blur_strength", number),
+        grading_strength: field(&table, origin, "grading_strength", number),
         hd_content: hd_content::read(&table),
         custom_fonts: custom_fonts::read(&table),
         fe_shadows: fe_shadows::read(&table, origin),
