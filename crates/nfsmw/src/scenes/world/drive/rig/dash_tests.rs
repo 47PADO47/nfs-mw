@@ -63,3 +63,51 @@ fn painting_a_display_costs_microseconds() {
     println!("a 384 x 192 display: {each:?} to paint");
     assert!(each < Duration::from_millis(5), "painting took {each:?}");
 }
+
+fn field(
+    channel: nfsmw_data::car::mods::bike_dash::Channel,
+    rect: [u32; 4],
+) -> nfsmw_data::car::mods::bike_dash::Field {
+    use nfsmw_data::car::mods::bike_dash::{Align, Field};
+    Field { channel, rect, color: [0, 255, 112], background: [20, 30, 40], align: Align::Center, segments: 1 }
+}
+
+#[test]
+fn a_field_erases_its_rectangle_and_draws_one_glyph_in_the_clusters_colour() {
+    use nfsmw_data::car::mods::bike_dash::Channel;
+    let gear = field(Channel::Gear, [0, 0, 40, 60]);
+    let neutral = fields::paint_field(&gear, &state(0.0, 0, 0.0));
+    let first = fields::paint_field(&gear, &state(30.0, 1, 4_000.0));
+    assert_eq!(neutral.len(), 40 * 60 * 4);
+    assert!(
+        count(&neutral, [0, 255, 112]) > 0 && count(&neutral, [20, 30, 40]) > 0,
+        "a glyph on the sampled background"
+    );
+    assert_eq!(
+        count(&neutral, [0, 255, 112]) + count(&neutral, [20, 30, 40]),
+        40 * 60,
+        "nothing else is left in the rectangle"
+    );
+    assert_ne!(neutral, first, "N and 1 differ");
+    let reverse = fields::paint_field(&gear, &state(-3.0, -1, 2_000.0));
+    assert_ne!(reverse, neutral);
+}
+
+#[test]
+fn a_speed_field_scales_its_digits_to_the_rectangle_and_a_bar_fills_from_the_left() {
+    use nfsmw_data::car::mods::bike_dash::Channel;
+    let speed = field(Channel::Speed, [0, 0, 120, 40]);
+    let (slow, fast) =
+        (fields::paint_field(&speed, &state(7.0, 1, 0.0)), fields::paint_field(&speed, &state(143.0, 3, 0.0)));
+    assert!(count(&fast, [0, 255, 112]) > count(&slow, [0, 255, 112]));
+    let mut bar = field(Channel::RpmBar, [0, 0, 100, 10]);
+    let half = fields::paint_field(&bar, &state(0.0, 1, 6_000.0));
+    assert_eq!(count(&half, [0, 255, 112]), 50 * 10, "half of a continuous bar");
+    assert_eq!(&half[..4], &[0, 255, 112, 255], "from the left");
+    bar.segments = 10;
+    let segmented = fields::paint_field(&bar, &state(0.0, 1, 6_000.0));
+    assert!(
+        count(&segmented, [0, 255, 112]) > 0 && count(&segmented, [0, 255, 112]) < 50 * 10,
+        "gaps between the lit segments"
+    );
+}

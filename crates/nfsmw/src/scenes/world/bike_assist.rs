@@ -1,17 +1,22 @@
 //! The game's assists of the bikes that are not RIDE 6's: the wheelie from the throttle alone (`easy_wheelie`,
 //! `docs/specs/ride6-wheelie-throttle.md`), switched by the setting for the bike the player rides.
 
+use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use blackbox_vehicle::bike::ThrottleWheelie;
 
-/// Off until the host has read the settings (`app/host.rs`): the physics tests and a bike before that see the reference behaviour.
-static EASY_WHEELIE: AtomicBool = AtomicBool::new(false);
+thread_local! {
+    /// Off until the host has read the settings (`app/host.rs`): a bike before that sees the reference behaviour. Per thread, because
+    /// the host and the physics step run on the main thread; a test that builds a `Host` (default settings: on) on its own thread then
+    /// cannot switch the assist on under the physics tests that run beside it.
+    static EASY_WHEELIE: Cell<bool> = const { Cell::new(false) };
+}
 static LIVE_DASH: AtomicBool = AtomicBool::new(true);
 
 /// Switch the throttle-only wheelie (the `easy_wheelie` setting); read at every step, so a change reaches a bike on the road.
 pub(crate) fn set_easy_wheelie(on: bool) {
-    EASY_WHEELIE.store(on, Ordering::Relaxed);
+    EASY_WHEELIE.set(on);
 }
 
 /// Switch the live screen of the bikes' instrument clusters (the `live_dash` setting, `docs/modding/ride6-bike-dash.md`); read every frame.
@@ -27,7 +32,7 @@ pub(super) fn live_dash() -> bool {
 /// The throttle-only wheelie's settings for a bike: the game's while the setting is on and the player rides it, the reference's
 /// otherwise (a computer driver's bike keeps its throttle and its front wheel down).
 pub(in crate::scenes::world) fn throttle_wheelie(player: bool) -> ThrottleWheelie {
-    choose(player, EASY_WHEELIE.load(Ordering::Relaxed))
+    choose(player, EASY_WHEELIE.get())
 }
 
 fn choose(player: bool, setting: bool) -> ThrottleWheelie {

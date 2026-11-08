@@ -12,6 +12,8 @@ use nfsmw_data::car::mods::bike_dash::{self, Colors, Dash};
 
 use super::CarRig;
 
+mod fields;
+
 /// How often the screen may be repainted: the cluster's picture does not need the frame rate.
 pub const MIN_INTERVAL: Duration = Duration::from_millis(66);
 /// The segments of the rev bar.
@@ -69,10 +71,19 @@ impl CarRig {
             return None;
         }
         let texture = self.appearance.borrow().materials.texture(feed.dash.texture_hash)?;
-        let [x, y, width, height] = feed.dash.window;
         let started = Instant::now();
-        let picture = paint(width, height, state, &feed.dash.colors);
-        if !renderer.update_texture(texture, [x, y, width, height], &picture) {
+        let written = match feed.dash.fields.is_empty() {
+            true => {
+                let [x, y, width, height] = feed.dash.window;
+                renderer.update_texture(texture, [x, y, width, height], &paint(width, height, state, &feed.dash.colors))
+            }
+            false => feed
+                .dash
+                .fields
+                .iter()
+                .all(|field| renderer.update_texture(texture, field.rect, &fields::paint_field(field, state))),
+        };
+        if !written {
             feed.refused.set(true);
             log::debug!("the cluster of {} cannot be written: the baked picture stays", self.model.name);
             return None;
