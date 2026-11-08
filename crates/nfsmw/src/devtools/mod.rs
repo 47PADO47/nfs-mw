@@ -142,7 +142,10 @@ fn run_ui(
         *styled_for = Some(themes.skin().clone());
     }
     let (lan_ui, lan_backend) = (&mut lan.0, &mut lan.1);
-    let vehicle_options = dev.vehicle.then(|| host.scene.vehicle_options()).flatten();
+    let vehicle_options = dev.vehicle.then(|| host.scene.vehicle().and_then(|scene| scene.options())).flatten();
+    if dev.vehicle {
+        vehicle::ensure_gear_catalogue(host.scene.vehicle().and_then(|scene| scene.install_dir()));
+    }
     let gear_rows = dev.vehicle.then(vehicle::current_gear).flatten();
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
         let actions = match host.scene.extra_options() {
@@ -220,7 +223,7 @@ fn run_ui(
         show_devtools(
             ctx,
             dev,
-            &mut *host,
+            &mut host,
             (&mut *settings, &mut *lab),
             vehicle_options.as_ref(),
             gear_rows.as_deref(),
@@ -276,9 +279,9 @@ fn show_devtools(
             match action {
                 vehicle::PanelAction::Close => dev.request(Request::Back),
                 vehicle::PanelAction::Vehicle(change) => {
-                    let result = match host.renderer.as_mut() {
-                        Some(renderer) => host.scene.change_vehicle(renderer.as_mut(), &change),
-                        None => Err("the renderer is not ready".to_owned()),
+                    let result = match (host.renderer.as_mut(), host.scene.vehicle()) {
+                        (Some(renderer), Some(scene)) => scene.change(renderer.as_mut(), &change),
+                        _ => Err("no vehicle on show, or the renderer is not ready".to_owned()),
                     };
                     dev.message = Some(result.unwrap_or_else(|error| error));
                 }

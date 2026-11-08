@@ -4,11 +4,13 @@
 pub mod camera;
 mod race_report;
 mod static_hash;
+mod vehicle;
 pub use race_report::{
     MILESTONE_LINES, MilestoneLine, MilestoneStatus, PhotoKind, PhotoReport, PursuitPage, PursuitReport, RaceAnswer,
     RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport, photo_picture,
 };
 pub use static_hash::StaticHash;
+pub use vehicle::VehicleScene;
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
@@ -104,18 +106,9 @@ pub trait Scene {
         false
     }
 
-    /// What the vehicle on show can change (`garage::options`), for the developer tools' vehicle panel and the `vehicle` console
-    /// command. `None` where the scene shows no vehicle.
-    fn vehicle_options(&mut self) -> Option<crate::garage::options::VehicleOptions> {
+    /// The vehicle on show, for the developer tools' vehicle panel and the `vehicle` console command (`vehicle.rs`).
+    fn vehicle(&mut self) -> Option<&mut dyn VehicleScene> {
         None
-    }
-    /// Applies a change of the vehicle's options to the vehicle on show, which is dressed again at once. Returns what was done.
-    fn change_vehicle(
-        &mut self,
-        _renderer: &mut dyn RenderBackend,
-        _change: &crate::garage::options::Change,
-    ) -> Result<String, String> {
-        Err("this scene shows no vehicle".into())
     }
 
     /// Installed car choices for the runtime garage; scenes without driving return None.

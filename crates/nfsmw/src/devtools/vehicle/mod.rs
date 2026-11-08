@@ -11,7 +11,10 @@ use egui::{RichText, ScrollArea, vec2};
 
 use crate::garage::options::{Change, Group, Slot, VehicleOptions, humanize};
 use crate::garage::rider_gear::Part;
-pub(crate) use gear::{GearRow, current as current_gear, list as gear_list, set as set_gear, stock as stock_gear};
+pub(crate) use gear::{
+    GearRow, current as current_gear, ensure_catalogue as ensure_gear_catalogue, list as gear_list, set as set_gear,
+    stock as stock_gear,
+};
 
 /// What the panel asks for.
 #[derive(Clone, Debug, PartialEq)]

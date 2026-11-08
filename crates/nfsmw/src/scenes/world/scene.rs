@@ -31,15 +31,8 @@ impl Scene for WorldScene {
     fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.apply_garage_selection(renderer, selection)
     }
-    fn vehicle_options(&mut self) -> Option<crate::garage::options::VehicleOptions> {
-        self.driven_vehicle_options()
-    }
-    fn change_vehicle(
-        &mut self,
-        renderer: &mut dyn RenderBackend,
-        change: &crate::garage::options::Change,
-    ) -> Result<String, String> {
-        self.change_driven_vehicle(renderer, change)
+    fn vehicle(&mut self) -> Option<&mut dyn crate::viewer::VehicleScene> {
+        Some(self)
     }
     fn begin_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         anyhow::ensure!(self.garage_entry_allowed(), "Auto shops are unavailable during an event or pursuit");

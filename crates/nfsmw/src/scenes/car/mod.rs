@@ -348,16 +348,8 @@ impl Scene for CarScene {
         (params, &self.instances)
     }
 
-    fn vehicle_options(&mut self) -> Option<crate::garage::options::VehicleOptions> {
-        self.car_options()
-    }
-
-    fn change_vehicle(
-        &mut self,
-        renderer: &mut dyn RenderBackend,
-        change: &crate::garage::options::Change,
-    ) -> Result<String, String> {
-        self.change_car(renderer, change)
+    fn vehicle(&mut self) -> Option<&mut dyn crate::viewer::VehicleScene> {
+        Some(self)
     }
 
     fn commands(&self) -> &'static [(&'static str, &'static str)] {

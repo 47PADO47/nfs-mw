@@ -39,7 +39,7 @@ pub(super) fn chooser(
     label_of: &dyn Fn(usize) -> String,
 ) -> Option<usize> {
     ui.horizontal(|ui| {
-        let width = (ui.available_width() - 34.0).max(120.0);
+        let width = (ui.available_width() - 56.0).max(120.0);
         let mut asked = ui
             .scope(|ui| {
                 ui.set_width(width);
@@ -135,7 +135,7 @@ fn list(
 ) -> Option<usize> {
     let mut picked = None;
     let key = id.with("search");
-    ui.menu_button("▼", |ui| {
+    ui.menu_button("List", |ui| {
         let mut search: String = ui.data(|data| data.get_temp(key)).unwrap_or_default();
         if count > SEARCH_ABOVE {
             ui.add(egui::TextEdit::singleline(&mut search).hint_text("Search"));

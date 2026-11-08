@@ -53,11 +53,17 @@ impl Scene for Showroom {
     fn frame(&mut self, _: f32) -> (FrameParams, &[Instance]) {
         unreachable!()
     }
-    fn vehicle_options(&mut self) -> Option<VehicleOptions> {
-        Some(self.options())
+    fn vehicle(&mut self) -> Option<&mut dyn crate::viewer::VehicleScene> {
+        Some(self)
     }
-    fn change_vehicle(&mut self, _: &mut dyn RenderBackend, change: &Change) -> Result<String, String> {
-        let (options, catalog) = (self.options(), self.catalog.clone());
+}
+
+impl crate::viewer::VehicleScene for Showroom {
+    fn options(&mut self) -> Option<VehicleOptions> {
+        Some(Showroom::options(self))
+    }
+    fn change(&mut self, _: &mut dyn RenderBackend, change: &Change) -> Result<String, String> {
+        let (options, catalog) = (Showroom::options(self), self.catalog.clone());
         let (mut color, mut performance) = (None, PerformancePackage::default());
         let mut edit = Edit { parts: &mut self.parts, color: &mut color, performance: &mut performance };
         options.apply(Some(&catalog), &mut edit, change)
@@ -109,7 +115,7 @@ fn a_scene_without_a_vehicle_says_so() {
     let mut host = host(Empty);
     let mut dev = DevPanels::default();
     assert!(run(command("vehicle slots"), &mut host, &mut dev).unwrap_err().contains("no vehicle on show"));
-    assert!(run(command("vehicle set a b"), &mut host, &mut dev).unwrap_err().contains("shows no vehicle"));
+    assert!(run(command("vehicle set a b"), &mut host, &mut dev).unwrap_err().contains("no vehicle on show"));
     assert_eq!(run(command("devtools garage"), &mut host, &mut dev).unwrap_err(), "this scene has no garage");
 }
 

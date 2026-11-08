@@ -46,7 +46,7 @@ stands, speed kept, like an F6 change) and in the car viewer (`view-car`, the as
 It lists, by group:
 
 - every slot as a **stepper** `◀ choice ▶  n/last`, `n` being the number `vehicle set` takes (0 is stock): click the left or right half,
-  or Left/Right while it has the focus (a controller's D-pad), Page Up / Page Down for ten at a time, or Enter for the next one; a `▼`
+  or Left/Right while it has the focus (a controller's D-pad), Page Up / Page Down for ten at a time, or Enter for the next one; a `List`
   button lists every choice for the mouse, with a search box when the list is long (a vehicle's rims or vinyls can be hundreds);
 - for a group whose slots can all be emptied, an **on** checkbox (see Groups); for a group with changes, a **stock** button;
 - the **body colour** of a car that can be repainted, and **Reset to stock**;

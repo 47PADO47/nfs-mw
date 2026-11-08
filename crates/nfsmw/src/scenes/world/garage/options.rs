@@ -43,3 +43,17 @@ impl WorldScene {
         Ok(message)
     }
 }
+
+impl crate::viewer::VehicleScene for WorldScene {
+    fn options(&mut self) -> Option<VehicleOptions> {
+        self.driven_vehicle_options()
+    }
+
+    fn change(&mut self, renderer: &mut dyn RenderBackend, change: &Change) -> Result<String, String> {
+        self.change_driven_vehicle(renderer, change)
+    }
+
+    fn install_dir(&self) -> Option<&game_install::GameDir> {
+        Some(&self.dir)
+    }
+}

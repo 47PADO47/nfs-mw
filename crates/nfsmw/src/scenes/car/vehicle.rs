@@ -94,3 +94,17 @@ impl CarScene {
         Ok(message)
     }
 }
+
+impl crate::viewer::VehicleScene for CarScene {
+    fn options(&mut self) -> Option<VehicleOptions> {
+        self.car_options()
+    }
+
+    fn change(&mut self, renderer: &mut dyn RenderBackend, change: &Change) -> Result<String, String> {
+        self.change_car(renderer, change)
+    }
+
+    fn install_dir(&self) -> Option<&game_install::GameDir> {
+        self.source.as_ref().map(|source| &source.dir)
+    }
+}

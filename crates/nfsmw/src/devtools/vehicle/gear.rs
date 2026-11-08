@@ -28,6 +28,16 @@ pub(crate) fn rows(catalogue: &Catalogue, choice: &Choice) -> Vec<GearRow> {
         .collect()
 }
 
+/// Reads the install's catalogue when none is loaded yet (a rider loads it with the first bike, and the tools may come first).
+pub(crate) fn ensure_catalogue(dir: Option<&game_install::GameDir>) {
+    if rider_gear::loaded().is_some() {
+        return;
+    }
+    if let Some(dir) = dir {
+        rider_gear::scan(dir);
+    }
+}
+
 /// The rows of the install's catalogue and the profile's choice; `None` when no mod offers rider gear (or none has been read yet).
 pub(crate) fn current() -> Option<Vec<GearRow>> {
     let catalogue = rider_gear::loaded()?;

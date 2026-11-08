@@ -6,10 +6,12 @@ use crate::devtools::panels::{DevPanels, Panel, Request};
 use crate::devtools::vehicle;
 use crate::garage::options::{Change, VehicleOptions};
 
+const NONE: &str = "no vehicle on show (drive starts one in the world; view-car shows one)";
+
 pub(super) fn run(command: DevCommand, host: &mut Host, dev: &mut DevPanels) -> Result<String, String> {
     match command {
         DevCommand::Vehicle(command) => run_vehicle(command, host, dev),
-        DevCommand::Gear(command) => run_gear(command),
+        DevCommand::Gear(command) => run_gear(command, host),
         DevCommand::Devtools(command) => run_devtools(command, host, dev),
     }
 }
@@ -29,15 +31,16 @@ fn run_vehicle(command: VehicleCommand, host: &mut Host, dev: &mut DevPanels) ->
         VehicleCommand::Color(color) => Change::Color(color),
     };
     let renderer = host.renderer.as_mut().ok_or("the renderer is not ready")?;
-    host.scene.change_vehicle(renderer.as_mut(), &change)
+    let scene = host.scene.vehicle().ok_or(NONE)?;
+    scene.change(renderer.as_mut(), &change)
 }
 
 fn options(host: &mut Host) -> Result<VehicleOptions, String> {
-    let none = "no vehicle on show (drive starts one in the world; view-car shows one)";
-    host.scene.vehicle_options().ok_or_else(|| none.to_owned())
+    host.scene.vehicle().and_then(|scene| scene.options()).ok_or_else(|| NONE.to_owned())
 }
 
-fn run_gear(command: GearCommand) -> Result<String, String> {
+fn run_gear(command: GearCommand, host: &mut Host) -> Result<String, String> {
+    vehicle::ensure_gear_catalogue(host.scene.vehicle().and_then(|scene| scene.install_dir()));
     match command {
         GearCommand::List => vehicle::gear_list(),
         GearCommand::Set { part, choice } => vehicle::set_gear(part, &choice),
