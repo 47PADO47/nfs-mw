@@ -92,3 +92,29 @@ snapshot test pins the layout). A breaking manifest change would be `format = 2`
 `blackbox-modding` (`replace/tests.rs`, `world.rs`, `world_patch_tests.rs`), `blackbox-tpk` (`dds_tests.rs`), host
 (`replace/{tests,place_tests,catalog_tests,textures_tests}.rs`, `backends/replace_tests.rs`), the 2012 mod
 (`trees/tests.rs`: the set equals the old profile). Real-game checks are `#[ignore]` (`replace/real_tests.rs`).
+
+## 10. Verification status and the recipe to finish it
+
+Tests that passed before the last edits: the library (497), `nfsmw` `modding::` (256), the 2012 trees (24), the two world mods' manifests,
+the example mod's generator. **Written after the last build and never compiled or run:** the split of `scenes/world/open.rs` into
+`open_packs.rs`, the second form of `generate.rs` (`files_for`, the env overrides of `write_the_mod`), the streetlight filter of
+`real_tests.rs::list_the_names_near_the_centre`. **Never run in the game:** a replaced texture, a replaced model and `[[add]]` objects
+in a real world, alternative maps, `environment` (a saved time of day applied later by the front end may override the hour), world patches.
+
+To see a texture and a model replaced offscreen (isolated profile, muted, nothing is written to the user's folders):
+
+```sh
+# 1. names: the textures of the tile at the city centre include TRN_OILSTAIN_A_BP (oil stains on the car park of tile I7);
+#    the lamps are XO_STREETLIGHT* solids of the shared sets (run the ignored test to list them)
+NFSMW_GAME_DIR='D:/Need For Speed Most Wanted Black Edition' NFSMW_NAMES_REPORT=names.txt \
+  cargo test -p nfsmw --release list_the_names_near_the_centre -- --ignored
+# 2. write the example as a content mod into a mods folder
+EXAMPLE_REPLACE_OUT=mods-dir/example.replace EXAMPLE_ROAD_TEXTURE=TRN_OILSTAIN_A_BP \
+  EXAMPLE_LAMP_TARGETS=XO_STREETLIGHTC_1B_00,XO_STREETLIGHTD_1B_00 \
+  cargo test --manifest-path mods/example-replace/Cargo.toml --release write_the_mod -- --ignored
+# 3. choose the values in a profile's config.toml: [mod_values.nfsmw] option_road_textures_variant = "checker", option_street_lamps_variant = "slim"
+BLACKBOX_PROFILE_DIR=<profile> nfsmw view-world --muted --mods-dir mods-dir --height 18 --pitch -60 --wait-for-load --screenshot after.png
+# before: the same command with both options left at original (baseline of the same view: C:\r6work\apis-shots\baseline.png)
+```
+
+The view above (the default start, 18 m up, pitch -60) shows the car park of tile I7 with oil stains and two street lamps.
