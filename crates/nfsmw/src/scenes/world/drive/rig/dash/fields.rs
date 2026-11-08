@@ -47,7 +47,13 @@ fn text(canvas: &mut Canvas, field: &Field, text: &str) {
         Align::Center => width.saturating_sub(used) / 2,
         Align::Right => width.saturating_sub(used),
     };
-    canvas.text((x, height.saturating_sub(7 * unit) / 2), unit, field.color, text);
+    // The cluster's text box is a line of its font and a digit sits a quarter of its height below the box's top; a box with no known font
+    // size centres the digits.
+    let y = match field.height {
+        0 => height.saturating_sub(7 * unit) / 2,
+        _ => (unit * 7 / 4).min(height.saturating_sub(7 * unit)),
+    };
+    canvas.text((x, y), unit, field.color, text);
 }
 
 /// The revs: the share of the bar from the left in the lit colour, in as many segments as the cluster's bar has (1: a continuous bar).
