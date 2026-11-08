@@ -9,6 +9,7 @@
 
 mod batch;
 mod bind_cache;
+mod colour_cube;
 mod effects;
 #[cfg(test)]
 mod effects_tests;
@@ -43,6 +44,7 @@ pub mod test_support;
 
 pub use batch::Batch;
 pub use bind_cache::BindCache;
+pub use colour_cube::{COLOUR_CUBE_WGSL, ColourCubeIo, ColourCubePass};
 
 /// The WGSL of the world effects without a shadow-reception hook (`vs_main` and the `fs_*` stages).
 pub const EFFECTS_BASE_WGSL: &str = include_str!("shaders/effects.wgsl");
