@@ -293,7 +293,9 @@ impl Police {
         self.busted.reset();
         self.reset_blink = 0.0;
         self.rep.reset();
-        self.last_formation = None;
+        // The original's pursuit is built in stagger follow (formation spec section 2), so the collapse and the slots
+        // work from the start; the picker's first choice waits for the radio's setup as before.
+        self.last_formation = Some(Formation::StaggerFollow);
         self.last_level = 0;
         self.formations = Picker::new();
         self.finisher = Finisher::default();

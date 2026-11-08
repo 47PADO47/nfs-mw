@@ -1,6 +1,7 @@
 //! Opening the world scene: the start of a track, its streaming, cars and traffic from the install.
 
 use super::*;
+use crate::modding::content::worlds::World;
 
 /// A world read from the install and not yet put together: [`WorldScene::load`] does the slow part (the tables, the
 /// physics, the car, the streaming index) and holds nothing of the renderer, so it can run on a thread; [`build`] runs
@@ -24,18 +25,36 @@ impl WorldScene {
 
     /// Reads the world from the install (see [`WorldLoad`]).
     pub fn load(dir: &GameDir, options: Options) -> Result<WorldLoad> {
+        Self::load_in(dir, options, None)
+    }
+
+    /// [`WorldScene::open`] in a second world a mod provides (`docs/specs/second-world.md`), or in the city for `None`.
+    pub fn open_in(dir: &GameDir, options: Options, world: Option<World>) -> Result<Self> {
+        Ok(Self::load_in(dir, options, world)?.build())
+    }
+
+    /// [`WorldScene::load`] in a second world, or in the city for `None`. A second world keeps the shared sets of the city
+    /// (the sky, the common models) and replaces everything that is the city's: its tiles, collision, roads, traffic,
+    /// races, weather maps and sounds by place. It starts at the world's start unless `options.at` says otherwise.
+    pub fn load_in(dir: &GameDir, options: Options, world: Option<World>) -> Result<WorldLoad> {
         let drive = options.drive;
-        let at = options.at;
+        let default_start = world.as_ref().map(|w| [w.manifest.start[0], w.manifest.start[1]]);
+        let at = options.at.or(default_start);
+        let heading = match (options.at, world.as_ref()) {
+            (None, Some(world)) => world.manifest.heading,
+            _ => options.heading,
+        };
+        let world_id = world.as_ref().map(|w| w.id().to_owned());
         // These loads need nothing another one produces, so they run at once. Every thread is joined before
         // any result is used, and errors are reported in the order the steps used to run. The index thread goes on
         // to start the streaming: the shared sets and the tiles around the start load while everything else is read.
         let (index, audio_environment, physics, globals, car, gameplay, atmosphere) = std::thread::scope(|s| {
-            let index = s.spawn(|| start_streaming(dir, at));
-            let audio = s.spawn(|| audio_environment(dir));
+            let index = s.spawn(|| start_streaming(dir, at, world_id.as_deref()));
+            let audio = s.spawn(|| audio_environment(dir, world_id.is_some()));
             let physics = s.spawn(|| PhysicsData::load(dir));
             let globals = s.spawn(|| load_global_textures(dir));
             let car = s.spawn(move || drive.map(|d| load_pending_car(dir, d)).transpose());
-            let gameplay = s.spawn(|| nfsmw_data::gameplay::cached(dir));
+            let gameplay = s.spawn(|| world_id.is_none().then(|| nfsmw_data::gameplay::cached(dir)));
             let atmosphere = s.spawn(|| atmosphere(dir));
             (
                 joined(index),
@@ -63,9 +82,13 @@ impl WorldScene {
         }
         let colour_treatment = nfsmw_data::visual_treatment::midday(physics.database());
         let time_of_day = nfsmw_data::time_of_day::load(physics.database());
-        let track = nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
-            .map_err(|error| log::warn!("track parameter maps unavailable: {error:#}"))
-            .ok();
+        // The weather maps and the mesh animations are placed in the city; a second world has none.
+        let track = match world_id {
+            Some(_) => None,
+            None => nfsmw_data::read_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
+                .map_err(|error| log::warn!("track parameter maps unavailable: {error:#}"))
+                .ok(),
+        };
         let mesh_animations = mesh_animation::MeshAnimations::load(dir, track.as_deref());
         let rain = track
             .as_deref()
@@ -109,28 +132,40 @@ impl WorldScene {
         // packs need neither and are read on this thread while the catalog is built. The helicopter sheet walks the
         // stream file's chunk headers, which takes a while, so it runs beside them.
         let (garage_catalog, map_packs, interiors, heli_sheet) = std::thread::scope(|s| {
+            let world = world.as_ref();
             let garage_catalog = s.spawn(|| garage::catalog(dir, &physics));
             let heli_sheet = s.spawn(|| heli_sheet(dir, &index.stream_file, road_network.is_some()));
-            let map_packs =
-                crate::modding::content::scenery::packs(dir, crate::modding::content::mod_dirs(), &installed);
-            let interiors =
-                crate::modding::content::interior::load(crate::modding::content::mod_dirs(), &map_packs, first_pack);
+            let map_packs = match world {
+                Some(world) => crate::modding::content::worlds::packs(dir, world, &installed),
+                None => crate::modding::content::scenery::packs(dir, crate::modding::content::mod_dirs(), &installed),
+            };
+            let interiors = match world {
+                Some(_) => Default::default(),
+                None => {
+                    crate::modding::content::interior::load(crate::modding::content::mod_dirs(), &map_packs, first_pack)
+                }
+            };
             (joined(garage_catalog), map_packs, interiors, joined(heli_sheet))
         });
         let garage_catalog = garage_catalog?;
         let (map_blips, race_starts, entry_zones, gameplay) = match gameplay {
-            Ok(data) => (
+            // A second world has no races, shops or interiors of the city.
+            None => (Vec::new(), Vec::new(), entry_zones::EntryZones::default(), None),
+            Some(Ok(data)) => (
                 super::hud::interior_blips(&data),
                 super::hud::race_start_blips(&data),
                 entry_zones::EntryZones::from_data(&data),
                 Some(data),
             ),
-            Err(e) => {
+            Some(Err(e)) => {
                 log::warn!("race and interior blips, entry zones and races are off: {e:#}");
                 (Vec::new(), Vec::new(), entry_zones::EntryZones::default(), None)
             }
         };
         let entry_zones = entry_zones.with_interiors(interiors);
+        // A second world has no collision grid in a file: its packs list themselves in an empty one as they arrive.
+        let world_grid = world.as_ref().map(|_| world_collision_grid(&map_packs));
+        let second_world = world.is_some();
         let dir = dir.clone();
         Ok(WorldLoad(Box::new(move || {
             let mut traffic = road_network.map(ai::TrafficWorld::new);
@@ -152,10 +187,10 @@ impl WorldScene {
                 });
                 crate::hud::MapRoadsHandle::new(roads)
             });
-            let start = options.at.unwrap_or_else(|| index.centre());
+            let start = at.unwrap_or_else(|| index.centre());
             let camera = FlyCamera {
                 position: Vec3::new(start[0], start[1], options.height),
-                yaw: options.heading.to_radians(),
+                yaw: heading.to_radians(),
                 pitch: options.pitch.to_radians(),
                 speed: 40.0,
             };
@@ -180,10 +215,11 @@ impl WorldScene {
                         index.visible,
                         started,
                         globals,
-                        index.collision_grid,
+                        world_grid.or(index.collision_grid),
                         props,
                         map_packs,
                     );
+                    residency.set_dynamic_grid(second_world);
                     residency.set_override_groups(override_groups);
                     residency
                 },
@@ -335,14 +371,45 @@ impl WorldScene {
 /// Reads the streaming index and starts the streaming on it, which is the first thing the world needs and the one
 /// the rest waits on the least: the stream's loader threads start on the shared sets and the tiles around `at` (the
 /// middle of the map when the caller names no start) while the other loads run.
-fn start_streaming(dir: &GameDir, at: Option<[f32; 2]>) -> Result<(WorldIndex, super::residency::start::Started)> {
+fn start_streaming(
+    dir: &GameDir,
+    at: Option<[f32; 2]>,
+    world: Option<&str>,
+) -> Result<(WorldIndex, super::residency::start::Started)> {
     let index = WorldIndex::open(dir, DEFAULT_TRACK)?;
+    let index = match world {
+        Some(id) => index.without_city(id),
+        None => index,
+    };
     let stream =
         dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?.to_path_buf();
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
     let at = at.unwrap_or_else(|| index.centre());
     let started = super::residency::start::begin(stream, &index.sections, &index.visible, at, threads);
     Ok((index, started))
+}
+
+/// The empty collision grid of a second world, laid over the anchors of its map packs (physics space: x is minus render y,
+/// z is render x) with a margin, in cells of 64 m or larger when the world is so wide that 64 m would take more than 60,000.
+fn world_collision_grid(packs: &[crate::modding::content::scenery::MapPack]) -> blackbox_collision::Grid {
+    const MARGIN: f32 = 200.0;
+    const CELLS: f32 = 60_000.0;
+    let mut low = [f32::INFINITY; 2];
+    let mut high = [f32::NEG_INFINITY; 2];
+    for pack in packs {
+        let [x, y] = pack.section.center;
+        let (px, pz, r) = (-y, x, pack.section.radius);
+        low = [low[0].min(px - r), low[1].min(pz - r)];
+        high = [high[0].max(px + r), high[1].max(pz + r)];
+    }
+    if low[0] > high[0] {
+        return blackbox_collision::Grid::empty([0.0, 0.0], 64.0, 1, 1);
+    }
+    let (min, size) =
+        ([low[0] - MARGIN, low[1] - MARGIN], [high[0] - low[0] + 2.0 * MARGIN, high[1] - low[1] + 2.0 * MARGIN]);
+    let edge = 64.0_f32.max((size[0] * size[1] / CELLS).sqrt().ceil());
+    let (cols, rows) = ((size[0] / edge).ceil() as u32 + 1, (size[1] / edge).ceil() as u32 + 1);
+    blackbox_collision::Grid::empty(min, edge, rows, cols)
 }
 
 /// The authored cloud map of the track, or none (with a warning) when it cannot be read. The track file is the one the
@@ -373,7 +440,10 @@ fn heli_sheet(dir: &GameDir, stream_file: &str, has_roads: bool) -> Option<black
 }
 
 /// The audio environment of the track, or `None` (with a warning) when it cannot be read.
-fn audio_environment(dir: &GameDir) -> Option<crate::audio::environment_context::EnvironmentMap> {
+fn audio_environment(dir: &GameDir, second_world: bool) -> Option<crate::audio::environment_context::EnvironmentMap> {
+    if second_world {
+        return None;
+    }
     nfsmw_data::shared_unwrapped(dir, &format!("TRACKS/{DEFAULT_TRACK}.BUN"))
         .and_then(|bytes| crate::audio::environment_context::EnvironmentMap::read(&bytes))
         .map_err(|e| log::warn!("audio environment unavailable: {e:#}"))

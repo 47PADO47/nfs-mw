@@ -99,7 +99,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                 row(Setting::Metrics, Title::Key("options-performance-overlay")),
             ])
             .collect(),
-        Category::Gameplay => vec![
+        Category::Gameplay => [
             row(Setting::HudLayout, Title::Key("options-hud-layout")),
             row(Setting::UiStyle, Title::Key("options-hud-style")),
             row(Setting::CustomHudSkin, Title::Key("options-custom-hud-skin")),
@@ -123,7 +123,11 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::Camera, Title::Label(LABEL_CAMERA)),
             // The general game options live here; the original has no label that names the language row.
             row(Setting::Language, Title::Key("options-language")),
-        ],
+        ]
+        .into_iter()
+        // The Free Roam world: only while a mod provides a second world.
+        .chain(super::world::offered().then(|| row(Setting::World, Title::Key("options-world"))))
+        .collect(),
         Category::Player => vec![
             row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
             row(Setting::Camera, Title::Label(LABEL_CAMERA)),

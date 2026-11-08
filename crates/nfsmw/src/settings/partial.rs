@@ -146,6 +146,8 @@ pub struct Partial {
     pub riding_style: Option<super::RidingStyle>,
     /// The language tag (`language`).
     pub language: Option<super::LanguageTag>,
+    /// The second world to play (`world`).
+    pub world: Option<super::world_id::WorldId>,
     /// The palette of the token-driven HUD (`ui_theme`).
     pub ui_theme: Option<UiTheme>,
     pub post_tonemap: Option<PostTonemap>,
@@ -290,6 +292,7 @@ impl Partial {
             speed_units: self.speed_units.or(lower.speed_units),
             riding_style: self.riding_style.or(lower.riding_style),
             language: self.language.or(lower.language),
+            world: self.world.or(lower.world),
             ui_theme: self.ui_theme.or(lower.ui_theme),
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),
             post_bloom: self.post_bloom.or(lower.post_bloom),

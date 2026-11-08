@@ -129,7 +129,7 @@ original file at load time with no file written (S), needs a small converter (C)
 | Street props and lamps | 112 `PropObject`, models in `TRK_UNIT*` and `GLOBALRESOURCES` | the same model swap as the trees, by solid name | DOABLE after the trees PR | which 2005 solid matches which 2012 prop is a manual table (names are hashes); 150 lines of mod code, no host code | C |
 | Billboards, signs as models | models in `TRK_UNIT*` | same swap | DOABLE after the trees PR | needs the same manual match | C |
 | Ground cover (grass, bushes) | `GroundcoverCollection` 400 | the 2005 ground cover is baked in sections | NOT FEASIBLE | | |
-| The city (districts, roads, buildings) | `TRK_UNIT*`, `DISTRICT_*` (3.5 GB) | a map pack ([api-content.md](../modding/api-content.md#scenery-and-map-packs)) | NOT FEASIBLE | a whole city needs roads, zones and AI data in the 2005 formats, and a second conversion of 3.5 GB | |
+| The city (districts, roads, buildings) | `TRK_UNIT*`, `DISTRICT_*` (3.5 GB) | a map pack ([api-content.md](../modding/api-content-worlds.md#scenery-and-map-packs)) | NOT FEASIBLE | a whole city needs roads, zones and AI data in the 2005 formats, and a second conversion of 3.5 GB | |
 | Traffic lights as props | models plus textures | swap | DOABLE after the trees PR | | |
 
 ### 3.5 Interface

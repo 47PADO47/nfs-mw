@@ -88,6 +88,7 @@ mod traffic_tests;
 mod variant;
 mod wheels;
 mod wind_fx;
+mod world;
 mod xenon_variant;
 
 pub use bike::{
@@ -152,6 +153,7 @@ pub use wheels::{Tyre, WheelLayout};
 pub use wind_fx::{
     MAX_LAYERS as MAX_WIND_LAYERS, WIND_FOLDER, WindLayer, WindProfile, parse as parse_wind_profile, wind_profile_path,
 };
+pub use world::{WORLDS_FOLDER, WorldManifest, parse as parse_world};
 pub use xenon_variant::{
     MAX_XENON_SPARKS, XENON_FOLDER, XenonProfile, XenonSpark, parse as parse_xenon_profile, xenon_profile_path,
 };

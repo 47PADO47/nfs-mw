@@ -70,6 +70,8 @@ impl super::super::TrafficWorld {
             handbrake: self.speech_watch.driving.handbrake,
             up_y: self.speech_watch.driving.up_y,
             offroad: None,
+            // The scene fills it from the track's speech map.
+            speech_map_id: -1,
         };
         out.status = StatusFeed {
             cooling_down: self.police.cooldown_status() == CooldownStatus::CoolDown,

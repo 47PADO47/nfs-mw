@@ -15,6 +15,7 @@ pub use chase::events::{Crash, EventLog, WorldEvent};
 pub use chase::feed::Vehicle;
 pub use chase::feed::{CopFeed, Formation, HeliFeed, PlayerFeed, RoadblockFeed, SpeechFeed, StatusFeed};
 pub use chase::radio::tables as radio_tables;
+pub use chase::radio::trace as radio_trace;
 pub use chase::roam::{RoamEvent, RoamFeed};
 pub use common_effects::CommonEvent;
 pub use heli::HeliFrame;

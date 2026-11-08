@@ -211,6 +211,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         speed_units: Some(s.speed_units),
         riding_style: Some(s.riding_style),
         language: s.language,
+        world: s.world,
         ui_theme: Some(s.ui_theme),
         post_tonemap: Some(s.post_tonemap),
         post_bloom: Some(s.post_bloom),

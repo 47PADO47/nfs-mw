@@ -93,6 +93,7 @@ impl From<Partial> for Settings {
             speed_units: p.speed_units.unwrap_or_default(),
             riding_style: p.riding_style.unwrap_or_default(),
             language: p.language,
+            world: p.world,
             ui_theme: p.ui_theme.unwrap_or_default(),
             post_tonemap: p.post_tonemap.unwrap_or_default(),
             post_bloom: p.post_bloom.unwrap_or_default(),

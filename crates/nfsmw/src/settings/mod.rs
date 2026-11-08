@@ -68,6 +68,7 @@ mod motion_blur_tests;
 pub mod net;
 mod partial;
 pub mod physics_rate;
+pub(crate) mod world_id;
 pub use physics_rate::{DEFAULT_PHYSICS_RATE_HZ, parse_physics_rate};
 pub mod game_moments;
 pub mod pursuit_options;
@@ -295,6 +296,8 @@ pub struct Settings {
     pub riding_style: RidingStyle,
     /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
     pub language: Option<LanguageTag>,
+    /// The second world to play instead of the city (`world`, `--world`); unset or `rockport` is the city.
+    pub world: Option<world_id::WorldId>,
     /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.
     pub ui_theme: UiTheme,
     /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.

@@ -39,6 +39,11 @@ pub(in crate::scenes::world) struct CopFrame {
     /// A chase cop's own action this think (`reverse`, `close`, `turnaround`, `road`) and its speed limit, m/s.
     pub action: Option<&'static str>,
     pub speed_limit: Option<f32>,
+    /// The gearbox is in reverse.
+    pub reverse_gear: bool,
+    /// The goal's slot (physics x and z) and whether the cop has arrived there and holds the brake.
+    pub goal_slot: Option<[f32; 2]>,
+    pub goal_arrived: bool,
 }
 
 /// One spike strip of a standing roadblock.
@@ -89,6 +94,10 @@ pub(in crate::scenes::world) struct PoliceFrame {
     pub backup_eta: Option<f32>,
     pub backup_remaining: Option<u32>,
     pub support_order: Option<String>,
+    /// The chase's formation, whether the collapse ring is on and whether a finisher runs.
+    pub formation: Option<String>,
+    pub collapsing: bool,
+    pub finisher: bool,
     pub lockout_secs: f32,
     pub traffic_cars: usize,
     pub racers: usize,
@@ -137,6 +146,9 @@ impl TrafficWorld {
             support_order: pursuit
                 .and_then(|p| p.support.order())
                 .map(|order| format!("{:?}", (order.strategy(), order.state(), order.denials()))),
+            formation: self.police.last_formation().map(|f| format!("{f:?}")),
+            collapsing: self.collapse_active(),
+            finisher: self.police.finisher_running(),
             lockout_secs: self.cop_lockout_left(),
             traffic_cars: self.cars.iter().filter(|c| matches!(c.role, Role::Traffic) && !c.is_police()).count(),
             racers: self.cars.iter().filter(|c| c.is_racer()).count(),
@@ -186,6 +198,7 @@ fn cop_frame(car: &super::AiCar) -> CopFrame {
     let (target, desired) = car.drive_request();
     let goal = car.goal_drive().kind.map(|kind| format!("{kind:?}"));
     let drive = car.cop_drive_trace();
+    let command = car.goal_drive().command();
     CopFrame {
         key: car.key(),
         render_key: car.render_key(),
@@ -213,5 +226,8 @@ fn cop_frame(car: &super::AiCar) -> CopFrame {
         support: car.support_serial(),
         action: drive.map(|d| d.0),
         speed_limit: drive.map(|d| d.1),
+        reverse_gear: car.in_reverse_gear(),
+        goal_slot: command.and_then(|c| c.target_point).map(|p| [p.x, p.y]),
+        goal_arrived: command.is_some_and(|c| c.arrived),
     }
 }
