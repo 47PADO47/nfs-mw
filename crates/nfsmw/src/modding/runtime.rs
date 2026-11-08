@@ -99,9 +99,12 @@ impl Mods {
         self.bridge.declare_replacements(mods);
     }
 
-    /// Give the mods the install, once its layers are in place (the cop waves are read through it).
+    /// Give the mods the install, once its layers are in place (the cop waves are read through it). The replacement sets the saved
+    /// choices make take effect now, before any scene loads the world: the shared sets and the global textures are rewritten once, when
+    /// they load, so a set that took effect in the first frame would miss them.
     pub fn set_install(&self, dir: &game_install::GameDir) {
         self.bridge.set_install(dir.clone());
+        self.bridge.publish_replacements();
     }
 
     /// Fire the hotkeys `pressed` reports as pressed (see [`Bridge::press`]).

@@ -92,6 +92,11 @@ logged). In a world-space copy every fit is cut into stretches like `row`/`heigh
 - **When.** A file is read and decoded the first time a section holding the texture loads, on a loader thread, once for all sections. The
   file may be a [lazy file](api-content.md#lazy-files): a mod can make a texture from another game's file by byte range at that moment.
   A file that cannot be read is logged once and the game's texture stays.
+- **At start.** The sets the saved choices make take effect when the install is handed to the mods (`Mods::set_install`), before any scene
+  loads the world: the shared sets and the global textures are rewritten once, when they load, so a set that took effect in the first frame
+  would miss what loads before it (found by running a texture set offscreen: with the saved choice only published in the first frame the
+  first screenshot showed the game's own road). Run offscreen with the choice saved
+  and the replacement is in the first screenshot.
 - **Limits.** A choice made during a drive re-streams the map tiles, so tile textures change within seconds. Textures of the shared
   sets and the global textures were replaced when they loaded and follow at the next drive.
 
