@@ -116,7 +116,12 @@ impl Active {
                 }
                 active.textures.insert(hash, slot);
             }
-            active.added.extend(input.added);
+            // Two sets of one mod may share a pack (the 2012 mod's trees and bushes): a texture of the same name is added once.
+            for texture in input.added {
+                if active.added.iter().all(|known| known.name_hash != texture.name_hash) {
+                    active.added.push(texture);
+                }
+            }
             active.sets.push(label);
         }
         active
