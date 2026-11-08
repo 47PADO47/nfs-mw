@@ -110,3 +110,5 @@ builds for most of the session, so the times are upper bounds.
 No range or level-of-detail limit was needed on this machine: the game's own scenery choice (the middle level of each model as the
 coarse one, culling by projected size) keeps the drawn objects at 100 to 530 in the screenshots. A slower machine lowers
 `max_texture` (pictures are the bulk of a unit's memory and time).
+
+The world's manifest is written with `blackbox_modding::content::WorldManifest::to_toml` (one writer of the schema) and records a second-player slot 3 m to the left of the start; other mods can change this world with a [world patch](api-content-worlds.md#alternative-maps-environment-and-world-patches-bbcontent-12).

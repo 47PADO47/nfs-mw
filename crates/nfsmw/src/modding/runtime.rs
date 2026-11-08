@@ -94,6 +94,11 @@ impl Mods {
         self.bridge.sync(scene);
     }
 
+    /// Read the replacement sets the loaded mods keep in `replace/` and add their values to the options (`<kind>_variant`).
+    pub fn declare_replacements(&self, mods: &[super::content::ModDir]) {
+        self.bridge.declare_replacements(mods);
+    }
+
     /// Give the mods the install, once its layers are in place (the cop waves are read through it).
     pub fn set_install(&self, dir: &game_install::GameDir) {
         self.bridge.set_install(dir.clone());

@@ -70,10 +70,8 @@ pub fn unit_manifest(zone: &Zone, section: u32) -> String {
 
 /// The text of the world's manifest: its name and where the player starts (render space, heading in degrees from +x).
 pub fn world_manifest(name: &str, start: [f32; 3], heading: f32) -> String {
-    format!(
-        "[world]\nname = \"{name}\"\nstart = {{ pos = [{:.2}, {:.2}, {:.2}], heading = {heading:.1} }}\n",
-        start[0], start[1], start[2]
-    )
+    // The one writer of the schema (`blackbox_modding::content::WorldManifest`); a second player's slot is 3 m to the left.
+    blackbox_modding::content::WorldManifest::new("world", name, start, heading).with_side_slot(3.0).to_toml()
 }
 
 /// Writes `bytes` to `path` unless the file already holds them; makes the folder.

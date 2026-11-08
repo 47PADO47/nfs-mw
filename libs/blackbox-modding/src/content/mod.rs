@@ -77,6 +77,7 @@ mod plate;
 mod racers;
 #[cfg(test)]
 mod racers_tests;
+mod replace;
 mod scenery;
 #[cfg(test)]
 mod scenery_tests;
@@ -94,6 +95,7 @@ mod variant;
 mod wheels;
 mod wind_fx;
 mod world;
+mod world_patch;
 mod xenon_variant;
 
 pub use bike::{
@@ -140,6 +142,11 @@ pub use nitrous_fx::{
 pub use overrun_sound::Overrun as CarOverrun;
 pub use plate::{MAX_CELLS as MAX_PLATE_CELLS, MAX_SLOTS as MAX_PLATE_SLOTS, Plate};
 pub use racers::{RacersSection, parse as parse_racers};
+pub use replace::{
+    Convert as TextureConvert, LEGACY_KIND, MAX_ENTRIES as MAX_REPLACE_ENTRIES, MAX_PRIORITY as MAX_REPLACE_PRIORITY,
+    ModelEntry, REPLACE_FOLDER, ReplaceSet, StateRule as TextureState, Target as ReplaceTarget, TextureEntry,
+    TextureSource, from_model_swap, parse as parse_replace_set,
+};
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
 pub use shared_sound::SharedSound;
 pub use spark_gate::{HitChannel, HitGate, ScrapeChannel, ScrapeGate};
@@ -158,7 +165,14 @@ pub use wheels::{Tyre, WheelLayout};
 pub use wind_fx::{
     MAX_LAYERS as MAX_WIND_LAYERS, WIND_FOLDER, WindLayer, WindProfile, parse as parse_wind_profile, wind_profile_path,
 };
-pub use world::{WORLDS_FOLDER, WorldManifest, parse as parse_world};
+pub use world::{
+    CITY_BASE, Environment as WorldEnvironment, MAX_GRID_SLOTS, Slot as WorldSlot, WORLDS_FOLDER, WorldManifest,
+    parse as parse_world,
+};
+pub use world_patch::{
+    Applied as PatchedWorld, PATCHES_FOLDER, PackInput, PackOrigin, PackPlan, PatchInput, WorldPatch,
+    apply as apply_world_patches, order as order_world_patches, parse as parse_world_patch, plan_packs,
+};
 pub use xenon_variant::{
     MAX_XENON_SPARKS, XENON_FOLDER, XenonProfile, XenonSpark, parse as parse_xenon_profile, xenon_profile_path,
 };

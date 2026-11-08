@@ -116,3 +116,40 @@ start = { pos = [-230.8, -214.7, 26.1], heading = 95.1 }   # render space, metre
 | Load | `WorldScene::load_in(dir, options, Some(world))` | MW | `scenes/world/open.rs` |
 
 The RIDE 6 tracks mod is the first user ([mods/ride6-tracks/README.md](../../mods/ride6-tracks/README.md)).
+
+#### Alternative maps, environment and world patches (`bb.content` 1.2)
+
+```toml
+# worlds/harbour.toml: a version of the city, chosen like a world
+[world]
+name = "Rockport Harbour"
+start = { pos = [1200.0, -900.0, 12.0], heading = 90.0 }
+base = "rockport"                                   # the city plus this world's packs; omit it for a world of its own
+environment = { hour = 19.0, freeze = true, rain = 0.2 }   # the clock and the rain when the world opens (hour 0 up to 24; freeze needs an hour)
+
+[[world.grid]]                                      # more start slots: checked and kept, not placed yet
+pos = [1200.0, -897.0, 12.0]
+heading = 90.0
+```
+
+An **alternative map** (`base = "rockport"`) keeps the city's tiles, roads, races, traffic and the packs of every mod's `scenery/`, and adds
+the packs of `worlds/<id>/`, the start and the environment. It does not delete or replace city tiles. A **world patch** changes a world
+another mod provides:
+
+```toml
+# world-patches/dusk.toml, with its added packs in world-patches/dusk/*.toml (scenery pack manifests)
+format = 1
+[patch]
+target = "okayama"            # a world or alternative map id; "rockport" (the plain city) is not patchable: use scenery/ packs
+priority = 0                  # -1000 to 1000
+name = "Okayama at dusk"      # optional
+start = { pos = [-230.8, -214.7, 26.1], heading = 95.1 }
+environment = { hour = 19.0 }
+remove_packs = ["g017"]       # keys of the target's packs left out
+replace_packs = ["g003"]      # keys that this patch's folder gives again: they take the old pack's place
+```
+
+Rules: patches apply from the lowest priority up, then load order, then id; the **last to set** the name, start or environment wins and
+the clash is logged (`world <id>: mod B: patch x sets the name that mod A set; this one wins`); `grid` is appended; a pack key that is
+already there is refused unless listed in `replace_packs`; a section number two packs would take goes to the first. The world's own mod
+stays its owner. `WorldManifest::to_toml` is the writer converters use. Design and status: [mod-content-replacement-worlds.md](../specs/mod-content-replacement-worlds.md).

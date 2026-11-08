@@ -9,8 +9,8 @@ use blackbox_modding::content::parse_model_swap_profile;
 use game_install::GameDir;
 use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex, parse_section};
 
-use super::Pack;
-use super::pack::world_copy_base;
+use super::active::world_copy_base;
+use super::tests::build;
 
 fn env_path(name: &str) -> PathBuf {
     PathBuf::from(std::env::var_os(name).unwrap_or_else(|| panic!("set {name}")))
@@ -37,7 +37,7 @@ fn report_what_the_trees_do_to_the_installed_world() {
     for pack in blackbox_tpk::read_texture_packs(&std::fs::read(pack_dir.join("TEXTURES.BIN")).unwrap()).unwrap() {
         pictures.extend(pack.textures);
     }
-    let pack = Pack::build(&profile, models, pictures);
+    let pack = build(&profile, models, pictures);
     let listed: std::collections::HashSet<&str> = profile.swaps.iter().map(|swap| swap.solid.as_str()).collect();
     let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
     let mut report = String::from(
@@ -208,4 +208,47 @@ fn report_where_the_local_trees_are_placed() {
         }
     }
     std::fs::write(env_path("NFSMW_TREES_REPORT").with_extension("places.tsv"), report).unwrap();
+}
+
+#[test]
+#[ignore = "needs the game (NFSMW_GAME_DIR) and NFSMW_NAMES_REPORT: lists lamp-like solids and large textures of the tiles near the city centre"]
+fn list_the_names_near_the_centre() {
+    let dir = GameDir::open(env_path("NFSMW_GAME_DIR")).unwrap();
+    let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
+    let centre = index.centre();
+    let mut near: Vec<(usize, f32)> = index
+        .sections
+        .iter()
+        .enumerate()
+        .map(|(i, section)| (i, if section.is_spatial() { section.distance_to(centre[0], centre[1]) } else { 0.0 }))
+        .collect();
+    near.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let mut report = format!("centre {centre:?}\n");
+    for (i, distance) in near.into_iter().take(40) {
+        let section = &index.sections[i];
+        let bytes = dir.read_range(&index.stream_file, u64::from(section.file_offset), section.size as usize).unwrap();
+        let data = parse_section(i, &bytes).unwrap();
+        let _ = writeln!(report, "section {i} {} number {} distance {distance:.0}", section.name, section.number);
+        for solid in &data.solids {
+            let (low, high) = (solid.bounds_min, solid.bounds_max);
+            let name = solid.name.to_ascii_uppercase();
+            let (width, height) = ((high[0] - low[0]).max(high[1] - low[1]), high[2] - low[2]);
+            let thin_and_tall = height > 5.0 && width < 3.0 && !name.contains("_DEINST");
+            if thin_and_tall || name.contains("STREETLIGHT") || name.contains("LAMP") || name.contains("POLE") {
+                let _ = writeln!(report, "solid {} {low:?} {high:?}", solid.name);
+            }
+        }
+        for texture in &data.textures {
+            let upper = texture.name.to_ascii_uppercase();
+            let road = ["ROAD", "ASPH", "PARK", "LOT", "STREET", "CONCRETE"].iter().any(|word| upper.contains(word));
+            if texture.width >= 128 || road {
+                let _ = writeln!(
+                    report,
+                    "texture {} {}x{} {:?} mips {}",
+                    texture.name, texture.width, texture.height, texture.format, texture.mip_levels
+                );
+            }
+        }
+    }
+    std::fs::write(env_path("NFSMW_NAMES_REPORT"), report).unwrap();
 }

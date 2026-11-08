@@ -28,6 +28,17 @@ pub trait ContentBackend {
     fn provide_lazy_files(&self, _owner: &str, _files: Arc<dyn LazyFiles>) -> BackendResult<()> {
         Err(BB_ERR_UNSUPPORTED)
     }
+
+    /// The parts of the content API this game has, as the `BB_CONTENT_CAP_*` bits. A game with none answers 0, which is the default.
+    fn capabilities(&self) -> u32 {
+        0
+    }
+
+    /// One line for every replacement set and world patch of mod `owner` and what became of it. A game without them answers
+    /// `BB_ERR_UNSUPPORTED`, which is also the default.
+    fn report(&self, _owner: &str) -> BackendResult<String> {
+        Err(BB_ERR_UNSUPPORTED)
+    }
 }
 
 /// The maker of a mod's lazy files, as the game sees it: asked for a file by key, from any thread.
@@ -49,6 +60,8 @@ pub(crate) fn attach(backend: Rc<dyn ContentBackend>, owner: &str) -> Attached {
         ctx: Slot::ctx(&slot),
         rescan: Some(rescan),
         provide_lazy_files: Some(provide_lazy_files),
+        capabilities: Some(capabilities),
+        report: Some(report),
     });
     // The content a mod adds stays for the run, so nothing is removed on unload but the maker of its lazy files, which
     // stops answering; the release keeps the slot alive.
@@ -63,6 +76,26 @@ unsafe extern "C" fn rescan(ctx: *mut c_void) -> BbStatus {
         // SAFETY: `ctx` is this table's slot (see `slot_of`).
         let slot = unsafe { slot_of::<dyn ContentBackend>(ctx)? };
         slot.backend.rescan(&slot.owner)
+    })
+}
+
+/// `capabilities`.
+unsafe extern "C" fn capabilities(ctx: *mut c_void) -> u32 {
+    // SAFETY: `ctx` is this table's slot (see `slot_of`).
+    let Ok(slot) = (unsafe { slot_of::<dyn ContentBackend>(ctx) }) else { return 0 };
+    slot.backend.capabilities()
+}
+
+/// `report`: the text goes to the mod's sink in one piece.
+unsafe extern "C" fn report(ctx: *mut c_void, sink: Option<BbContentBytesSinkFn>, sink_ctx: *mut c_void) -> BbStatus {
+    guard(|| {
+        // SAFETY: `ctx` is this table's slot (see `slot_of`).
+        let slot = unsafe { slot_of::<dyn ContentBackend>(ctx)? };
+        let sink = sink.ok_or(BB_ERR_ARG)?;
+        let text = slot.backend.report(&slot.owner)?;
+        // SAFETY: the mod's sink takes bytes valid for the call, which `text` is, and copies them.
+        unsafe { sink(sink_ctx, text.as_ptr(), text.len() as u64) };
+        Ok(())
     })
 }
 

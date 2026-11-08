@@ -70,6 +70,11 @@ pub fn world_packs(dir: &GameDir, m: &ModDir, world: &str, taken: &mut HashSet<i
     folder_packs(dir, m, &m.dir.join(WORLDS_FOLDER).join(world), taken)
 }
 
+/// The packs the world patch `patch` of mod `m` brings: the manifests in its `world-patches/<patch>/` folder, checked like `worlds/` ones.
+pub fn patch_packs(dir: &GameDir, m: &ModDir, patch: &str, taken: &mut HashSet<i16>) -> Vec<MapPack> {
+    folder_packs(dir, m, &m.dir.join(blackbox_modding::content::PATCHES_FOLDER).join(patch), taken)
+}
+
 /// The valid packs of one folder of a mod, in file-name order; each one's number is added to `taken`.
 fn folder_packs(dir: &GameDir, m: &ModDir, folder: &Path, taken: &mut HashSet<i16>) -> Vec<MapPack> {
     let mut out = Vec::new();
@@ -165,6 +170,44 @@ fn entry(manifest: &SceneryManifest, number: i16, size: u64) -> Result<Streaming
         radius,
         checksum: 0,
     })
+}
+
+/// A pack made by the game itself from the objects a replacement set places (`replace/adds.rs`): its file is the set's geometry file
+/// (on disk), its section number is `number` (the caller took a free one) and its anchor covers the objects.
+pub fn synthetic_pack(
+    owner: &str,
+    key: &str,
+    number: i16,
+    file: PathBuf,
+    file_name: &str,
+    anchor: [f32; 4],
+    places: Vec<Place>,
+) -> Result<MapPack, String> {
+    let size = std::fs::metadata(&file).map_err(|error| error.to_string())?.len();
+    let manifest = SceneryManifest {
+        key: key.to_owned(),
+        file: file_name.to_owned(),
+        section: u16::try_from(number).map_err(|_| "the section number does not fit".to_owned())?,
+        anchor,
+        source_game: None,
+        places,
+        placed_by_file: false,
+    };
+    let section = entry(&manifest, number, size)?;
+    Ok(MapPack { owner: owner.to_owned(), key: key.to_owned(), section, source: PackSource::File(file), manifest })
+}
+
+/// The next section number of the free band (2700 and up, last two digits 0 to 39) after `from` that is not in `taken`, and the index
+/// to continue from.
+pub fn next_free_section(mut from: usize, taken: &HashSet<i16>) -> Option<(i16, usize)> {
+    loop {
+        let number = 2700 + (from / 40) * 100 + from % 40;
+        let number = i16::try_from(number).ok()?;
+        from += 1;
+        if !taken.contains(&number) {
+            return Some((number, from));
+        }
+    }
 }
 
 /// Build a loaded pack's placed objects into a scenery section of its number, and keep its static collision only when a

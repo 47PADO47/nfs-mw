@@ -19,6 +19,7 @@
 //! from [`TextureSource`]s, and the result reads back to the same textures.
 
 mod anim;
+mod dds;
 mod decode;
 mod encode;
 mod error;
@@ -35,6 +36,7 @@ mod writer;
 mod tests;
 
 pub use anim::{TextureAnim, read_texture_anims};
+pub use dds::{DdsError, read_dds};
 pub use decode::{decode_mip_rgba8, decode_rgba8, decode_rgba8_cutout, mip_level_size};
 pub use encode::{Level, encode_level, full_mip_count, halve, mip_chain};
 pub use error::{Error, Result};

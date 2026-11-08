@@ -36,7 +36,9 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     // The runtime found the mods once, when it started; their folders come from it, not from a second scan.
     let candidates = mods.loaded_candidates();
     layers::apply(&mut dir, &layers::plan(&loaded, &candidates));
-    content::register(&dir, &content::plan(&loaded, &candidates));
+    let planned = content::plan(&loaded, &candidates);
+    content::register(&dir, &planned);
+    mods.declare_replacements(&planned);
     // The language packs are mod content: the language is chosen once the mods' folders are known.
     crate::i18n::start(&dir, Settings::load(view.settings_layer()).language);
     mods.set_install(&dir);

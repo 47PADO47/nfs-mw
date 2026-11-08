@@ -41,6 +41,18 @@ impl Content {
         host_content::supports_lazy_files(&self.fns)
     }
 
+    /// The parts of the content API the host has, as the `blackbox_modding::abi::BB_CONTENT_CAP_*` bits (`bb.content` 1.2): replacement sets,
+    /// textures, world patches, alternative maps, lazy files. 0 for a host older than 1.2: ask `supports_lazy_files` there.
+    pub fn capabilities(&self) -> u32 {
+        host_content::capabilities(&self.fns)
+    }
+
+    /// One line for every replacement set and world patch of this mod and what became of it: `chosen`, `not chosen`,
+    /// `refused: <reason>`, `not read: <reason>`, `conflict: <which set won>`. `Unsupported` before `bb.content` 1.2. Main thread only.
+    pub fn replacement_report(&self) -> ModResult<String> {
+        host_content::report(&self.fns)
+    }
+
     /// Say who makes the mod's lazy files. A file of the mod's `files/` layer that holds a stub (the text `BBLAZY1`, the
     /// mod's id and a key, one per line; see the catalogue) is read through `files` with that key, whenever the game opens
     /// it. Call it in `Mod::load`, before the game reads any file of the mod: the call is kept until the mod unloads, and a
