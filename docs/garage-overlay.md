@@ -51,6 +51,10 @@ See the [garage parity matrix](garage-parity.md) for those paths and limits.
 - Select any of the nine existing camera modes. This changes the live camera
   setting immediately. Original camera modes use the existing installed view
   data and retain the existing fallback when that data is absent.
+- **Parts** lists the slots of the vehicle's own data rather than a fixed set of categories: a car's body kit, spoiler, hood, roof scoop and
+  rims for the categories it has choices in, and for a bike (a car with [components](decisions/0014-vehicle-components.md)) its exhaust,
+  rims, brake discs and bar pad under their own names. The same list, with the performance levels, the groups of optional equipment and
+  the rider's gear, is the [vehicle panel](devtools-vehicle.md) (F11), which works in the car viewer too.
 - **Appearance** offers installed paint finish/color presets and window tints.
   Quick **Gloss**, **Metallic**, **Pearl**, **Chrome** and **Matte** buttons retain
   the current RGB color while selecting an installed finish.

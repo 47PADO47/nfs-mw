@@ -1,5 +1,6 @@
 //! Turning a typed line into a [`Command`]. Pure text in, plain data out.
 
+use super::dev_parse::{self, DEV_COMMANDS, DevCommand};
 use super::net_parse::{self, NET_COMMANDS, NetCommand};
 
 /// A console command. Scene-specific ones (`car`, `freecam`…) are passed on by name.
@@ -7,6 +8,8 @@ use super::net_parse::{self, NET_COMMANDS, NetCommand};
 pub enum Command {
     /// A `net.*` command of LAN play (`net_parse.rs`).
     Net(NetCommand),
+    /// A `vehicle`, `gear` or `devtools` command (`dev_parse.rs`).
+    Dev(DevCommand),
     Help,
     Clear,
     Quit,
@@ -190,6 +193,9 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
     if let Some(net) = net_parse::parse(&name, &args) {
         return net.map(|command| Some(Command::Net(command)));
     }
+    if let Some(dev) = dev_parse::parse(&name, &args) {
+        return dev.map(|command| Some(Command::Dev(command)));
+    }
     Ok(Some(match name.as_str() {
         "help" | "?" => Command::Help,
         "clear" | "cls" => Command::Clear,
@@ -255,6 +261,7 @@ pub fn complete(prefix: &str, scene_commands: &[(&str, &str)]) -> Vec<String> {
     let mut names: Vec<String> = BUILT_IN
         .iter()
         .chain(&NET_COMMANDS)
+        .chain(&DEV_COMMANDS)
         .map(|(u, _)| first(u))
         .chain(scene_commands.iter().map(|(u, _)| first(u)))
         .collect();

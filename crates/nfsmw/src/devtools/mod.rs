@@ -8,12 +8,16 @@ mod graphics_lab;
 pub(crate) mod hud_scenarios;
 mod logbuf;
 mod logfile;
+mod menu;
 mod metrics;
 mod overlay;
+pub(crate) mod pad_nav;
+pub(crate) mod panels;
 mod readout;
 mod theme_style;
 pub(crate) mod trace;
 mod ui_gate;
+mod vehicle;
 
 use bevy_app::{App, Last, Plugin, Update};
 use bevy_ecs::prelude::*;
@@ -37,6 +41,7 @@ impl Plugin for DevToolsPlugin {
         console::build(app);
         extra_options::build(app);
         graphics_lab::build(app);
+        panels::build(app);
         trace::build(app);
         app.init_resource::<Metrics>()
             .init_resource::<crate::garage::Overlay>()
@@ -69,15 +74,17 @@ fn run_ui(
     mut focus: ResMut<crate::input::UiFocus>,
     platform: NonSend<crate::gui::Platform>,
     // Bevy takes at most 16 system parameters: the pass's own memory and the LAN menu's state are one tuple.
-    (mut styled_for, mut settled, mut skipped, mut lan, scenario): (
+    (mut styled_for, mut settled, mut skipped, mut lan, scenario, mut dev): (
         Local<Option<blackbox_ui::Skin>>,
         Local<ui_gate::Settled>,
         Local<bool>,
         LanParams<'_>,
         Option<Res<hud_scenarios::ActiveScenario>>,
+        ResMut<panels::DevPanels>,
     ),
 ) {
     let _trace = blackbox_trace::scope("UI: build panels");
+    let dev = &mut *dev;
     // A frame with nothing egui-drawn up skips the whole pass (run, tessellation, conversion, output). The pass that
     // follows the last panel clears the renderer's layer; after it nothing is handed over until a panel is up again.
     let visible = ui_gate::Visible {
@@ -94,10 +101,13 @@ fn run_ui(
         trace: trace::indicator_up(&lab.recorder),
         platform_feedback: platform.visible(),
         scenario: scenario.is_some(),
+        // The menu and the vehicle panel, and the controller's buttons over any other panel.
+        devtools: dev.any() || (dev.pad && (console.open || garage.open || lab.open || extra.open)),
     };
     if !ui_gate::egui_needed(visible, *settled) {
         // No panel could take the events: drop them rather than let them pile up.
         input.events.clear();
+        dev.events.clear();
         *skipped = true;
         // What the lab's `show` does to the lighting options whether it is open or not.
         if let Some(clean) = graphics_lab::out_of_range_lighting(&settings) {
@@ -113,12 +123,16 @@ fn run_ui(
         events.extend(input.pointer.map(egui::Event::PointerMoved));
     }
     events.append(&mut input.events);
+    // The controller's moves, as the keys egui reads (`pad_nav`).
+    events.append(&mut dev.events);
     let raw = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height))),
         time: Some(time.elapsed_secs_f64()),
         predicted_dt: time.delta_secs(),
         events,
-        focused: window.focused,
+        // A press from the console (`devtools press`) stands in for a controller in a run whose window is hidden: egui shows no
+        // keyboard focus and reads no key in a window that is not focused.
+        focused: window.focused || dev.simulated,
         ..Default::default()
     };
     // The panels draw in the active theme's palette, radius, padding and text size, as the game does. The style is
@@ -128,6 +142,11 @@ fn run_ui(
         *styled_for = Some(themes.skin().clone());
     }
     let (lan_ui, lan_backend) = (&mut lan.0, &mut lan.1);
+    let vehicle_options = dev.vehicle.then(|| host.scene.vehicle().and_then(|scene| scene.options())).flatten();
+    if dev.vehicle {
+        vehicle::ensure_gear_catalogue(host.scene.vehicle().and_then(|scene| scene.install_dir()));
+    }
+    let gear_rows = dev.vehicle.then(vehicle::current_gear).flatten();
     gui.frame(raw, window.scale_factor(), &mut out, |ctx| {
         let actions = match host.scene.extra_options() {
             Some(state) => crate::extra_options::view::show(ctx, &mut extra.open, state, &mut settings),
@@ -200,6 +219,17 @@ fn run_ui(
                 garage.set_open(false, &mut capture, &mut focus);
             }
         }
+        let other_up = console.open || garage.open || lab.open || extra.open;
+        show_devtools(
+            ctx,
+            dev,
+            &mut host,
+            (&mut *settings, &mut *lab),
+            vehicle_options.as_ref(),
+            gear_rows.as_deref(),
+            scenario.as_deref(),
+            other_up,
+        );
     });
     if host.scene.screenshot_ui_hidden() {
         extra.open = false;
@@ -212,4 +242,64 @@ fn run_ui(
         gui.ctx.egui_wants_pointer_input(),
         gui.ctx.egui_wants_keyboard_input(),
     );
+}
+
+/// The devtools menu, the vehicle panel and the controller's hint, and what they ask for.
+#[allow(clippy::too_many_arguments)]
+fn show_devtools(
+    ctx: &egui::Context,
+    dev: &mut panels::DevPanels,
+    host: &mut crate::app::Host,
+    (settings, lab): (&mut Settings, &mut graphics_lab::GraphicsLab),
+    options: Option<&crate::garage::options::VehicleOptions>,
+    gear: Option<&[vehicle::GearRow]>,
+    scenario: Option<&hud_scenarios::ActiveScenario>,
+    other_panel_up: bool,
+) {
+    use panels::Request;
+    if dev.menu {
+        let view = menu::MenuView {
+            garage: host.scene.garage().is_some(),
+            metrics: settings.show_metrics,
+            recording: lab.recorder.recording(),
+            scenario: scenario.map(|active| active.0.name()),
+            pad: dev.pad,
+        };
+        for action in menu::show(ctx, &view) {
+            match action {
+                menu::MenuAction::Open(panel) => dev.request(Request::Open { panel, from_menu: true }),
+                menu::MenuAction::CycleMetrics => settings.show_metrics = menu::next_metrics(settings.show_metrics),
+                menu::MenuAction::ToggleTrace => lab.recorder.toggle(),
+            }
+        }
+    }
+    if dev.vehicle {
+        let view = vehicle::PanelView { options, gear, message: dev.message.as_deref(), pad: dev.pad };
+        for action in vehicle::show(ctx, &view) {
+            match action {
+                vehicle::PanelAction::Close => dev.request(Request::Back),
+                vehicle::PanelAction::Vehicle(change) => {
+                    let result = match (host.renderer.as_mut(), host.scene.vehicle()) {
+                        (Some(renderer), Some(scene)) => scene.change(renderer.as_mut(), &change),
+                        _ => Err("no vehicle on show, or the renderer is not ready".to_owned()),
+                    };
+                    dev.message = Some(result.unwrap_or_else(|error| error));
+                }
+                vehicle::PanelAction::Gear { part, id } => {
+                    let result = crate::garage::rider_gear::commit(part, &id);
+                    let worn = match id.is_empty() {
+                        true => "the rider's own gear",
+                        false => &id,
+                    };
+                    dev.message = Some(match result {
+                        Ok(()) => format!("{}: {worn}", part.label()),
+                        Err(error) => format!("{error:#}"),
+                    });
+                }
+            }
+        }
+    }
+    if dev.pad && !dev.menu && (dev.vehicle || other_panel_up) {
+        menu::hint(ctx);
+    }
 }

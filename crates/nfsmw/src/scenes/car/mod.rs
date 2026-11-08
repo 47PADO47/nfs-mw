@@ -13,6 +13,7 @@ mod rider;
 mod shading;
 pub(crate) mod shadows;
 mod texture_anim;
+mod vehicle;
 mod wheels;
 
 use std::collections::HashMap;
@@ -82,6 +83,8 @@ pub struct CarScene {
     rider_state: crate::scenes::world::drive::rider::RiderSample,
     rider_settled: bool,
     car_instances: usize,
+    /// What the car on the floor wears, for the vehicle options (`vehicle.rs`).
+    dressing: Option<vehicle::Dressing>,
 }
 
 /// A car's turn about the vertical axis and how far it is lowered from resting on the floor.
@@ -117,6 +120,7 @@ impl CarScene {
             rider_state: Default::default(),
             rider_settled: false,
             car_instances: 0,
+            dressing: None,
         }
     }
 
@@ -255,6 +259,14 @@ impl CarScene {
         self.car_instances = self.instances.len();
     }
 
+    /// Swap in the same car dressed in other parts: the camera stays where it is (the car's size has not changed).
+    pub(crate) fn redress_model(&mut self, renderer: &mut dyn RenderBackend, model: CarModel) {
+        self.release(renderer);
+        self.car += 1;
+        self.model = model;
+        self.upload(renderer);
+    }
+
     /// Swap in another car, keeping the viewing angle.
     pub(crate) fn replace_model(&mut self, renderer: &mut dyn RenderBackend, model: CarModel) {
         self.release(renderer);
@@ -334,6 +346,10 @@ impl Scene for CarScene {
         let (mut params, _) = self.snapshot(aspect);
         params.camera_cut = self.cut.take();
         (params, &self.instances)
+    }
+
+    fn vehicle(&mut self) -> Option<&mut dyn crate::viewer::VehicleScene> {
+        Some(self)
     }
 
     fn commands(&self) -> &'static [(&'static str, &'static str)] {

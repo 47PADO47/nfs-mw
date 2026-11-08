@@ -31,16 +31,20 @@ impl Picker {
         let mut action = None;
         ui.label("Saved presets · click to load");
         ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("Search saved presets"));
-        egui::ScrollArea::vertical().id_salt((filename, "quick")).max_height(125.0).show(ui, |ui| {
-            let filter = self.filter.to_lowercase();
-            for name in self.names.clone().into_iter().filter(|n| n.to_lowercase().contains(&filter)) {
-                if ui.selectable_label(self.selected == name, &name).clicked() {
-                    self.selected = name.clone();
-                    self.name = name;
-                    action = Some(Action::Load);
+        crate::devtools::pad_nav::scrolled(
+            egui::ScrollArea::vertical().id_salt((filename, "quick")).max_height(125.0),
+            ui,
+            |ui| {
+                let filter = self.filter.to_lowercase();
+                for name in self.names.clone().into_iter().filter(|n| n.to_lowercase().contains(&filter)) {
+                    if ui.selectable_label(self.selected == name, &name).clicked() {
+                        self.selected = name.clone();
+                        self.name = name;
+                        action = Some(Action::Load);
+                    }
                 }
-            }
-        });
+            },
+        );
         ui.horizontal(|ui| {
             if ui.add_enabled(!self.selected.is_empty(), egui::Button::new("Update selected")).clicked() {
                 self.name = self.selected.clone();
