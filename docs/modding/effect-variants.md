@@ -13,7 +13,7 @@ saved with the other settings (`[mod_values.nfsmw] option_<kind>_variant = "<val
 | Collision sparks (Original PC spark style) | `collision_spark_variant` | `SPARKS/<ID>/` | `blackbox_modding::content::spark_variant` | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) |
 | Restored sparks (Restored spark style; sparks only, no contrail or streaks) | `xenon_spark_variant` | `XENON/<ID>/` | `blackbox_modding::content::xenon_variant` | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) |
 | Wind (looping recordings played with the car's speed) | `wind_variant` | `WIND/<ID>/` | `blackbox_modding::content::wind_fx` | below |
-| Trees (models and textures of the world's trees, swapped in as sections load) | `trees_variant` | `TREES/<ID>/` | `blackbox_modding::content::model_swap` | [below](#profile-format-of-the-trees) |
+| Trees (models and textures of the world's trees, swapped in as sections load; now one kind of the [replacement sets](api-replace.md)) | `trees_variant` | `TREES/<ID>/` or `replace/<set>.toml` | `blackbox_modding::content::model_swap` (old form), `replace` (new) | [below](#profile-format-of-the-trees) |
 
 ## How a variant works
 

@@ -108,9 +108,10 @@ struct RawPack {
     placed: Option<String>,
 }
 
+/// One `[[place]]` as serde reads it (shared with the `[[add]]` entries of a replacement set, `replace/`).
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawPlace {
+pub(super) struct RawPlace {
     model: String,
     pos: [f32; 3],
     #[serde(default)]
@@ -222,7 +223,7 @@ fn source_game(name: Option<String>) -> Result<Option<String>, ContentError> {
 }
 
 /// One placement, checked. `at` is its number in the file, from 1, for the message.
-fn place(at: usize, raw: RawPlace) -> Result<Place, ContentError> {
+pub(super) fn place(at: usize, raw: RawPlace) -> Result<Place, ContentError> {
     let fail = |reason: &'static str| ContentError::Place { at, reason };
     if !is_model(&raw.model) {
         return Err(ContentError::InvalidModel(raw.model));

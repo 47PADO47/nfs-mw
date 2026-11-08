@@ -17,12 +17,12 @@ mod loading;
 mod lockstep;
 mod parts;
 mod ready;
+mod replace;
 mod shadow_support;
 mod shared_upload;
 pub(super) mod start;
 mod texture_detail;
 mod traffic_support;
-mod trees;
 mod upload;
 use crate::modding::content::scenery::MapPack;
 
@@ -135,9 +135,9 @@ pub struct Residency {
     dynamic_grid: bool,
     /// Uploads wait for every request and go in tile order (`residency/lockstep.rs`); a session's rule.
     lockstep: bool,
-    /// Which trees pack the residency last looked at (`residency/trees.rs`), and the resident tiles it has asked the streamer
+    /// Which replacements the residency last looked at (`residency/replace.rs`), and the resident tiles it has asked the streamer
     /// for again because the pack changed.
-    trees_seen: Option<usize>,
+    replace_seen: Option<usize>,
     refresh: HashSet<usize>,
 }
 
@@ -223,7 +223,7 @@ impl Residency {
             unwanted_scratch: Vec::new(),
             request_scratch: Vec::new(),
             lockstep: false,
-            trees_seen: None,
+            replace_seen: None,
             refresh: HashSet::new(),
             dynamic_grid: false,
         }
@@ -260,7 +260,7 @@ impl Residency {
         }
         self.update_traffic_support();
         self.update_mod_wanted(x, y);
-        self.sync_trees(renderer);
+        self.sync_replace(renderer);
         self.upload_arrived(renderer);
         self.unload_unwanted(renderer);
         self.request_wanted();

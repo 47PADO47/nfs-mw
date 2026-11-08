@@ -212,3 +212,22 @@ fn the_profile_carries_the_limits_the_game_keeps_a_replacement_to() {
     let limits = parse_model_swap_profile(&build::profile_text(&[("BUSH", 4)])).unwrap().limits;
     assert_eq!((limits.spread, limits.squeeze, limits.min_height), (1.25, 0.5, 0.7));
 }
+
+#[test]
+fn the_replacement_set_declares_the_same_swaps_as_the_profile_and_the_game_accepts_it() {
+    use blackbox_modding::content::{ReplaceTarget, parse_model_swap_profile, parse_replace_set};
+    let built = [("BROADLEAF_M", 4), ("BUSH", 4), ("POPLAR", 2)];
+    let set =
+        parse_replace_set("trees-mw2012", &build::replace_manifest(&built, "mw2012", "NFS Most Wanted 2012")).unwrap();
+    let profile = parse_model_swap_profile(&build::profile_text(&built)).unwrap();
+    assert_eq!(
+        (set.kind.as_str(), set.value.as_str(), set.option().as_deref()),
+        ("trees", "mw2012", Some("trees_variant"))
+    );
+    assert_eq!(set.geometry.as_deref(), Some(profile.geometry.as_str()));
+    assert_eq!(set.limits, profile.limits);
+    let swaps: Vec<_> = set.models.iter().map(|m| (m.targets.clone(), m.model.clone(), m.fit)).collect();
+    let old: Vec<_> =
+        profile.swaps.iter().map(|s| (vec![ReplaceTarget::Name(s.solid.clone())], s.model.clone(), s.fit)).collect();
+    assert_eq!(swaps, old, "one mechanism, the same models");
+}
