@@ -49,6 +49,11 @@ impl Trail {
         self.crumbs.first().copied()
     }
 
+    /// The newest place: where the car last drove with every wheel down.
+    pub fn newest(&self) -> Option<Crumb> {
+        self.crumbs.last().copied()
+    }
+
     /// A reset put the car at `used`: it is the trail's only place.
     pub fn reset_to(&mut self, used: Crumb) {
         self.crumbs.clear();
@@ -87,6 +92,13 @@ impl FlipTimer {
 /// road the two agree.
 pub fn flipped(wheels_down: usize, up_z: f32) -> bool {
     wheels_down < 4 && up_z < FLIPPED_UP
+}
+
+/// Whether the flip timer runs: the car is [`flipped`], and it is not a bike lying on its side with its rider off it. A fallen bike
+/// is on its side by design: its rider gets up, walks to it and stands it up (`docs/specs/ride6-rider-getup.md`); the flip reset
+/// would put the bike back on its path at 4 s and cut that short.
+pub fn flip_runs(wheels_down: usize, up_z: f32, rider_off: bool) -> bool {
+    flipped(wheels_down, up_z) && !rider_off
 }
 
 /// The car's reset state: its trail, its flip timer, its blink, the place a reset asked for and the manual resets the
@@ -157,6 +169,8 @@ mod tests {
     fn the_car_is_put_back_after_more_than_four_seconds_on_its_roof() {
         let mut timer = FlipTimer::default();
         assert!(flipped(2, 0.2) && !flipped(4, 0.2) && !flipped(0, 0.9));
+        assert!(flip_runs(0, 0.0, false), "a bike on its side with its rider on it, or a car on its roof");
+        assert!(!flip_runs(0, 0.0, true), "a fallen bike waits for its rider instead");
         for _ in 0..40 {
             assert!(!timer.update(true, 0.1));
         }

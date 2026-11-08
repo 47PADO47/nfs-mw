@@ -54,6 +54,10 @@ pub enum Page {
     Plate,
     /// The design behind the glyphs of a mod car's licence plate (`plate_design.rs`).
     PlateDesign,
+    /// One part of the rider's gear on a bike (`gear_page.rs`).
+    Rider {
+        part: crate::garage::rider_gear::Part,
+    },
     DecalZones {
         backroom: bool,
     },
@@ -138,6 +142,7 @@ impl Page {
             | Self::Leave
             | Self::Plate
             | Self::PlateDesign
+            | Self::Rider { .. }
             | Self::Checkout { .. }
             | Self::MaxPerformance
             | Self::InsufficientFunds => "Dialog.fng",
@@ -193,6 +198,7 @@ impl Page {
             Self::Numbers => "Numbers".into(),
             Self::Plate => "License Plate".into(),
             Self::PlateDesign => "Plate Design".into(),
+            Self::Rider { part } => part.label().into(),
             Self::Tuning => "Performance Tuning".into(),
             Self::Cart { .. } => "Shopping Cart".into(),
             Self::Checkout { .. } => "Checkout".into(),

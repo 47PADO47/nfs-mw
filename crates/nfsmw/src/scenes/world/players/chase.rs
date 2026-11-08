@@ -101,7 +101,8 @@ impl WorldScene {
             let tuning = traffic.bust_tuning();
             let chased: Vec<_> = cars.iter().filter(|(id, _)| chase.is_chased(*id)).collect();
             for (id, view) in chased {
-                let input = traffic.bust_input_for(view, *id == chase.primary);
+                let grace = self.players.get(*id).is_some_and(|drive| drive.bust_grace());
+                let input = traffic.bust_input_for(view, *id == chase.primary, grace);
                 let at = match chase.meters.iter().position(|(player, _)| player == id) {
                     Some(at) => at,
                     None => {

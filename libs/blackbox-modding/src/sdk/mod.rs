@@ -55,7 +55,7 @@ pub use audio::Audio;
 pub use camera::{Camera, CameraInput, CameraKind, CameraPose, CameraState, CameraView};
 pub use commands::Commands;
 pub use config::ModConfig;
-pub use content::Content;
+pub use content::{Content, LazyFiles};
 pub use ctx::{Ctx, Level, MAX_MESSAGE_BYTES};
 pub use engine::{Engine, EnginePhase, EngineState};
 pub use error::{Error, ModResult};

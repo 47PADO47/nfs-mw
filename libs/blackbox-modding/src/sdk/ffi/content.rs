@@ -1,18 +1,23 @@
-//! `bb.content` on the mod side: read the table, and call its function.
+//! `bb.content` on the mod side: read the table, and call its functions.
 
 use core::ffi::c_void;
 use core::mem::offset_of;
 use core::ptr::null_mut;
 
 use super::{read_or, status_result};
-use crate::abi::{BbContent, BbContentRescanFn};
-use crate::sdk::{Error, Interface, ModResult};
+use crate::abi::{
+    BB_OK, BbContent, BbContentBytesSinkFn, BbContentProvideLazyFn, BbContentReadLazyFn, BbContentRescanFn, BbStatus,
+    BbStr,
+};
+use crate::sdk::ctx::Keep;
+use crate::sdk::{Error, Interface, LazyFiles, ModResult, guard};
 
 /// The function pointers of one `bb.content` table, read once.
 #[derive(Clone, Copy)]
 pub(crate) struct ContentFns {
     ctx: *mut c_void,
     rescan: Option<BbContentRescanFn>,
+    provide_lazy_files: Option<BbContentProvideLazyFn>,
 }
 
 /// Read the `bb.content` table the host offered.
@@ -22,6 +27,7 @@ pub(crate) fn read(iface: Interface) -> ContentFns {
         ContentFns {
             ctx: read_or(&iface, offset_of!(BbContent, ctx), null_mut()),
             rescan: read_or(&iface, offset_of!(BbContent, rescan), None),
+            provide_lazy_files: read_or(&iface, offset_of!(BbContent, provide_lazy_files), None),
         }
     }
 }
@@ -31,4 +37,50 @@ pub(crate) fn rescan(fns: &ContentFns) -> ModResult<()> {
     let rescan = fns.rescan.ok_or(Error::Unsupported)?;
     // SAFETY: the table is valid while the mod is loaded; the call takes no other argument.
     status_result(unsafe { rescan(fns.ctx) })
+}
+
+/// Whether the host takes lazy files (`bb.content` 1.1).
+pub(crate) fn supports_lazy_files(fns: &ContentFns) -> bool {
+    fns.provide_lazy_files.is_some()
+}
+
+/// What the host's calls reach: the mod's maker of lazy files, boxed once so its address is the `user` pointer.
+type Maker = Box<dyn LazyFiles>;
+
+/// Give the host the maker of the mod's lazy files. The maker is kept in `keep` until the mod unloads, and the host stops
+/// calling it then.
+pub(crate) fn provide_lazy_files(fns: &ContentFns, keep: &Keep, files: Maker) -> ModResult<()> {
+    let provide = fns.provide_lazy_files.ok_or(Error::Unsupported)?;
+    let held: Box<Maker> = Box::new(files);
+    let user: *mut c_void = (&*held as *const Maker).cast_mut().cast();
+    let read: BbContentReadLazyFn = read_trampoline;
+    // SAFETY: the host calls `read_trampoline` with `user` only while the mod is loaded. `held` moves into `keep` below,
+    // which lives until the mod's `destroy`, and the host stops calling when the mod unloads; the box's address does not
+    // change when the box moves.
+    let status = unsafe { provide(fns.ctx, Some(read), user) };
+    status_result(status)?;
+    keep.borrow_mut().push(held);
+    Ok(())
+}
+
+/// The function the host calls to make a lazy file: runs the mod's maker for `key` and hands the bytes to `sink`. Runs on
+/// whatever thread reads the file, so it touches nothing but the maker, which is `Send + Sync`.
+unsafe extern "C" fn read_trampoline(
+    user: *mut c_void,
+    key: BbStr,
+    sink: Option<BbContentBytesSinkFn>,
+    sink_ctx: *mut c_void,
+) -> BbStatus {
+    let result = guard::run(|| {
+        // SAFETY: `user` is the `Maker` that `provide_lazy_files` kept alive (see there).
+        let maker = unsafe { user.cast::<Maker>().as_ref() }.ok_or(Error::Arg)?;
+        // SAFETY: the host passes a string valid for this call.
+        let key = unsafe { key.as_str() }.ok_or(Error::Arg)?;
+        let sink = sink.ok_or(Error::Arg)?;
+        let bytes = maker.read(key)?;
+        // SAFETY: the host's sink takes bytes valid for the call, which `bytes` is, and copies them.
+        unsafe { sink(sink_ctx, bytes.as_ptr(), bytes.len() as u64) };
+        Ok(())
+    });
+    result.err().map_or(BB_OK, Error::code)
 }

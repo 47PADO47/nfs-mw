@@ -1,16 +1,20 @@
 use std::io::Read;
+use std::sync::Arc;
 
 use flate2::read::ZlibDecoder;
 
+use crate::data::{Data, Ranges};
 use crate::debug::{DebugName, parse_debug_names};
 use crate::entry::{Entry, Import};
 use crate::error::{Error, Result};
-use crate::header::{BLOCKS, ENTRY_SIZE, FLAG_HAS_DEBUG_DATA, HEADER_SIZE, Header, u32_at, u64_at};
+use crate::header::{
+    BLOCKS, ENTRY_SIZE, EXTENDED_HEADER_SIZE, FLAG_HAS_DEBUG_DATA, HEADER_SIZE, Header, u32_at, u64_at,
+};
 
-/// A `bnd2` bundle held in memory: the file's bytes and the parsed resource table.
+/// A `bnd2` bundle: the file's bytes (all in memory, or read on demand, see [`Ranges`]) and the parsed resource table.
 #[derive(Debug, Clone)]
 pub struct Bundle<'a> {
-    data: &'a [u8],
+    data: Data<'a>,
     header: Header,
     entries: Vec<Entry>,
 }
@@ -26,14 +30,36 @@ pub struct Resource {
 
 impl<'a> Bundle<'a> {
     pub fn parse(data: &'a [u8]) -> Result<Self> {
-        let header = Header::parse(data)?;
-        let start = header.entries_offset as usize;
-        let end = start.saturating_add(header.resource_count as usize * ENTRY_SIZE);
-        if start < HEADER_SIZE || end > data.len() {
-            return Err(Error::Truncated { what: "resource table", start, end, len: data.len() });
-        }
-        let table = &data[start..end];
-        let entries = (0..header.resource_count as usize).map(|index| Entry::parse(table, index)).collect();
+        Self::from_data(Data::Memory(data))
+    }
+
+    /// A bundle whose bytes `source` reads on demand: only the header and the table of resources are read now, the blocks of a
+    /// resource when [`Bundle::resource`] asks for it. Reads the same resources as [`Bundle::parse`] does.
+    pub fn parse_ranges(source: Arc<dyn Ranges>) -> Result<Self> {
+        Self::from_data(Data::Ranged(source))
+    }
+
+    fn from_data(data: Data<'a>) -> Result<Self> {
+        let (header, entries) = {
+            let head_end = data.len().min(EXTENDED_HEADER_SIZE);
+            let head = data.slice(0, head_end).ok_or(Error::Truncated {
+                what: "header",
+                start: 0,
+                end: head_end,
+                len: data.len(),
+            })?;
+            let header = Header::parse(&head)?;
+            let start = header.entries_offset as usize;
+            let end = start.saturating_add(header.resource_count as usize * ENTRY_SIZE);
+            let truncated = Error::Truncated { what: "resource table", start, end, len: data.len() };
+            if start < HEADER_SIZE || end > data.len() {
+                return Err(truncated);
+            }
+            let table = data.slice(start, end).ok_or(truncated)?;
+            let entries: Vec<Entry> =
+                (0..header.resource_count as usize).map(|index| Entry::parse(&table, index)).collect();
+            (header, entries)
+        };
         Ok(Self { data, header, entries })
     }
 
@@ -72,9 +98,9 @@ impl<'a> Bundle<'a> {
         if self.header.flags & FLAG_HAS_DEBUG_DATA == 0 {
             return None;
         }
-        let raw = self.data.get(self.header.debug_offset as usize..)?;
+        let raw = self.data.tail(self.header.debug_offset as usize)?;
         let text = match raw.first() {
-            Some(&0x78) => inflate(raw).ok()?,
+            Some(&0x78) => inflate(&raw).ok()?,
             _ => raw.to_vec(),
         };
         let end = text.iter().position(|&byte| byte == 0).unwrap_or(text.len());
@@ -94,13 +120,13 @@ impl<'a> Bundle<'a> {
         let start = (self.header.block_offsets[block] as usize).saturating_add(entry.disk_offset[block] as usize);
         let disk = (entry.disk_size[block] & 0x0FFF_FFFF) as usize;
         let end = start.saturating_add(disk);
-        let Some(raw) = self.data.get(start..end) else {
+        let Some(raw) = self.data.slice(start, end) else {
             return Err(Error::Truncated { what: "resource block", start, end, len: self.data.len() });
         };
         if !self.header.compressed() {
-            return Ok(raw.to_vec());
+            return Ok(raw.into_owned());
         }
-        let bytes = inflate(raw).map_err(|detail| Error::Inflate { index, block, detail })?;
+        let bytes = inflate(&raw).map_err(|detail| Error::Inflate { index, block, detail })?;
         if bytes.len() != expected {
             return Err(Error::BlockSize { index, block, expected, actual: bytes.len() });
         }

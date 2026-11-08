@@ -29,5 +29,6 @@ pub(super) fn layer_of(layer: &ManifestLayer) -> EngineLayer {
         rate: layer.rate.as_ref().map(curve),
         span: layer.span,
         volume: layer.volume,
+        off_load: layer.off_load,
     }
 }

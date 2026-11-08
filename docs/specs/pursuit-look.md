@@ -55,7 +55,10 @@ focus filter. Differences, all **[ours]**:
   on its marker and forgets the look's state then, so the next frame only records it;
 - the blur follows the motion blur setting, as the rewrite's other radial blurs do;
 - with the colour treatment turned off there is no grade, so no flash either;
-- missing data leaves out only its part (no `uves` look: no blue; no pulse: no flash).
+- missing data leaves out only its part (no `uves` look: no blue; no pulse: no flash);
+- a bike's helmet camera shows the grade change, the flash and the blur at `HELMET_SHARE` = 0.35 of their strength (`Frame::scaled`):
+  from a rider's eyes the blue flash and the blur hide the road at the start of a chase
+  ([bike cameras](ride6-bike-cameras.md) section 9); the other cameras and the arrest look are unchanged.
 
 Before this, a pursuit's start and a heat rise had no change of grade, and the arrest scene used the ordinary grade.
 

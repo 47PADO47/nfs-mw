@@ -181,10 +181,14 @@ impl Drive {
         self.rider.step(sim.rider_sample(), dt);
         // The rider the bike let go of, if it did, falls and slides on the ground until the bike is stood up again.
         let release = sim.take_rider_release();
-        let fall = super::rider::FallStep { release, off: sim.rider_off(), waiting: sim.bike_waits_for_rider(), dt };
+        let off = sim.rider_off();
+        let fall = super::rider::FallStep { release, off, waiting: sim.bike_waits_for_rider(), dt };
         // The fallen bike is stood up only once the rider has got up.
         let rider_ready = self.rider.fall_step(fall, &pose, &WorldGround { collision, surfaces });
         sim.set_rider_ready(rider_ready);
+        // The cameras follow him while he is off the bike, and nobody can bust him then (`rider_cam.rs`).
+        super::rider_cam::step(&mut self.rider_cam, &self.rider, off, (&self.previous, &self.current), dt);
+        self.rider_cam.set_floor(super::under_map_check::rider_floor(&self.rider, collision));
         self.gauges.push(gauge);
         self.brake_lamp = match self.engine.is_running() {
             true => sim.lamp_brake(),
@@ -207,7 +211,8 @@ impl Drive {
         self.flames.step(dt, &car);
         self.tail_trails.step(car.to_world, car.nitrous, velocity.length());
         self.sound.after_step(sim, surfaces, &impact, &input, dt, self.gridded);
-        self.chase.impact(sim.camera_acceleration());
+        // The bike's contacts shake the camera while it is on the bike; on the rider they are not what he is looking at.
+        self.chase.impact(sim.camera_acceleration() * (1.0 - self.rider_cam.weight()));
         self.steps += 1;
         if let Some(run) = self.script.as_ref().filter(|_| self.steps.is_multiple_of(60)) {
             trace::log(
@@ -226,15 +231,18 @@ impl Drive {
         // the car is held on a grid; a car on its roof or side for over 4 s is put back whatever the grace.
         self.reset.blink.update(graced, dt);
         let up = (self.current.rotation * Vec3::Z).z;
-        let flipped = self.reset.flip.update(reset_trail::flipped(telemetry.wheels_on_ground, up), dt);
+        let flipped = self.reset.flip.update(reset_trail::flip_runs(telemetry.wheels_on_ground, up, off), dt);
         if input.reset && !graced && !self.gridded && self.request_reset() {
             self.reset.manual += 1;
+            self.note_bike_reset();
             let at = self.current.position;
             log::info!("reset at ({:.0}, {:.0}, {:.0})", at.x, at.y, at.z);
         } else if flipped && self.request_reset() {
+            self.note_bike_reset();
             log::info!("the car stayed on its roof; putting it back on its path");
         }
         self.check_road(collision, finite, dt);
+        self.check_under_map(collision, finite, dt);
     }
 
     fn check_road(&mut self, collision: &CollisionWorld, finite: bool, dt: f32) {

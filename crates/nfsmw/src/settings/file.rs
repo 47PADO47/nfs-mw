@@ -138,6 +138,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         backfire_style: table.get("backfire_style").and_then(super::backfire_style::parse),
         tail_trail_style: table.get("tail_trail_style").and_then(super::tail_trail_style::parse),
         turn_signals: field(&table, origin, "turn_signals", boolean),
+        rider_gear: field(&table, origin, "rider_gear", boolean),
         rear_view_mirror: field(&table, origin, "rear_view_mirror", boolean),
         discord: field(&table, origin, "discord", boolean),
         discord_time_played: field(&table, origin, "discord_time_played", boolean),
@@ -155,7 +156,9 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         ui_style: field(&table, origin, "ui_style", |v| UiStyle::from_str(text_of(v)?)).or_else(|| {
             field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?).map(UiStyle::from))
         }),
+        custom_hud_skin: field(&table, origin, "custom_hud_skin", |v| super::CustomHudSkin::from_str(text_of(v)?)),
         speed_units: field(&table, origin, "speed_units", |v| SpeedUnits::from_str(text_of(v)?)),
+        riding_style: field(&table, origin, "riding_style", |v| super::RidingStyle::from_str(text_of(v)?)),
         language: field(&table, origin, "language", |v| super::LanguageTag::from_str(text_of(v)?)),
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),

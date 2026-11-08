@@ -9,7 +9,11 @@
 //! [`GameDir::add_overlay`]) is a directory whose files replace or add to the
 //! files below it. The highest priority wins; at equal priority the overlay
 //! added later wins. Overlays work on whole files only.
+//!
+//! A layer's file may be **lazy** ([`LazySource`]): a small stub the layer's owner replaces with the real bytes when the
+//! file is read.
 
+mod lazy;
 mod overlay;
 #[cfg(test)]
 mod tests;
@@ -19,6 +23,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, PoisonError, RwLock};
 
+use lazy::LazySources;
+pub use lazy::{LazySource, MAX_STUB_BYTES, stub as lazy_stub};
 use overlay::Overlay;
 pub use overlay::{LayerError, LayerInfo, Provider};
 
@@ -46,6 +52,8 @@ pub struct GameDir {
     /// Overlays added after start-up (`add_late_overlay`), shared by every clone, so a layer that appears while the
     /// game runs is seen by the copies the scenes already hold.
     late: Arc<LateLayers>,
+    /// The makers of lazy files, by the owner a stub names. Shared by every clone, like the late layers.
+    lazy: Arc<LazySources>,
 }
 
 /// The layers added while the game runs. Each is leaked on purpose: an entry lives for the rest of the run, which lets
@@ -116,7 +124,7 @@ impl GameDir {
             }
         }
         log::debug!("indexed {} files under {}", files.len(), root.display());
-        Ok(Self { root, files: Arc::new(files), overlays: Vec::new(), late: Arc::default() })
+        Ok(Self { root, files: Arc::new(files), overlays: Vec::new(), late: Arc::default(), lazy: Arc::default() })
     }
 
     /// Add a layer above the ones already there. Its files replace or add to the files
@@ -214,9 +222,19 @@ impl GameDir {
         Ok(std::fs::metadata(self.require(rel)?)?.len())
     }
 
-    /// Read a whole file.
+    /// Read a whole file. A lazy file (a stub of a layer, [`lazy_stub`]) is read from the source added for its owner.
     pub fn read(&self, rel: &str) -> io::Result<Vec<u8>> {
-        std::fs::read(self.require(rel)?)
+        let bytes = std::fs::read(self.require(rel)?)?;
+        let stub = lazy::parse(&bytes).map(|(owner, key)| (owner.to_owned(), key.to_owned()));
+        let Some((owner, key)) = stub else { return Ok(bytes) };
+        self.lazy.read(&owner, &key)
+    }
+
+    /// Say who makes the lazy files whose stubs name `owner`: `source` is asked for the bytes each time one is read, from
+    /// whatever thread reads it. It works through a shared reference and reaches every clone of this directory. A second
+    /// source for the same owner replaces the first.
+    pub fn add_lazy_source(&self, owner: &str, source: Arc<dyn LazySource>) {
+        self.lazy.add(owner, source);
     }
 
     /// Open a file for reading (e.g. to read many ranges of a large stream file).

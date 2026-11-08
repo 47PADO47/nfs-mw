@@ -18,8 +18,10 @@ default-members = [
     "libs/blackbox-damage",
     "libs/blackbox-carsound",
     "libs/blackbox-chunk",
+    "libs/blackbox-components",
     "libs/blackbox-collision",
     "libs/blackbox-feng",
+    "libs/blackbox-gauge-skin",
     "libs/blackbox-gfx",
     "libs/blackbox-gfx-testkit",
     "libs/blackbox-ginsu",
@@ -97,6 +99,7 @@ blackbox-carsound = { path = "libs/blackbox-carsound" }
 blackbox-bevy-render = { path = "libs/blackbox-bevy-render" }
 blackbox-chunk = { path = "libs/blackbox-chunk" }
 blackbox-collision = { path = "libs/blackbox-collision" }
+blackbox-components = { path = "libs/blackbox-components" }
 blackbox-damage = { path = "libs/blackbox-damage" }
 blackbox-driver = { path = "libs/blackbox-driver" }
 blackbox-feng = { path = "libs/blackbox-feng" }
@@ -104,6 +107,7 @@ blackbox-gfx = { path = "libs/blackbox-gfx" }
 blackbox-gfx-testkit = { path = "libs/blackbox-gfx-testkit" }
 blackbox-ginsu = { path = "libs/blackbox-ginsu" }
 blackbox-gpu-passes = { path = "libs/blackbox-gpu-passes" }
+blackbox-gauge-skin = { path = "libs/blackbox-gauge-skin" }
 blackbox-hash = { path = "libs/blackbox-hash" }
 blackbox-i18n = { path = "libs/blackbox-i18n" }
 blackbox-minimap = { path = "libs/blackbox-minimap" }

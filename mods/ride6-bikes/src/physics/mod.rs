@@ -9,6 +9,8 @@
 //!
 //! What the meshes give (the wheels' radius and width, the hubs and the body box) is passed in as [`Geometry`].
 
+pub mod borrow;
+pub mod borrow_files;
 pub mod brakes;
 pub mod burnout;
 pub mod chassis;
@@ -103,6 +105,10 @@ impl Geometry {
 /// The text of the `[bike]` table and its sub-tables, and the notes the conversion has for the user.
 pub fn bike_table(vehicle: &Vehicle, geometry: &Geometry) -> Result<(String, Vec<String>)> {
     let mut t = Toml::new();
+    for choice in vehicle.borrowed() {
+        t.comment(&choice.comment());
+        t.note(choice.comment());
+    }
     chassis::write(&mut t, vehicle, geometry)?;
     rider_table::write(&mut t, vehicle)?;
     for side in [Side::Front, Side::Rear] {

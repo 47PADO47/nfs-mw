@@ -1,5 +1,6 @@
 use super::*;
 use crate::bike::BikeSpec;
+use crate::bike::choices;
 
 fn input(weight: f32, pitch: f32, rate: f32) -> PitchInput {
     PitchInput {
@@ -14,6 +15,7 @@ fn input(weight: f32, pitch: f32, rate: f32) -> PitchInput {
         front_on_ground: true,
         rear_on_ground: true,
         inertia: 80.0,
+        body_inertia: 70.0,
         dt: 1.0 / 60.0,
     }
 }
@@ -148,4 +150,35 @@ fn the_square_root_approach_arrives() {
 fn the_stoppie_target_is_filtered_towards_its_value() {
     let s = spec();
     assert!(s.stoppie.filter_timescale > 0.0 && s.wheelie.filter_timescale == 0.0);
+}
+
+#[test]
+fn the_nose_may_drop_faster_the_higher_it_is_between_the_touchdown_rate_and_the_ceiling() {
+    assert_eq!(lowering_rate(0.0), choices::WHEELIE_LOWER_TOUCHDOWN_RATE);
+    assert_eq!(lowering_rate(1.5), choices::WHEELIE_LOWER_RATE);
+    let (low, middle) = (lowering_rate(0.2), lowering_rate(0.4));
+    assert!(low < middle && middle < choices::WHEELIE_LOWER_RATE, "{low} {middle}");
+}
+
+#[test]
+fn a_nose_that_drops_faster_than_the_rate_is_held_back_by_a_torque_that_is_held_to_its_acceleration() {
+    let rate = lowering_rate(0.5);
+    assert_eq!(lowering_torque(0.5, -0.5 * rate, 100.0), 0.0, "slower than the rate: nothing");
+    assert_eq!(lowering_torque(0.5, 0.3, 100.0), 0.0, "rising: nothing");
+    assert_eq!(lowering_torque(-0.1, -2.0, 100.0), 0.0, "below level: nothing");
+    let some = lowering_torque(0.5, -(rate + 0.2), 100.0);
+    let more = lowering_torque(0.5, -(rate + 0.4), 100.0);
+    assert!(some > 0.0 && more > some);
+    assert!((lowering_torque(0.5, -10.0, 100.0) - 100.0 * choices::WHEELIE_LOWER_ACCELERATION).abs() < 1e-3);
+}
+
+#[test]
+fn the_assist_adds_the_lowering_torque_to_a_wheelie_that_drops_and_not_to_a_stoppie() {
+    let s = spec();
+    let dropping = PitchInput { throttle: 0.0, body_inertia: 100.0, ..input(-1.0, 0.5, -1.5) };
+    let without = PitchInput { body_inertia: 0.0, ..dropping };
+    assert!(torque(&s, &dropping) > torque(&s, &without) + 100.0);
+    let stoppie_drop = PitchInput { body_inertia: 100.0, ..stoppie(1.0, 0.5, -1.5) };
+    let stoppie_without = PitchInput { body_inertia: 0.0, ..stoppie_drop };
+    assert_eq!(torque(&s, &stoppie_drop), torque(&s, &stoppie_without));
 }

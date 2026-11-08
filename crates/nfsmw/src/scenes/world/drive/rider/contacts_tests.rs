@@ -103,3 +103,18 @@ fn a_limb_left_without_a_target_is_refused() {
     let error = rig.with_contacts(&Contacts::parse(CRUISER.as_bytes()).unwrap()).unwrap_err();
     assert!(error.to_string().contains("elbow_rest"), "{error}");
 }
+
+#[test]
+fn a_grip_names_the_handlebar_bone_it_is_held_on_and_a_file_with_one_that_is_not_a_number_is_refused() {
+    let text = CRUISER.replace(
+        r#""position": [0.20, 0.45, 1.10], "steers": true"#,
+        r#""position": [0.20, 0.45, 1.10], "steers": true, "anchor": [0.28, 0.40, 1.15]"#,
+    );
+    let contacts = Contacts::parse(text.as_bytes()).unwrap();
+    assert_eq!(contacts.targets[0].anchor, Some([0.28, 0.40, 1.15]));
+    assert_eq!(contacts.targets[1].anchor, None, "the other grip has none: it goes to its socket");
+    let merged = rig().with_contacts(&contacts).unwrap();
+    assert_eq!(merged.targets[merged.target_index("left_grip").unwrap()].anchor, Some([0.28, 0.40, 1.15]));
+    let broken = text.replace("[0.28, 0.40, 1.15]", "[0.28, 0.40, 1e999]");
+    assert!(Contacts::parse(broken.as_bytes()).is_err(), "an anchor that is not finite");
+}

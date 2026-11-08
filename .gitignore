@@ -78,6 +78,13 @@
 # Developer scripts that drive the game offscreen (the HUD screenshot matrix); they ship no data
 !/tools/*.ps1
 !/tools/*.sh
+# The RIDE 6 exporter: our own console tool (C#) and scripts, source only (docs/modding/ride6-bikes.md). Its build output
+# (bin/, obj/) and everything it exports stay outside the repository and are not whitelisted.
+!/tools/ride6-exporter/README.md
+!/tools/ride6-exporter/R6ToolParts/*.cs
+!/tools/ride6-exporter/R6ToolParts/*.csproj
+!/tools/ride6-exporter/R6ToolSnd/*.cs
+!/tools/ride6-exporter/R6ToolSnd/*.csproj
 
 # Reviewed, independently licensed controller prompts (no game textures).
 !/assets/input-prompts/kenney-xbox.png

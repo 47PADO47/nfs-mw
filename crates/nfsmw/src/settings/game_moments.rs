@@ -17,6 +17,7 @@ pub enum MomentKind {
 }
 
 impl MomentKind {
+    #[cfg(test)]
     pub const ALL: [Self; 4] = [Self::Breakers, Self::Pursuit, Self::Jumps, Self::Crashes];
 
     /// The options row's title key.

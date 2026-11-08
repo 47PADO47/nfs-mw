@@ -11,7 +11,7 @@ read from the binary, **[D]** data, **[M]** measured here, **[I]** inferred, **[
 
 `bike_wheelie_steer` (`libs/blackbox-modding/src/content/bike_ride_wheelie_steer.rs`, ignored, `RIDE6_CARS`): the bike is ridden from a speed with the throttle
 open and the weight lever at -1 (what V or the pad's stick pulled back give) until its pitch passes 20 degrees; the wheelie assist then holds it at 35 degrees or a
-little more (mean pitch 36 to 38 degrees below). The stick is then held at 0.5 or 1.0 for 3 s, through the share the game gives it by speed (`choices::stick_share`),
+little more (mean pitch 36 to 38 degrees below). The stick is then held at 0.5 or 1.0 for 3 s, as the game gives it (round 13 removed the share by speed),
 and the heading it turned through is compared with the same stick on the road with the front wheel down at the same speed (the throttle holding it). Means over the
 288 bikes (the road column is the same before and after):
 
@@ -34,7 +34,7 @@ Nothing in the chain removes the steering. Checked, and pinned by tests:
 
 - **Keyboard.** W is the throttle, V (or Numpad 2) the weight lever at -1, A and D the steering at -1 and +1: three separate actions (`input/bindings.rs`). `DriveInput`
   carries all three (`throttle` 1, `weight` -1, `steer` -1 or 1) and `sim/bike.rs` `command()` takes `throttle` and `steer` only; the weight goes to `Bike::set_weight` through
-  `StepStart::weight`. `command()` multiplies the stick by `choices::stick_share(speed)`, which is 1.0 at any speed since round 11. The weight does not touch the stick.
+  `StepStart::weight`. `command()` gives the stick at any speed as it is (the share by speed of rounds 9 to 12 was 1.0 since round 11 and went in round 13). The weight does not touch the stick.
 - **Pad.** Left stick Y is the lever and X the steering. The lever opens the stick's circular gate to a square for Y only (`input/weight_axis.rs`: a stick at the rim on the
   diagonal reads Y = 1); X is not rescaled, so down-left on the rim gives a lever of -1 and a steering of about -0.7 (the stick's own X; the test in `input/rider_weight_tests.rs`
   pins 0.5 to 0.8). No axis has priority, no dead zone swallows the other, and X is not shrunk when Y is large. The steering of 0.7 is a physical limit of a round gate, not a bug.
