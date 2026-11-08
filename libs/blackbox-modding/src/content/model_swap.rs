@@ -52,6 +52,13 @@ pub enum Fit {
     Height,
     /// Copies along the longer side of the replaced solid's bounds.
     Row,
+    /// One copy scaled evenly to fit **inside** the replaced solid's box (its footprint and its height, whichever binds first),
+    /// centred on the box with its lowest point on the box's floor: for lamps, signs, barriers and buildings, which stand on
+    /// the ground and have a size of their own. In a world-space copy it is cut into stretches like `height`.
+    Stand,
+    /// The model as authored, in the frame of the solid it replaces (a mod that models to the old solid's origin). It is used
+    /// only when its box stays inside the old box grown by the spread; otherwise the solid keeps its own model.
+    Exact,
 }
 
 /// One replaced solid.
@@ -110,9 +117,10 @@ struct Raw {
     swap: Vec<RawSwap>,
 }
 
+/// The `[fit]` table as serde reads it (shared with the replacement sets, `replace/`).
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
-struct RawLimits {
+pub(super) struct RawLimits {
     spread: Option<f32>,
     squeeze: Option<f32>,
     min_height: Option<f32>,
@@ -120,7 +128,7 @@ struct RawLimits {
 
 impl RawLimits {
     /// The limits with the defaults filled in, or the refused key.
-    fn check(&self) -> Result<FitLimits, ContentError> {
+    pub(super) fn check(&self) -> Result<FitLimits, ContentError> {
         let defaults = FitLimits::default();
         let spread = self.spread.unwrap_or(defaults.spread);
         let squeeze = self.squeeze.unwrap_or(defaults.squeeze);
@@ -147,12 +155,12 @@ struct RawSwap {
     fit: Fit,
 }
 
-fn field(field: &'static str, reason: &'static str) -> ContentError {
+pub(super) fn field(field: &'static str, reason: &'static str) -> ContentError {
     ContentError::Field { field, reason }
 }
 
 /// A solid name: letters, digits, `_`, `-`, 1 to 63 bytes.
-fn is_solid_name(name: &str) -> bool {
+pub(super) fn is_solid_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 63
         && name.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
