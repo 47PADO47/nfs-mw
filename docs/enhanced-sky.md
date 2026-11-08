@@ -91,3 +91,12 @@ A fixed midpoint replaces the interleaved screen pattern; longer horizon paths
 use up to 384 samples instead of a fixed 96. This improves the source image
 without temporal reconstruction. The shared angular map can still limit distant
 silhouettes; this does not extend the day/night orbit.
+
+## Sky variants
+
+A mod's [sky variant](modding/sky-variants.md) (the 2012 mod's **NFS Most Wanted 2012**, Options > Gameplay > Sky) puts cloud domes into
+the shared cloud map in place of the march: two equirectangular pictures of the upper hemisphere, blended by the hour of the day clock and
+chosen by the cloud cover, lit by a tint, and turned so the sun painted in a dome is under the drawn sun. The atmosphere, the solar disk, the sun
+glare, the fog and the stars stay as described above; the moon is the variant's picture at night in the full day/night cycle. While a variant is
+chosen the sky is the Enhanced one (the Original PC layers cannot show a panorama) and the procedural cloud shadows are off. Without a
+variant nothing here changes.
