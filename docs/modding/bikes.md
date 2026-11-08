@@ -487,7 +487,7 @@ Documented limits (each is a decision of the integration, not of the dynamics, a
 [vehicle-two-wheel-integration.md](../specs/vehicle-two-wheel-integration.md#limits)):
 
 - AI, traffic and police bikes; a rider model and its animation;
-- the shop's upgrade levels change nothing of a bike (they act on a four-wheel car's stats); the shop's bars are estimates from
+- the shop's upgrade levels act through the components of the bike ([ride6-bike-upgrades.md](ride6-bike-upgrades.md): engine, chassis and brakes where the data has a ladder, nothing for the other categories); the shop's bars are estimates from
   the derived stats;
 - no tyre damage (spike strips do not puncture a bike), no nitrous, no drift assist, no manual gearbox;
 - the damage zones of the car physics hit the collision box; the bike's tyres and frame have no damage state;

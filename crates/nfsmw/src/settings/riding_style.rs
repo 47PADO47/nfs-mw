@@ -1,7 +1,8 @@
-//! The riding style of the rider of a bike (`riding_style`): how he leans into a corner. RIDE 6's riding style page offers three
-//! (its `LEAN_STYLE` option: balanced, shoulders out and old school); each bike type has its own lean clips for them. Read by
-//! the rider's animation (`scenes/world/drive/rider`), which picks the lean set of its graph by [`RidingStyle::blueprint`]
-//! (`docs/specs/ride6-rider-styles.md`).
+//! The riding style of the rider of a bike: how he leans into a corner. RIDE 6's riding style page offers three (its `LEAN_STYLE`
+//! option: balanced, shoulders out and old school); each bike type has its own lean clips for them, and the page shows its own
+//! pictures for road, motard and off-road bikes. The player picks one style per [`BikeClass`] (`riding_style_road`,
+//! `riding_style_motard`, `riding_style_offroad`). Read by the rider's animation (`scenes/world/drive/rider`), which picks the lean
+//! set of its graph by [`RidingStyle::blueprint`] (`docs/specs/ride6-rider-styles.md`).
 
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +45,90 @@ impl RidingStyle {
     }
 }
 
+/// The three groups of bikes the riding style is chosen for, as the riding style page of RIDE 6 shows them (its `Road`, `Motard` and
+/// `Offroad` picture maps). Which bike is in which group is the rider's own table (`scenes/world/drive/rider/class.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BikeClass {
+    /// Superbikes, sport bikes, nakeds, classics and cruisers.
+    Road,
+    /// Supermotos.
+    Motard,
+    /// Touring, adventure and enduro bikes and scooters.
+    Offroad,
+}
+
+impl BikeClass {
+    pub const ALL: [Self; 3] = [Self::Road, Self::Motard, Self::Offroad];
+
+    /// The class's place in [`BikeClass::ALL`], for tables indexed by class.
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Road => 0,
+            Self::Motard => 1,
+            Self::Offroad => 2,
+        }
+    }
+
+    /// The config key and the console name of the class's riding style.
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::Road => "riding_style_road",
+            Self::Motard => "riding_style_motard",
+            Self::Offroad => "riding_style_offroad",
+        }
+    }
+
+    /// The environment variable of the class's riding style.
+    pub const fn env(self) -> &'static str {
+        match self {
+            Self::Road => "NFSMW_RIDING_STYLE_ROAD",
+            Self::Motard => "NFSMW_RIDING_STYLE_MOTARD",
+            Self::Offroad => "NFSMW_RIDING_STYLE_OFFROAD",
+        }
+    }
+}
+
+impl super::Settings {
+    /// The riding style the player chose for the bikes of `class`.
+    pub const fn riding_style_of(&self, class: BikeClass) -> RidingStyle {
+        match class {
+            BikeClass::Road => self.riding_style_road,
+            BikeClass::Motard => self.riding_style_motard,
+            BikeClass::Offroad => self.riding_style_offroad,
+        }
+    }
+
+    /// The riding style of `class`, to change.
+    pub fn riding_style_mut(&mut self, class: BikeClass) -> &mut RidingStyle {
+        match class {
+            BikeClass::Road => &mut self.riding_style_road,
+            BikeClass::Motard => &mut self.riding_style_motard,
+            BikeClass::Offroad => &mut self.riding_style_offroad,
+        }
+    }
+}
+
+impl super::Partial {
+    /// The change of the riding style of `class`, if there is one.
+    pub const fn riding_style_of(&self, class: BikeClass) -> Option<RidingStyle> {
+        match class {
+            BikeClass::Road => self.riding_style_road,
+            BikeClass::Motard => self.riding_style_motard,
+            BikeClass::Offroad => self.riding_style_offroad,
+        }
+    }
+
+    /// A change of the riding style of `class`, as it is saved.
+    pub fn set_riding_style(&mut self, class: BikeClass, style: RidingStyle) {
+        let slot = match class {
+            BikeClass::Road => &mut self.riding_style_road,
+            BikeClass::Motard => &mut self.riding_style_motard,
+            BikeClass::Offroad => &mut self.riding_style_offroad,
+        };
+        *slot = Some(style);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -64,6 +149,29 @@ mod tests {
     fn the_blueprint_values_are_the_options_values_in_order() {
         let values: Vec<u8> = RidingStyle::ALL.iter().map(|style| style.blueprint()).collect();
         assert_eq!(values, [0, 1, 2]);
+    }
+
+    #[test]
+    fn the_classes_have_their_own_keys_and_places() {
+        let keys: Vec<&str> = BikeClass::ALL.iter().map(|class| class.key()).collect();
+        assert_eq!(keys, ["riding_style_road", "riding_style_motard", "riding_style_offroad"]);
+        assert_eq!(BikeClass::ALL.map(BikeClass::index), [0, 1, 2]);
+        assert_eq!(BikeClass::Motard.env(), "NFSMW_RIDING_STYLE_MOTARD");
+    }
+
+    #[test]
+    fn a_class_reads_and_writes_its_own_style() {
+        let mut settings = super::super::Settings::from(super::super::Partial::default());
+        assert_eq!(BikeClass::ALL.map(|class| settings.riding_style_of(class)), [RidingStyle::Balanced; 3]);
+        *settings.riding_style_mut(BikeClass::Motard) = RidingStyle::OldSchool;
+        assert_eq!(
+            BikeClass::ALL.map(|class| settings.riding_style_of(class)),
+            [RidingStyle::Balanced, RidingStyle::OldSchool, RidingStyle::Balanced]
+        );
+        let mut changed = super::super::Partial::default();
+        changed.set_riding_style(BikeClass::Offroad, RidingStyle::ShouldersOut);
+        assert_eq!(changed.riding_style_offroad, Some(RidingStyle::ShouldersOut));
+        assert_eq!((changed.riding_style_road, changed.riding_style_motard), (None, None));
     }
 
     #[test]

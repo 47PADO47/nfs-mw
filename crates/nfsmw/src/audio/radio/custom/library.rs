@@ -12,8 +12,8 @@ use super::CustomTrack;
 use crate::modding::content::{MusicSource, music_sources};
 use crate::settings::{CustomContext, CustomMusic, CustomSources};
 
-/// The extensions a folder source may hold: the formats the decoder reads.
-pub const EXTENSIONS: [&str; 4] = ["mp3", "ogg", "flac", "wav"];
+/// The extensions a folder source may hold: the formats the decoder reads (`sps` is the song format of the 2012 game).
+pub const EXTENSIONS: [&str; 5] = ["mp3", "ogg", "flac", "wav", "sps"];
 
 /// Every custom track the config names, and the lists of them. A file named twice is one track.
 #[derive(Debug, Clone, Default, PartialEq)]

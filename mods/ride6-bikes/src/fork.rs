@@ -13,6 +13,7 @@ use blackbox_solid::{GroupSource, SolidSource};
 
 use crate::bake::Surfaces;
 use crate::build::finish;
+use crate::chunks::{MAX_BODY_SOLIDS, pack};
 use crate::exports::Exports;
 use crate::front_end::{self, Class, Side, Take};
 use crate::glb::Glb;
@@ -48,26 +49,61 @@ impl std::fmt::Display for Report {
 
 /// The solids of one level of detail.
 pub struct Pair {
-    pub body: SolidSource,
-    /// `None` when nothing slides (the chassis is not skinned, or no bone of the rules is in it).
-    pub fork: Option<SolidSource>,
-    /// `None` when nothing steers without sliding.
-    pub bars: Option<SolidSource>,
+    /// The solids of the frame: `<ID>_KIT00_BODY_<L>` first, then `<ID>_KIT00_BODY2_<L>` and so on for what does not fit it
+    /// ([`crate::chunks`]). Never empty.
+    pub bodies: Vec<SolidSource>,
+    /// The solids of the fork, `<ID>_KIT00_FORK_<L>` and then `FORK2` and so on; empty when nothing slides (the chassis is not skinned,
+    /// or no bone of the rules is in it).
+    pub fork: Vec<SolidSource>,
+    /// The solids of the handlebar group; empty when nothing steers without sliding.
+    pub bars: Vec<SolidSource>,
     /// The vertices of the body, in the body solid's frame, for the bounds.
     pub body_points: Vec<[f32; 3]>,
     /// The vertices of the fork and of the bars, in their solids' frame (the front hub's).
     pub fork_points: Vec<[f32; 3]>,
     pub bars_points: Vec<[f32; 3]>,
     pub report: Report,
+    /// The level of detail of the chassis and the level of the other parts (exhaust, bar pad, mirrors) the solids were built at.
+    pub levels: [u32; 2],
 }
 
-/// The names of the two solids and the car they belong to.
+/// The part of a bike a solid is made of: the frame, the handlebar group or the fork.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Body,
+    Bars,
+    Fork,
+}
+
+impl Kind {
+    /// The solid name's part: `BODY`, `BARS`, `FORK`.
+    fn tag(self) -> &'static str {
+        match self {
+            Kind::Body => "BODY",
+            Kind::Bars => "BARS",
+            Kind::Fork => "FORK",
+        }
+    }
+}
+
+/// The name of the `n`th solid (1 is the first, `<ID>_KIT00_BODY_<L>`) of `kind` at the level of detail `letter`: the second is
+/// `<ID>_KIT00_BODY2_<L>`.
+pub fn solid_name(car: &str, kind: Kind, n: usize, letter: char) -> String {
+    let tag = kind.tag();
+    match n {
+        0 | 1 => format!("{car}_KIT00_{tag}_{letter}"),
+        _ => format!("{car}_KIT00_{tag}{n}_{letter}"),
+    }
+}
+
+/// The names of the solids and the car they belong to.
 #[derive(Clone, Copy)]
 pub struct Names<'a> {
-    pub body: &'a str,
-    pub fork: &'a str,
-    pub bars: &'a str,
+    /// The letter of the level of detail the solids are for.
+    pub letter: char,
     pub car: &'a str,
+    /// The ids of the parts built as solids of their own ([`crate::build::apart_ids`]); the body, bars and fork leave them out.
+    pub apart: &'a [&'a str],
 }
 
 /// What one solid collects.
@@ -101,18 +137,26 @@ impl Half {
     }
 }
 
-/// A solid that may have nothing in it: `None` for no groups, else [`finish`].
-fn optional(name: &str, groups: Vec<GroupSource>, lists: Lists) -> Result<Option<SolidSource>> {
-    if groups.is_empty() {
-        return Ok(None);
+/// The solids of `kind` made of `half`'s groups ([`pack`]: as many as they need), none for no groups; `None` when there are more than
+/// [`MAX_BODY_SOLIDS`] or one does not fit.
+fn solids_of(names: Names<'_>, kind: Kind, half: Half) -> Option<Vec<SolidSource>> {
+    let packed = pack(half.groups);
+    if packed.len() > MAX_BODY_SOLIDS {
+        return None;
     }
-    finish(name, groups, lists).map(Some)
+    let mut out = Vec::new();
+    for (n, groups) in packed.into_iter().enumerate() {
+        let lists =
+            Lists { textures: half.lists.textures.clone(), light_materials: half.lists.light_materials.clone() };
+        out.push(finish(&solid_name(names.car, kind, n + 1, names.letter), groups, lists).ok()?);
+    }
+    Some(out)
 }
 
-/// The whole-bike vertex count above which a level is not tried: twice the vertices of one solid (the frame, the bars and the fork
-/// are three solids, and the frame carries about four fifths of the vertices). The RC 390's chassis has 174,000 vertices at level 0,
-/// which is never tried, and 69,000 at level 1, which is; the solids themselves say whether a level fits.
-const SPLIT_ESTIMATE_LIMIT: usize = 2 * crate::build::MAX_SOLID_VERTICES;
+/// The whole-bike vertex count above which a level is not tried: what the most solids of a body, the bars and the fork hold. The RC
+/// 390's chassis has 174,000 vertices at level 0, which is four solids with the shading groups' copies of the vertices; the solids
+/// themselves say whether a level fits.
+const SPLIT_ESTIMATE_LIMIT: usize = (MAX_BODY_SOLIDS + 2) * crate::build::MAX_SOLID_VERTICES;
 
 /// The body, bars and fork solids at the finest level of the chassis from `first_level` on that fits. For each level of the chassis
 /// the small parts (exhaust, bar pad, mirrors) are tried one level finer than the chassis first, then at the chassis' level, then
@@ -140,8 +184,8 @@ pub fn body_and_fork(
         }
     }
     anyhow::bail!(
-        "{}: no level of detail of the chassis from {first_level} to {COARSEST_CHASSIS_LEVEL} fits one solid",
-        names.body
+        "{}: no level of detail of the chassis from {first_level} to {COARSEST_CHASSIS_LEVEL} fits its solids",
+        solid_name(names.car, Kind::Body, 1, names.letter)
     )
 }
 
@@ -157,7 +201,7 @@ fn fit(
     let chassis = table.chassis()?;
     let at = |part: &Part| if part.id == chassis.id { level } else { part_level };
     let mut loaded: Vec<(&Part, Glb)> = Vec::new();
-    for part in table.parts_of(Role::Body) {
+    for part in table.parts_of(Role::Body).filter(|part| !names.apart.contains(&part.id.as_str())) {
         loaded.push((part, exports.load(&part.export, at(part))?));
     }
     let estimate: usize = loaded.iter().map(|(part, glb)| vertex_estimate(glb, table, part)).sum();
@@ -195,16 +239,18 @@ fn fit(
         bars_vertices: bars.vertices(),
         bars_triangles: bars.triangles(),
     };
-    let Ok(body_solid) = finish(names.body, body.groups, body.lists) else { return Ok(None) };
-    let Ok(fork_solid) = optional(names.fork, fork.groups, fork.lists) else { return Ok(None) };
-    let Ok(bars_solid) = optional(names.bars, bars.groups, bars.lists) else { return Ok(None) };
+    let (points, fork_points, bars_points) = (body.points.clone(), fork.points.clone(), bars.points.clone());
+    let Some(bodies) = solids_of(names, Kind::Body, body).filter(|bodies| !bodies.is_empty()) else { return Ok(None) };
+    let Some(fork_solids) = solids_of(names, Kind::Fork, fork) else { return Ok(None) };
+    let Some(bars_solids) = solids_of(names, Kind::Bars, bars) else { return Ok(None) };
     Ok(Some(Pair {
-        body: body_solid,
-        fork: fork_solid,
-        bars: bars_solid,
-        body_points: body.points,
-        fork_points: fork.points,
-        bars_points: bars.points,
+        bodies,
+        fork: fork_solids,
+        bars: bars_solids,
+        body_points: points,
+        fork_points,
+        bars_points,
         report,
+        levels: [level, part_level],
     }))
 }

@@ -28,11 +28,13 @@
   `Observer.{h,cpp}`, `EAXCharacter.{h,cpp}` (the actor methods that fill each sentence's parameters), `EAXCop.cpp`, `EAXDispatch.cpp`, `EAXAirSupport.cpp`, `MiscSpeech.cpp` (`GetLocation`, the quadrant lines, the 911 helpers),
   `MWRoadNames.h` (the road names, as facts for the table road id to region and location); `Generated/AttribSys/Classes/{speechtune,pursuitlevels}.h` (field names). Read for understanding; no code copied.
   Two functions were read in `speed.exe` with Ghidra, for behaviour only: the one that builds a new speech actor (`0x0071fa90`: the voice takeover by a closer car) and the roadblock flow's outcome (`0x0071f1b0`:
-  an engaged roadblock keeps its outcome timer set). The install's `GLOBAL/ATTRIBUTES.BIN` (`speechtune`, `pursuitlevels` fields, `pvehicle.VerbalType`, the car parts' `SPEECHCOLOUR`), read as bytes.
+  an engaged roadblock keeps its outcome timer set); later (2026-11-07) `Speech::Manager::IsCopSpeechBusy` (`0x007040c0`) and the place in the playback
+  issue that sets the flag it reads (`0x007148e3`): waiting requests do not make the channel busy. The install's `GLOBAL/ATTRIBUTES.BIN` (`speechtune`, `pursuitlevels` fields, `pvehicle.VerbalType`, the car parts' `SPEECHCOLOUR`), read as bytes.
 - **Implemented:** 2026-10-20, from the specs only: `libs/blackbox-pursuit/src/speech/` (the machine), `crates/nfsmw-data/src/speech_chase.rs` (the tuning and the car description data),
   `crates/nfsmw/src/audio/chase/radio/` (the game's side: snapshot, tables, parameters), `crates/nfsmw/src/scenes/world/ai/police/speech_feed.rs` and `scenes/world/speech_look.rs` (the world's feed).
 - **Checked against the game by:** installed tests: every one of the machine's lines is an event of the install; `speechtune` equals the table of the events spec; every stock paint of the car tables maps to a
   speech colour and every player car's `VerbalType` is a single `car_type` bit; a scripted chase timeline (64 requests, 23 lines) assembles to audio with the real recordings. Unit tests check each flow of the spec
-  on scripted chases. No comparison with the running original; nobody has listened to the output.
-- **Known differences from the original:** the queue's "busy" includes waiting requests; "first cop of the sort" is the cop that joined first (the original sorts pointers); a cop's sight is derived from the world's sight test;
+  on scripted chases. 2026-11-07: a capture of the running original's speech requests and playback showed
+  the strategy flow asking for its lines while other lines waited in the queue.
+- **Known differences from the original:** "first cop of the sort" is the cop that joined first (the original sorts pointers); a cop's sight is derived from the world's sight test;
   "time expired" fires for an evaded pursuit at once (the decompiled branch order would delay it); the assault infraction stands for a deliberate hit on the nearest cop; the seeded generator's sequence differs.

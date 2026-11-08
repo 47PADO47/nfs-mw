@@ -179,9 +179,7 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.turn_signals {
         put("turn_signals", Value::Boolean(v));
     }
-    if let Some(v) = changes.rider_gear {
-        put("rider_gear", Value::Boolean(v));
-    }
+    changes.rider_gear.into_iter().for_each(|v| put("rider_gear", Value::Boolean(v)));
     if let Some(v) = changes.rear_view_mirror {
         put("rear_view_mirror", Value::Boolean(v));
     }
@@ -230,23 +228,23 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.hud_layout {
         put("hud_layout", Value::String(v.to_string()));
     }
+    changes.custom_hud_skin.into_iter().for_each(|v| put("custom_hud_skin", Value::String(v.to_string())));
     let named = [
         ("ui_style", changes.ui_style.map(|v| v.to_string())),
         ("language", changes.language.map(|v| v.to_string())),
+        ("world", changes.world.map(|v| v.to_string())),
         ("speed_units", changes.speed_units.map(|v| v.to_string())),
-        ("riding_style", changes.riding_style.map(|v| v.to_string())),
         ("ui_theme", changes.ui_theme.map(|v| v.to_string())),
+        ("post_tonemap", changes.post_tonemap.map(|v| v.to_string())),
+        ("post_bloom", changes.post_bloom.map(|v| v.to_string())),
     ];
     for (key, value) in named {
         if let Some(v) = value {
             put(key, Value::String(v));
         }
     }
-    if let Some(v) = changes.post_tonemap {
-        put("post_tonemap", Value::String(v.to_string()));
-    }
-    if let Some(v) = changes.post_bloom {
-        put("post_bloom", Value::String(v.to_string()));
+    for (key, value) in super::rider_write::entries(changes) {
+        put(key, value);
     }
     if let Some(v) = changes.visual_treatment {
         put("visual_treatment", Value::String(v.to_string()));

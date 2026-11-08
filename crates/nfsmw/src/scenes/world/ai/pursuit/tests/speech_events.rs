@@ -149,17 +149,15 @@ fn a_cop_that_scraped_a_prop_is_not_a_wall_hit() {
 }
 
 #[test]
-fn a_cop_that_passes_fast_is_blown_by_once_a_second() {
+fn a_cop_that_passes_fast_is_blown_by_on_every_step_of_the_pass() {
     let mut world = chase_with_a_cop();
     let id = world.cars[0].speech_id();
     world.note_pass(0, 14.0);
     assert!(events(&world).is_empty(), "too slow a pass");
     world.note_pass(0, 20.0);
     world.note_pass(0, 22.0);
-    assert_eq!(events(&world), vec![WorldEvent::BlewByCop { cop: id }]);
-    world.tick_speech_watch(1.5);
-    world.note_pass(0, 20.0);
-    assert_eq!(events(&world).len(), 2, "after the pause it is told again");
+    // The original's drive-by sound sends the message every frame of the pass; the radio decides on each.
+    assert_eq!(events(&world), vec![WorldEvent::BlewByCop { cop: id }; 2]);
 }
 
 #[test]

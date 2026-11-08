@@ -43,6 +43,22 @@ fn losing_the_suspect_says_lost_visual_then_the_break_away() {
 }
 
 #[test]
+fn lines_waiting_in_the_queue_do_not_hold_back_the_lost_visual() {
+    let mut chase = in_strategy(2);
+    chase.radio.stalled = true;
+    // A cop joins and announces itself; the line waits.
+    chase.snap.cops.push(cop(12, 30.0));
+    chase.run(1.0);
+    assert!(chase.radio.waiting() > 0, "a line waits in the queue");
+    lose(&mut chase, 60.0);
+    chase.snap.pursuit.cooling_down = false;
+    let asked = chase.radio.log.len();
+    chase.run(4.0);
+    let lines: Vec<Line> = chase.radio.log[asked..].iter().map(|(_, r)| r.line).collect();
+    assert!(lines.contains(&Line::LostVisual), "only a line that sounds makes the channel busy: {lines:?}");
+}
+
+#[test]
 fn the_quadrant_lines_follow_in_order() {
     let mut chase = in_strategy(3);
     lose(&mut chase, 90.0);

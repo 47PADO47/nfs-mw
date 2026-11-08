@@ -21,9 +21,6 @@ const ENCLOSURES: [u32; 5] = [3, 4, 5, 7, 10];
 /// A cop passed within the whoosh distance faster than this relative speed (m/s) has been "blown by"; the same figures
 /// as the cop car's drive-by sound (12 m, 15 m/s) **[decomp]**.
 const BLOW_BY_SPEED: f32 = 15.0;
-/// The same cop is not announced again within this many seconds (the original repeats the message every frame of the
-/// pass, and the radio's queue drops the repeats).
-const BLOW_BY_PAUSE: f32 = 1.0;
 
 /// The player's pedals and attitude as the last collision step left them.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -95,9 +92,6 @@ pub(in crate::scenes::world::ai) struct SpeechWatch {
     /// The player is inside a tunnel or another enclosure.
     inside: bool,
     zones: Vec<TrackZone>,
-    /// The cops that were announced as passed, with the time.
-    passed: Vec<(u32, f32)>,
-    clock: f32,
 }
 
 impl SpeechWatch {
@@ -207,26 +201,16 @@ impl TrafficWorld {
         self.note_speech(WorldEvent::Airborne { altitude, secs });
     }
 
-    /// A cop passed the player close and fast (`BlewByCop`).
+    /// A cop passes the player close and fast (`BlewByCop`): every step of the pass, as the original's drive-by sound
+    /// sends it every frame. The radio's rules decide on each one; a pass whose first frame fails them (another cop in
+    /// sight, the speed gap not yet 50 mph) can still be told on a later one.
     pub(in crate::scenes::world::ai) fn note_pass(&mut self, owner: usize, relative_speed: f32) {
         let car = &self.cars[owner];
         if relative_speed < BLOW_BY_SPEED || !car.is_cop_class() {
             return;
         }
         let cop = car.speech_id();
-        let now = self.speech_watch.clock;
-        let watch = &mut self.speech_watch;
-        watch.passed.retain(|&(_, at)| now - at < BLOW_BY_PAUSE);
-        if watch.passed.iter().any(|&(id, _)| id == cop) {
-            return;
-        }
-        watch.passed.push((cop, now));
         self.note_speech(WorldEvent::BlewByCop { cop });
-    }
-
-    /// The radio's clock, in simulated seconds, for its pauses.
-    pub(in crate::scenes::world::ai) fn tick_speech_watch(&mut self, dt: f32) {
-        self.speech_watch.clock += dt;
     }
 }
 

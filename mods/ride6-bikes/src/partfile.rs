@@ -11,6 +11,7 @@ use std::path::Path;
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
+use crate::fallback::{self, Fallback};
 use crate::front_end::Rules;
 
 /// Where a part's frame sits on the chassis: its rigid transform into the chassis frame (glTF axes, metres).
@@ -123,6 +124,8 @@ pub struct PartTable {
     /// Which bones steer and which slide (`front_end.rs`): the optional `front_end` object of the file (`steer_roots`,
     /// `slide_roots`, `slide_followers`), else RIDE 6's bone names.
     pub front_end: Rules,
+    /// The surfaces that wear another model's material, with where it came from (`fallbacks[]`; the manifest keeps the record).
+    pub fallbacks: Vec<Fallback>,
 }
 
 fn string(v: &Value, key: &str) -> Option<String> {
@@ -139,6 +142,16 @@ fn floats<const N: usize>(v: Option<&Value>) -> Option<[f32; N]> {
         *slot = value.as_f64()? as f32;
     }
     Some(out)
+}
+
+/// The kind of a chassis surface by its name without the numbers (`mat_livery_0_482_003` and `mat_livery_1` are `mat_livery`):
+/// only the kinds that carry a picture of the bike's own.
+fn material_kind(name: &str) -> Option<&str> {
+    let end = name.find(|c: char| c.is_ascii_digit()).unwrap_or(name.len());
+    let kind = name[..end].trim_end_matches('_');
+    ["mat_livery", "mat_mechanics", "mat_cockpit", "mat_gear", "mat_light", "mat_lights"]
+        .contains(&kind)
+        .then_some(kind)
 }
 
 /// The last path component of an Unreal object path without its `.N` suffix, lower case (`/Game/a/b.b.0` is `b`).
@@ -230,16 +243,22 @@ fn read_material(name: &str, value: &Value) -> Material {
     let tex = value.get("tex").cloned().unwrap_or(Value::Null);
     let switch = |key: &str| value.get("switch").and_then(|s| s.get(key)).and_then(Value::as_bool).unwrap_or(false);
     let opacity_in_base = switch("BaseColorOpacity - Source");
-    let base_key = if opacity_in_base { "BaseColorOpacity - Texture" } else { "BaseColor - Texture" };
+    // Which of the two parameters holds the picture is not always what the switch says: a silencer, a header and a cockpit have the
+    // opacity switch on and the picture in `BaseColor - Texture`; the old rims' master names it `BaseColor0_Map`.
+    let (first, second) = match opacity_in_base {
+        true => ("BaseColorOpacity - Texture", "BaseColor - Texture"),
+        false => ("BaseColor - Texture", "BaseColorOpacity - Texture"),
+    };
+    let base_color = [first, second, "BaseColor", "BaseColor0_Map"].iter().find_map(|key| texture(&tex, key));
     Material {
         name: name.to_owned(),
         shading_model: string(value, "shading_model"),
         blend_mode: string(value, "blend_mode"),
         clip: value.get("clip").and_then(Value::as_f64).map(|c| c as f32),
-        base_color: texture(&tex, base_key).or_else(|| texture(&tex, "BaseColor")),
+        base_color,
         opacity_in_base,
-        normal: texture(&tex, "Normal - Texture").or_else(|| texture(&tex, "CleanNormal")),
-        pbr: texture(&tex, "PBR - Texture").or_else(|| texture(&tex, "Pbr")),
+        normal: ["Normal - Texture", "CleanNormal", "Normal0_Map"].iter().find_map(|key| texture(&tex, key)),
+        pbr: ["PBR - Texture", "Pbr", "Pbr0_Map"].iter().find_map(|key| texture(&tex, key)),
         pbr_has_occlusion: switch("LegacyTexturesFormats - PBR - S_R_M_O"),
         transmittance: texture(&tex, "Transmittance - Texture"),
         transmittance_max: value
@@ -324,7 +343,8 @@ impl PartTable {
             .map(|list| list.iter().filter_map(read_livery).collect())
             .unwrap_or_default();
         liveries.sort_by_key(|livery| livery.index);
-        Ok(Self { vehicle, physics_asset, parts, materials, tyre_sizes, liveries, bones, front_end })
+        let fallbacks = fallback::read_all(&doc);
+        Ok(Self { vehicle, physics_asset, parts, materials, tyre_sizes, liveries, bones, front_end, fallbacks })
     }
 
     pub fn read(dir: &Path) -> Result<Self> {
@@ -334,10 +354,31 @@ impl PartTable {
     }
 
     /// The material instance a surface of `part` named `glb_name` stands for.
+    ///
+    /// A slot the data asset leaves without an instance (`mat_livery_1` of the Brutale 1000 RR, `mat_mechanics_1` of a mirror, the far
+    /// levels' `mat_bike_lods` of a rim) takes [`Self::sibling_material`] instead of the grey stand-in.
     pub fn material(&self, part: &Part, glb_name: &str) -> Option<&Material> {
-        let instance =
-            part.materials.get(&glb_name.to_ascii_lowercase()).cloned().unwrap_or_else(|| asset_stem(glb_name));
-        self.materials.get(&instance)
+        let lower = glb_name.to_ascii_lowercase();
+        let instance = part.materials.get(&lower).cloned().unwrap_or_else(|| asset_stem(glb_name));
+        self.materials.get(&instance).or_else(|| self.sibling_material(part, &lower))
+    }
+
+    /// The instance a surface with none of its own takes: the far levels' composite slot (`mat_bike_lods`, `base_livery_lod`) draws
+    /// the part's own first picture; any other slot the chassis' instance of the same kind (the name without its numbers).
+    fn sibling_material(&self, part: &Part, name: &str) -> Option<&Material> {
+        let pictured = |instance: &String| self.materials.get(instance).filter(|m| m.base_color.is_some());
+        if name.contains("bike_lods") || name.contains("livery_lod") {
+            let mut own: Vec<(&String, &String)> = part.materials.iter().collect();
+            own.sort();
+            return own.into_iter().find_map(|(_, instance)| pictured(instance));
+        }
+        let kind = material_kind(name)?;
+        let mut chassis: Vec<(&String, &String)> = self.chassis().ok()?.materials.iter().collect();
+        chassis.sort();
+        chassis
+            .into_iter()
+            .filter(|(slot, _)| material_kind(slot) == Some(kind))
+            .find_map(|(_, instance)| pictured(instance))
     }
 
     /// The livery material of the chassis: the name it has in the exported mesh and its parameters. The first material whose name

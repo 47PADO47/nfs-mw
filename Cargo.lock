@@ -1556,6 +1556,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blackbox-components"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "toml 0.9.12+spec-1.1.0",
+]
+
+[[package]]
 name = "blackbox-damage"
 version = "0.1.0"
 
@@ -1583,6 +1592,15 @@ dependencies = [
 name = "blackbox-fxedit"
 version = "0.1.0"
 dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "blackbox-gauge-skin"
+version = "0.1.0"
+dependencies = [
+ "blackbox-tpk",
+ "ini-tuning",
  "thiserror 2.0.21",
 ]
 
@@ -1661,6 +1679,7 @@ dependencies = [
 name = "blackbox-modding"
 version = "0.1.0"
 dependencies = [
+ "blackbox-components",
  "blackbox-vehicle",
  "glam 0.34.1",
  "libloading",
@@ -2988,6 +3007,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af9673d8203fcb076b19dfd17e38b3d4ae9f44959416ea532ce72415a6020365"
 
 [[package]]
+name = "fairhaven"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blackbox-attrib",
+ "blackbox-chunk",
+ "blackbox-collision",
+ "blackbox-hash",
+ "blackbox-modding",
+ "blackbox-scenery",
+ "blackbox-solid",
+ "blackbox-streaming",
+ "blackbox-tpk",
+ "chameleon-bundle",
+ "chameleon-gfx",
+ "clap",
+ "game-install",
+ "log",
+ "serde",
+ "toml 0.9.12+spec-1.1.0",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4235,10 +4277,12 @@ dependencies = [
  "blackbox-carsound",
  "blackbox-chunk",
  "blackbox-collision",
+ "blackbox-components",
  "blackbox-damage",
  "blackbox-driver",
  "blackbox-feng",
  "blackbox-fxedit",
+ "blackbox-gauge-skin",
  "blackbox-gfx",
  "blackbox-ginsu",
  "blackbox-hash",
@@ -4352,6 +4396,7 @@ dependencies = [
  "blackbox-carparts",
  "blackbox-chunk",
  "blackbox-collision",
+ "blackbox-components",
  "blackbox-damage",
  "blackbox-gfx",
  "blackbox-ginsu",
@@ -5480,6 +5525,7 @@ dependencies = [
  "blackbox-acl",
  "blackbox-attrib",
  "blackbox-collision",
+ "blackbox-components",
  "blackbox-hash",
  "blackbox-modding",
  "blackbox-skeleton",
@@ -5487,6 +5533,27 @@ dependencies = [
  "blackbox-tpk",
  "clap",
  "glam 0.34.1",
+ "log",
+ "png",
+ "serde",
+ "serde_json",
+ "toml 0.9.12+spec-1.1.0",
+]
+
+[[package]]
+name = "ride6-tracks"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blackbox-attrib",
+ "blackbox-chunk",
+ "blackbox-collision",
+ "blackbox-hash",
+ "blackbox-modding",
+ "blackbox-solid",
+ "blackbox-streaming",
+ "blackbox-tpk",
+ "clap",
  "log",
  "png",
  "serde",

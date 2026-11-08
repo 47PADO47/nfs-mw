@@ -2,6 +2,7 @@
 
 use std::str::FromStr;
 
+use super::BikeClass;
 use super::custom_fonts;
 use super::fe_shadows;
 use super::hd_content;
@@ -67,9 +68,14 @@ pub const FREE_ROAM_MAP_MODE: &str = "NFSMW_FREE_ROAM_MAP_MODE";
 pub const RACE_MAP_MODE: &str = "NFSMW_RACE_MAP_MODE";
 pub const HUD_LAYOUT: &str = "NFSMW_HUD_LAYOUT";
 pub const UI_STYLE: &str = "NFSMW_UI_STYLE";
+pub const CUSTOM_HUD_SKIN: &str = "NFSMW_CUSTOM_HUD_SKIN";
 pub const SPEED_UNITS: &str = "NFSMW_SPEED_UNITS";
+/// The riding style of every class at once (the variable of the single setting this was before the three of `BikeClass::env`).
 pub const RIDING_STYLE: &str = "NFSMW_RIDING_STYLE";
+pub const BRAKE_FINGERS: &str = "NFSMW_BRAKE_FINGERS";
+pub const CLUTCH_FINGERS: &str = "NFSMW_CLUTCH_FINGERS";
 pub const LANGUAGE: &str = "NFSMW_LANGUAGE";
+pub const WORLD: &str = "NFSMW_WORLD";
 /// The legacy radio switch. Read only when `NFSMW_UI_STYLE` is unset or invalid.
 pub const RADIO_HUD: &str = "NFSMW_RADIO_HUD";
 pub const POST_TONEMAP: &str = "NFSMW_POST_TONEMAP";
@@ -189,9 +195,15 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         hud_layout: value(&get, HUD_LAYOUT, HudLayout::from_str),
         ui_style: value(&get, UI_STYLE, UiStyle::from_str)
             .or_else(|| value(&get, RADIO_HUD, RadioHudStyle::from_str).map(UiStyle::from)),
+        custom_hud_skin: value(&get, CUSTOM_HUD_SKIN, super::CustomHudSkin::from_str),
         speed_units: value(&get, SPEED_UNITS, SpeedUnits::from_str),
-        riding_style: value(&get, RIDING_STYLE, super::RidingStyle::from_str),
+        riding_style_road: riding_style(&get, BikeClass::Road),
+        riding_style_motard: riding_style(&get, BikeClass::Motard),
+        riding_style_offroad: riding_style(&get, BikeClass::Offroad),
+        brake_fingers: value(&get, BRAKE_FINGERS, super::BrakeFingers::from_str),
+        clutch_fingers: value(&get, CLUTCH_FINGERS, super::ClutchFingers::from_str),
         language: value(&get, LANGUAGE, super::LanguageTag::from_str),
+        world: value(&get, WORLD, super::world_id::WorldId::from_str),
         post_tonemap: value(&get, POST_TONEMAP, PostTonemap::from_str),
         post_bloom: value(&get, POST_BLOOM, PostBloom::from_str),
         visual_treatment: value(&get, "NFSMW_VISUAL_TREATMENT", super::VisualTreatment::from_str),
@@ -249,6 +261,12 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         xenon_effects: Default::default(), // config file only
         hud_options: Default::default(),   // config file and console only
     }
+}
+
+/// The riding style of a class of bike: its own variable, else the one for all of them.
+fn riding_style(get: &impl Fn(&str) -> Option<String>, class: BikeClass) -> Option<super::RidingStyle> {
+    value(get, class.env(), super::RidingStyle::from_str)
+        .or_else(|| value(get, RIDING_STYLE, super::RidingStyle::from_str))
 }
 
 fn value<T>(get: &impl Fn(&str) -> Option<String>, name: &str, parse: impl Fn(&str) -> Result<T, String>) -> Option<T> {

@@ -234,7 +234,8 @@ pub fn of(folder: &str) -> Option<&'static Customization> {
 /// choice of any mod car.
 pub fn price_level(hash: u32) -> Option<u32> {
     let published = *PUBLISHED.read().unwrap_or_else(PoisonError::into_inner);
-    published.iter().any(|(folder, custom)| hashes(folder, custom).contains(&hash)).then_some(1)
+    let own = published.iter().any(|(folder, custom)| hashes(folder, custom).contains(&hash));
+    (own || super::components::is_choice(hash)).then_some(1)
 }
 
 /// Every choice hash of a car.

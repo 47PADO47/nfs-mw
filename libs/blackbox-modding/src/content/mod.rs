@@ -27,6 +27,8 @@ mod bike_ride_real;
 #[cfg(test)]
 mod bike_ride_sweep;
 #[cfg(test)]
+mod bike_ride_wheelie_blip;
+#[cfg(test)]
 mod bike_ride_wheelie_script;
 #[cfg(test)]
 mod bike_ride_wheelie_steer;
@@ -39,6 +41,7 @@ mod bike_transmission;
 mod bike_weight_sweep;
 mod bike_wheelie;
 mod car;
+mod components;
 mod cop;
 #[cfg(test)]
 mod cop_tests;
@@ -60,6 +63,7 @@ mod lamp_flares;
 mod manufacturer;
 #[cfg(test)]
 mod manufacturer_tests;
+mod model_swap;
 mod music;
 mod nitrous_effects;
 mod nitrous_fx;
@@ -84,6 +88,7 @@ mod traffic_tests;
 mod variant;
 mod wheels;
 mod wind_fx;
+mod world;
 mod xenon_variant;
 
 pub use bike::{
@@ -93,6 +98,10 @@ pub use bike::{
     Tyre as BikeTyre, Wheel as BikeWheel,
 };
 pub use car::{CarManifest, Kind as CarKind, Role, parse as parse_car};
+pub use components::{
+    COMPONENTS_FOLDER, Components, MAX_PARTS as MAX_COMPONENT_PARTS, MAX_SLOTS as MAX_COMPONENT_SLOTS, PartBinding,
+    PartRole, is_component_id, merge_catalog, parse_catalog,
+};
 pub use cop::{CopClass, CopWave, DEFAULT_CHANCE, DEFAULT_COUNT, MAX_CHANCE, MAX_COUNT};
 pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};
 pub use damage_parts::{
@@ -113,6 +122,10 @@ pub use lamp_flares::{
     MAX_PATTERN as MAX_LIGHT_PATTERN, SirenColour, Sprite as LampSprite,
 };
 pub use manufacturer::{Manufacturer, brand_key, parse as parse_manufacturer};
+pub use model_swap::{
+    Fit as SwapFit, FitLimits, MAX_SWAPS, ModelSwapProfile, Swap, TREES_FOLDER, model_swap_profile_path,
+    parse as parse_model_swap_profile,
+};
 pub use music::{MusicSection, parse as parse_music};
 pub use nitrous_effects::{EffectOn, EffectProfile, MAX_EFFECTS};
 pub use nitrous_fx::{
@@ -135,11 +148,12 @@ pub use tire_smoke::{
     tire_smoke_profile_path,
 };
 pub use traffic::{MAX_INSTANCES as MAX_TRAFFIC_INSTANCES, MAX_WEIGHT as MAX_TRAFFIC_WEIGHT, Traffic, TrafficClass};
-pub use variant::{COLLISION_SPARKS, FORMAT, NITROUS, TIRE_SMOKE, VariantKind, WIND, XENON_SPARKS};
+pub use variant::{COLLISION_SPARKS, FORMAT, NITROUS, TIRE_SMOKE, TREES, VariantKind, WIND, XENON_SPARKS};
 pub use wheels::{Tyre, WheelLayout};
 pub use wind_fx::{
     MAX_LAYERS as MAX_WIND_LAYERS, WIND_FOLDER, WindLayer, WindProfile, parse as parse_wind_profile, wind_profile_path,
 };
+pub use world::{WORLDS_FOLDER, WorldManifest, parse as parse_world};
 pub use xenon_variant::{
     MAX_XENON_SPARKS, XENON_FOLDER, XenonProfile, XenonSpark, parse as parse_xenon_profile, xenon_profile_path,
 };

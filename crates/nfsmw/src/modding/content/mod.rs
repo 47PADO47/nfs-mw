@@ -7,13 +7,16 @@
 
 mod bike_camera;
 mod cars;
+mod components;
 mod engine_layers;
 pub mod interior;
 mod lamp_flares;
 pub(crate) mod manufacturers;
+pub(crate) mod model_swap;
 mod music;
 mod racers;
 pub mod scenery;
+pub mod worlds;
 
 pub(crate) use music::{MusicSource, sources as music_sources};
 pub(crate) use racers::names as racer_names;

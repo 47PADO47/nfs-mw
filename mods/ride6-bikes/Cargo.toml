@@ -34,6 +34,7 @@ toml.workspace = true
 
 [dev-dependencies]
 # The golden test of the manifest reads it back with the content schema of the game (a library; nothing depends on the mod).
+blackbox-components.workspace = true
 blackbox-modding = { workspace = true, features = ["host"] }
 
 [lints]

@@ -138,12 +138,22 @@ pub struct Partial {
     pub hud_options: super::hud::HudLayer,
     /// The UI theme (`ui_style`). The legacy `radio_hud` key is mapped onto it by the reader of each layer.
     pub ui_style: Option<UiStyle>,
+    /// Whether the CustomHUD plugin's gauge skin is drawn (`custom_hud_skin`).
+    pub custom_hud_skin: Option<super::CustomHudSkin>,
     /// The HUD's speed unit (`speed_units`).
     pub speed_units: Option<SpeedUnits>,
-    /// How the rider of a bike leans into a corner (`riding_style`).
-    pub riding_style: Option<super::RidingStyle>,
+    /// How the rider of a bike of each class leans into a corner (`riding_style_road`, `riding_style_motard`, `riding_style_offroad`;
+    /// the older `riding_style` key is read as all three).
+    pub riding_style_road: Option<super::RidingStyle>,
+    pub riding_style_motard: Option<super::RidingStyle>,
+    pub riding_style_offroad: Option<super::RidingStyle>,
+    /// The fingers on a bike's brake and clutch levers (`brake_fingers`, `clutch_fingers`).
+    pub brake_fingers: Option<super::BrakeFingers>,
+    pub clutch_fingers: Option<super::ClutchFingers>,
     /// The language tag (`language`).
     pub language: Option<super::LanguageTag>,
+    /// The second world to play (`world`).
+    pub world: Option<super::world_id::WorldId>,
     /// The palette of the token-driven HUD (`ui_theme`).
     pub ui_theme: Option<UiTheme>,
     pub post_tonemap: Option<PostTonemap>,
@@ -284,9 +294,15 @@ impl Partial {
             hud_layout: self.hud_layout.or(lower.hud_layout),
             hud_options: self.hud_options.or(lower.hud_options),
             ui_style: self.ui_style.or(lower.ui_style),
+            custom_hud_skin: self.custom_hud_skin.or(lower.custom_hud_skin),
             speed_units: self.speed_units.or(lower.speed_units),
-            riding_style: self.riding_style.or(lower.riding_style),
+            riding_style_road: self.riding_style_road.or(lower.riding_style_road),
+            riding_style_motard: self.riding_style_motard.or(lower.riding_style_motard),
+            riding_style_offroad: self.riding_style_offroad.or(lower.riding_style_offroad),
+            brake_fingers: self.brake_fingers.or(lower.brake_fingers),
+            clutch_fingers: self.clutch_fingers.or(lower.clutch_fingers),
             language: self.language.or(lower.language),
+            world: self.world.or(lower.world),
             ui_theme: self.ui_theme.or(lower.ui_theme),
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),
             post_bloom: self.post_bloom.or(lower.post_bloom),

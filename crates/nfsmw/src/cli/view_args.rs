@@ -83,10 +83,10 @@ pub struct ViewArgs {
     /// Start with the runtime garage overlay open (world and driving scenes).
     #[arg(long)]
     pub open_garage: bool,
-    /// Initial garage tab when opening the overlay at startup.
-    #[arg(long, value_enum)]
-    #[arg(default_value = "performance", requires = "open_garage")]
-    pub garage_tab: crate::garage::OptionsTab,
+    /// With --open-garage: open the vehicle panel (F11) on this page instead of the F6 car browser. The pages are performance,
+    /// tuning, appearance and parts (what the F6 garage's tabs were).
+    #[arg(long, value_enum, requires = "open_garage")]
+    pub garage_tab: Option<crate::garage::OptionsTab>,
     /// Play no sound (no output device is opened).
     #[arg(long)]
     pub no_sound: bool,
@@ -113,6 +113,10 @@ pub struct ViewArgs {
     /// [env NFSMW_LANGUAGE; config `language`; default the installer's language, else the system's].
     #[arg(long, value_name = "tag")]
     pub language: Option<crate::settings::LanguageTag>,
+    /// The second world to play instead of the city, by id, for a world a mod provides (`rockport` is the city)
+    /// [env NFSMW_WORLD; config `world`; default the city].
+    #[arg(long, value_name = "id")]
+    pub world: Option<crate::settings::world_id::WorldId>,
     /// Legacy radio switch: ea_trax is --ui-style original, custom is --ui-style custom. --ui-style wins if both are set [env NFSMW_RADIO_HUD].
     #[arg(long, value_name = "ea_trax|custom")]
     pub radio_hud: Option<crate::settings::RadioHudStyle>,
@@ -404,6 +408,7 @@ impl ViewArgs {
             hud_layout: self.hud_layout,
             ui_style: self.ui_style.or(self.radio_hud.map(crate::settings::UiStyle::from)),
             language: self.language,
+            world: self.world,
             tire_smoke: switch(self.tire_smoke, self.no_tire_smoke),
             graphics_preset: self.graphics_preset,
             car_shading: self.car_shading,

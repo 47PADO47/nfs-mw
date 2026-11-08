@@ -1,7 +1,6 @@
 //! Settings, layered: command line > environment > per-user config file > defaults.
 //!
-//! Each source produces a [`Partial`]; [`Settings::load`] merges them. The in-game settings menu
-//! (milestone 6) and the developer console write the config file layer.
+//! Each source produces a [`Partial`]; [`Settings::load`] merges them. The settings menu and the console write the file layer.
 
 #[macro_use]
 mod names;
@@ -69,6 +68,7 @@ mod motion_blur_tests;
 pub mod net;
 mod partial;
 pub mod physics_rate;
+pub(crate) mod world_id;
 pub use physics_rate::{DEFAULT_PHYSICS_RATE_HZ, parse_physics_rate};
 pub mod game_moments;
 pub mod pursuit_options;
@@ -89,8 +89,10 @@ mod reflection_res_tests;
 mod renderer;
 mod road_reflections;
 pub use road_reflections::{RoadReflectionResolution, RoadReflections};
+mod fingers;
 #[cfg(test)]
 mod renderer_tests;
+mod rider_write;
 mod riding_style;
 mod smoke_color;
 #[cfg(test)]
@@ -110,6 +112,7 @@ pub(crate) mod test_caps;
 mod tire_tests;
 pub mod traffic_policy;
 pub use traffic_policy::{PopulationPreset, TrafficPolicy, TrafficPreset};
+mod custom_hud_skin;
 #[cfg(test)]
 mod traffic_compat;
 mod traffic_settings;
@@ -133,16 +136,15 @@ pub mod xenon_effects;
 pub use xenon_effects::XenonEffects;
 mod window;
 pub(crate) mod write;
-
 use blackbox_gfx::GraphicsApi;
-
-pub use blackbox_gfx::ReflectionQuality;
 pub use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
-pub use blackbox_gfx::{AoMethod, AoQuality, ShadowQuality, TextureFiltering};
+pub use blackbox_gfx::{AoMethod, AoQuality, ReflectionQuality, ShadowQuality, TextureFiltering};
 pub use camera_mode::{CameraMode, ViewKey};
 pub use car_shading::CarShading;
 pub use controls::{Controls, Deadzone, DeadzoneMode, Sensitivity};
+pub use custom_hud_skin::CustomHudSkin;
 pub use custom_music::{CustomContext, CustomMode, CustomMusic, Sources as CustomSources};
+pub use fingers::{BrakeFingers, ClutchFingers};
 pub use graphics_preset::GraphicsPreset;
 pub use hud_layout::HudLayout;
 pub use language::LanguageTag;
@@ -153,7 +155,7 @@ pub use post::{PostAa, PostBloom, PostTonemap, VisualTreatment, post_effects};
 pub use radio_hud::RadioHudStyle;
 pub use ray_tracing::RayTracingLevel;
 pub use renderer::RendererKind;
-pub use riding_style::RidingStyle;
+pub use riding_style::{BikeClass, RidingStyle};
 pub use smoke_color::{PALETTE as SMOKE_PALETTE, SmokeColor, SmokeColorMode, SmokeTint};
 pub use smoke_quality::SmokeQuality;
 pub use spark_style::SparkStyle;
@@ -285,16 +287,27 @@ pub struct Settings {
     pub hud_layout: HudLayout,
     /// The Custom HUD's options (`[custom_hud]`): preset, size, map, information, accessibility, camera, haptics, volume.
     pub hud_options: hud::HudSettings,
-    /// The look of all HUD and menu UI: the original (default), Remastered (its own cluster, minimap, menus and world
-    /// map), or Custom (the rewrite's own modern HUD and menus, `docs/decisions/0013-custom-hud.md`). A slot a look
-    /// does not fill falls back to Original. Replaces the old `radio_hud` key (`docs/specs/ui-themes.md` section 11).
+    /// The look of all HUD and menu UI: the original (default), Remastered (its own cluster, minimap, menus and world map),
+    /// or Custom (`docs/decisions/0013-custom-hud.md`). A slot a look does not fill falls back to Original. Replaces the old
+    /// `radio_hud` key (`docs/specs/ui-themes.md` section 11).
     pub ui_style: UiStyle,
+    /// The CustomHUD plugin's gauge skin over the Original HUD's gauges (`custom_hud_skin`, `docs/specs/custom-hud-gauges.md`).
+    pub custom_hud_skin: CustomHudSkin,
     /// The unit speed is shown in on every HUD look (`speed_units`). Display only.
     pub speed_units: SpeedUnits,
-    /// How the rider of a bike leans into a corner (`riding_style`: balanced, shoulders out or old school).
-    pub riding_style: RidingStyle,
+    /// How the rider of a road bike (superbike, naked, classic) leans into a corner (`riding_style_road`: balanced, shoulders out or old
+    /// school); the same for a supermoto (`riding_style_motard`) and for a touring, adventure, enduro bike or scooter
+    /// (`riding_style_offroad`).
+    pub riding_style_road: RidingStyle,
+    pub riding_style_motard: RidingStyle,
+    pub riding_style_offroad: RidingStyle,
+    /// How many fingers pull a bike's brake lever (`brake_fingers`: 1, 2 or 4) and its clutch lever (`clutch_fingers`: 2 or 4).
+    pub brake_fingers: BrakeFingers,
+    pub clutch_fingers: ClutchFingers,
     /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
     pub language: Option<LanguageTag>,
+    /// The second world to play instead of the city (`world`, `--world`); unset or `rockport` is the city.
+    pub world: Option<world_id::WorldId>,
     /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.
     pub ui_theme: UiTheme,
     /// Post-processing, all off by default: the tone-mapping curve, bloom strength and anti-aliasing.
@@ -356,153 +369,13 @@ pub struct Settings {
     pub xenon_effects: XenonEffects,
 }
 
-impl From<Partial> for Settings {
-    /// Fill what no layer set with the defaults.
-    fn from(p: Partial) -> Self {
-        // A preset fills what no layer set: command line > environment > config file > preset > defaults.
-        let requested = p.graphics_preset.unwrap_or_default();
-        let p = p.or(requested.layer());
-        let mut settings = Self {
-            traffic_policy: p.traffic_policy.unwrap_or_default().sanitized(),
-            pursuit_options: p.pursuit_options.unwrap_or_default().sanitized(),
-            game_moments: p.game_moments.unwrap_or_default(),
-            detail: p.detail.unwrap_or_default(),
-            appearance: p.appearance.unwrap_or_default(),
-            graphics_preset: requested,
-            controls: Controls {
-                deadzone_mode: p.deadzone_mode.unwrap_or_default(),
-                steering_deadzone: p.steering_deadzone.unwrap_or(Controls::default().steering_deadzone),
-                camera_deadzone: p.camera_deadzone.unwrap_or(Controls::default().camera_deadzone),
-                trigger_deadzone: p.trigger_deadzone.unwrap_or(Controls::default().trigger_deadzone),
-                steering_sensitivity: p.steering_sensitivity.unwrap_or(Controls::default().steering_sensitivity),
-                camera_sensitivity: p.camera_sensitivity.unwrap_or(Controls::default().camera_sensitivity),
-                mouse_sensitivity: p.mouse_sensitivity.unwrap_or(Controls::default().mouse_sensitivity),
-                invert_camera_y: p.invert_camera_y.unwrap_or(Controls::default().invert_camera_y),
-            },
-            backend: p.backend.unwrap_or_default(),
-            renderer: p.renderer.unwrap_or_default(),
-            reflex: p.reflex.unwrap_or_default(),
-            frame_generation: p.frame_generation.unwrap_or_default(),
-            vsync: p.vsync.unwrap_or(true),
-            max_fps: p.max_fps.unwrap_or_default(),
-            swapchain: Swapchain::from_partial(&p),
-            show_metrics: p.show_metrics.unwrap_or_default(),
-            window_mode: p.window_mode.unwrap_or_default(),
-            monitor: p.monitor.unwrap_or_default(),
-            resolution: p.resolution.unwrap_or_default(),
-            show_readout: p.show_readout.unwrap_or_default(),
-            master_volume: p.master_volume.unwrap_or(Percent(100)),
-            music_volume: p.music_volume.unwrap_or(Percent(80)),
-            menu_music_volume: p.menu_music_volume.or(p.music_volume).unwrap_or(Percent(80)),
-            game_music_volume: p.game_music_volume.or(p.music_volume).unwrap_or(Percent(80)),
-            sfx_volume: p.sfx_volume.unwrap_or(Percent(100)),
-            engine_volume: p.engine_volume.unwrap_or(Percent(100)),
-            speech_volume: p.speech_volume.unwrap_or(Percent(100)),
-            hud: p.hud.unwrap_or(true),
-            tire_smoke: p.tire_smoke.unwrap_or(true),
-            radio: p.radio.unwrap_or(true),
-            skip_intro: p.skip_intro.unwrap_or(false),
-            car_shading: p.car_shading.unwrap_or_default(),
-            traffic: p.traffic.unwrap_or(DEFAULT_TRAFFIC).min(64),
-            cop_share: p.cop_share.unwrap_or(DEFAULT_COP_SHARE),
-            always_rain: p.always_rain.unwrap_or(DEFAULT_ALWAYS_RAIN),
-            rain_amount: p.rain_amount.unwrap_or(DEFAULT_RAIN_AMOUNT),
-            game_speed: p.game_speed.unwrap_or(DEFAULT_GAME_SPEED).clamp(0.1, 4.0),
-            physics_rate_hz: physics_rate::resolve(p.physics_rate_hz),
-            animation_speed: p.animation_speed.unwrap_or(DEFAULT_ANIMATION_SPEED).clamp(0.1, 4.0),
-            show_hud_on_look_back: p.show_hud_on_look_back.unwrap_or(DEFAULT_SHOW_HUD_ON_LOOK_BACK),
-            car_scale: p.car_scale.unwrap_or(DEFAULT_CAR_SCALE).clamp(0.25, 4.0),
-            no_rev_limiter: p.no_rev_limiter.unwrap_or(DEFAULT_NO_REV_LIMITER),
-            traffic_lights: p.traffic_lights.unwrap_or(DEFAULT_TRAFFIC_LIGHTS),
-            cop_health_bars: p.cop_health_bars.unwrap_or(DEFAULT_COP_HEALTH_BARS),
-            smoke_quality: p.smoke_quality.unwrap_or_default(),
-            smoke_color_mode: p.smoke_color_mode.unwrap_or_default(),
-            smoke_color: p.smoke_color.unwrap_or_default(),
-            skid_marks: p.skid_marks.unwrap_or(true),
-            collision_sparks: p.collision_sparks.unwrap_or(false),
-            spark_style: p.spark_style.unwrap_or_default(),
-            speed_trails: p.speed_trails.unwrap_or(false),
-            speed_trail_style: p.speed_trail_style.unwrap_or_default(),
-            exhaust_flames: p.exhaust_flames.unwrap_or(true),
-            enhanced_exhaust: p.enhanced_exhaust.unwrap_or(false),
-            enhanced_lamps: p.enhanced_lamps.unwrap_or(false),
-            exhaust_style: p.exhaust_style.unwrap_or_default(),
-            backfire_style: p.backfire_style.unwrap_or_default(),
-            tail_trail_style: p.tail_trail_style.unwrap_or_default(),
-            turn_signals: p.turn_signals.unwrap_or(false),
-            rider_gear: p.rider_gear.unwrap_or(true),
-            rear_view_mirror: p.rear_view_mirror.unwrap_or(true),
-            discord: p.discord.unwrap_or(true),
-            discord_time_played: p.discord_time_played.unwrap_or(true),
-            discord_join: p.discord_join.unwrap_or(true),
-            transmission: p.transmission.unwrap_or_default(),
-            camera_mode: p.camera_mode.unwrap_or_default(),
-            minimap: p.minimap.unwrap_or_default(),
-            free_roam_map_mode: Some(p.free_roam_map_mode.or(p.minimap).unwrap_or_default()),
-            race_map_mode: Some(p.race_map_mode.or(p.minimap).unwrap_or(MinimapMode::Rotating)),
-            hud_layout: p.hud_layout.unwrap_or_default(),
-            hud_options: hud::HudSettings::from_layer(p.hud_options),
-            ui_style: p.ui_style.unwrap_or_default(),
-            speed_units: p.speed_units.unwrap_or_default(),
-            riding_style: p.riding_style.unwrap_or_default(),
-            language: p.language,
-            ui_theme: p.ui_theme.unwrap_or_default(),
-            post_tonemap: p.post_tonemap.unwrap_or_default(),
-            post_bloom: p.post_bloom.unwrap_or_default(),
-            post_aa: p.post_aa.unwrap_or_default(),
-            texture_filtering: p.texture_filtering.unwrap_or_default(),
-            rain_droplet_scale: road_reflections::finite_scale(p.rain_droplet_scale, 0.5, 2.0),
-            road_reflections: p.road_reflections.unwrap_or_default(),
-            road_reflection_resolution: p.road_reflection_resolution.unwrap_or_default(),
-            visual_treatment: p.visual_treatment.unwrap_or_default(),
-            reflections: p.reflections.unwrap_or(ReflectionQuality::Medium),
-            reflection_cube_size: p.reflection_cube_size.unwrap_or_default(),
-            reflection_mirror_size: p.reflection_mirror_size.unwrap_or(ReflectionSize::Auto),
-            reflection_pow2: p.reflection_pow2.unwrap_or(false),
-            mirror_tint: p.mirror_tint.unwrap_or_default(),
-            reflection_extra: reflection_extra::ReflectionExtra::from_partial(&p),
-            shadows: p.shadows.unwrap_or_default(),
-            ao: p.ao.unwrap_or_default(),
-            ao_intensity: p.ao_intensity.unwrap_or(Percent(80)),
-            ao_compare: p.ao_compare.unwrap_or(false),
-            ao_depth_mips: p.ao_depth_mips.unwrap_or(false),
-            ao_method: p.ao_method.unwrap_or(AoMethod::XeGtao),
-            render_scale: p.render_scale.unwrap_or_default(),
-            upscaler: p.upscaler.unwrap_or_default(),
-            upscale_sharpness: p.upscale_sharpness.unwrap_or(Percent(80)),
-            upscale_quality: p.upscale_quality.unwrap_or_default(),
-            ray_tracing: p.ray_tracing.unwrap_or_default(),
-            paddle_up: p.paddle_up,
-            headlights_key: p.headlights_key,
-            paddle_down: p.paddle_down,
-            manual_clutch: p.manual_clutch.unwrap_or(false),
-            h_shifter: p.h_shifter.unwrap_or(false),
-            motion_blur: p.motion_blur.unwrap_or(motion_blur::DEFAULT_MOTION_BLUR),
-            motion_blur_strength: p
-                .motion_blur_strength
-                .unwrap_or(motion_blur::DEFAULT_MOTION_BLUR_STRENGTH)
-                .clamp(motion_blur::MOTION_BLUR_STRENGTH_RANGE.0, motion_blur::MOTION_BLUR_STRENGTH_RANGE.1),
-            hd_content: hd_content::HdContent::from_layer(p.hd_content),
-            custom_fonts: custom_fonts::CustomFonts::from_layer(p.custom_fonts),
-            fe_shadows: fe_shadows::FeShadows::from_layer(p.fe_shadows),
-            net: net::NetSettings::from_layer(p.net),
-            xenon_effects: XenonEffects::from_layer(p.xenon_effects),
-            speedbreaker: SpeedbreakerTuning::default(),
-        };
-        settings.settle_preset();
-        settings
-    }
-}
-
-#[cfg(test)]
-mod tests;
-
+mod from_partial;
 #[cfg(test)]
 mod mods_tests;
-
+mod music_volume;
+#[cfg(test)]
+mod tests;
+mod world_tuning;
 #[cfg(test)]
 mod xenon_effects_tests;
-
-mod music_volume;
-mod world_tuning;
 pub use world_tuning::WorldTuning;

@@ -22,7 +22,7 @@ File: `NFSMWBartenderSettings.ini`, next to the config file, read at the start o
 | `[Heat1]` to `[Heat10]` | `CopCap` | none: the install's `FullEngagementCopCount` of the level | 1 to 64 | The cops the wave wants at that level, before the cap of `MaxCops`. |
 | same | `TimePerLevel` | 600 s (levels 1 to 7), 780, 820, 2000 | 1 to 100000 s | Seconds of heat growth per level (`Heat::grow`). |
 | same | `BustSpeed` | 9, 12, 19, 20, 25, 25, 19, 5, 5, 5 km/h | 0 to 200 km/h | The speed under which the busted timer fills (`bust_speed`). |
-| `[Heat]` | `EvadeAdjust` | 0.95 | 0 to 2 | The share of the heat a chase keeps after an escape (`carried_heat`). |
+| `[Heat]` | `EvadeAdjust` | 1.0 | 0 to 2 | The share of the live heat a chase keeps after an escape (`carried_heat`). The original keeps it all; its 0.95 cools the career records only. |
 | `[Fines]` | `Speeding`, `Racing`, `RecklessDriving`, `Assault`, `HitAndRun`, `DamageToProperty`, `ResistingArrest`, `OffRoad` | 150, 350, 1000, 350, 300, 100, 300, 75 | 0 to 1000000 | The fine of each infraction, once per chase. |
 | `[Busted]` | `Timeout` | 5 s | 0.1 to 60 s | Seconds of the busted timer past which the player is busted. |
 | same | `Reach` | 15 m | 1 to 500 m | Horizontal reach of a height-matched cop while not flashing. |

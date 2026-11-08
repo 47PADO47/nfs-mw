@@ -159,6 +159,7 @@ impl ScreenLogic for PlateDesigns {
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
         self.vertical = cx.list_look();
+        confirm::keep_notice(cx);
     }
 
     fn vertical(&self) -> bool {

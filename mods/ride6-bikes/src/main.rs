@@ -77,6 +77,7 @@ fn run(args: &Args) -> Result<()> {
         reflected: args.reflected.clamp(0.0, 1.0),
         normal_maps: args.normal_maps,
         flip_green: args.flip_green,
+        split_parts: 0,
     };
     let request = Request {
         bike: &args.bike,
@@ -90,6 +91,7 @@ fn run(args: &Args) -> Result<()> {
         sound_dir: args.sound_dir.as_deref(),
         sound_required: true,
         write_mod_toml: true,
+        shop: None,
     };
     let outcome = import_bike(&request)?;
     if let Some(copied) = outcome.sound_files {
@@ -121,6 +123,7 @@ fn sound_command(argv: &[String]) -> Option<Result<()>> {
         "cameras" => Some(cli::cameras(rest)),
         "geometry" => Some(cli::geometry(rest)),
         "import-all" => Some(cli::import_all(rest)),
+        "inventory" => Some(ride6_bikes::inventory::run(rest)),
         _ => None,
     }
 }

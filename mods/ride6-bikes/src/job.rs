@@ -24,7 +24,7 @@ const STAGING: &str = ".staging";
 const RAGDOLL_ASSET: &str = "RiderGP_PhysicsAsset.json";
 const RAGDOLL_BLUEPRINT: &str = "RiderBP.json";
 /// The folders the game reads, which a promotion replaces together.
-const CONTENT: [&str; 2] = ["files", "cars"];
+const CONTENT: [&str; 3] = ["files", "cars", "components"];
 
 /// An import running on its own thread.
 pub struct Job {
@@ -82,6 +82,8 @@ struct Inputs {
     /// The rider gear catalogue and the longest side of its pictures.
     gear: Option<PathBuf>,
     gear_texture: u32,
+    /// The exporter's folder of the optional parts, when the bikes get the shop's options.
+    bike_parts: Option<PathBuf>,
 }
 
 impl Inputs {
@@ -90,6 +92,7 @@ impl Inputs {
         let tyre_tables = config.tyre_dir(&physics);
         let rider = config.rider_dir(&source);
         let gear = config.gear_dir(&source);
+        let bike_parts = config.bike_parts_dir(&source);
         Self {
             source,
             physics,
@@ -98,6 +101,7 @@ impl Inputs {
             rider,
             gear,
             gear_texture: config.gear_texture,
+            bike_parts,
         }
     }
 }
@@ -123,6 +127,7 @@ pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Star
         inputs.rider.as_deref(),
         inputs.gear.as_deref(),
     );
+    let stamp = stamp::with_parts(stamp, inputs.bike_parts.as_deref());
     if stamp::is_current(mod_dir, &stamp) {
         return Ok(Start::UpToDate { cars: count_cars(mod_dir) });
     }
@@ -182,6 +187,7 @@ fn build(max_texture: u32, inputs: &Inputs, staging: &Path, stamp: &str, cancel:
         tyre_tables: inputs.tyre_tables.as_deref(),
         sound: inputs.sound.as_deref(),
         max_texture,
+        bike_parts: inputs.bike_parts.as_deref(),
         threads: batch::default_threads(),
         cancel,
     };

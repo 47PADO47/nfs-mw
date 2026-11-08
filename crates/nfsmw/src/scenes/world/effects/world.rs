@@ -81,7 +81,7 @@ impl WorldScene {
             super::street_lamps::append(&mut street_glows, &mut street_lenses, lamp, flare_view, glow_strength);
         }
         let rain = self.rain_effects(position);
-        let helmet_camera = self.bike_helmet_active();
+        let rider_visibility = self.bike_rider_visibility();
         let Some(drive) = self.players.lead_mut() else {
             let mut layer = EffectLayer { light_fog: [fog_strength, weather], ..EffectLayer::default() };
             layer.fog_shelters = shelters;
@@ -112,7 +112,7 @@ impl WorldScene {
         drive.maintain_rider(renderer, &self.dir);
         let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());
         drive.set_rider_hidden(arrested);
-        drive.set_first_person(helmet_camera);
+        drive.set_rider_visibility(rider_visibility);
         drive.effects.set_tint(self.tuning.smoke_tint);
         let mut appearance = self.garage.applied.exhaust.clone();
         appearance.set_style(self.tuning.exhaust_style);

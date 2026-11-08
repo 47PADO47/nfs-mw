@@ -74,3 +74,11 @@ What is done instead, and what stays:
 - nothing from the converted cars: the levels of detail C and D of a body are the same chassis level 3 (the game looks up the
   nearest level a pack has for a customization model, but nothing says it does so for the body solids, so both stay) and the
   textures are at the sizes of the quality complaint (2048 body, 1024 wheels, 512 discs).
+
+## The finest level of the frame (completeness work)
+
+`A` is chassis level 0 for every bike now (the frame as several solids, [completeness](ride6-bikes-batch.md#completeness)). Measured
+on the 288 bikes with the same exports: `files/CARS` **4.0 GB before, 4.9 GB after** (+22 percent: 4 to 7 MB a bike, the 690 from
+14.1 to 18.1 MB, of which its `GEOMETRY.BIN` from 9.7 to 14.0 MB), `files/PARTS` 161 MB, the whole import 7 minutes with 4 threads
+on 8 cores (the machine was building other things). `B` stays at level 2 and `C`, `D` at level 3: level 1 would cost about a third
+of the file again.

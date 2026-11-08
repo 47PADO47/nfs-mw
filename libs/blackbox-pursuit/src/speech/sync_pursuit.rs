@@ -226,8 +226,8 @@ impl Cx<'_> {
             self.disp_pursuit_update(leader);
         }
         let heli = self.roster.actors.iter().find(|a| a.heli).copied();
-        // The original also asks for a speech-map place; the game cannot supply one, so the heading decides.
-        let place_known = self.heading_valid();
+        // A location report needs a heading and a named place of the speech map under the player.
+        let place_known = self.heading_valid() && self.snap.player.speech_map_id >= 0;
         if self.perp_lost_time() >= self.tune.no_los_commentary {
             match heli {
                 None => self.lost_visual(leader),

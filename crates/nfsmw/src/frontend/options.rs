@@ -17,8 +17,8 @@ use crate::i18n::Args;
 #[cfg(test)]
 use crate::settings::Transmission;
 use crate::settings::{
-    CameraMode, HudLayout, MinimapMode, Partial, Percent, RidingStyle, Settings, SmokeQuality, SpeedUnits, UiStyle,
-    UiTheme, UpscaleMode, WindowMode,
+    CameraMode, HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, SpeedUnits, UiStyle, UiTheme,
+    UpscaleMode, WindowMode,
 };
 
 /// A setting a row edits.
@@ -46,6 +46,8 @@ pub enum Setting {
     CustomFonts,
     TurnSignals,
     RiderGear,
+    /// One part of the rider's gear, picked among a mod's items (`options_gear.rs`): its value is the profile's, not a setting.
+    Gear(crate::garage::rider_gear::Part),
     CopHealthBars,
     RearViewMirror,
     Autosave,
@@ -69,8 +71,11 @@ pub enum Setting {
     Renderer(RendererSetting),
     HudLayout,
     UiStyle,
+    /// The CustomHUD plugin's gauge skin: Auto or Off (`settings/custom_hud_skin.rs`).
+    CustomHudSkin,
     SpeedUnits,
-    RidingStyle,
+    /// A rider row: the riding style of a class of bike, the fingers on the levers (`rider_options.rs`).
+    Rider(rider_options::RiderSetting),
     UiTheme,
     ContextMinimap(crate::settings::MinimapContext),
     RenderScale,
@@ -78,6 +83,8 @@ pub enum Setting {
     UpscaleSharpness,
     /// The game's language (`options_language.rs`): its choices are the languages on offer, not a fixed list.
     Language,
+    /// The Free Roam world (`options_world.rs`): the city or a second world a mod provides.
+    World,
     /// A row of the custom race's options (`custom_race/settings.rs`); its value is the session's, not a setting.
     Custom(super::custom_race::settings::Row),
     /// A row a mod added to the Mods page (`bb.menus`), by its handle; its label, value and control come from the bridge.
@@ -162,19 +169,19 @@ mod category_rows;
 pub(super) mod autosave;
 pub use category_rows::rows;
 
-#[path = "hd_options.rs"]
-mod hd_options;
-
-#[path = "hud_options.rs"]
-pub(super) mod hud_options;
-
 #[path = "options_caps.rs"]
 mod caps_rows;
-
+#[path = "options_gear.rs"]
+mod gear;
+#[path = "hd_options.rs"]
+mod hd_options;
+#[path = "hud_options.rs"]
+pub(super) mod hud_options;
+#[path = "rider_options.rs"]
+pub(super) mod rider_options;
 #[path = "options_steps.rs"]
 mod steps;
 use steps::{cycle, next_scale, nudge};
-
 #[path = "options_data.rs"]
 mod data;
 #[path = "minimap_options.rs"]
@@ -182,6 +189,8 @@ mod map_options;
 
 #[path = "options_language.rs"]
 mod language;
+#[path = "options_world.rs"]
+mod world;
 
 /// The original's `COMMON_AUTO` ("Auto"): the automatic transmission, and the Auto value of every row that has one.
 pub(super) const LABEL_AUTO: u32 = 0x8CD5_32A0;
@@ -246,6 +255,8 @@ impl Setting {
             Setting::DiscordTimePlayed | Setting::DiscordJoin => s.discord,
             // The kinds of game moment are dimmed while the Game Moment Camera is off.
             Setting::GameMoment(_) => s.game_moments.camera,
+            // The gear is dimmed while the switch is off: the rider wears his own gear then.
+            Setting::Gear(_) => s.rider_gear,
             Setting::CustomHud(setting) => setting.enabled(s),
             Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
             // The upscalers that sharpen: FSR 1 (its RCAS pass) and FSR 3 (the RCAS of its own pipeline).
@@ -290,6 +301,7 @@ impl Setting {
                 super::custom_race::options::step(row, forward);
                 return true;
             }
+            Setting::Gear(part) => return gear::step(part, forward),
             Setting::Input(setting) => return setting.step(s, changed, forward),
             Setting::Post(setting) => return setting.step(s, changed, forward),
             Setting::Graphics(setting) => return setting.step(s, changed, forward),
@@ -297,6 +309,7 @@ impl Setting {
             Setting::Hd(setting) => return setting.step(s, changed, forward),
             Setting::CustomHud(setting) => return setting.step(s, changed, forward),
             Setting::Language => return language::step(s, changed, forward),
+            Setting::World => return world::step(s, changed, forward),
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);
@@ -308,16 +321,18 @@ impl Setting {
                 s.ui_style = UiStyle::ALL[cycle(at, UiStyle::ALL.len(), forward)];
                 changed.ui_style = Some(s.ui_style);
             }
+            Setting::CustomHudSkin => {
+                let all = crate::settings::CustomHudSkin::ALL;
+                let at = all.iter().position(|choice| *choice == s.custom_hud_skin).unwrap_or(0);
+                s.custom_hud_skin = all[cycle(at, all.len(), forward)];
+                changed.custom_hud_skin = Some(s.custom_hud_skin);
+            }
             Setting::SpeedUnits => {
                 let at = SpeedUnits::ALL.iter().position(|units| *units == s.speed_units).unwrap_or(0);
                 s.speed_units = SpeedUnits::ALL[cycle(at, SpeedUnits::ALL.len(), forward)];
                 changed.speed_units = Some(s.speed_units);
             }
-            Setting::RidingStyle => {
-                let at = RidingStyle::ALL.iter().position(|style| *style == s.riding_style).unwrap_or(0);
-                s.riding_style = RidingStyle::ALL[cycle(at, RidingStyle::ALL.len(), forward)];
-                changed.riding_style = Some(s.riding_style);
-            }
+            Setting::Rider(setting) => return setting.step(s, changed, forward),
             Setting::UiTheme => {
                 let at = UiTheme::ALL.iter().position(|theme| *theme == s.ui_theme).unwrap_or(0);
                 s.ui_theme = UiTheme::ALL[cycle(at, UiTheme::ALL.len(), forward)];

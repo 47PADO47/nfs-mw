@@ -228,6 +228,7 @@ pub fn run(cli: Cli) -> Result<()> {
             crate::app::run(
                 Box::new(
                     CarScene::new(model, yaw)
+                        .with_customization(selection)
                         .with_view(zoom, pitch, focus_height)
                         .with_rider_state(rider_state)
                         .with_source(dir, options),
@@ -254,9 +255,11 @@ pub fn run(cli: Cli) -> Result<()> {
             let drive = drive.map(|car| crate::scenes::world::DriveOptions { car, script: drive_script });
             let options =
                 crate::scenes::world::Options { at, height, heading, pitch, fog_distance, wait_for_load, drive };
+            let settings = Settings::load(view.settings_layer());
+            let world = crate::modding::content::worlds::chosen(settings.world.as_ref().map(|id| id.as_str()))?;
             crate::app::run(
-                Box::new(WorldScene::open(&dir, options)?),
-                &Settings::load(view.settings_layer()),
+                Box::new(WorldScene::open_in(&dir, options, world)?),
+                &settings,
                 view.run_options(&dir, driving).with_mods(mods),
             )
         }

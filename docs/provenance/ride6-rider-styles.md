@@ -12,6 +12,7 @@ What the styles and reverse work read, and from where. Spec: [ride6-rider-styles
 | The animation blueprint of the user's install, as pseudo-code printed by CUE4Parse's Blueprint decompiler | The function `SET Animations`: the clip variables assigned for each `BikeType` (0 to 5) and `RidingStyle` (0 to 2); the function `Retro` and its one call (`0.8, 1.567, -1, -1, -20, 1, 4`); the blueprint variables of the retro state | Facts about the user's data asset (Kismet bytecode), not native code. The branch structure was followed by a scratch script; only the final clip names per type are kept (`graph_sets.rs`) |
 | `RiderAnimationCorrection_DT`, `RidingStyle_DT`, `RIDING_STYLE` (the user's data tables, dumped as JSON) | The per-vehicle `EBikeTypeOverride`; the riding style rows (no clip names) | Data facts; not stored in the repository |
 | The global option asset `data/options/GameOptions/RidingStyle` and the page `WBP_RidingStylePage` (user's data assets, dumped as JSON by the tool's `jsonmany` mode), `RIDING_STYLE` and `RidingStyle_DT` | The four options of the riding style page (`LEAN_STYLE` 0, 1, 2 with its three title ids, `START_LEG` -1, 1, 0, `LEG_OUT`, `BRAKE_FINGERS` 1, 2, 4) and the presets' values (section 8 of the spec): the setting's three values and the foot of a standstill | Data facts; not stored in the repository |
+| `WBP_RidingStylePage` class defaults (`RoadOptionToPictureMap`, `MotardOptionToPictureMap`, `OffroadOptionToPictureMap`: the `Sportive_*`, `Motard_*` and `Enduro_*` pictures of each of the three styles) and `FDBPilot` of the SDK dump (`RidingStyles_Default`, `RidingStyles_Offroad`, `LegOut_Default`, `LegOut_Offroad`, `BrakeFingers`) | That the game groups bikes as road, motard and off-road for the riding style page; no per-group default is in the readable data (the pilot rows are not in the packages' tables) | Names and structure |
 | The vehicles' physics assets (the physics dump) | The input handler class each vehicle runs; `BackwardForce`, `BackwardMaxSpeed` of the eight input handler assets (200000 and 125) | Data facts |
 | The camera container folders of the install (`data/cameras/Containers/*`) | The camera kind of each vehicle, compared with the handler | Names only |
 | The Dumper-7 SDK dump | Layout of `UBikeInputHandler` (`BackwardForce` at 0x634, `BackwardMaxSpeed` 0x638, `ReverseTimeThreshold` 0x63c, `RequestingReverse` 0x266, `ReverseTimer` 0x294), `EBikeTypeOverride` | Names and offsets only |
@@ -20,7 +21,7 @@ What the styles and reverse work read, and from where. Spec: [ride6-rider-styles
 ## What is a choice or an inference
 
 See section 6 of the spec. The ones to remember: the bike type is the override, else the input handler (an inference that the engine's
-variable follows the handler), riding style 0 everywhere, the rider keeps both feet down in the walk, the fade of the walk, the
+variable follows the handler), riding style 0 (balanced) for every group by default, the group of a bike by its kind and handler (the CRF 450 R SMT is a motard), the rider keeps both feet down in the walk, the fade of the walk, the
 single brake input as the reverse request, and `HasReverse` read as "more than two forward gears".
 
 ## Exported for this

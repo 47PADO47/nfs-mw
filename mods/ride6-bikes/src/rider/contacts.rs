@@ -269,6 +269,9 @@ pub fn write(bike_dir: &Path, car_dir: &Path, physics: &Path) -> Result<bool> {
     let mut json =
         contacts_json(&parts, table.as_ref()).with_context(|| format!("contact points of {}", path.display()))?;
     add_seat_surface(&mut json, bike_dir);
+    if let Err(error) = super::grip_span::add(&mut json, bike_dir) {
+        println!("{}: no grip spans: {error:#}", bike_dir.display());
+    }
     let vehicle = parts.get("vehicle").and_then(Value::as_str).unwrap_or_default();
     add_style(&mut json, handler_of(physics, vehicle).as_deref());
     let folder = car_dir.join("RIDER");

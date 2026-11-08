@@ -6,6 +6,7 @@
 ## Values several rows share
 
 options-off = Off
+options-auto = Auto
 options-low = Low
 options-medium = Medium
 options-high = High
@@ -32,6 +33,8 @@ options-police-dispatch-volume = Police Dispatch
 options-hud-layout = HUD Layout
 options-hud-layout-centered = Centered
 options-hud-style = HUD style
+# The third-party CustomHUD plugin's gauge skin (`custom_hud_skin`): drawn when the install has the plugin.
+options-custom-hud-skin = CustomHUD skin
 options-hud-theme = HUD theme
 options-nitrous-variant = Nitrous variant
 options-nitrous-variant-original = Original
@@ -46,6 +49,9 @@ options-xenon-spark-variant-original = Original
 # The wind of the speed: the game's own is the 2005 wind module; a mod may add loops that play with the car's speed.
 options-wind-variant = Wind variant
 options-wind-variant-original = Original
+# The trees of the world: the game's own are the models of the 2005 game; a mod may replace their models and textures.
+options-trees-variant = Trees
+options-trees-variant-original = Original
 options-speed-units = Speed units
 options-speed-units-metric = Metric (km/h)
 options-speed-units-imperial = Imperial (mph)
@@ -53,7 +59,17 @@ options-minimap-fixed = Fixed
 options-minimap-rotating = Rotating
 options-turn-signals = Turn Signals
 options-rider-gear = Rider Gear
-options-riding-style = Riding Style
+# One riding style per class of bike (RIDE 6's riding style page pictures road, motard and off-road bikes), and the fingers on the levers.
+options-riding-style-road = Riding Style: Road
+options-riding-style-motard = Riding Style: Motard
+options-riding-style-offroad = Riding Style: Offroad
+options-brake-fingers = Brake Fingers
+options-clutch-fingers = Clutch Fingers
+options-rider-body = Rider Body
+options-rider-helmet = Rider Helmet
+options-rider-suit = Rider Suit
+options-rider-gloves = Rider Gloves
+options-rider-boots = Rider Boots
 options-riding-style-balanced = Balanced
 options-riding-style-shoulders-out = Shoulders Out
 options-riding-style-old-school = Old School
@@ -110,3 +126,7 @@ options-game-music-volume = Game Music Volume
 
 options-autosave = Autosave
 options-autosave-save-failed = Could not save the Autosave setting. Your previous setting is still active.
+
+# The Free Roam world row of the Gameplay options (docs/specs/second-world.md).
+options-world = Free Roam World
+options-world-city = Rockport

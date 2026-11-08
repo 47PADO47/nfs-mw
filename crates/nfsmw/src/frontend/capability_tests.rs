@@ -61,8 +61,8 @@ fn the_native_renderer_hides_the_quality_mode_and_dims_ray_tracing() {
     );
     assert_eq!(
         titles(Category::Gameplay, &test_caps::native()).len(),
-        19,
-        "the map mode per context, Autosave, the Game Moment Camera with its four kinds, the Rider Gear toggle and the Riding Style"
+        24,
+        "the map mode per context, Autosave, the Game Moment Camera with its four kinds, the CustomHUD skin, the Rider Gear toggle, the three Riding Styles and the fingers"
     );
     assert_eq!(titles(Category::Player, &test_caps::native()).len(), 3);
     assert_eq!(titles(Category::Discord, &test_caps::native()).len(), 3, "the Discord toggles have their own category");

@@ -172,31 +172,47 @@ pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>)
                 anchor: target.anchor.zip(target.anchor_rotation).map(|(at, [x, y, z, w])| {
                     let own = Quat::from_xyzw(x, y, z, w).normalize();
                     let in_model = if target.steers { turned * own } else { own };
-                    (place(Vec3::from_array(at)), frame.rider_turn * in_model)
+                    let bone = frame.rider_turn * in_model;
+                    // The hand is centred on the grip rubber (the bone is the rubber's inboard end: `Target::hand_slide`) and brought forward
+                    // over it (`HAND_FORWARD_M`).
+                    let slide = bone
+                        * (Vec3::Y * target.outboard_sign() * target.hand_slide()
+                            + Vec3::X * super::attach::HAND_FORWARD_M);
+                    (place(Vec3::from_array(at)) + slide, bone)
                 }),
             }
         })
         .collect()
 }
 
-/// Roll the right wrist by `wrist` (0 to 1, the throttle): the right grip's target turns about its own frame and moves by the file's
-/// offset at full throttle (`Attach::wrist_throttle`), the way the blueprint's `RightGripIKOffsetRotation` and
-/// `RightGripIKOffsetTranslation` move the grip IK target. A target without a turn, or a file without the offset, is left as it is.
+/// Roll the right wrist by `wrist` (0 to 1, the throttle): the hand turns about the grip, which stays in the fist. The angle is the one
+/// of the file's offset at full throttle (`Attach::wrist_throttle`, the blueprint's `Hand_R_WristDownRot`, 30 degrees); its
+/// translation is not played (it moved the hand 5 cm off the grip and under it, which a user's playtest showed:
+/// `docs/specs/ride6-rider-hands.md`, section 2). A file without the offset is left as it is.
+///
+/// The grip bone holds the hand (`anchor`): the bone's own y axis is the grip's cylinder (measured on four bikes, within a millimetre
+/// and a degree of the grip mesh's own axis, [`GRIP_AXIS`]) and its origin lies on that axis, so turning the bone about it takes the
+/// hand round the grip without moving the grip. The roll takes the knuckles toward the rider (the throttle opens). Without a bone
+/// (older files) the grip socket's frame turns by the file's rotation, about the socket's own axis, which is the bar's.
 pub fn roll_wrist(attach: &Attach, targets: &mut [Placed], wrist: f32) {
     let Some(offset) = attach.wrist_throttle else { return };
     let Some(placed) = attach.target_index("right_grip").and_then(|index| targets.get_mut(index)) else { return };
-    let Some(turn) = placed.rotation else { return };
     let share = wrist.clamp(0.0, 1.0);
     let [x, y, z, w] = offset.rotation;
     let rolled = Quat::from_xyzw(x, y, z, w).normalize();
-    let moved = turn * (Vec3::from_array(offset.translation) * share);
-    placed.position += moved;
-    let roll = Quat::IDENTITY.slerp(rolled, share);
-    // The roll is about the socket's own axis, which is the bar's: the grip bone's frame, which holds the hand, turns about that axis
-    // as seen from the world, so the wrist goes round the bar.
-    placed.anchor = placed.anchor.map(|(at, bone)| (at + moved, (turn * roll * turn.inverse()) * bone));
-    placed.rotation = Some(turn * roll);
+    if let Some((at, bone)) = placed.anchor {
+        // +y of the right bone points to the left, along the grip toward the rider: the roll toward him is a turn the other way.
+        let roll = Quat::from_axis_angle(GRIP_AXIS, -Quat::IDENTITY.angle_between(rolled) * share);
+        placed.anchor = Some((at, bone * roll));
+        return;
+    }
+    let Some(turn) = placed.rotation else { return };
+    placed.rotation = Some(turn * Quat::IDENTITY.slerp(rolled, share));
 }
+
+/// The grip bone's own axis along the grip, in the bone's frame as the importer writes it (the car's axes: the bone's y; the exporter's
+/// bones have it on z, which the car's axes turn into y).
+const GRIP_AXIS: Vec3 = Vec3::Y;
 
 /// Where the tip of `limb` is to be for its target `placed`, and the turn it takes there (`None`: the arm's own).
 pub fn tip_goal(limb: &Limb, placed: &Placed) -> (Vec3, Option<Quat>) {

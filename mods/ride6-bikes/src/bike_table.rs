@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 
 use crate::build::{Built, Wheel};
+use crate::physics::borrow_files;
 use crate::physics::vehicle::Vehicle;
 use crate::physics::{self, Geometry, TyreGeometry};
 
@@ -60,7 +61,9 @@ pub fn locate(physics: &Path, vehicle_id: &str) -> Result<PathBuf> {
 /// not link.
 pub fn read(physics: &Path, tyre_tables: Option<&Path>, vehicle_id: &str, built: &Built) -> Result<BikeTable> {
     let file = locate(physics, vehicle_id)?;
-    let vehicle = Vehicle::read(&file, tyre_tables)?;
+    let mut vehicle = Vehicle::read(&file, tyre_tables)?;
+    // A field the data leaves empty is taken from the nearest model, as a named choice (`physics/borrow.rs`).
+    borrow_files::complete(&mut vehicle, &file)?;
     render(&vehicle, &geometry(built)).with_context(|| format!("converting the physics of {}", file.display()))
 }
 

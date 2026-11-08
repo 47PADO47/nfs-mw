@@ -41,6 +41,14 @@ fn the_catalogue_lists_each_part_with_the_stock_gear_first() {
 }
 
 #[test]
+fn an_id_the_list_lacks_is_the_riders_own_gear() {
+    let entries = Catalogue::parse(CATALOGUE.as_bytes()).unwrap().entries(Part::Helmet);
+    assert_eq!(position(&entries, "HL_B"), 2);
+    assert_eq!(position(&entries, "gone"), 0);
+    assert_eq!(position(&entries, ""), 0, "his own gear");
+}
+
+#[test]
 fn a_part_is_found_by_its_key() {
     assert_eq!(Part::of_key("gloves"), Some(Part::Gloves));
     assert_eq!(Part::of_key("glove"), None);

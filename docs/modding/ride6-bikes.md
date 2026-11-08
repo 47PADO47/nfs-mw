@@ -96,16 +96,19 @@ schema, vehicle, chassis_row, tyre_sizes{front,back}, lights
 bones{ <name>: {position[3], rotation[4]} }          chassis skeleton in bind pose, glTF axes, metres
 sockets{ <name>: {bone, location_cm, rotation_deg} }  the skeleton's sockets (rider, feet, audio, stand)
 parts[]: id, role (body | front_wheel | back_wheel), export (mesh stem), anchor{bone, translation, rotation},
-         materials{ <name in the glb>: <material instance path> }, source (table and row), mesh
+         materials{ <name in the glb>: <material instance path> }, slots{ <name in the glb>: <mesh slot> }, source (table and row), mesh
 materials{ <instance>: tex{param: path}, scalar, vector, switch, blend_mode, shading_model, clip, chain }
 liveries[]: index (the NN of the row), row, materials{ <name in the stock glb>: <instance of this livery> }, parts{ <part id>: {..} }
 textures{ <stem>: <format, size, sRGB, compression> }
+fallbacks[]: part, surface, slot, kind, levels, triangles, reason, rule, source, source_part, source_surface, material, picture
 physics_asset, lights
 missing[]: part, reason (no row | asset not in install | no mesh | mesh not in install | export failed | ...), detail
 notes[]   what the script found but did not apply
 ```
 
-`liveries` and `missing` are new and optional: the importer reads a file without them as a bike with one look.
+`liveries` and `missing` are new and optional: the importer reads a file without them as a bike with one look. `slots` (the mesh slot behind each surface name, empty slots included) and `fallbacks` are
+written by the exporter's `bikeparts.py` and `fallbacks.py`: a surface no picture reaches wears the material of a similar model, and
+the importer copies each record into the manifest as a comment ([the rule](ride6-bikes-batch.md#grey-surfaces-the-fallbacks)).
 
 A part's kind comes from the end of its id (`front_tyre`, `back_rim`, `front_brake`; anything else is body: `chassis`, `exmanifold`, `muffler`, `barpad`, `handguards`, `mirrors`, `sump_guard`). Exported
 meshes are `<export>.glb` and `<export>_LOD<n>.glb`.
@@ -143,7 +146,7 @@ in `notes`.
 
 The game draws a car as a body and wheels. `GEOMETRY.BIN` holds, at four levels `A` to `D`:
 
-- `<ID>_KIT00_BODY_<L>`: everything on the chassis. Origin: the middle of the wheelbase along x, the lowest tyre point on
+- `<ID>_KIT00_BODY_<L>` (and `_BODY2_<L>`, `_BODY3_<L>` when the frame does not fit one solid): everything on the chassis. Origin: the middle of the wheelbase along x, the lowest tyre point on
   the ground (z = 0), the bike's centre plane on y = 0. Axes: x forward, y left, z up ([car-customization.md](
   car-customization.md#the-files-of-a-car)); the exports are glTF (x forward, y up, z right) and `layout.rs` turns one into
   the other.
@@ -160,14 +163,19 @@ the manifest in `[wheels]` (radii from the meshes, tyre widths from the size cod
 tyres and body box. Everything else of the `[bike]` table is the bike's physics data, converted
 ([below](#the-physics-dump-import-bike)); the manifest has no `[stats]`.
 
-**Levels of detail.** The chassis levels 0 to 3 are read (level 0: 135,000 to 175,000 vertices, 1: 69,000 to 78,000, 2: 34,000 to
-44,000, 3: 18,000 to 26,000). The frame, the bars and the fork are three solids that each hold at most 60,000 vertices and 65,535
-triangles (16-bit indices), so a body solid takes the finest level from its letter's minimum whose three solids fit: `A` starts at
-level 0 (never fits: the frame alone has 148,000 vertices on the RC 390) and normally ends at level 1 (the RC 390's frame has 54,000
-vertices at level 1), `B` starts at level 2 and `C` and `D` at level 3. Before this, the vertex count of the whole bike was compared
-with one solid's limit, which left `A` at level 2 (44,000 vertices, 30,000 triangles) although level 1 fits as three solids. The
-small parts (exhaust, mirrors, bar pad) are tried one level finer than the chassis first and then ever coarser until the solids
-fit: a silencer's few thousand vertices are worth less than the finer body. Levels 4 to 7 of the engine are one composited
+**Levels of detail.** The chassis levels 0 to 3 are read (level 0, the whole mesh the game draws: 135,000 to 195,000 vertices and
+150,000 to 195,000 triangles, 1: 69,000 to 100,000 vertices, 2: 34,000 to 44,000, 3: 18,000 to 26,000). A solid holds at most
+60,000 vertices and 65,535 triangles (16-bit indices), and the frame alone is 100,000 to 150,000 vertices at level 0, so **the frame
+is as many solids as it needs**: `<ID>_KIT00_BODY_<L>` and then `<ID>_KIT00_BODY2_<L>`, `BODY3`, ... ([`chunks.rs`](
+../../mods/ride6-bikes/src/chunks.rs): the shading groups packed in order, a group over the limits cut along its triangle list), and
+the same for the bars (`BARS2`: the Indian FTR's cockpit alone is 63,000 triangles) and the fork. The manifest binds every solid after
+the first as a **base part** (`[parts."base.body.2"]`, role `body`, `steered` or `steered_slid`, `base = true`:
+[api-content.md](api-content.md#components)), which the game draws with the car at the levels of detail the car's file has it at and
+at no other. `A` is level 0 for every bike (up to 10 solids of each kind), `B` starts at level 2 and `C` and `D` at level 3. The small parts (exhaust, mirrors, bar pad) are tried
+one level finer than the chassis first and then ever coarser until the solids fit. Before this the frame had to fit one solid, which
+left `A` at level 1 (33 to 54 percent of the triangles of level 0 on the five bikes checked) or, when the engine's section alone
+had more than 60,000 vertices (the 690's has 60,067), at level 2 (27 percent: the engine and frame reduced to blobs). The
+[completeness report](ride6-bikes-batch.md#completeness) checks it for every bike. Levels 4 to 7 of the engine are one composited
 material and are not used. A wheel solid reads the export level of its letter's position (A is 0, D is 3). Textures: the body's are
 at most `max_texture` (2048) on a side, the rims' and tyres' half of that and the discs' a quarter.
 
@@ -376,11 +384,11 @@ The 2005 car shader ignores normal maps, has no per-texel gloss, and the stock c
 done, in the order of fidelity:
 
 1. **Baked path (default).** The diffuse picture is the base colour with the occlusion channel applied in linear light with a
-   floor of 0.55, lifted by a gain of 1.35 and given the reflection a dielectric adds (0.25; the three are choices measured in
-   [how bright the baked bikes are](../formats/ride6-materials.md#how-bright-the-baked-bikes-are)); opacity is cut at the material's clip value (brake disc holes, chain links, sprocket teeth) with the
+   floor of 0.55 (0.9 for the livery paint), lifted by a gain of 1.35 with the hue kept and given the reflection a dielectric adds (0.25; these are choices measured in
+   [how bright the baked bikes are](../formats/ride6-materials.md#how-bright-the-baked-bikes-are) and [paint and satin metal](../formats/ride6-materials.md#paint-and-satin-metal)); the instrument cluster's picture is the exporter's composition of RIDE 6's two gauge widgets at rest ([instrument clusters](../formats/ride6-materials.md#instrument-clusters)); opacity is cut at the material's clip value (brake disc holes, chain links, sprocket teeth) with the
    texture marked punch-through and two-sided. Each triangle takes the light material its metallic, roughness and base
-   colour say, read over the interior of the triangle (`CHROME`, `MAGSILVER`, `ALUMINUM` for bright neutral bare metal only;
-   `MAGGUNMETAL` for a darker (occluded) metal; `SHINYPLASTIC` / `DULLPLASTIC` for dark or coloured metal and for every
+   colour say, read over the interior of the triangle (`CHROME` and `MAGSILVER` for polished bright neutral bare metal only;
+   `MAGGUNMETAL` for satin and for a darker (occluded) metal; `SHINYPLASTIC` / `DULLPLASTIC` for dark or coloured metal and for every
    dielectric; `BRAKEDISC`, `RUBBER`), so the shading groups of one material split by surface. A black, gold or anodised
    metal therefore keeps the colour of its texture instead of turning silver ([the table](../formats/ride6-materials.md#what-the-importer-keeps-and-loses)
    has the thresholds, **[choice]**). Textures are DXT1 (opaque) or DXT5 (cut-out) with a full mip chain, written by the
@@ -450,6 +458,24 @@ Written without building; nothing here has been compiled or run.
   and stop states, gloves, level of detail by distance (level 0 is drawn), the rider in ray-traced reflections, a rider
   that falls with the bike.
 
+
+## Where to change the rider's gear
+
+The helmet, suit, gloves, boots and body of the rider are the player's choice, one for every bike, kept beside the profile's save
+([spec](../specs/ride6-rider-gear.md)). Two places offer it, both only while the mod has written `files/RIDER/GEAR/gear.json` (the
+mod's folder, next to `cars/`) and the setting `rider_gear` is on (Options > Gameplay > Rider Gear, on by default):
+
+- **Options > Gameplay** (the main menu's Options, or the pause menu's Options in a race or free roam): right after Rider Gear, the rows
+  **Rider Body, Rider Helmet, Rider Suit, Rider Gloves, Rider Boots**. Left and Right cycle the item (Stock is the rider's own gear);
+  the choice is kept at once and the rider in the world wears it as soon as you leave the page. No picture there.
+- **The garage, for a bike:** Main menu > My Cars > the bike's slot > Customize Car > Visual. The helmet icons right after Paint and
+  Vinyls are the same five. Left and Right (L and R, ten at a time) change the item and the rider on the bike wears it; Accept keeps
+  it, Back puts back what he wore. The same Visual category is in the world's garage and the shop, whenever the bike is the car shown.
+
+Nothing shows when the current car is not a bike (the garage), when `gear.json` is missing (the mod did not build the catalogue:
+set `gear` in the mod's `config.toml` or put the exporter's `rider-gear` folder beside `source`, then restart; the game log says
+`rider gear: ... is not used` when the file does not read), or when the switch is off. The first-person (helmet) camera hides
+whichever helmet is worn; the side view shows the suit.
 
 ## The rider in a fall (`ride6-rider-ragdoll`)
 

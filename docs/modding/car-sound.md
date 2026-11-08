@@ -40,12 +40,20 @@ layers = [
 - A layer is a looping recording of the engine made at the engine speed `rpm`: a 16-bit PCM WAV, mono or stereo, that
   repeats over its whole length. The file is a path of the install's layout (letters, digits, `_`, `-`, `.` and `/`, up to 96
   characters, ending in `.WAV`), so it goes in the mod's `files/` folder.
-- One to twenty-four layers, `rpm` from 100 to 20000 (a layer with `gain` curves has none, see [Curves](#curves-layers-that-play-by-the-cars-own-inputs)), no two the same, `idle_rpm` below `redline_rpm` (both 100 to 20000). A wrong
+- One to forty-eight layers, `rpm` from 100 to 20000 (a layer with `gain` curves has none, see [Curves](#curves-layers-that-play-by-the-cars-own-inputs)), no two the same, `idle_rpm` below `redline_rpm` (both 100 to 20000). A wrong
   table refuses the car.
 - All layers play at once. Each is played at the engine's rpm over its own (so its pitch follows the engine) but never
-  slower than 0.55 or faster than 1.8 times its recording, and the layers are mixed by how close the engine's rpm is
-  to theirs, in equal power, on a log scale. Below the lowest and above the highest layer one layer carries the sound.
-  The volume follows the throttle and load.
+  slower than 0.3 or faster than 3.3 times its recording (the limits were 0.55 and 1.8; two layers with a gap of four times
+  between them need up to 2.1 times each way, and a layer that carries little of the sound at the edge of a crossfade more),
+  and the layers are mixed by how close the engine's rpm is to theirs, in equal power, on a log scale. Below the lowest and
+  above the highest layer one layer carries the sound. The volume follows the throttle and load.
+- **Layers off load.** A layer may say `load = "off"` (the default is under load): `{ file = "...", rpm = 4200.0, load = "off" }`.
+  The layers under load and the layers off load are two sets, each mixed by `rpm` among its own layers (two layers of one set
+  may not share an rpm, a layer of each set may), and the throttle crossfades the sets at equal power: only the set off
+  load up to a throttle of 0.12, only the set under load at the full throttle, half of the power each at 0.56
+  (`own_engine/mixing.rs`, `load_weights`). Use it for an engine recorded under load and with the throttle closed, so that
+  lifting off changes the sound. An engine with no layer off load ignores the throttle in this mix, as before. A layer off
+  load needs at least one layer under load and no `gain` curves, and is a WAV loop.
 - A layer that cannot be read or played leaves the car with the built-in engine (not half an engine), and the log says why.
 - A mod car plays its own engine as the car the player drives. Whether a mod cop car in a chase is heard with it was not
   checked.
@@ -216,7 +224,7 @@ layers = [
 - `kind = "ginsu"` makes the file a `.GIN` granular engine recording (the format of the 2005 game's `.gin`), played by the
   game's Ginsu synthesiser at the frequency `span` gives the engine speed: `span[0]` at idle, `span[1]` at the limiter.
   It needs `gain` and `span`; the rest of the table is as for a loop.
-- Up to 24 layers.
+- Up to 48 layers.
 
 ### The 2012 cars' engine
 

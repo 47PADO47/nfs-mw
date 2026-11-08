@@ -132,6 +132,11 @@ The synthesiser itself is not reproduced; its recordings are (`sound::rev`):
   nominal value; the autocorrelation of the audio confirms the first). A four-stroke engine has one cycle per two turns, so
   **rpm = 120 x cycles per second**. Check on the data: over 293 bikes the top loop is at 0.97 of the physics asset's `MaxRPM`
   in the median (quartiles about 0.90 and 1.03, range 0.71 to 2.05).
+- The two models of the Honda NS 400 R and the Yamaha RD 500 LC have loops at 1.75 to 1.82 times the physics redline when read at 120 per
+  cycle per second (the other two-stroke models: 0.8 to 1.0); read at 60 (a cycle of one turn) their top loops are at 0.91 and 0.87. The
+  importer chooses 60 when the top loop is above 1.5 times the redline (`rev_layers::rpm_per_cycle_hz`).
+- Several models have no loop between the idle recording and 4000 to 6500 rpm (Yamaha R1 2008: idle 1588, first loop 6443); the largest
+  ratio between two neighbouring layers of the 288 converted bikes is 4.26 (spec section 9.4).
 - The KTM 450 engine model has loops from 3174 to 11361 rpm (26.4 to 94.7 Hz); its idle recording is 4.2 s at 17.4 Hz (2088 rpm; the
   physics asset's idle is 2300). The exhaust model has the same layout at nearly the same pitches.
 - Loops under load are much louder at the top of the range than at the bottom (rms 0.011 at the first loop, 0.33 at the last, for
@@ -155,9 +160,8 @@ All outside the repository, in the scratch folder (`C:\r6` junction):
 | Tool | Use |
 |---|---|
 | `C:\r6\tools\CUE4Parse\R6Tool` (`json <package>`) | the JSON of an audio package |
-| `C:\r6\snd\tools\resolve_bike_audio.py <chassis> <Stock\|Custom> <out.json>` | one bike's resolved audio data: events, banks, media names, effect numbers (merged by the importer's `sound::data`) |
-| `C:\r6\snd\tools\all_bikes_audio.py` | `C:\r6\snd\all-bikes-audio.csv`: the 634 rows with their engine, exhaust, bang, flame, gear and supercharger events |
+| `R6ToolSnd audiomap <folder>` (below) | one `<chassis>__<Stock\|Custom>.json` per row: events, banks, media names, effect numbers (merged by the importer's `sound::data`) |
 | `C:\r6\snd\tools\sdkgrep.py`, `idavt.py` | struct layouts and vtable addresses from the SDK dump (for the executable) |
-| `C:\r6\tools\vgmstream\vgmstream-cli.exe` | `.wem` to WAV; `-s <n>` picks the n-th recording of a REV model |
-| the pak reader (a copy of the CUE4Parse console tool, modes `raw <regex> <folder>` and `audiomap <folder>`) | extracts files of the paks; writes one resolved audio JSON per chassis row; started by `pak-sound` |
+| `C:\r6work\tools\vgmstream\vgmstream-cli.exe` (vgmstream r2168, Windows release) | `.wem` to WAV; `-s <n>` picks the n-th recording of a REV model |
+| the pak reader `tools/ride6-exporter/R6ToolSnd` (our C# console tool on CUE4Parse, modes `raw <regex> <folder>` and `audiomap <folder>`) | extracts files of the paks; writes one resolved audio JSON per chassis row; started by `pak-sound` |
 | `ride6-bike-import sound`, `extract-bnk`, `pak-sound`, `sound-bikes` (`mods/ride6-bikes/src/sound`) | build one bike's sound from recordings; split a bank; extract the banks; build the sound of every bike from the banks |

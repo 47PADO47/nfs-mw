@@ -55,8 +55,9 @@ fn the_eleven_traffic_bundles_convert_to_traffic_cars() {
         assert!(manifest.wheels.is_some() && manifest.customization.is_some(), "{}", car.id);
         let folder = out.join("files/CARS").join(&car.id);
         let geometry = std::fs::read(folder.join("GEOMETRY.BIN")).unwrap();
-        let (solids, errors) = blackbox_solid::read_solids_lossy(&geometry).unwrap();
+        let (mut solids, errors) = blackbox_solid::read_solids_lossy(&geometry).unwrap();
         assert!(errors.is_empty(), "{}: {errors:?}", car.id);
+        nfsmw_data::car::mods::levels::alias_second_level(&mut solids);
         for stem in ["KIT00_BODY", "KIT00_FRONT_TIRE"] {
             for letter in ['A', 'B', 'C', 'D'] {
                 let name = format!("{}_{stem}_{letter}", car.id);

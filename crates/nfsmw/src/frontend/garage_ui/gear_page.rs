@@ -12,7 +12,7 @@ use super::plate_design::{JUMP, WINDOW, stepped, window_start};
 use super::{GarageUi, Request};
 use crate::frontend::logic::{Cx, Footer, Pick, ScreenLogic};
 use crate::frontend::{confirm, ids};
-use crate::garage::rider_gear::{self, Entry, Part};
+use crate::garage::rider_gear::{self, Entry, Part, position};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuStyle};
 use crate::ui::{Text, UiAssets};
 
@@ -20,11 +20,6 @@ use crate::ui::{Text, UiAssets};
 fn entries(part: Part) -> Vec<Entry> {
     let stock = || vec![Entry { id: String::new(), label: rider_gear::catalogue::STOCK.to_owned() }];
     rider_gear::loaded().map_or_else(stock, |catalogue| catalogue.entries(part))
-}
-
-/// The position of the item `id` in `entries`; the rider's own gear (the first) for an id the list lacks.
-fn position(entries: &[Entry], id: &str) -> usize {
-    entries.iter().position(|entry| entry.id == id).unwrap_or(0)
 }
 
 pub(super) struct GearPage {
@@ -112,6 +107,7 @@ impl ScreenLogic for GearPage {
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
         self.vertical = cx.list_look();
+        confirm::keep_notice(cx);
     }
 
     fn vertical(&self) -> bool {

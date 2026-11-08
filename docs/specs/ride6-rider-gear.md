@@ -15,9 +15,11 @@ no rider in the garage's backdrop. Nothing names RIDE 6 in the game side; the `r
 
 ## 2. The categories in the garage [ours]
 
-The Visual category of the customization menu of a **bike** (a mod car with `kind = "bike"`) lists, after License Plate and
-Plate Design, one entry for each part that has something to pick: **Rider Body**, **Helmet**, **Suit**, **Gloves**, **Boots**
-(`frontend/garage_ui/choices.rs`, `rider_pages`). A car, the backroom and a game without gear list none. Each entry opens a page
+The Visual category of the customization menu of a **bike** (a mod car with `kind = "bike"`) lists, right after Paint and Vinyls,
+one entry for each part that has something to pick: **Rider Body**, **Rider Helmet**, **Rider Suit**, **Rider Gloves**, **Rider
+Boots** (`frontend/garage_ui/choices.rs`, `rider_pages`), each with a helmet icon of its own (`ui/rider_icon.rs`,
+`assets/mods/rider-gear.png`, an original drawing). A car, the backroom and a game without gear list none. Every garage lists them
+for the bike it shows: My Cars (Customize Car, Visual), the world's garage and the shop. Each entry opens a page
 (`Page::Rider { part }`, `gear_page.rs`) built like the plate design page: the game's notice dialog, or a window of nine names in
 a theme with vertical menus.
 
@@ -55,13 +57,22 @@ helmet = "HL_AGV_Corsa-R_Mono-Black"
 A part left out wears the rider's own gear; an id the catalogue lacks does too. The file is replaced atomically. The rider of the
 world reads the kept choice (`committed`) when he loads and when the state moved; only the garage's backdrop reads the preview.
 
-## 5. The setting
+## 5. The setting and the options rows
 
 `rider_gear` (Gameplay options, **Rider Gear**; `config.toml` key `rider_gear`, environment `NFSMW_RIDER_GEAR`, console `set rider_gear
 on|off`; on by default) turns the feature off: no gear page, no rider in the garage's backdrop, and the rider of the world wears his
 own gear. It is a game-owned toggle declared in the mod settings table (`modding/backends/settings.rs`) so a mod cannot reuse its id.
 The host pushes it to `rider_gear::set_enabled` each frame with the other settings (`sync_settings`, `Host::new`).
 The `ride6-bikes` mod's own switches: `gear` (the catalogue folder) and `gear_texture` (README of the mod).
+
+**Gameplay options rows [ours].** The gear can be picked without a garage: Options > Gameplay (the main menu's, and the pause menu's
+Options) lists, right after the Rider Gear switch, one row for each part the catalogue has items for (Rider Body, Rider Helmet, Rider
+Suit, Rider Gloves, Rider Boots; `frontend/options_gear.rs`, `Setting::Gear(part)`). The value is the name of the kept item, the
+rider's own gear (Stock) first; Left and Right cycle it, wrapping, and the choice is kept at once as the garage's Accept does
+(`rider_gear::commit`, so a rider in the world dresses again). The rows are dimmed while the switch is off and not listed while no mod
+offers gear. The front end reads the catalogue when it starts (`Frontend::new`) and the page looks again when it opens
+(`rider_gear::rescan`: the catalogue and the profile's file), so a mod that finished converting meanwhile is seen. Nothing previews
+there: the rider is not on screen; the garage's pages are the ones that show him.
 
 ## 6. How the parts are put together
 

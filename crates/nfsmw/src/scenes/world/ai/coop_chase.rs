@@ -50,7 +50,7 @@ impl TrafficWorld {
 
     /// What the busted timer of one target reads this tick. The primary is seen by the police's own sight test; a
     /// secondary target counts as seen with a cop within [`SECONDARY_SIGHT`].
-    pub fn bust_input_for(&self, view: &PlayerView, primary: bool) -> BustInput {
+    pub fn bust_input_for(&self, view: &PlayerView, primary: bool, grace: bool) -> BustInput {
         let level = self.police.level().unwrap_or(1);
         let cop_distance = self.cop_distance(view.position);
         let seen = match primary {
@@ -63,6 +63,7 @@ impl TrafficWorld {
             player_speed: view.speed.abs(),
             slow_speed: self.police.bust_speed(level),
             flashing: false,
+            grace,
         }
     }
 

@@ -237,7 +237,6 @@ impl TrafficWorld {
             self.strikes.cop |= first_damage;
         }
         self.hits = hits;
-        self.tick_speech_watch(self.step_delta);
         for pass in passes.drain(..) {
             self.note_pass(pass.owner, pass.relative_speed);
             let car = &mut self.cars[pass.owner];

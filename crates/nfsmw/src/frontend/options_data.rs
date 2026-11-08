@@ -28,6 +28,7 @@ impl Setting {
             Setting::Hd(setting) => setting.data(s),
             Setting::CustomHud(setting) => setting.data(s),
             Setting::Language => language::data(),
+            Setting::World => world::data(s),
             Setting::HudLayout => match s.hud_layout {
                 // The platform names are not language.
                 HudLayout::Pc => Data::Text("PC".into()),
@@ -35,8 +36,9 @@ impl Setting {
                 HudLayout::Xbox360 => Data::Text("Xbox 360".into()),
             },
             Setting::UiStyle => Data::Text(s.ui_style.label()),
+            Setting::CustomHudSkin => Data::Text(s.custom_hud_skin.label()),
             Setting::SpeedUnits => Data::Text(s.speed_units.label()),
-            Setting::RidingStyle => Data::Text(s.riding_style.label()),
+            Setting::Rider(setting) => setting.data(s),
             Setting::UiTheme => Data::Text(s.ui_theme.label()),
             Setting::ContextMinimap(context) => map_options::data(s.minimap_mode(context)),
             Setting::RenderScale => Data::Text(crate::i18n::fmt::percent(i64::from(s.render_scale.percent()))),
@@ -61,6 +63,7 @@ impl Setting {
             Setting::CustomFonts => on_off(s.custom_fonts.enabled),
             Setting::TurnSignals => on_off(s.turn_signals),
             Setting::RiderGear => on_off(s.rider_gear),
+            Setting::Gear(part) => gear::data(part),
             Setting::CopHealthBars => on_off(s.cop_health_bars),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
             Setting::Discord => on_off(s.discord),
