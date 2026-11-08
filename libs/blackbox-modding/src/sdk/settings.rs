@@ -95,7 +95,7 @@ impl Settings {
         id: &str,
         label: &str,
         values: &[SettingValue<'_>],
-        mut handler: F,
+        handler: F,
     ) -> ModResult<SettingId>
     where
         F: FnMut(&mut Ctx, &str) + 'static,

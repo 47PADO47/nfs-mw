@@ -62,6 +62,15 @@ impl<R> SectionSet<R> {
         self.default.push(row);
     }
 
+    /// Fixes the place of the section `key` among the titled ones before any row is added to it: sections come out in the
+    /// order they were declared or first used. A section declared and never used has no rows, so it shows no title.
+    pub fn declare(&mut self, key: &str, title: R) {
+        if key.is_empty() || self.titled.iter().any(|(known, _, _)| known == key) {
+            return;
+        }
+        self.titled.push((key.to_owned(), title, Vec::new()));
+    }
+
     /// Adds `row` to the section `key`. `title` makes the title row when the section is new. An empty key is the default
     /// section.
     pub fn push(&mut self, key: &str, title: impl FnOnce() -> R, row: R) {
@@ -106,6 +115,18 @@ mod tests {
         set.push("Two", || "[Two]", "y");
         set.push("One", || "never made", "z");
         assert_eq!(set.into_rows(), ["[One]", "x", "z", "[Two]", "y"]);
+    }
+
+    #[test]
+    fn a_declared_section_keeps_its_place_and_shows_no_title_until_it_has_rows() {
+        let mut set = SectionSet::new();
+        set.declare("First", "[First]");
+        set.declare("Second", "[Second]");
+        set.push("Second", || "never made", "s");
+        set.push_default("d");
+        assert_eq!(set.clone().into_rows(), ["d", "[Second]", "s"], "First has no rows");
+        set.push("First", || "never made", "f");
+        assert_eq!(set.into_rows(), ["d", "[First]", "f", "[Second]", "s"]);
     }
 
     #[test]

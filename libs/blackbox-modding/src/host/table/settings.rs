@@ -108,6 +108,10 @@ unsafe fn read_option<'a>(option: *const BbSettingOption) -> Result<OptionSpec<'
     let take = (size as usize).min(size_of::<BbSettingOption>());
     // SAFETY: the mod's struct has `size` bytes (see `# Safety`), `take` of them are copied into `whole`, which is big enough.
     unsafe { core::ptr::copy_nonoverlapping(option.cast::<u8>(), (&raw mut whole).cast::<u8>(), take) };
+    if (size as usize) < size_of::<BbSettingOption>() {
+        // A size between the two struct sizes covers part of `section`: the mod did not give one.
+        whole.section = BbStr::new("");
+    }
     let option = whole;
     if option.menu != BB_SETTING_MENU_GAMEPLAY {
         return Err(BB_ERR_ARG);
