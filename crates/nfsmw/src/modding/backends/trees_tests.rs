@@ -25,6 +25,7 @@ fn spec(value: &str) -> OptionSpec<'_> {
         label: "Trees variant",
         values: vec![ValueSpec { id: value, label: "A mod's trees" }],
         default_on: false,
+        section: "",
     }
 }
 
