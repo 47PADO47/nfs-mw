@@ -15,6 +15,7 @@ use super::reverse::Reverse;
 use super::script::{Constant, Flashback, Interpolate, defuzzify, fuzzy_not, fuzzy_sum, ramp};
 use super::standstill::{self, Standstill};
 use super::style::{Stand, Walk};
+use crate::settings::{BrakeFingers, ClutchFingers};
 
 /// A slower step than this (s) does not move the filters: it is a pause, not time.
 const MAX_STEP: f32 = 0.1;
@@ -187,6 +188,9 @@ pub struct Values {
     pub clutch_alpha: f32,
     pub brake: f32,
     pub brake_alpha: f32,
+    /// Which finger clips the levers play (`BrakeFingers::graph_index`, `ClutchFingers::graph_index`): the player's choice.
+    pub brake_fingers: f32,
+    pub clutch_fingers: f32,
     /// How far the right wrist is rolled by the throttle, 0 to 1 (`hands.rs`): it moves the right grip's target, not the graph.
     pub wrist: f32,
     /// How far each foot (left, right) is let off its peg, 0 to 1: the old-school foot out (`foot_out.rs`), the standstill and the
@@ -267,6 +271,9 @@ pub struct Smoothed {
     shift: Vec3,
     /// His body's turn against the bike's: roll to the right, pitch nose up, yaw to the right (rad).
     rotation: Vec3,
+    /// The fingers the player chose for the brake and the clutch lever.
+    brake_fingers: BrakeFingers,
+    clutch_fingers: ClutchFingers,
     /// The reverse walk's state (`reverse.rs`).
     reverse: Reverse,
     /// The signals that pick the lean pose (`lean_pose.rs`).
@@ -297,6 +304,13 @@ impl Smoothed {
         self.bike_type = bike_type;
         self.standstill = Standstill::new(stand, standstill::leg_of(self.riding_style));
         self.foot_out.set_enabled(foot_out::applies(bike_type, Some(self.riding_style)));
+    }
+
+    /// What the player chose for this rider: the riding style of his class of bike and the fingers on the levers.
+    pub fn set_choices(&mut self, style: u8, brake: BrakeFingers, clutch: ClutchFingers) {
+        self.set_riding_style(style);
+        self.brake_fingers = brake;
+        self.clutch_fingers = clutch;
     }
 
     /// The player's riding style (`RidingStyle`: 0 balanced, 1 shoulders out, 2 old school): the lean set the graph plays, the foot
@@ -370,6 +384,8 @@ impl Smoothed {
             clutch_alpha: fingers.clutch_alpha,
             brake: fingers.brake,
             brake_alpha: fingers.brake_alpha,
+            brake_fingers: f32::from(self.brake_fingers.graph_index()),
+            clutch_fingers: f32::from(self.clutch_fingers.graph_index()),
             wrist: fingers.wrist,
             foot_release,
         };
@@ -383,7 +399,12 @@ impl Smoothed {
     }
 
     pub fn values(&self) -> Values {
-        Values { riding_style: f32::from(self.riding_style), ..self.values }
+        Values {
+            riding_style: f32::from(self.riding_style),
+            brake_fingers: f32::from(self.brake_fingers.graph_index()),
+            clutch_fingers: f32::from(self.clutch_fingers.graph_index()),
+            ..self.values
+        }
     }
 
     /// The rider's displacement from his rest place in the car's axes (x forward, y left, z up), metres.

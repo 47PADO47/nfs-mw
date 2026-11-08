@@ -76,31 +76,117 @@ fn rider_gear_is_on_by_default_and_comes_from_every_layer() {
 }
 
 #[test]
-fn the_riding_style_is_balanced_by_default_and_comes_from_every_layer() {
+fn each_class_of_bike_has_its_riding_style_balanced_by_default_from_every_layer() {
+    use super::{BikeClass, RidingStyle};
+    let all = |s: Settings| [s.riding_style_road, s.riding_style_motard, s.riding_style_offroad];
+    assert_eq!(all(Settings::from(Partial::default())), [RidingStyle::Balanced; 3]);
+    let cli = Partial { riding_style_motard: Some(RidingStyle::OldSchool), ..Partial::default() };
+    let env = env::read(|n| (n == "NFSMW_RIDING_STYLE_MOTARD").then(|| "shoulders-out".to_owned()));
+    let file = file::parse(
+        "riding_style_motard = \"balanced\"
+riding_style_road = \"old-school\"
+",
+        "test",
+    );
+    let layered = Settings::from(cli.or(env).or(file));
+    assert_eq!(layered.riding_style_motard, RidingStyle::OldSchool, "the command line wins");
+    assert_eq!(
+        layered.riding_style_road,
+        RidingStyle::OldSchool,
+        "a class the upper layers leave out comes from the file"
+    );
+    assert_eq!(layered.riding_style_offroad, RidingStyle::Balanced);
+    assert_eq!(Settings::from(Partial::default().or(env).or(file)).riding_style_motard, RidingStyle::ShouldersOut);
+    assert_eq!(
+        file::parse("riding_style_road = \"leaning\"", "test").riding_style_road,
+        None,
+        "a name that is not a style is ignored"
+    );
+    for class in BikeClass::ALL {
+        let env_name = class.env();
+        let set = env::read(|n| (n == env_name).then(|| "old-school".to_owned()));
+        assert_eq!(
+            all(Settings::from(set)).iter().filter(|style| **style == RidingStyle::OldSchool).count(),
+            1,
+            "{env_name}"
+        );
+    }
+    let written =
+        write::merge("", &Partial { riding_style_offroad: Some(RidingStyle::ShouldersOut), ..Partial::default() })
+            .unwrap();
+    assert!(written.contains("riding_style_offroad = \"shoulders-out\""), "{written}");
+    assert!(!written.contains("riding_style_road"), "{written}");
+}
+
+#[test]
+fn the_older_single_riding_style_key_and_variable_set_all_three_classes_and_a_class_key_wins() {
     use super::RidingStyle;
-    assert_eq!(Settings::from(Partial::default()).riding_style, RidingStyle::Balanced);
-    let cli = Partial { riding_style: Some(RidingStyle::OldSchool), ..Partial::default() };
-    let env = env::read(|n| (n == "NFSMW_RIDING_STYLE").then(|| "shoulders-out".to_owned()));
+    let all = |p: Partial| {
+        let s = Settings::from(p);
+        [s.riding_style_road, s.riding_style_motard, s.riding_style_offroad]
+    };
     let file = file::parse(
         "riding_style = \"old-school\"
 ",
         "test",
     );
-    assert_eq!(Settings::from(cli.or(env).or(file)).riding_style, RidingStyle::OldSchool, "the command line wins");
-    assert_eq!(
-        Settings::from(Partial::default().or(env).or(file)).riding_style,
-        RidingStyle::ShouldersOut,
-        "the environment over the file"
+    assert_eq!(all(file), [RidingStyle::OldSchool; 3]);
+    let env = env::read(|n| (n == "NFSMW_RIDING_STYLE").then(|| "shoulders-out".to_owned()));
+    assert_eq!(all(env), [RidingStyle::ShouldersOut; 3]);
+    let both = file::parse(
+        "riding_style = \"old-school\"
+riding_style_road = \"balanced\"
+",
+        "test",
     );
-    assert_eq!(Settings::from(Partial::default().or(file)).riding_style, RidingStyle::OldSchool);
-    assert_eq!(
-        file::parse("riding_style = \"leaning\"", "test").riding_style,
-        None,
-        "a name that is not a style is ignored"
+    assert_eq!(all(both), [RidingStyle::Balanced, RidingStyle::OldSchool, RidingStyle::OldSchool]);
+    let named = env::read(|n| match n {
+        "NFSMW_RIDING_STYLE" => Some("shoulders-out".to_owned()),
+        "NFSMW_RIDING_STYLE_OFFROAD" => Some("balanced".to_owned()),
+        _ => None,
+    });
+    assert_eq!(all(named), [RidingStyle::ShouldersOut, RidingStyle::ShouldersOut, RidingStyle::Balanced]);
+    assert_eq!(all(env.or(file)), [RidingStyle::ShouldersOut; 3], "the environment over the file");
+}
+
+#[test]
+fn the_fingers_are_two_by_default_and_come_from_every_layer_as_numbers_or_text() {
+    use super::{BrakeFingers, ClutchFingers};
+    let defaults = Settings::from(Partial::default());
+    assert_eq!((defaults.brake_fingers, defaults.clutch_fingers), (BrakeFingers::Two, ClutchFingers::Two));
+    let cli = Partial { brake_fingers: Some(BrakeFingers::One), ..Partial::default() };
+    let env = env::read(|n| match n {
+        "NFSMW_BRAKE_FINGERS" => Some("4".to_owned()),
+        "NFSMW_CLUTCH_FINGERS" => Some("4".to_owned()),
+        _ => None,
+    });
+    let file = file::parse(
+        "brake_fingers = 4
+clutch_fingers = \"2\"
+",
+        "test",
     );
-    let written =
-        write::merge("", &Partial { riding_style: Some(RidingStyle::ShouldersOut), ..Partial::default() }).unwrap();
-    assert!(written.contains("riding_style = \"shoulders-out\""), "{written}");
+    let layered = Settings::from(cli.or(env).or(file));
+    assert_eq!((layered.brake_fingers, layered.clutch_fingers), (BrakeFingers::One, ClutchFingers::Four));
+    let from_file = Settings::from(Partial::default().or(file));
+    assert_eq!((from_file.brake_fingers, from_file.clutch_fingers), (BrakeFingers::Four, ClutchFingers::Two));
+    assert_eq!(
+        file::parse(
+            "brake_fingers = 3
+clutch_fingers = 1",
+            "test"
+        )
+        .brake_fingers,
+        None
+    );
+    assert_eq!(file::parse("clutch_fingers = 1", "test").clutch_fingers, None, "the clutch has no one-finger clip");
+    let both = Partial {
+        brake_fingers: Some(BrakeFingers::Four),
+        clutch_fingers: Some(ClutchFingers::Four),
+        ..Partial::default()
+    };
+    let written = write::merge("", &both).unwrap();
+    assert!(written.contains("brake_fingers = 4") && written.contains("clutch_fingers = 4"), "{written}");
 }
 
 #[test]

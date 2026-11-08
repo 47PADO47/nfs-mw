@@ -59,7 +59,12 @@ options-minimap-fixed = Fixed
 options-minimap-rotating = Rotating
 options-turn-signals = Turn Signals
 options-rider-gear = Rider Gear
-options-riding-style = Riding Style
+# One riding style per class of bike (RIDE 6's riding style page pictures road, motard and off-road bikes), and the fingers on the levers.
+options-riding-style-road = Riding Style: Road
+options-riding-style-motard = Riding Style: Motard
+options-riding-style-offroad = Riding Style: Offroad
+options-brake-fingers = Brake Fingers
+options-clutch-fingers = Clutch Fingers
 options-riding-style-balanced = Balanced
 options-riding-style-shoulders-out = Shoulders Out
 options-riding-style-old-school = Old School

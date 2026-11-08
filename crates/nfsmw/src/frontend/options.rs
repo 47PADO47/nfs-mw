@@ -17,8 +17,8 @@ use crate::i18n::Args;
 #[cfg(test)]
 use crate::settings::Transmission;
 use crate::settings::{
-    CameraMode, HudLayout, MinimapMode, Partial, Percent, RidingStyle, Settings, SmokeQuality, SpeedUnits, UiStyle,
-    UiTheme, UpscaleMode, WindowMode,
+    CameraMode, HudLayout, MinimapMode, Partial, Percent, Settings, SmokeQuality, SpeedUnits, UiStyle, UiTheme,
+    UpscaleMode, WindowMode,
 };
 
 /// A setting a row edits.
@@ -72,7 +72,8 @@ pub enum Setting {
     /// The CustomHUD plugin's gauge skin: Auto or Off (`settings/custom_hud_skin.rs`).
     CustomHudSkin,
     SpeedUnits,
-    RidingStyle,
+    /// A rider row: the riding style of a class of bike, the fingers on the levers (`rider_options.rs`).
+    Rider(rider_options::RiderSetting),
     UiTheme,
     ContextMinimap(crate::settings::MinimapContext),
     RenderScale,
@@ -171,6 +172,9 @@ mod hd_options;
 
 #[path = "hud_options.rs"]
 pub(super) mod hud_options;
+
+#[path = "rider_options.rs"]
+pub(super) mod rider_options;
 
 #[path = "options_caps.rs"]
 mod caps_rows;
@@ -326,11 +330,7 @@ impl Setting {
                 s.speed_units = SpeedUnits::ALL[cycle(at, SpeedUnits::ALL.len(), forward)];
                 changed.speed_units = Some(s.speed_units);
             }
-            Setting::RidingStyle => {
-                let at = RidingStyle::ALL.iter().position(|style| *style == s.riding_style).unwrap_or(0);
-                s.riding_style = RidingStyle::ALL[cycle(at, RidingStyle::ALL.len(), forward)];
-                changed.riding_style = Some(s.riding_style);
-            }
+            Setting::Rider(setting) => return setting.step(s, changed, forward),
             Setting::UiTheme => {
                 let at = UiTheme::ALL.iter().position(|theme| *theme == s.ui_theme).unwrap_or(0);
                 s.ui_theme = UiTheme::ALL[cycle(at, UiTheme::ALL.len(), forward)];

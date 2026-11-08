@@ -328,3 +328,20 @@ fn the_levers_and_the_throttle_reach_the_hands() {
     let hands_off = settle(&mut Smoothed::default(), &sample(), 2.0);
     assert_eq!((hands_off.clutch, hands_off.brake, hands_off.wrist), (0.0, 0.0, 0.0));
 }
+
+#[test]
+fn the_players_finger_choices_reach_the_graph_and_two_fingers_are_the_default() {
+    use crate::settings::{BrakeFingers, ClutchFingers};
+    let mut smoothed = Smoothed::default();
+    let values = settle(&mut smoothed, &sample(), 0.1);
+    assert_eq!(
+        (values.brake_fingers, values.clutch_fingers),
+        (1.0, 0.0),
+        "two on the brake, the clutch clip's two on the clutch"
+    );
+    smoothed.set_choices(0, BrakeFingers::Four, ClutchFingers::Four);
+    let values = settle(&mut smoothed, &sample(), 0.1);
+    assert_eq!((values.brake_fingers, values.clutch_fingers), (2.0, 1.0));
+    smoothed.set_choices(0, BrakeFingers::One, ClutchFingers::Two);
+    assert_eq!((smoothed.values().brake_fingers, smoothed.values().clutch_fingers), (0.0, 0.0));
+}
