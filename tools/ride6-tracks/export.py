@@ -56,6 +56,7 @@ def ground_meshes(assets, track):
                 "mesh": item["mesh"],
                 "materials": mesh_materials(assets, item["mesh"], item["overrides"]),
                 "collide": not NO_COLLISION.search(name),
+                "placed": props.placement_of(item),
             }
         )
     return found
@@ -158,6 +159,8 @@ class Builder:
         if normals is None:
             normals = np.zeros_like(positions)
             normals[:, 2] = 1.0
+        if item.get("placed"):
+            positions, normals, local = meshes.place(positions, normals, local, *item["placed"])
         coords = meshes.planar_uv(positions, normals, tile_m) if uv == "planar" else uv0
         material = self.material(name, picture, tile_m, uv, surface)
         item.get("sink", self.ground).add(

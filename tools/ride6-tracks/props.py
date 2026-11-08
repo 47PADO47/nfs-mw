@@ -65,6 +65,21 @@ def vec3(v, default=1.0):
     return (v.get("X", default), v.get("Y", default), v.get("Z", default))
 
 
+def placement_of(item):
+    """The transform of a static mesh actor as `(position, rows)` in the render space, or `None` when it is the identity.
+
+    A piece of ground is usually at the origin with its vertices in world space, but a track may move a whole level
+    (Nurburgring GP: 70 m) or place scenery meshes (rocks) with a location, a rotator and a scale.
+    """
+    loc = vec3(item["location"], 0.0)
+    rot = item["rotation"] or {}
+    scale = vec3(item["scale"])
+    angles = (rot.get("Pitch", 0.0), rot.get("Yaw", 0.0), rot.get("Roll", 0.0))
+    if loc == (0.0, 0.0, 0.0) and angles == (0.0, 0.0, 0.0) and scale == (1.0, 1.0, 1.0):
+        return None
+    return common.ue_to_render(*loc), render_rows(axes_of_rotator(*angles), scale)
+
+
 def collect(assets, track, log=print):
     """Every placed object of the track's object levels: `(instances, models)`.
 
