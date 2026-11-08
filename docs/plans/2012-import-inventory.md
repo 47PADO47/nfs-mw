@@ -125,7 +125,7 @@ original file at load time with no file written (S), needs a small converter (C)
 
 | Item | 2012 data | 2005 slot | Status | Cost | Stream |
 |---|---|---|---|---|---|
-| **Road, ground and sign textures** | `GLOBALRESOURCES`: asphalt, concrete, grass, arrows, STOP and speed-limit signs, traffic lights, manhole covers, grates | the 2005 textures are in streamed `.BUN` sections by name hash | NEEDS HOST FEATURE | a **texture swap** next to the trees' model swap (`Streamer::set_rewrite` already sees every section before the textures are decoded); a profile of `name -> picture` pairs, about 300 lines in the host, 400 in the mod | C: a swapped picture is a cut BC1/BC3 of 0.1 to 1 MB; the pack is a few tens of MB. Streaming the 2012 bundles directly is S once the swap reads a `Texture` resource itself |
+| **Road, ground and sign textures** | `GLOBALRESOURCES`: asphalt, concrete slabs, grass, road paint, arrows, STOP and speed-limit signs, traffic lights, manhole covers, grates | the 2005 textures are in streamed `.BUN` sections by name hash; the replacement API of [api-replace.md](../modding/api-replace.md) takes them by hash | **DONE** (81 textures: asphalt strips with lines and crosswalks, sidewalks, grass, concrete, the storm grate, the round cover, the STOP, 50 and 55 signs) | no disk: stubs of 41 bytes; pictures built on demand from the install by byte range. Table, sizes and cost: [road-textures.md](../modding/road-textures.md); what the 2005 road is made of: [chameleon-road-textures.md](../formats/chameleon-road-textures.md). **Not done:** road arrows and `ONLY` (the 2005 data has no ground arrow texture), traffic lights (the other agent's models), hazard stripes | S (read by range when a map tile loads) |
 | Street props and lamps | 112 `PropObject`, models in `TRK_UNIT*` and `GLOBALRESOURCES` | the same model swap as the trees, by solid name | DOABLE after the trees PR | which 2005 solid matches which 2012 prop is a manual table (names are hashes); 150 lines of mod code, no host code | C |
 | Billboards, signs as models | models in `TRK_UNIT*` | same swap | DOABLE after the trees PR | needs the same manual match | C |
 | Ground cover (grass, bushes) | `GroundcoverCollection` 400 | the 2005 ground cover is baked in sections | NOT FEASIBLE | | |
@@ -272,7 +272,7 @@ Not done, with the reason:
    without a loss. The `_B` alias and a shared driver pack are smaller host changes with the same saving per file.
 4. **Rims of other cars**: the wheel is one solid with the tyre, disc and caliper, so a rim as a shop part needs the rim cut out by
    material first; not a cheap item.
-5. **Props, signs, road and sky textures**: wait for the trees PR (the model swap) and need the texture swap of section 3.4.
+5. **Road, ground and sign textures**: done through the replacement API ([road-textures.md](../modding/road-textures.md)). **Props and sky textures** are still open (props need the model swap of the trees PR with a manual match; the sky needs the same texture swap by name and a look at the cloud domes).
 6. **Variant kinds** (helicopter, skid marks, debris, rain, ambience, grading): each needs a profile schema, a host option row and a scene
    that draws or plays it, by the checklist in [effect-variants.md](../modding/effect-variants.md#adding-a-kind-checklist). Skid marks
    and the helicopter are the smallest.

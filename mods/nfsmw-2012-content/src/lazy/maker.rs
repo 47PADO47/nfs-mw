@@ -35,13 +35,27 @@ pub struct Maker {
     /// The 2012 install, opened by the first read.
     source: OnceLock<Result<Source, String>>,
     cache: Mutex<Cache>,
+    /// The road textures, which are made from the same install (`road_textures/`).
+    roads: Option<crate::road_textures::Maker>,
     /// How long each car's files took, in milliseconds, as `(key, milliseconds)`, for the tests and the measuring commands.
     timings: Mutex<Vec<(String, f32)>>,
 }
 
 impl Maker {
     pub fn new(recipe: Recipe) -> Self {
-        Self { recipe, source: OnceLock::new(), cache: Mutex::new(Cache::default()), timings: Mutex::new(Vec::new()) }
+        Self {
+            recipe,
+            source: OnceLock::new(),
+            cache: Mutex::new(Cache::default()),
+            roads: None,
+            timings: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// The same maker, which also makes the files of the road textures.
+    pub fn with_roads(mut self, roads: Option<crate::road_textures::Maker>) -> Self {
+        self.roads = roads;
+        self
     }
 
     /// The recipe the files are made from.
@@ -138,6 +152,9 @@ fn recording(made: &CarSounds, kind: Sound, at: usize) -> Option<&Vec<u8>> {
 
 impl LazyFiles for Maker {
     fn read(&self, key: &str) -> ModResult<Vec<u8>> {
+        if let Some(roads) = self.roads.as_ref().filter(|_| key.starts_with(crate::road_textures::KEY_PREFIX)) {
+            return roads.read_key(key);
+        }
         let key = parse_key(key).ok_or(Error::Arg)?;
         let id = match &key {
             Key::Car(id, _) | Key::Sound(id, _, _) => id,

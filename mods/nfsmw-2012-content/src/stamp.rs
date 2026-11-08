@@ -16,7 +16,7 @@ pub const FILE: &str = ".import-stamp";
 /// modification times of the source files.
 pub fn of(config: &Config, source: &Path) -> String {
     // Settings of features that convert nothing (`music`, streamed from the install) are not part of what the files depend on.
-    let converted = Config { music: true, ..config.clone() };
+    let converted = Config { music: true, road_textures: true, ..config.clone() };
     let mut parts = vec![format!("conversion {CONVERSION}"), format!("brands {BRANDS}"), format!("{converted:?}")];
     let mut sources = vec![
         fingerprint(&source.join("VEHICLES/VEHICLETEX.BNDL")),

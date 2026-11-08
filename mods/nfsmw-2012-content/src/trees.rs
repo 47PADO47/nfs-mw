@@ -12,7 +12,7 @@
 
 mod build;
 mod light;
-mod ranges;
+pub(crate) mod ranges;
 mod read;
 #[cfg(test)]
 mod real_tests;
@@ -70,7 +70,7 @@ fn try_write(source: &Source, config: &Config, out: &Path) -> Result<()> {
     }
     // The same variant declared through the one replacement API; written last, so a host that reads it finds the files in place.
     let manifest = build::replace_manifest(&pack.species, VARIANT, LABEL);
-    let replace_folder = out.join(blackbox_modding::content::REPLACE_FOLDER);
+    let replace_folder = out.join(crate::road_textures::REPLACE_FOLDER);
     std::fs::create_dir_all(&replace_folder).with_context(|| format!("creating {}", replace_folder.display()))?;
     std::fs::write(replace_folder.join("trees-mw2012.toml"), manifest.as_bytes())
         .context("writing the replacement set")?;

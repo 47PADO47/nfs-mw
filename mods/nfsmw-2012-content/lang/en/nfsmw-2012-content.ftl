@@ -3,3 +3,5 @@
 nfsmw2012-section = NFS: Most Wanted (2012)
 nfsmw2012-soundtrack = 2012 soundtrack
 nfsmw2012-stream-cars = Stream 2012 cars
+nfsmw2012-road-textures = Road textures
+nfsmw2012-road-textures-value = NFS Most Wanted 2012
