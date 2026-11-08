@@ -28,7 +28,7 @@ hour = 18.0
 cube = "dusk"
 
 [[set]]
-weather = "overcast"
+weather = "rain"
 [[set.key]]
 hour = 0.0
 cube = "noon"
@@ -48,7 +48,7 @@ fn a_profile_parses_with_its_cubes_and_sets() {
         clear.keys,
         [GradingKey { hour: 4.0, cube: 0 }, GradingKey { hour: 12.0, cube: 1 }, GradingKey { hour: 18.0, cube: 2 }]
     );
-    assert_eq!(profile.set(GradingWeather::Overcast).unwrap().keys.len(), 1);
+    assert_eq!(profile.set(GradingWeather::Rain).unwrap().keys.len(), 1);
     assert_eq!(grading_profile_path("mw2012"), "GRADING/MW2012/profile.toml");
 }
 
@@ -74,7 +74,7 @@ fn the_hour_picks_the_keys_around_it_and_the_blend() {
     assert_eq!(at(-12.0), at(12.0));
     assert_eq!(at(f32::NAN), at(0.0));
     // One key is one cube all day.
-    let all_day = profile.set(GradingWeather::Overcast).unwrap();
+    let all_day = profile.set(GradingWeather::Rain).unwrap();
     for hour in [0.0, 6.5, 23.9] {
         assert_eq!(all_day.at(hour).unwrap(), GradingPair { from: 1, to: 1, mix: 0.0 });
     }

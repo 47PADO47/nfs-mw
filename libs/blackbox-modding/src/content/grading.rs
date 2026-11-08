@@ -4,7 +4,7 @@
 //! The file is `GRADING/<value id>/profile.toml` in the mod's `files/` folder, where `<value id>` is the id of the value the
 //! mod adds to the `grading_variant` option (`bb.settings`). A profile names the colour cubes it ships and says which cube is
 //! in force at which hour of the day, for each weather the mod has a look for. The game blends the cube of the hour before with
-//! the one after by the time between them, and the sets of two weathers by how overcast it is.
+//! the one after by the time between them, and the sets of the two weathers by how wet it is.
 //!
 //! ```toml
 //! format = 1
@@ -13,7 +13,7 @@
 //! name = "noon"                     # a-z 0-9 _ -, what the keys call it
 //! file = "GRADING/MW2012/C04E220.LUT"   # a .lut (binary) or .cube (Adobe text) of 2 to 64 entries a side
 //!
-//! [[set]]                           # one or two: "clear" (the fallback for every weather) and "overcast" (cloud and rain)
+//! [[set]]                           # one or two: "clear" (the fallback for every weather) and "rain" (rain and wet roads)
 //! weather = "clear"
 //! [[set.key]]                       # 1 to 64, the hours rising (0 up to 24); the day wraps from the last to the first
 //! hour = 12.0
@@ -46,8 +46,8 @@ pub fn grading_profile_path(value: &str) -> String {
 pub enum GradingWeather {
     /// The fallback: used in every weather a profile has no set for.
     Clear,
-    /// Cloud and rain.
-    Overcast,
+    /// Rain, and the wet that stays after it.
+    Rain,
 }
 
 /// A cube file a profile names.
