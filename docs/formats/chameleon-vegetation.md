@@ -194,6 +194,10 @@ of `trees/light.rs`), and a **patch is a few separate shrubs, not a solid block*
 vertices and leave gaps where the old stretch had fewer than three vertices. That is the look of the 2012 game's own hedges, but it is **less dense than the
 old** (open question below). The grasses were fitted (221 solids, no solid kept) but **no place with visible grass was looked at** **[unconfirmed]**.
 
+**Cost:** the pack grows by about 0.7 MB (3.5 MB in all: 0.9 MB of models, 2.5 MB of pictures) **[verified]** (it was 2.8 MB). The frame cost on dense tiles and the vertex totals
+(`report_what_the_trees_do_to_the_installed_world` now prints the old and new vertex and triangle counts of every solid) were **not measured yet** **[unconfirmed]**: the one
+`--bench-seconds` run taken was on a busy machine (p50 6.6 ms, p95 21 ms, with the bushes off).
+
 ## How the 2012 world places them **[not read]**
 
 The world places models through `PropObject` (0x217, 1,446), `CompoundObject` (0x215, 671), `WorldObject` (0x205, 1,307) and
