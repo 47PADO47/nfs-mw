@@ -99,6 +99,12 @@ impl Mods {
         self.bridge.declare_replacements(mods);
     }
 
+    /// Make the replacement sets the saved choices name the ones in effect now, before any scene exists, so that the first section the
+    /// world loads is already rewritten (the bridge does it every frame afterwards, for a choice made in the menu).
+    pub fn publish_replacements(&self) {
+        self.bridge.publish_replacements();
+    }
+
     /// Give the mods the install, once its layers are in place (the cop waves are read through it).
     pub fn set_install(&self, dir: &game_install::GameDir) {
         self.bridge.set_install(dir.clone());

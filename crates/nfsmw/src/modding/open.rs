@@ -42,5 +42,6 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     // The language packs are mod content: the language is chosen once the mods' folders are known.
     crate::i18n::start(&dir, Settings::load(view.settings_layer()).language);
     mods.set_install(&dir);
+    mods.publish_replacements();
     Ok((dir, mods))
 }
