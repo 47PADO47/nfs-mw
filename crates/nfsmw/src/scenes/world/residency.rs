@@ -168,7 +168,8 @@ impl Residency {
         let shared_total = sections.iter().filter(|section| !section.is_spatial()).count();
         let mod_base = sections.len();
         let zones = Zones::new(visible, &sections);
-        let (mod_streamers, mod_routes, mod_owners) = mod_tiles::spawn_streamers(&mod_packs);
+        let mod_tiles::ModStreamers { streamers: mod_streamers, routes: mod_routes, owners: mod_owners } =
+            mod_tiles::spawn_streamers(&mod_packs);
         sections.extend(mod_packs.iter().map(|pack| pack.section.clone()));
         let tiles = started.requested.iter().map(|&i| (i, TileState::Requested)).collect();
         Self {

@@ -1,6 +1,6 @@
 //! Where the player starts in the world. The 2012 data has no start of its own (the game starts events and the open city from
 //! its gameplay data, which is not read), so the start is found once, when the manifest is made: on the largest flat piece of road
-//! of the unit that has the most road, facing along its longest edge.
+//! of the unit that has the most road faces, facing along its longest edge.
 
 use anyhow::Result;
 
@@ -34,9 +34,10 @@ fn length(v: [f32; 3]) -> f32 {
     (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()
 }
 
-/// The area of the flat road in `faces` (engine space), square metres, and the largest such face.
-pub fn road(faces: &[Face]) -> (f32, Option<&Face>) {
-    let mut total = 0.0;
+/// The number of flat road faces in `faces` (engine space) and the largest of them. A street is many small faces, so the count
+/// tells a district of streets from an apron or a runway, which is a few huge ones.
+pub fn road(faces: &[Face]) -> (usize, Option<&Face>) {
+    let mut total = 0;
     let mut best: Option<(f32, &Face)> = None;
     for face in faces.iter().filter(|face| face.flags & DRIVE_BIT != 0) {
         let normal = cross(sub(face.points[1], face.points[0]), sub(face.points[2], face.points[0]));
@@ -44,7 +45,7 @@ pub fn road(faces: &[Face]) -> (f32, Option<&Face>) {
         if doubled_area <= 0.0 || normal[1].abs() / doubled_area < FLAT {
             continue;
         }
-        total += doubled_area / 2.0;
+        total += 1;
         if best.is_none_or(|(area, _)| doubled_area > area) {
             best = Some((doubled_area, face));
         }
@@ -64,20 +65,20 @@ pub fn from_faces(faces: &[Face]) -> Option<Start> {
     Some(Start { position: [px, py, pz + LIFT], heading })
 }
 
-/// The start of the world of `install`: on the largest flat road face of the unit with the most flat road (the units hold
-/// the streets of a district each, so this is the middle of the busiest part of the city).
+/// The start of the world of `install`: on the largest flat road face of the unit with the most flat road faces (the units hold
+/// the streets of a district each, so this is the busiest part of the city).
 pub fn choose(install: &Install) -> Result<Option<Start>> {
-    let mut best: Option<(f32, Start)> = None;
+    let mut best: Option<(usize, Start)> = None;
     for zone in install.zones() {
         let unit = install.open_unit(zone.unit)?;
         let mut faces = Vec::new();
         for id in unit.ids_of(POLY_SOUP_LIST) {
             faces.extend(collision::decode(&unit.resource(id)?.blocks[0])?);
         }
-        let (area, _) = road(&faces);
+        let (count, _) = road(&faces);
         let Some(start) = from_faces(&faces) else { continue };
-        if best.is_none_or(|(most, _)| area > most) {
-            best = Some((area, start));
+        if best.is_none_or(|(most, _)| count > most) {
+            best = Some((count, start));
         }
     }
     Ok(best.map(|(_, start)| start))
@@ -108,14 +109,16 @@ mod tests {
     }
 
     #[test]
-    fn the_flat_road_area_adds_up_and_leaves_out_walls_and_ground() {
+    fn the_flat_road_faces_are_counted_and_walls_and_ground_are_left_out() {
         let road_face = face([[0.0, 1.0, 0.0], [10.0, 1.0, 0.0], [0.0, 1.0, 10.0]], DRIVE_BIT);
         let wall = face([[0.0, 0.0, 0.0], [5.0, 0.0, 0.0], [0.0, 5.0, 0.0]], DRIVE_BIT);
         let ground = face([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [0.0, 0.0, 10.0]], 0x40);
-        let (area, best) = road(&[road_face, wall, ground, road_face]);
-        assert_eq!(area, 100.0, "two road faces of 50 square metres");
+        let faces = [road_face, wall, ground, road_face];
+        let (count, best) = road(&faces);
+        assert_eq!(count, 2, "two road faces");
         assert_eq!(best, Some(&road_face));
-        assert_eq!(road(&[wall, ground]), (0.0, None));
+        let only_others = [wall, ground];
+        assert_eq!(road(&only_others), (0, None));
     }
 
     #[test]

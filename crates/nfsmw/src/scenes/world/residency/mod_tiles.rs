@@ -14,11 +14,20 @@ use crate::modding::content::scenery::{MapPack, PackSource, assemble};
 /// Loader threads of the streamer the installed packs share (the pieces of a world made when they are asked for).
 const INSTALLED_THREADS: usize = 3;
 
-/// The streamers of a world's map packs, the route to each pack (streamer, section in it) and the pack of each section. A pack
+/// The streamers of a world's map packs, the route to each pack (streamer, section in it) and the pack of each section.
+pub(super) struct ModStreamers {
+    pub streamers: Vec<Streamer>,
+    /// Per pack: its streamer and its section in that streamer.
+    pub routes: Vec<(usize, usize)>,
+    /// Per streamer: the pack of each of its sections.
+    pub owners: Vec<Vec<usize>>,
+}
+
+/// Starts the streamers of a world's map packs. A pack
 /// that is a file has a streamer of its own, reading it from offset 0 as entry 0. The packs read through the install
 /// (`PackSource::Installed`: a world made of many pieces, some made when asked for) share one streamer, whose sections are those
 /// packs in order, so a world of hundreds of pieces does not start hundreds of threads.
-pub(super) fn spawn_streamers(packs: &[MapPack]) -> (Vec<Streamer>, Vec<(usize, usize)>, Vec<Vec<usize>>) {
+pub(super) fn spawn_streamers(packs: &[MapPack]) -> ModStreamers {
     let mut streamers = Vec::new();
     let mut owners: Vec<Vec<usize>> = Vec::new();
     let mut routes = vec![(0, 0); packs.len()];
@@ -34,7 +43,7 @@ pub(super) fn spawn_streamers(packs: &[MapPack]) -> (Vec<Streamer>, Vec<(usize, 
         }
     }
     if installed.is_empty() {
-        return (streamers, routes, owners);
+        return ModStreamers { streamers, routes, owners };
     }
     let shared = streamers.len();
     let sections = installed.iter().map(|&(k, _, _)| packs[k].section.clone()).collect();
@@ -49,7 +58,7 @@ pub(super) fn spawn_streamers(packs: &[MapPack]) -> (Vec<Streamer>, Vec<(usize, 
     }
     owners.push(installed.iter().map(|&(k, _, _)| k).collect());
     streamers.push(Streamer::spawn_made(reader, sections, INSTALLED_THREADS));
-    (streamers, routes, owners)
+    ModStreamers { streamers, routes, owners }
 }
 
 /// How far outside its anchor a pack stays loaded, metres (the spec's design value).
@@ -234,8 +243,8 @@ mod tests {
         assert!(matches!(packs[0].source, PackSource::Installed { .. }));
         assert_eq!(source.0.load(std::sync::atomic::Ordering::SeqCst), 0, "nothing is made when the world opens");
 
-        let (streamers, routes, owners) = spawn_streamers(&packs);
-        assert_eq!((streamers.len(), routes.clone(), owners.clone()), (1, vec![(0, 0)], vec![vec![0]]));
+        let ModStreamers { streamers, routes, owners } = spawn_streamers(&packs);
+        assert_eq!((streamers.len(), routes, owners), (1, vec![(0, 0)], vec![vec![0]]));
         streamers[0].request(0);
         let mut loaded = None;
         for _ in 0..5000 {

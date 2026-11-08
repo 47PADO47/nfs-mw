@@ -38,7 +38,7 @@ const EXCLUDE_FLAGS: u32 = 0x60;
 const FLAT_NAME: &str = "FLATGREY";
 /// The name and colour (RGB565, little endian) of the picture water is drawn with: a dark green-blue.
 const WATER_NAME: &str = "FLATWATER";
-const WATER_BLOCK: [u8; 8] = [0xC9, 0x11, 0xC9, 0x11, 0, 0, 0, 0];
+const WATER_BLOCK: [u8; 8] = [0xCD, 0x1A, 0xCD, 0x1A, 0, 0, 0, 0];
 const RESOURCE_TEXTURE: u32 = 0x1;
 
 /// What the conversion of a unit is told.

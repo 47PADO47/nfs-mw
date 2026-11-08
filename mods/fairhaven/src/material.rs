@@ -59,9 +59,11 @@ fn layers(material: &Material, shader: &ShaderInfo) -> Option<Layers> {
         let slot = shader.samplers.iter().position(|sampler| sampler == name)?;
         material.textures.get(slot).copied()
     };
-    let textures = [texture("Tiling1TextureSampler")?, texture("Tiling2TextureSampler")?, texture("Tiling3TextureSampler")?];
+    let textures =
+        [texture("Tiling1TextureSampler")?, texture("Tiling2TextureSampler")?, texture("Tiling3TextureSampler")?];
     let (across, down) = (material.float4(1)?, material.float4(2)?);
-    let ratio = |values: [f32; 4], layer: usize| Some(values[layer]).filter(|v| v.is_finite() && *v > 0.0).unwrap_or(1.0);
+    let ratio =
+        |values: [f32; 4], layer: usize| Some(values[layer]).filter(|v| v.is_finite() && *v > 0.0).unwrap_or(1.0);
     Some(Layers {
         mask: texture("MaskTextureSampler")?,
         textures,
@@ -173,7 +175,8 @@ mod tests {
     fn a_terrain_has_three_layers_with_their_ratios_and_a_mask() {
         let floats: [f32; 12] = [50.0, 0.0, 0.0, 0.0, 30.0, 100.0, 200.0, 0.0, 20.0, 10.0, 0.0, 0.0];
         let constants: Vec<u8> = floats.iter().flat_map(|v| v.to_le_bytes()).collect();
-        let samplers = ["MaskTextureSampler", "Tiling3TextureSampler", "Tiling2TextureSampler", "Tiling1TextureSampler"];
+        let samplers =
+            ["MaskTextureSampler", "Tiling3TextureSampler", "Tiling2TextureSampler", "Tiling1TextureSampler"];
         let info = shader("TerrainPBR_Normal_Opaque", &samplers);
         let terrain = Material { shader: 0, textures: vec![5, 6, 7, 8], constants };
         let layers = surface(&terrain, &info).layers.expect("a terrain has layers");
