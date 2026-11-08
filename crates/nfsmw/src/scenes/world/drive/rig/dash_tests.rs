@@ -45,7 +45,7 @@ fn the_speed_and_the_gear_are_drawn_in_their_colours_and_change_with_the_state()
 
 #[test]
 fn a_state_has_the_key_of_what_it_paints() {
-    assert_eq!(state(50.4, 2, 6_000.0).key(), state(50.2, 2, 6_001.0).key(), "the same whole km/h and segments");
+    assert_eq!(state(50.4, 2, 5_900.0).key(), state(50.2, 2, 5_950.0).key(), "the same whole km/h and segments");
     assert_ne!(state(50.4, 2, 6_000.0).key(), state(51.0, 2, 6_000.0).key());
     assert_ne!(state(50.0, 2, 6_000.0).key(), state(50.0, 3, 6_000.0).key());
     assert_eq!(state(-50.0, -1, 0.0).key().0, 50, "the speed backwards is shown without its sign");
