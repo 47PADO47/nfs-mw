@@ -1,5 +1,4 @@
 use super::visual::plate_pages;
-use super::*;
 use nfsmw_data::car::customization::{Catalog, PlateDesignChoice};
 
 fn labels(catalog: Option<&Catalog>) -> Vec<String> {

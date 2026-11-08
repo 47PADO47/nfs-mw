@@ -20,7 +20,7 @@ fn session_entity() -> u32 {
 }
 
 /// The slot `row` is the shop's view of, in the options of `selection`.
-fn slot_in<'a>(options: &'a Option<VehicleOptions>, row: Row) -> Option<&'a Slot> {
+fn slot_in(options: &Option<VehicleOptions>, row: Row) -> Option<&Slot> {
     slot_of(options.as_ref()?, row)
 }
 
