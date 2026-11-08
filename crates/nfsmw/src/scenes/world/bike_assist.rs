@@ -5,7 +5,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use blackbox_vehicle::bike::ThrottleWheelie;
 
-static EASY_WHEELIE: AtomicBool = AtomicBool::new(true);
+/// Off until the host has read the settings (`app/host.rs`): the physics tests and a bike before that see the reference behaviour.
+static EASY_WHEELIE: AtomicBool = AtomicBool::new(false);
 static LIVE_DASH: AtomicBool = AtomicBool::new(true);
 
 /// Switch the throttle-only wheelie (the `easy_wheelie` setting); read at every step, so a change reaches a bike on the road.
@@ -26,7 +27,11 @@ pub(super) fn live_dash() -> bool {
 /// The throttle-only wheelie's settings for a bike: the game's while the setting is on and the player rides it, the reference's
 /// otherwise (a computer driver's bike keeps its throttle and its front wheel down).
 pub(in crate::scenes::world) fn throttle_wheelie(player: bool) -> ThrottleWheelie {
-    match player && EASY_WHEELIE.load(Ordering::Relaxed) {
+    choose(player, EASY_WHEELIE.load(Ordering::Relaxed))
+}
+
+fn choose(player: bool, setting: bool) -> ThrottleWheelie {
+    match player && setting {
         true => ThrottleWheelie::GAME,
         false => ThrottleWheelie::REFERENCE,
     }
@@ -38,11 +43,8 @@ mod tests {
 
     #[test]
     fn the_setting_and_the_player_switch_the_assist() {
-        set_easy_wheelie(true);
-        assert!(throttle_wheelie(true).enabled);
-        assert!(!throttle_wheelie(false).enabled, "a computer driver does not get it");
-        set_easy_wheelie(false);
-        assert_eq!(throttle_wheelie(true), ThrottleWheelie::REFERENCE);
-        set_easy_wheelie(true);
+        assert!(choose(true, true).enabled);
+        assert!(!choose(false, true).enabled, "a computer driver does not get it");
+        assert_eq!(choose(true, false), ThrottleWheelie::REFERENCE);
     }
 }
