@@ -88,6 +88,7 @@ mod reflection_res_tests;
 mod renderer;
 mod road_reflections;
 pub use road_reflections::{RoadReflectionResolution, RoadReflections};
+mod bike_steering;
 #[cfg(test)]
 mod renderer_tests;
 mod riding_style;
@@ -133,6 +134,7 @@ pub mod xenon_effects;
 pub use xenon_effects::XenonEffects;
 mod window;
 pub(crate) mod write;
+pub use bike_steering::BikeSteering;
 use blackbox_gfx::GraphicsApi;
 pub use blackbox_gfx::reflection::{MirrorTint, ReflectionSize};
 pub use blackbox_gfx::{AoMethod, AoQuality, ReflectionQuality, ShadowQuality, TextureFiltering};
@@ -293,6 +295,8 @@ pub struct Settings {
     pub speed_units: SpeedUnits,
     /// How the rider of a bike leans into a corner (`riding_style`: balanced, shoulders out or old school).
     pub riding_style: RidingStyle,
+    /// How a bike turns (`bike_steering`: this game's arcade steering or the reference game's), read when a bike is loaded.
+    pub bike_steering: BikeSteering,
     /// The language the player picked (`language`); unset, the registry's or the system's (`i18n::start`).
     pub language: Option<LanguageTag>,
     /// The palette of the token-driven HUD. Applies only when `ui_style` is not Original.

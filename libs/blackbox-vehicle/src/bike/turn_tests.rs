@@ -8,7 +8,7 @@
 //! are wide on purpose: they stand for "about", not for a measurement. These tests were written without running them.
 
 use super::lean::{Lean, LeanInput};
-use super::{Bike, BikeInput, BikeSpec, FRONT, InputRates, SteeringSpec, choices};
+use super::{ArcadeSteering, Bike, BikeInput, BikeSpec, FRONT, InputRates, SteeringSpec, choices};
 use crate::FIXED_STEP;
 use crate::ground::FlatGround;
 
@@ -21,8 +21,15 @@ const SUBSTEP: f32 = choices::MAX_SUBSTEP;
 /// 25 per second away from the middle and 6 towards it).
 fn with_data_rates() -> BikeSpec {
     let mut spec = BikeSpec::example();
+    spec.steering.arcade = round13();
     spec.input = InputRates { throttle: [3.0, 5.0], brake: [3.0, 5.0], steer: [25.0, 6.0] };
     spec
+}
+
+/// The steering of rounds 12 and 13, which these tests were written for (`docs/specs/ride6-feel-round13.md`): the data's controller with the speed curve of
+/// the lean-in held at 0.65 and a left stick as quick as a right one. The arcade steering that replaces it is tested in `arcade_tests.rs`.
+fn round13() -> ArcadeSteering {
+    ArcadeSteering { time_scale_speed_floor: 0.65, mirror_stick_curve: true, ..ArcadeSteering::REFERENCE }
 }
 
 /// The example bike with the power and gearing of a superbike (its top speed is over 85 m/s; the example's own is 52 m/s, which makes a
@@ -68,6 +75,7 @@ fn speed_tables() -> [Vec<(f32, f32)>; 2] {
 /// The example bike's steering with a stick curve of the given ends (1 at the middle) and a speed curve.
 fn steering_with(ends: (f32, f32), speed_table: &[(f32, f32)]) -> SteeringSpec {
     let mut steering = BikeSpec::example().steering;
+    steering.arcade = round13();
     steering.lean.time_scale_input = vec![(-1.0, ends.0), (0.0, 1.0), (1.0, ends.1)];
     steering.lean.time_scale_speed = speed_table.to_vec();
     steering
@@ -97,7 +105,8 @@ fn open_loop_times(steering: &SteeringSpec, speed: f32, stick: f32, angles: &[f3
 #[test]
 fn the_lean_comes_in_over_about_a_second_after_a_step_of_the_stick() {
     let (twenty, forty) = (20.0_f32.to_radians(), 40.0_f32.to_radians());
-    let steering = BikeSpec::example().steering;
+    let mut steering = BikeSpec::example().steering;
+    steering.arcade = round13();
     // `(speed, stick, bounds of the time to 20 degrees, bounds of the time to 40 degrees)`, round about the worked-out times (0.46 and
     // 0.82 s at 20 m/s, 0.49 and 0.87 s at 40 m/s); a left stick is the same as a right one since round 13.
     let cases = [
@@ -297,8 +306,9 @@ fn a_full_stick_turns_at_the_radius_of_its_lean_and_leans_as_far_at_20_to_80_ms(
 
 #[test]
 fn a_stick_pulled_to_its_reach_gives_the_whole_lean_limit_and_one_short_of_it_a_little_less() {
-    // The reach is the input layer's (`sim/bike.rs::command`): 0.9 of the travel reads as the whole stick. Here the library takes the stick.
-    const { assert!(choices::STEER_REACH > 0.5 && choices::STEER_REACH <= 1.0) };
+    // The reach is the input layer's (`sim/bike.rs::command`, the arcade steering's `stick_reach`). Here the library takes the stick.
+    const { assert!(ArcadeSteering::REFERENCE.stick_reach == 1.0) };
+    assert!(ArcadeSteering::default().stick_reach > 0.5 && ArcadeSteering::default().stick_reach <= 1.0);
     let ground = FlatGround::new(0.0);
     let lean_at = |stick: f32| {
         let mut bike = Bike::new(with_data_rates());

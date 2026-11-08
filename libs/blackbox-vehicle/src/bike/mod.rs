@@ -22,6 +22,8 @@
 //! ```
 
 mod abs_level;
+pub mod arcade;
+mod arcade_forces;
 mod brake_reduction;
 mod brakes;
 mod burnout;
@@ -62,6 +64,7 @@ mod wheel;
 mod wheel_step;
 mod wheelie_steer;
 
+pub use arcade::ArcadeSteering;
 pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
 pub use burnout::{BurnoutSpec, HelpSpec as BurnoutHelpSpec};
 pub use clutch_control::{ClutchControl, ForcedDownshift, OverLimit};
@@ -171,6 +174,11 @@ impl Bike {
     pub fn new(mut spec: BikeSpec) -> Self {
         // The bike is lighter in play than in the data (`choices::BIKE_MASS_SCALE`, the rider's mass is not scaled).
         spec.chassis.mass *= choices::BIKE_MASS_SCALE;
+        // The arcade steering's grip is in the tyres themselves, so everything that reads them (the force, the lean and fall limits, the
+        // lean help's cap) agrees (`arcade.rs`).
+        let grip = spec.steering.arcade.lateral_grip;
+        spec.front.tyre = spec.front.tyre.with_lateral_scale(grip);
+        spec.rear.tyre = spec.rear.tyre.with_lateral_scale(grip);
         let chassis = &spec.chassis;
         let geometry = Geometry::new(chassis, &spec.front, &spec.rear);
         let mass = spec.total_mass();
@@ -451,6 +459,8 @@ impl Bike {
     }
 }
 
+#[cfg(test)]
+mod arcade_tests;
 #[cfg(test)]
 mod feel_tests;
 #[cfg(test)]

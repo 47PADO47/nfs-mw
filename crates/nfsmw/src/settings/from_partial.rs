@@ -92,6 +92,7 @@ impl From<Partial> for Settings {
             custom_hud_skin: p.custom_hud_skin.unwrap_or_default(),
             speed_units: p.speed_units.unwrap_or_default(),
             riding_style: p.riding_style.unwrap_or_default(),
+            bike_steering: p.bike_steering.unwrap_or_default(),
             language: p.language,
             ui_theme: p.ui_theme.unwrap_or_default(),
             post_tonemap: p.post_tonemap.unwrap_or_default(),

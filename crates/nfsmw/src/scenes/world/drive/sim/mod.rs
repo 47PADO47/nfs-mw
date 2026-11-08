@@ -469,6 +469,7 @@ fn next_sound_identity() -> u64 {
 
 mod ai;
 mod bike;
+pub use bike::set_bike_steering;
 mod camera;
 mod contact_damage;
 mod engine_off;

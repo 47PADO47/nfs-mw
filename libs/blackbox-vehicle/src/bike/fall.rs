@@ -143,7 +143,9 @@ impl Bike {
                 false => FallKind::LowSide,
             });
         }
-        if self.body.angular_velocity.length() > pick(extra.airborne_angular, fall.angular_speed) {
+        let spin_limit =
+            pick(extra.airborne_angular, fall.angular_speed) * self.spec.steering.arcade.fall_angular_speed;
+        if self.body.angular_velocity.length() > spin_limit {
             return Some(FallKind::LowSide);
         }
         None

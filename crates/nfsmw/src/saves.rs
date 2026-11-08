@@ -210,6 +210,7 @@ pub fn partial_of(s: &Settings) -> Partial {
         custom_hud_skin: Some(s.custom_hud_skin),
         speed_units: Some(s.speed_units),
         riding_style: Some(s.riding_style),
+        bike_steering: Some(s.bike_steering),
         language: s.language,
         ui_theme: Some(s.ui_theme),
         post_tonemap: Some(s.post_tonemap),

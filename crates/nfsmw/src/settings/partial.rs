@@ -144,6 +144,8 @@ pub struct Partial {
     pub speed_units: Option<SpeedUnits>,
     /// How the rider of a bike leans into a corner (`riding_style`).
     pub riding_style: Option<super::RidingStyle>,
+    /// How a bike turns (`bike_steering`).
+    pub bike_steering: Option<super::BikeSteering>,
     /// The language tag (`language`).
     pub language: Option<super::LanguageTag>,
     /// The palette of the token-driven HUD (`ui_theme`).
@@ -289,6 +291,7 @@ impl Partial {
             custom_hud_skin: self.custom_hud_skin.or(lower.custom_hud_skin),
             speed_units: self.speed_units.or(lower.speed_units),
             riding_style: self.riding_style.or(lower.riding_style),
+            bike_steering: self.bike_steering.or(lower.bike_steering),
             language: self.language.or(lower.language),
             ui_theme: self.ui_theme.or(lower.ui_theme),
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),

@@ -87,6 +87,7 @@ pub(super) use sim::memo::{StepMemo, SurfaceHit};
 pub(super) use sim::pair_contact::PairContact;
 #[cfg(feature = "multiplayer")]
 pub(super) use sim::predict::SimMotion;
+pub use sim::set_bike_steering;
 pub(super) use sim::{CarSim, Integration, STEER_DRAW_DISTANCE, StepStart};
 use sound::SoundFeed;
 pub(super) use time_scale::SpeedbreakerClock;

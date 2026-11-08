@@ -159,6 +159,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         custom_hud_skin: field(&table, origin, "custom_hud_skin", |v| super::CustomHudSkin::from_str(text_of(v)?)),
         speed_units: field(&table, origin, "speed_units", |v| SpeedUnits::from_str(text_of(v)?)),
         riding_style: field(&table, origin, "riding_style", |v| super::RidingStyle::from_str(text_of(v)?)),
+        bike_steering: field(&table, origin, "bike_steering", |v| super::BikeSteering::from_str(text_of(v)?)),
         language: field(&table, origin, "language", |v| super::LanguageTag::from_str(text_of(v)?)),
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),

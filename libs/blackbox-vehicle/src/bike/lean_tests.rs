@@ -259,7 +259,10 @@ fn the_stability_factor_follows_the_speed_the_lean_and_the_throttle() {
     use super::help::{StabilityInput, desired_yaw_rate, stability_acceleration, stability_factor};
     let spec = road_stability();
     let at = |speed: f32, normalised_lean: f32, throttle: f32| {
-        stability_factor(&spec, &StabilityInput { speed, lean: 0.3, normalised_lean, throttle, brake: 0.0 })
+        stability_factor(
+            &spec,
+            &StabilityInput { speed, lean: 0.3, normalised_lean, throttle, brake: 0.0, extra_acceleration: 0.0 },
+        )
     };
     assert!((at(10.0, 0.0, 0.0) - 0.05).abs() < 1e-6);
     assert!((at(10.0, 0.5, 0.0) - 0.025).abs() < 1e-6, "less with the lean");
@@ -269,9 +272,16 @@ fn the_stability_factor_follows_the_speed_the_lean_and_the_throttle() {
     assert!(at(33.0, 0.0, 0.0) > 0.0 && at(33.0, 0.0, 0.0) < 0.05 && at(40.0, 0.0, 0.0) == 0.0);
     assert_eq!(at(10.0, 0.0, 0.0), at(10.0, 0.0, 0.0));
     // The yaw rate of a steady turn is g tan(lean) / v; to the right for a lean to the right.
-    let wanted = desired_yaw_rate(&spec, 0.4, 20.0);
+    let wanted = desired_yaw_rate(&spec, 0.4, 20.0, 0.0);
     assert!((wanted - 9.81 * 0.4_f32.tan() / 20.0).abs() < 1e-5 && wanted > 0.0);
-    let state = StabilityInput { speed: 20.0, lean: 0.4, normalised_lean: 0.0, throttle: 0.0, brake: 0.0 };
+    let state = StabilityInput {
+        speed: 20.0,
+        lean: 0.4,
+        normalised_lean: 0.0,
+        throttle: 0.0,
+        brake: 0.0,
+        extra_acceleration: 0.0,
+    };
     // Below the speed range there is none; inside it the factor pulls the yaw rate to the wanted one.
     assert_eq!(stability_acceleration(&spec, 0.05, &StabilityInput { speed: 2.0, ..state }, 0.0, 1.0 / 60.0), 0.0);
     let pull = stability_acceleration(&spec, 0.05, &state, 0.0, 1.0 / 60.0);

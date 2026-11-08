@@ -82,6 +82,17 @@ impl Shape {
 }
 
 impl Mf94 {
+    /// The tyre with its lateral force multiplied by `factor` at every slip, load and camber: the peak, the stiffness and the camber
+    /// thrust scale together, so the curve keeps its shape and the slip of its peak. 1 gives the tyre back. (The arcade steering's
+    /// `lateral_grip`, applied once in `Bike::new`: the lean limit, the fall limit and the lean help read the scaled peak.)
+    pub fn with_lateral_scale(&self, factor: f32) -> Mf94 {
+        let mut tyre = *self;
+        for index in [1, 2, 3, 11, 12, 13, 14] {
+            tyre.a[index] *= factor;
+        }
+        tyre
+    }
+
     /// The shape of the longitudinal force at load `fz_kn`.
     pub fn longitudinal_shape(&self, fz_kn: f32) -> Shape {
         if fz_kn < MIN_LOAD {
