@@ -187,3 +187,5 @@ The second one is 7 s of throttle (about 48 m/s at the 1200 m mark of the road) 
 0.6 s after the hit, 3.6 s and 5.6 s are later frames. A survey in the installed world (`bike_wall_survey_tests.rs`, ignored, needs
 `NFSMW_GAME_DIR`) rides 40 places x 4 sticks x 3 speeds (40, 50 and 60 m/s) into the road's edge for 8 s and counts the rides that end more than 1 m under
 the ground below the bike.
+
+Run on the installed city with the example bike: **480 rides, 290 of which threw the rider, 0 ended under the ground** [M].
