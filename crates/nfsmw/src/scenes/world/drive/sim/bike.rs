@@ -126,6 +126,8 @@ impl BikeRide {
 
     /// The first half of a step: the bike integrates the forces of the last one, and the double follows.
     pub(super) fn begin_body(&mut self, vehicle: &mut Vehicle, dt: f32) {
+        // The double's ground contacts are those of this step only (the car's own begin does this).
+        vehicle.clear_body_contacts();
         self.sync_double(vehicle);
         self.bike.begin_body(dt);
         self.push(vehicle);
@@ -169,7 +171,7 @@ impl BikeRide {
         // On the grid of a race the rider holds the bike with both brakes until the start.
         let rider = match vehicle.staging() {
             true => BikeInput { throttle: 0.0, front_brake: 1.0, rear_brake: 1.0, steer: 0.0 },
-            false => command(input, self.bike.forward_speed()),
+            false => command(input),
         };
         self.bike.set_weight(start.weight);
         self.bike.respond(start.delta, &rider, ground);
@@ -248,6 +250,7 @@ impl BikeRide {
             weight: self.bike.rider_weight(),
             steer: self.controls.steering,
             drift_deg: self.drift_angle_deg(),
+            clutch: self.bike.clutch_pulled(),
         }
     }
 
@@ -385,17 +388,27 @@ fn signed_unit(value: f32) -> f32 {
 /// What the rider asks of the bike for the game's input: the throttle and the stick as they are; the brake pedal pulls both
 /// brakes and the handbrake only the rear one (the input layer has one brake axis). The gearbox is automatic: the shift
 /// buttons, the gear keys and the clutch are not read.
-pub(super) fn command(input: &InputState, speed: f32) -> BikeInput {
+pub(super) fn command(input: &InputState) -> BikeInput {
     BikeInput {
         throttle: unit(input.throttle),
         front_brake: unit(input.brake),
         rear_brake: unit(input.brake).max(unit(input.handbrake)),
-        // The full stick up to `choices::STICK_FULL_UNTIL` m/s, less above (`ride6-feel-round9.md`, section 4).
-        steer: signed_unit(input.steer) * choices::stick_share(speed),
+        // The stick reaches its end at `choices::STEER_REACH` of its travel, and is the whole of it at any speed: nothing here narrows
+        // with speed (`ride6-feel-round12.md`, section 2; `ride6-feel-round13.md`, section 2).
+        steer: signed_unit(input.steer / choices::STEER_REACH),
     }
 }
 
 impl CarSim {
+    /// The dot product of the car's up vector with the world's. A bike under its rider is never "tipped over": it rides leaned to
+    /// 50 or 60 degrees, which is a car on its side to the sound and the police speech; only a fallen bike has its real value.
+    pub fn up_dot(&self) -> f32 {
+        match self.ride.as_deref() {
+            Some(ride) if !ride.bike.fallen() => 1.0,
+            _ => self.vehicle.rotation().y_axis.y,
+        }
+    }
+
     /// Whether the car is a bike.
     pub fn is_bike(&self) -> bool {
         self.ride.is_some()

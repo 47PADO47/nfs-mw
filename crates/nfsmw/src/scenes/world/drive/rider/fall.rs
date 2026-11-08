@@ -16,6 +16,7 @@ use glam::{Mat4, Quat, Vec3};
 use super::fall_anim::{self, Anim, DRIVE_GAIN, DriveLink};
 use super::fall_file::{self, FallConfig, Falls, RagdollFile};
 use super::fall_space::{quat_to_physics, quat_to_render, to_physics, to_render};
+use crate::viewer::camera::rider_follow::Phase;
 
 /// The shortest time the rider takes to get back on the bike once it is stood up (s). A modelling choice.
 const RETURN_TIME: f32 = 0.25;
@@ -78,6 +79,8 @@ pub(super) struct Fall {
     riding: Vec<Transform>,
     state: State,
     origin: Vec3,
+    /// The bone of the body the others hang from (the pelvis): where the cameras look while he is off the bike.
+    root: usize,
 }
 
 impl Fall {
@@ -141,6 +144,7 @@ impl Fall {
         let Some(tumble) = Tumble::new(file, set, skeleton, &self.riding, (to_world, bike), release) else {
             return false;
         };
+        self.root = tumble.links[tumble.anim.as_ref().map_or(0, |anim| anim.root)].bone;
         self.state = State::Down(Box::new(tumble));
         self.waited = 0.0;
         self.ready = false;
@@ -197,6 +201,28 @@ impl Fall {
             _ => RETURN_TIME,
         };
         self.state = State::Returning { from, progress: 0.0, duration };
+    }
+
+    /// Where the cameras look while he is off the bike, as the last physics step has him: his pelvis in the render space, and
+    /// whether he is down or on his way back. `to_world` takes the rider space to the render space on the bike (the way back ends
+    /// on the seat). `None` while he rides.
+    pub fn focus(&self, skeleton: &Skeleton, to_world: Mat4) -> Option<(Phase, Vec3)> {
+        match &self.state {
+            State::Riding => None,
+            State::Down(tumble) => {
+                // The pose, not the body: the get-up plays on the ground with the body held, and his pelvis rises with it.
+                let origin = to_render(tumble.ragdoll.centre());
+                let pelvis = tumble.pose(skeleton, origin).get(self.root)?.translation;
+                Some((Phase::Fallen, pelvis + origin))
+            }
+            State::Returning { from, progress, .. } => {
+                let (_, turn, seat) = to_world.to_scale_rotation_translation();
+                let lying = from.get(self.root)?.translation;
+                let sitting = turn * self.riding.get(self.root)?.translation + seat;
+                let k = progress.clamp(0.0, 1.0);
+                Some((Phase::Jogging, lying.lerp(sitting, k * k * (3.0 - 2.0 * k))))
+            }
+        }
     }
 
     /// The component transforms of the rider off the bike this frame, if he is, relative to the point [`Fall::instance`] places

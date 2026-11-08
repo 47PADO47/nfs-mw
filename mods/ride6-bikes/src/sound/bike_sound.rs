@@ -63,15 +63,18 @@ pub fn engine_key(event_name: &str, media: [u32; 2]) -> String {
     format!("{head}-{:08X}", fnv1a(&media))
 }
 
-/// `L<index>_<rpm in tenths>.WAV`, the file name of a layer; the rpm is read back from it when the set already exists.
-fn layer_name(index: usize, rpm: f32) -> String {
-    format!("L{index:02}_{}.WAV", (rpm * 10.0).round() as u32)
+/// `L<index>_<rpm in tenths>.WAV` for a layer under load, `F<index>_<rpm in tenths>.WAV` for one off load (the throttle
+/// closed): the file name of a layer. The rpm and the side are read back from it when the set already exists.
+fn layer_name(index: usize, rpm: f32, off_load: bool) -> String {
+    let side = if off_load { 'F' } else { 'L' };
+    format!("{side}{index:02}_{}.WAV", (rpm * 10.0).round() as u32)
 }
 
-fn parse_layer_name(name: &str) -> Option<(usize, f32)> {
-    let stem = name.strip_prefix('L')?.strip_suffix(".WAV")?;
+fn parse_layer_name(name: &str) -> Option<(usize, f32, bool)> {
+    let off_load = name.starts_with('F');
+    let stem = name.strip_prefix('L').or_else(|| name.strip_prefix('F'))?.strip_suffix(".WAV")?;
     let (index, tenths) = stem.split_once('_')?;
-    Some((index.parse().ok()?, tenths.parse::<f32>().ok()? / 10.0))
+    Some((index.parse().ok()?, tenths.parse::<f32>().ok()? / 10.0, off_load))
 }
 
 struct Model<'a> {
@@ -108,8 +111,8 @@ impl Builder {
         let mut found = Vec::new();
         for entry in fs::read_dir(&dir).ok()?.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            let (index, rpm) = parse_layer_name(&name)?;
-            found.push((index, LayerEntry { file: format!("SOUND/RIDE6/ENG/{key}/{name}"), rpm }));
+            let (index, rpm, off_load) = parse_layer_name(&name)?;
+            found.push((index, LayerEntry { file: format!("SOUND/RIDE6/ENG/{key}/{name}"), rpm, off_load }));
         }
         found.sort_by_key(|(index, _)| *index);
         (!found.is_empty()).then(|| found.into_iter().map(|(_, entry)| entry).collect())
@@ -121,9 +124,13 @@ impl Builder {
         fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
         let mut entries = Vec::new();
         for (index, layer) in layers.layers.iter().enumerate() {
-            let name = layer_name(index, layer.rpm);
+            let name = layer_name(index, layer.rpm, layer.off_load);
             fs::write(dir.join(&name), rev_layers::encode(layer)).with_context(|| format!("writing {name}"))?;
-            entries.push(LayerEntry { file: format!("SOUND/RIDE6/ENG/{key}/{name}"), rpm: layer.rpm });
+            entries.push(LayerEntry {
+                file: format!("SOUND/RIDE6/ENG/{key}/{name}"),
+                rpm: layer.rpm,
+                off_load: layer.off_load,
+            });
         }
         Ok(entries)
     }
@@ -243,8 +250,10 @@ mod tests {
 
     #[test]
     fn a_layer_name_carries_its_order_and_its_rpm() {
-        assert_eq!(layer_name(3, 7243.4), "L03_72434.WAV");
-        assert_eq!(parse_layer_name("L03_72434.WAV"), Some((3, 7243.4)));
+        assert_eq!(layer_name(3, 7243.4, false), "L03_72434.WAV");
+        assert_eq!(layer_name(4, 7243.4, true), "F04_72434.WAV");
+        assert_eq!(parse_layer_name("L03_72434.WAV"), Some((3, 7243.4, false)));
+        assert_eq!(parse_layer_name("F04_72434.WAV"), Some((4, 7243.4, true)));
         assert_eq!(parse_layer_name("readme.txt"), None);
         assert_eq!(parse_layer_name("L1_x.WAV"), None);
     }

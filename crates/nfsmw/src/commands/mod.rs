@@ -217,14 +217,21 @@ pub fn run(cli: Cli) -> Result<()> {
             let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
-        Command::ViewCar { car, lod, all_parts, preset, parts, yaw, view } => {
+        Command::ViewCar { car, lod, all_parts, preset, parts, yaw, zoom, pitch, focus_height, rider_state, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let options = nfsmw_data::car::LoadOptions { lod, all_parts, preset };
+            let rider_state = rider_state.as_deref().map(crate::scenes::world::drive::rider::parse_state);
+            let rider_state = rider_state.transpose().map_err(|error| anyhow::anyhow!("--rider-state: {error}"))?;
             let selection = view_parts::selection(&dir, &car, &parts)?;
             let model = nfsmw_data::car::load_customized(&dir, &car, &options, &selection)?;
             let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(
-                Box::new(CarScene::new(model, yaw).with_source(dir, options)),
+                Box::new(
+                    CarScene::new(model, yaw)
+                        .with_view(zoom, pitch, focus_height)
+                        .with_rider_state(rider_state)
+                        .with_source(dir, options),
+                ),
                 &Settings::load(view.settings_layer()),
                 run_options,
             )

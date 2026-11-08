@@ -49,10 +49,22 @@ fn shared_paths(tables: &str) -> Vec<String> {
     out
 }
 
+/// Whether `to` exists and holds exactly the bytes of `from` (`length` is the length of `from`).
+fn same_bytes(from: &Path, to: &Path, length: u64) -> bool {
+    let Ok(have) = fs::metadata(to) else { return false };
+    if have.len() != length {
+        return false;
+    }
+    let (Ok(a), Ok(b)) = (fs::read(from), fs::read(to)) else { return false };
+    a == b
+}
+
 /// Copy the files the car's tables name from `<sound_dir>/files` into the mod folder: the car's own
 /// `CARS/<ID>/SOUND` folder, and the shared recordings (`SOUND/...`, written once for many bikes by `sound-bikes`), each
-/// only when the mod folder does not already hold a file of that size. Nothing to do when both are the same folder. Returns
-/// the number of files copied.
+/// only when the mod folder does not already hold a file with **the same bytes**. (The size alone is not enough: a layer of
+/// a rebuilt engine has the name and the length of the old one and different samples, so with a size test the first two
+/// layers of 37 engines kept their old, 12 to 20 dB quieter versions.) Nothing to do when both are the same folder.
+/// Returns the number of files copied.
 pub fn copy_files(sound_dir: &Path, mod_dir: &Path, folder: &str) -> Result<usize> {
     let same = match (fs::canonicalize(sound_dir), fs::canonicalize(mod_dir)) {
         (Ok(a), Ok(b)) => a == b,
@@ -71,7 +83,7 @@ pub fn copy_files(sound_dir: &Path, mod_dir: &Path, folder: &str) -> Result<usiz
     for path in shared_paths(&tables) {
         let (from, to) = (sound_dir.join("files").join(&path), mod_dir.join("files").join(&path));
         let Ok(meta) = fs::metadata(&from) else { continue };
-        if fs::metadata(&to).is_ok_and(|have| have.len() == meta.len()) {
+        if same_bytes(&from, &to, meta.len()) {
             continue;
         }
         if let Some(parent) = to.parent() {
@@ -126,6 +138,26 @@ shift_up = [\"SOUND/RIDE6/FX/7.WAV\", \"SOUND/../x.WAV\"]
         assert_eq!(fs::read(modd.join("files/SOUND/RIDE6/FX/7.WAV")).unwrap(), b"riff7");
         assert!(!modd.join("files/SOUND/RIDE6/FX/8.WAV").exists());
         assert_eq!(copy_files(&sound, &modd, "T").unwrap(), 0);
+        fs::remove_dir_all(sound).unwrap();
+        fs::remove_dir_all(modd).unwrap();
+    }
+
+    #[test]
+    fn a_rebuilt_recording_of_the_same_name_and_length_replaces_the_old_one() {
+        let (sound, modd) = (temp("rebuilt-sound"), temp("rebuilt-mod"));
+        fs::create_dir_all(sound.join("cars")).unwrap();
+        fs::create_dir_all(sound.join("files/SOUND/RIDE6/ENG/E-1")).unwrap();
+        fs::create_dir_all(modd.join("files/SOUND/RIDE6/ENG/E-1")).unwrap();
+        let tables = "[engine_sound]
+layers = [{ file = \"SOUND/RIDE6/ENG/E-1/L01_31736.WAV\", rpm = 3173.6 }]
+";
+        fs::write(sound.join("cars/t.sound.toml"), tables).unwrap();
+        // The old copy in the mod is quiet, the new one loud; both have four bytes.
+        fs::write(modd.join("files/SOUND/RIDE6/ENG/E-1/L01_31736.WAV"), [1u8, 0, 1, 0]).unwrap();
+        fs::write(sound.join("files/SOUND/RIDE6/ENG/E-1/L01_31736.WAV"), [64u8, 0, 64, 0]).unwrap();
+        assert_eq!(copy_files(&sound, &modd, "T").unwrap(), 1, "same name and size, other bytes: copied");
+        assert_eq!(fs::read(modd.join("files/SOUND/RIDE6/ENG/E-1/L01_31736.WAV")).unwrap(), [64u8, 0, 64, 0]);
+        assert_eq!(copy_files(&sound, &modd, "T").unwrap(), 0, "identical now: not copied again");
         fs::remove_dir_all(sound).unwrap();
         fs::remove_dir_all(modd).unwrap();
     }

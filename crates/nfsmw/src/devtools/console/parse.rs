@@ -128,7 +128,7 @@ pub const BUILT_IN: [(&str, &str); 70] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 40] = [
+const SET_SHORTHANDS: [&str; 42] = [
     "fps",
     "renderer",
     "vsync",
@@ -155,6 +155,8 @@ const SET_SHORTHANDS: [&str; 40] = [
     "ui-style",
     "speed_units",
     "speed-units",
+    "riding_style",
+    "riding-style",
     "radio_hud",
     "radio-hud",
     "post_tonemap",

@@ -40,6 +40,19 @@ pub enum Command {
         /// Camera yaw in degrees.
         #[arg(long, default_value_t = 35.0, allow_negative_numbers = true)]
         yaw: f32,
+        /// Camera zoom: the camera's distance is divided by this, to look at a part up close.
+        #[arg(long, default_value_t = 1.0)]
+        zoom: f32,
+        /// Camera pitch in degrees (the default looks down a little).
+        #[arg(long, allow_negative_numbers = true)]
+        pitch: Option<f32>,
+        /// Height in metres the camera looks at (the middle of the car by default), to bring a part into the middle.
+        #[arg(long, value_name = "METRES")]
+        focus_height: Option<f32>,
+        /// The state of a bike's rider: `speed=-5,clutch=1,throttle=1,brake=0.5,lean=0.6,tuck=1` (speed in km/h, a negative one rolls the
+        /// bike back; a key left out is 0). The default is a bike standing.
+        #[arg(long, value_name = "KEY=VALUE,...")]
+        rider_state: Option<String>,
         #[command(flatten)]
         view: ViewArgs,
     },

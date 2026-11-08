@@ -17,7 +17,7 @@ mod day;
 mod detail;
 #[cfg(test)]
 mod determinism_tests;
-mod drive;
+pub(crate) mod drive;
 mod drive_input;
 mod effects;
 mod entry;

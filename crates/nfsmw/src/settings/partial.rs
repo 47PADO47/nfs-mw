@@ -120,6 +120,8 @@ pub struct Partial {
     pub tail_trail_style: Option<super::TailTrailStyle>,
     /// Show turn signals on cars while steering (`[Gameplay] ShowTurnSignals`); off by default.
     pub turn_signals: Option<bool>,
+    /// Dress the rider of a bike in the gear the player picked (`rider_gear`); on by default.
+    pub rider_gear: Option<bool>,
     pub rear_view_mirror: Option<bool>,
     pub discord: Option<bool>,
     pub discord_time_played: Option<bool>,
@@ -136,8 +138,12 @@ pub struct Partial {
     pub hud_options: super::hud::HudLayer,
     /// The UI theme (`ui_style`). The legacy `radio_hud` key is mapped onto it by the reader of each layer.
     pub ui_style: Option<UiStyle>,
+    /// Whether the CustomHUD plugin's gauge skin is drawn (`custom_hud_skin`).
+    pub custom_hud_skin: Option<super::CustomHudSkin>,
     /// The HUD's speed unit (`speed_units`).
     pub speed_units: Option<SpeedUnits>,
+    /// How the rider of a bike leans into a corner (`riding_style`).
+    pub riding_style: Option<super::RidingStyle>,
     /// The language tag (`language`).
     pub language: Option<super::LanguageTag>,
     /// The palette of the token-driven HUD (`ui_theme`).
@@ -266,6 +272,7 @@ impl Partial {
             backfire_style: self.backfire_style.or(lower.backfire_style),
             tail_trail_style: self.tail_trail_style.or(lower.tail_trail_style),
             turn_signals: self.turn_signals.or(lower.turn_signals),
+            rider_gear: self.rider_gear.or(lower.rider_gear),
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
             discord: self.discord.or(lower.discord),
             discord_time_played: self.discord_time_played.or(lower.discord_time_played),
@@ -279,7 +286,9 @@ impl Partial {
             hud_layout: self.hud_layout.or(lower.hud_layout),
             hud_options: self.hud_options.or(lower.hud_options),
             ui_style: self.ui_style.or(lower.ui_style),
+            custom_hud_skin: self.custom_hud_skin.or(lower.custom_hud_skin),
             speed_units: self.speed_units.or(lower.speed_units),
+            riding_style: self.riding_style.or(lower.riding_style),
             language: self.language.or(lower.language),
             ui_theme: self.ui_theme.or(lower.ui_theme),
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),

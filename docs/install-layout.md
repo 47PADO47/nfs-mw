@@ -59,7 +59,7 @@ differ from retail; see the end of this page. For the tag meanings, see
 | `GLOBAL/gameplay.lzc` | `RAWW` wrapper (uncompressed); `gameplay.lzc.bak` is the original JDLZ |
 | Add-on cars: COROLLAE88, FXXEVO, LEVIN, SF90, SKYLINEZT, TRUENO, TRUENOCP, TRUENOID | `GEOMETRY.BIN` header says *NFS-CarToolkit by nfsu360*; solids stored as bare JDLZ blobs |
 | `CARS/FXXEVO/VINYLS.BIN` | **Corrupt / truncated**: the chunk at 0xAFA0 claims 12,288 bytes but the file ends at 0xB219 |
-| `GLOBAL/HUDS_Custom_*.bin`, `scripts/CustomHUD` | CustomHUD mod texture packs |
+| `GLOBAL/HUDS_Custom_*.bin`, `scripts/CustomHUD` | CustomHUD mod texture packs; `scripts/CustomHud.asi`, `scripts/CustomHud.ini` and the skin folders under `scripts/CustomHUD/` are the third-party gauge plugin the port reads ([custom-hud-gauges](specs/custom-hud-gauges.md)) |
 
 ## Other copies on this machine
 

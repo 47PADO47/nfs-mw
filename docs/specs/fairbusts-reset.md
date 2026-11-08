@@ -71,3 +71,20 @@ The mapping (`FairBustsSettings::penalty`):
 clamp, malformed values and switches. `crates/nfsmw/src/scenes/world/ai/police_tests.rs` covers the penalty through the
 busted timer: a fair reset does not bust a fast player 60 m away, the stock reset does, a fair reset still busts a slow
 player close by, and a multiplier of 1 fills at the normal rate.
+
+## 6. A bike's grace
+
+A reset of a bike by hand ran into the stock penalty above: the rider, put back on his bike next to a cop, was busted at once. A
+bike's rider now has a grace (`scenes/world/drive/rider_cam.rs`, `viewer/camera/rider_follow.rs`; the busted timer's
+`BustInput::grace`, `libs/blackbox-pursuit/src/busted.rs`): while it holds the timer does not fill (the reach, the speed gate and the
+multiplier of the reset penalty do not matter) and drains as out of reach. It holds
+
+- while the rider is off the bike: thrown, getting up, jogging back to it (however long that takes);
+- for `BIKE_RESET_GRACE_S` = **4 s** after he is back on it, and after a reset of the bike by hand or the flip reset while he rides.
+
+The 4 s is this port's choice **[ours]**: the original has no grace, its reset gives a 2 s flash (section 1) that makes busting
+faster, and no length for a grace is documented. It is the 2 s of the flash plus 2 s to get up to speed. A car, and a chase with no
+bike, are unchanged. In a co-op chase every target's own meter reads its own driver's grace (`bust_input_for`). The HUD's proximity
+warning is not changed.
+
+Tests: `libs/blackbox-pursuit` (`busted.rs`), `viewer/camera/rider_follow_tests.rs` (when the grace holds).

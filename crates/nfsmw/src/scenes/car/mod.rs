@@ -9,6 +9,7 @@ mod material_response;
 pub(crate) mod materials;
 pub(crate) mod original_lighting;
 mod paint_surface;
+mod rider;
 mod shading;
 pub(crate) mod shadows;
 mod texture_anim;
@@ -75,6 +76,12 @@ pub struct CarScene {
     pub(crate) placeholder_floor: bool,
     /// How the car is turned on its floor and how far its tyres sink into it (`CarScene::stand_on`).
     stand: CarStand,
+    /// The rider of a bike mod car, and how many of `instances` are the car's: his parts are listed after them (`rider.rs`).
+    rider: crate::scenes::world::drive::rider::Rider,
+    /// The state the rider is shown in, and whether he has been brought to it yet (`rider.rs`).
+    rider_state: crate::scenes::world::drive::rider::RiderSample,
+    rider_settled: bool,
+    car_instances: usize,
 }
 
 /// A car's turn about the vertical axis and how far it is lowered from resting on the floor.
@@ -106,6 +113,10 @@ impl CarScene {
             texture_anims: Vec::new(),
             placeholder_floor: true,
             stand: CarStand::default(),
+            rider: crate::scenes::world::drive::rider::Rider::previewing(),
+            rider_state: Default::default(),
+            rider_settled: false,
+            car_instances: 0,
         }
     }
 
@@ -118,6 +129,27 @@ impl CarScene {
     /// The orbit camera, for a scene that moves it (the menus' camera move).
     pub(crate) fn camera_mut(&mut self) -> &mut OrbitCamera {
         &mut self.camera
+    }
+
+    /// Bring the camera `zoom` times closer (1 leaves it), tilt it to `pitch_degrees` and aim it at `focus_height` metres above the
+    /// floor when given: a way to look at a part up close in a screenshot.
+    pub fn with_view(mut self, zoom: f32, pitch_degrees: Option<f32>, focus_height: Option<f32>) -> Self {
+        if zoom.is_finite() && zoom > 0.0 {
+            self.camera.distance /= zoom;
+        }
+        if let Some(height) = focus_height.filter(|h| h.is_finite()) {
+            self.camera.target.z = height + self.model.floor_height;
+        }
+        if let Some(pitch) = pitch_degrees.filter(|p| p.is_finite()) {
+            self.camera.pitch = pitch.to_radians();
+        }
+        self
+    }
+
+    /// The state the rider of a bike on show is in (`--rider-state`); a bike standing when none is given.
+    pub fn with_rider_state(mut self, state: Option<crate::scenes::world::drive::rider::RiderSample>) -> Self {
+        self.rider_state = state.unwrap_or_default();
+        self
     }
 
     /// Let the console load other cars from `dir`, with the same options.
@@ -164,7 +196,9 @@ impl CarScene {
         if let Some(materials) = self.materials.take() {
             materials.destroy(renderer);
         }
+        self.release_rider(renderer);
         self.instances.clear();
+        self.car_instances = 0;
     }
 
     /// The car is in the window again after another scene had it: its light rig is put back (the other scene set
@@ -218,6 +252,7 @@ impl CarScene {
         self.update_original_lighting(renderer);
         // The renderer wants instances of one mesh next to each other.
         self.instances.sort_by_key(|i| i.mesh);
+        self.car_instances = self.instances.len();
     }
 
     /// Swap in another car, keeping the viewing angle.
@@ -280,6 +315,7 @@ impl Scene for CarScene {
 
     fn update(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         self.refresh_effects(renderer);
+        self.maintain_rider(renderer);
         match &mut self.free {
             Some(free) => free.update(input, dt),
             None => self.camera.update(input),

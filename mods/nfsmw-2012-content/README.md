@@ -51,7 +51,7 @@ wheels sit at plus and minus half the car's wheelbase with the model centred on 
 
 That is all. With a `source` set, the mod converts the cars **on a background thread while the game starts and runs**;
 nothing waits for it. It takes about a second on a six-core PC once the files are in the disk cache, a few more seconds
-when they are not, and writes about 740 MB into the mod's own `files/` and `cars/` folders (both belong to the converter: a new
+when they are not, and writes about 430 MB (40 MB with `stream_cars`, [Streamed cars](#streamed-cars); it was 750 MB before the copies of the second level of detail and of the recordings went) into the mod's own `files/` and `cars/` folders (both belong to the converter: a new
 conversion clears them, so do not edit them by hand). When it is done the cars are in the game: everything the game opens
 after that, the garage and the career among them, lists them, so by the time you reach the career menu they are there. Later
 starts convert nothing unless the settings, the converter or the 2012 files changed (the mod keeps a fingerprint in
@@ -114,8 +114,12 @@ Every key is optional. An unknown key is an error and no car is added, so a typo
 | `max_texture_size` | Longest texture side, a power of two from 16 to 4096 (default 1024); bigger maps lose their top mips |
 | `role` | `"player"` (default), `"cop"` or `"both"`: who can use the cars that are not police cars (the police cars have their own setting, `[police]`) |
 | `[police]` | Which cars are police cars and where they chase: `auto` (default `true`), `add`, `remove`, `role`, and `[police.car.<id or name fragment>]` with `class`, `heat` and `cop` entries ([Police cars](#police-cars)) |
-| `own_engine_sound` | `true` (default): each car gets the recordings of its own 2012 bundle, written into the mod folder as WAVs (`files/SOUND/MODENGINE/<ID>/`): its engine loops, and its gear shifts, turbo whistle and blow-off, backfires and pops. `false` writes none (the shared recordings included): the cars play the game's built-in engine and have only the game-wide sounds. An approximation, see [car-sound.md](../../docs/modding/car-sound.md#the-2012-cars-recordings) |
+| `own_engine_sound` | `true` (default): each car gets the recordings of its own 2012 bundle, written into the mod folder as WAVs, each distinct recording once under `files/SOUND/MODENGINE/SHARED/` (cars share them: 1,070 of 1,338 files were copies, 123 of 173 MB), plus the car's own `IGNITION.WAV` in `files/SOUND/MODENGINE/<ID>/`: its engine loops, and its gear shifts, turbo whistle and blow-off, backfires and pops. `false` writes none (the shared recordings included): the cars play the game's built-in engine and have only the game-wide sounds. An approximation, see [car-sound.md](../../docs/modding/car-sound.md#the-2012-cars-recordings) |
+| `music` | `true` (default): offers the 2012 game's soundtrack (43 songs of `UI/SONGS/`) as the gameplay option **2012 soundtrack** (off until the player turns it on), **streamed from your 2012 install**: nothing is converted or copied, the mod only writes a small playlist (`music/MW2012.m3u8`) at every start. `false` removes the playlist and the option. It never converts the cars again ([The soundtrack](#the-soundtrack)) |
+| `driver_poses` | `true` (default): each car's driver is posed for the steering and the look back (8 extra figures a car, about 1.7 MB: 110 MB over 67 cars, nothing on disk with `stream_cars`). `false` writes none: the driver stays seated and still ([The driver's poses](#the-drivers-poses)) |
+| `stream_cars` | `true` (default): the cars' heavy files (`GEOMETRY.BIN`, `TEXTURES.BIN`, the recordings) are **made when the game opens a car**, not written: the folder holds stubs and a recipe, about 40 MB in place of 430. Needs a game with `bb.content` 1.1; the gameplay option **Stream 2012 cars** switches it too. `false` writes every file ([Streamed cars](#streamed-cars)) |
 | `traffic` | `true` (default): adds the 2012 game's eleven traffic cars (Audi A3, Cadillac CTS-V, Chevrolet Express Van, Dodge Caliber, Grand Caravan and Ram 1500, Chevrolet Cobalt, Infiniti G35, Nissan Frontier and Versa, GMC Topkick) as traffic cars among the game's own, with ids ending in `_TR`. `false` adds none. `cars` and `exclude` pick them too (the word `traffic` is in every name). Numbers, limits and the console: [api-traffic.md](../../docs/modding/api-traffic.md#the-2012-mods-traffic-cars) |
+| `trees` | `true` (default): converts the 2012 game's trees (eleven species at up to four levels of detail (only levels that stand on the ground), read from the world bundles of `HAWAII/`) and adds the value **NFS Most Wanted 2012** to the gameplay setting **Trees**. Choosing it swaps their models in for the 2005 game's trees (the tree lines, cedars, poplars, bushes, fall trees and dead trees: 81 solids, and every world-space copy of them, which is most of the world's trees) as the world streams in, and a choice made during a drive takes effect within seconds (the resident tiles are streamed again). The textures exist once on disk (`files/TREES/MW2012/TEXTURES.BIN`) and once in memory and on the GPU, never per tile. The conversion does not load the 2012 bundles (350 MB): it reads about 2.5 MB of them by ranges, writes about 4 MB and takes a fraction of a second (the log line `trees variant: read ... KiB of ... KiB, wrote ... KiB ... ms` has the real figures of your install). `false` converts and adds neither. What the 2012 trees are and which solids they replace: [chameleon-vegetation.md](../../docs/formats/chameleon-vegetation.md#what-the-conversion-costs); the profile and the fit: [effect-variants.md](../../docs/modding/effect-variants.md#profile-format-of-the-trees) (`src/trees.rs`) |
 | `[performance]` | Optional multipliers on the stats read from each car's own 2012 data: `power` (torque at every engine speed), `mass`, `grip` (tyre friction), `brakes` (brake torque), `nitrous_power` (the extra torque of the nitrous), all 1.0 by default, and `nitrous` (`true` by default: the car keeps the nitrous its 2012 data gives it; `false` removes it). The mod applies them when it writes the car, so the game only sees the resulting absolute `[stats]` table ([car-stats.md](../../docs/modding/car-stats.md)); a car whose settings are left alone is exactly the imported 2012 car. Ranges: `power`, `mass`, `brakes` 0.25 to 4, `grip` 0.25 to 3, `nitrous_power` 0 to 4; results are clamped to the ranges of `[stats]` |
 | `[car.<id or name fragment>]` | The same keys for one car or a make, changing only the keys it lists: `[car.POR911CARR12]`, `[car.Lamborghini]`. The tables apply in the order of their names over `[performance]`. |
 
@@ -166,7 +170,7 @@ table instead ([car-stats.md](../../docs/modding/car-stats.md)).
 | Nitrous sounds | the burn loop, the end sound and the start sound of the 2012 heat level sound set (`GAMELOGIC/HL_*.BNDL`, found by the expression `NitrousState.UsingNitrous` and the trigger `NITROUS_POSTFX_OFF`), as stereo WAV files in `files/NITROUS/MW2012/` with a `profile.toml`, and the value **NFS Most Wanted 2012** of the gameplay setting "Nitrous variant" (`bb.settings`), offered when a 2012 install is set. The `[screen]` section of the profile plays the screen side: the darkening teal vignette and the colour grade of the 2012 nitrous state of `POSTFX.BNDL` (read with `chameleon-postfx`, faded in and out over the state's 2 s blend time), and a small field of view, pull-back, shake and radial blur that are the rewrite's own (the 2012 data has none; `src/nitrous_screen.rs`). The 2012 HUD movies are not read, so the HUD bar is the game's; see [nitrous-variants.md](../../docs/modding/nitrous-variants.md) and [chameleon-nitrous.md](../../docs/formats/chameleon-nitrous.md) (`src/nitrous.rs`) |
 | Tire smoke | the road smoke of the 2012 game (the effect every road surface of `HAWAII/SURFACELIST.BNDL` names for a tyre: seven smoke emitters, found by the surfaces' references and by their `EmitterWheel` operations), as the pictures and `profile.toml` in `files/TIRESMOKE/MW2012/` and the value **NFS Most Wanted 2012** of the gameplay setting "Tire smoke variant" (`bb.settings`), offered when a 2012 install is set: the game draws each layer at every smoking wheel with the 2012 pictures, sizes, lifetimes, alpha, drift and spread, with the rates scaled down; the game's smoke colour setting recolours it. See [effect-variants.md](../../docs/modding/effect-variants.md), [tire-effects.md](../../docs/tire-effects.md) and [chameleon-effects.md](../../docs/formats/chameleon-effects.md#wheel-effects-tyre-smoke) (`src/tire_smoke.rs`, `src/effect_variants.rs`) |
 | Collision sparks | the sparks the 2012 game plays when a car hits something or slides along it (the effects the `VfxVehicleCollisions` objects of `GLOBALEFFECTS.BNDL` list most, read with `chameleon-effects`' `collision.rs`: stretched spark segments, the flash and the dust), as `files/SPARKS/MW2012/profile.toml` and the pictures, and the value **NFS Most Wanted 2012** of the gameplay setting "Collision spark variant (Original PC)" (`bb.settings`): the game throws a vehicle's sparks in the Original PC spark style from the profile, with the 2012 counts, speeds, lifetimes, gravity, colours and overbright, scaled by the strength of the hit (the closing speed) or the scrape (the sliding speed). The install's triggers, props and any channel the profile lacks stay the game's own. See [effect-variants-sparks-xenon.md](../../docs/modding/effect-variants-sparks-xenon.md) and [chameleon-collision-effects.md](../../docs/formats/chameleon-collision-effects.md) (`src/spark_assets.rs`, `src/spark_assets/`) |
-| Restored sparks | the same 2012 effects as the two line sparks of the game's Restored (Experimental) spark style, as `files/XENON/MW2012/profile.toml` and the value **NFS Most Wanted 2012** of the gameplay setting "Restored spark variant (sparks only)". **Sparks only:** the Restored style's wind contrail and view streaks have no 2012 equivalent, so they are not part of the variant and keep the game's own look. See [effect-variants-sparks-xenon.md](../../docs/modding/effect-variants-sparks-xenon.md) (`src/spark_assets/profile.rs`). **Wind:** the 2012 wind is a speed-driven sequence of `SOUND/GLOBAL.BNDL` (11 loops), written as `files/WIND/MW2012/` and the value of the gameplay setting "Wind variant" ([sound of speed](../../docs/formats/chameleon-sound-graph.md#the-sound-of-speed), `src/wind_assets.rs`) |
+| Restored sparks | the same 2012 effects as the two line sparks of the game's Restored (Experimental) spark style, as `files/XENON/MW2012/profile.toml` and the value **NFS Most Wanted 2012** of the gameplay setting "Restored spark variant (sparks only)". **Sparks only:** the Restored style's wind contrail and view streaks have no 2012 equivalent, so they are not part of the variant and keep the game's own look. See [effect-variants-sparks-xenon.md](../../docs/modding/effect-variants-sparks-xenon.md) (`src/spark_assets/profile.rs`). **Wind:** the 2012 wind is a speed-driven sequence of `SOUND/GLOBAL.BNDL` (11 loops), written as `files/WIND/MW2012/` and the value of the gameplay setting "Wind variant" ([sound of speed](../../docs/formats/chameleon-sound-graph.md#the-sound-of-speed), `src/wind_assets.rs`). **Trees:** the 2012 trees, as `files/TREES/MW2012/` and the value of the gameplay setting "Trees" (setting `trees`) |
 | Markers | `LEFT_EXHAUST` and `RIGHT_EXHAUST` (where the nitrous flames start) on `<ID>_KIT00_BODY_A..D`, derived from the body: at the rear face, low, half way to the corners (`src/markers.rs`). The lamp markers `LEFT_HEADLIGHT`, `RIGHT_HEADLIGHT`, `LEFT_BRAKELIGHT`, `RIGHT_BRAKELIGHT` and `BRAKELIGHT_CENTRE` are the car's own lamp locators, picked by its lamp records ([car-lamps.md](../../docs/modding/car-lamps.md)). The 2012 game has no spoiler or scoop to mount, so no mount marker is made |
 | Lamp surfaces | the triangles each of the four 2012 lamp circuits (brake, head, reverse, tail) lights, from the lit pattern of the lens strips and lamp interiors, drawn with the game's lamp placeholders of their circuit and side, and the car's own `<ID>_KIT00_HEADLIGHT_`, `_BRAKELIGHT_`, `_TAILLIGHT_` and `_REVERSELIGHT_` `ON`/`OFF` textures (flat colours); the rest of the lamp interiors is dark grey ([car-lamps.md](../../docs/modding/car-lamps.md)). **Lamp flares:** each lamp record's `Corona` object gives sprites (its glow layer, at most two, with the layer's own picture converted into the car's textures as `<ID>_CORONA<n>`, a radius and a brightness at 8 m and 100 m, an angle falloff), written as `[[lamp_flare]]` tables for the head, tail, brake and reverse lamps (`src/lamp_coronas.rs`, [car-lamps.md](../../docs/modding/car-lamps.md), [chameleon-corona.md](../../docs/formats/chameleon-corona.md)) |
 | Glass and lamp lenses | a translucent tint texture with light material `WINDSHIELD` |
@@ -175,7 +179,7 @@ table instead ([car-stats.md](../../docs/modding/car-stats.md)).
 | Brand logos | the manufacturer table of the vehicle list and the logo pictures under `UI/IMAGES/STREAMED/` ([chameleon-manufacturers.md](../../docs/formats/chameleon-manufacturers.md)): for each distinct brand of the converted cars that the table names (Bentley, BAC, Koenigsegg, Pagani, Marussia, Ariel, Tesla, SRT, Shelby, Land Rover and the others, 32 of the 33 brands of the install; the cars' `NFS` brand has none), `manufacturers/<id>.toml` (`name` is the car's brand, `override = false`) and the logo as `files/UI/MAKERS/<ID>.PNG`: the picture cut to its visible part, scaled to fit with a margin (at most 2x) and centred on a transparent 300 x 150 RGBA canvas, in its own colours. The game's own logo of a brand it already has (Porsche, BMW, Subaru) wins over it; a brand with no logo has no file, and the game draws its name (`src/brands.rs`, `src/logo.rs`, [api-content.md](../../docs/modding/api-content.md#manufacturers)) |
 | Traffic cars | the 11 `VEH_<n>_TR.BNDL` bundles, as `<MAKE><MODEL>_TR` cars with `role = "traffic"` (`src/traffic/`, setting `traffic`): the same body, wheel and collision conversion as a player car, from the traffic bundle's body (levels 1, 2 and 4 of its 5 become A/B, C and D), its own `[wheels]` and `BOUNDS.BIN`, `[stats]` of the car's class (design values: the bundles hold no handling), one paint colour, the plate `NEED4SPD`, and a `[traffic]` table (class, weight, and for the truck the highway patterns). [chameleon-traffic.md](../../docs/formats/chameleon-traffic.md) |
 
-Levels of detail: the game draws nothing for a level a car lacks, so A and B are the finest body, C the mid-detail level of the car's `_LO` bundle (4,800 to 11,400 triangles; a car with liveries keeps its own) and D a coarser one. The vertex limit of one solid (60,000) can force a coarser level. The manifest also carries `role`, a display name
+Levels of detail: the game draws nothing for a level a car lacks, so A and B are the finest body (the files hold it once, as `_A`: the game reads a missing `_B` as a copy of `_A`, [car-customization.md](../../docs/modding/car-customization.md#the-files-of-a-car); this took 232 MB off the 510 MB of geometry), C the mid-detail level of the car's `_LO` bundle (4,800 to 11,400 triangles; a car with liveries keeps its own) and D a coarser one. The vertex limit of one solid (60,000) can force a coarser level. The manifest also carries `role`, a display name
 (`Porsche 911 Carrera S 2012`) and the brand (`src/names.rs`).
 
 ## How it works with the host
@@ -191,6 +195,16 @@ Levels of detail: the game draws nothing for a level a car lacks, so A and B are
   `cars/` folder declares; the car tables list them from then on. See [api-content.md](../../docs/modding/api-content.md#content-registries-bbcontent).
 - If content was already live at start (a rerun after a change), the finished conversion is promoted at the next start
   instead, because the game has indexed the folder.
+
+### Streamed cars
+
+With `stream_cars` the conversion still runs once (the manifests need each car converted) but writes a small stub where
+`GEOMETRY.BIN`, `TEXTURES.BIN` and each recording go, and `lazy-cars.toml` (the install, the settings, each car's bundle
+numbers). The mod gives the game a maker (`bb.content` 1.1 `provide_lazy_files`); when the game opens a stub, the maker converts
+that car again from the 2012 install with the same steps (`src/prepare.rs`, `src/lazy/maker.rs`), keeps the last three cars in memory and
+times each conversion. The first time a car is opened it waits for that conversion **[time not measured]**; the start of the game
+reads one small file. Traffic cars, ignitions and the shared sounds stay files. How it works, the sizes before and after and how to
+measure them: [lean-content.md](../../docs/modding/lean-content.md).
 
 ## Limits
 
@@ -417,56 +431,29 @@ right, with both hands reached to the car's wheel grips, and the look-back clip 
 `<ID>_KIT00_DRIVER_BACK_A/B`, which the host picks by the steering input ([car-customization.md](../../docs/modding/car-customization.md#the-drivers-poses)).
 Finest level only, about 3 MB a car; the poses step instead of blending and the wheel itself does not turn.
 
-## The 2012 cameras
+## The 2012 cameras and drifting
 
-Every converted car also gets the 2012 game's cameras as three **extra camera views** ([api-world.md](../../docs/modding/api-world.md#camera),
-`bb.camera` 1.1): **2012 Chase**, **2012 Bonnet** and **2012 Bumper**. Press **C** (the camera hotkey) past the game's own
-cameras to reach them, or pick one in the options' Camera row (on the Player page and on the Gameplay page, which is also the
-pause menu's, so the view can be switched in a running race); the choice is saved as
-`camera_mode = "extra:nfsmw-2012-content/chase"` (and `bonnet`, `bumper`). On a car the mod did not convert, the views do not fit
-and the game keeps its own cameras.
+Every converted car gets the 2012 game's cameras as three extra camera views (**2012 Chase**, **2012 Bonnet**, **2012 Bumper**: press
+**C** past the game's own, or pick one in the options' Camera row), and while the player drives one of the mod's cars the mod keeps the
+drift assist on and pays drift distance into the nitrous tank, always, with no setting. What they read and how they behave:
+[docs/mods/nfsmw-2012-cameras-drift.md](../../docs/mods/nfsmw-2012-cameras-drift.md).
 
-While a car is converted, the mod reads the cameras of its bundle with
-[`chameleon-camera`](../../docs/formats/chameleon-camera.md) and writes them next to the car's files (`files/CARS/<ID>/CAMERAS.TOML`, with
-the nose of the converted body, which anchors the bumper camera; the chase and bonnet offsets are shortened by how far the
-conversion moved the car's origin to the middle of its axles, `CarCameras::move_origin_forward`). **A car converted before the
-cameras were kept has no such file, and the views then do not fit it (the game keeps its own camera, which looks like the
-views having no effect): the conversion version was bumped for this, so the cars are converted again on the first start after
-the update and the views appear at the start after that.** The mod logs `no 2012 cameras` for a car without the file. In the game the mod steps that library's model once per frame with the
-presented car (the position and axes of the car model, whose origin is the data's: on the ground between the axles, and not the
-physics body's centre of gravity; speed, steering, pedals, yaw rate, ground contact, hits) and the host draws from the pose it
-answers; the bonnet and bumper views hide the car's own body. The per-car values (the chase offset and height, the look-at point, the
-pull-back and field of view with speed, the roll, the braking pitch, the shake) come from each car's own 2012 data; **how the
-2012 game turns them into a camera is not known from its executable** (nothing of its camera code was found), so the model is built
-from the data and every behaviour is **[unconfirmed]** in the format doc. The mounted cameras' numbers are offsets from an anchor
-the data does not name: the mod anchors the bonnet camera at the car's origin and the bumper camera at its nose. None of this has
-been seen in a running game yet; the model's tests and the reader's install tests check the numbers, not the look.
+## The soundtrack
 
-## 2012 drifting
+The 2012 install holds its soundtrack as 58 `.SPS` song streams in `UI/SONGS/` (259 MB). The mod does **not** convert them: at every start it
+writes `music/MW2012.m3u8` (about 5 KB), a playlist that names the 43 titled songs of the install by their paths with their title and
+artist, and the game's custom music player decodes the `.SPS` files from your install while they play (a song is read whole, repacked to MP3 in
+memory and decoded; a track takes a few tens of milliseconds more to start than an MP3). The songs join the game's music in the menus and
+while you drive (the `[music]` table of `mod.toml` names the two contexts and sets `always`, so the game's `[custom_music]` setting is not
+needed); with them on, they take the place of the EA Trax songs as any custom music does ([custom-music.md](../../docs/specs/custom-music.md)).
 
-In the 2012 game a drift fills the nitrous tank, and the cars slide easily. The mod does both for the converted cars, always, with no
-setting (an old saved `option_drift_nitrous` key in the config is ignored). They apply **only while the player drives one of the
-mod's own cars**: the mod reads the player's car id from `bb.engine` (`car()`) and compares it with its `cars/<id>.toml` manifests
-(`src/drift_cars.rs`, `applies_to`). In a stock car or a car of another mod the mod sends `set_drift_assist(false)` every tick
-(also right after a switch of cars) and pays no nitrous; traffic and police cars are never the player's car. A game without
-`bb.engine` has no way to tell, so nothing applies. **Drift physics:** while the player's car is a 2012 car the mod keeps its
-drift assist on (`bb.vehicles` 1.2 `set_drift_assist`, sent every scene tick): the handbrake with the wheel turned starts a slide, the wheel holds
-its angle (full lock about 20 degrees) and the rear tyres let go part of their grip, so the Porsche 918 and the other converted
-cars drift; the cars' own numbers (when a slide is a drift, the largest angle, the yaw torque) are `drift_*` keys in their `[stats]`
-from their `DriftBehaviour` ([chameleon-drift.md](../../docs/formats/chameleon-drift.md#the-sliding-physics)), the 2005 cars have
-the generic ones. **Nitrous:** while the player drives a 2012 car, the mod steps
-`chameleon_vehicle::DriftModel` once a scene tick with the car (`bb.vehicles` 1.1: speed, slip angle, ground contact,
-the strongest hit) and adds what a drift earned to the car's tank with `add_nos`. The rule and its numbers (a slide of 7.5 degrees or more at 10 m/s starts a drift, it
-pays 6 units a second of a 100 unit tank from 30 mph after 0.75 s, it ends when the slip stays under 3 degrees for 0.25 s or
-the car hits something) are in [chameleon-drift.md](../../docs/formats/chameleon-drift.md); the payout is read from the
-install's first car bundle when the first 2012 car is driven, the physics are the median car's. While a drift pays, the 2012 text
-"DRIFTING" and its distance show on the HUD message line (`bb.hud`). A car with no nitrous system earns nothing, and in a car
-that is not a 2012 one nothing is read or changed (`src/drift_nitrous.rs`).
-
-**Drift effects.** The install has no drift camera, post effect or rumble, no free-roam score popup (the score, multiplier and
-gate bonus HUD belongs to the Drift Attack event) and no drift-specific smoke or squeal (the tyre smoke, skid marks and noise are
-the tyre's response to slip, and are the host's own), so the mod adds none of them; what it has is the "DRIFTING" line above. The
-evidence and the open items are in [chameleon-drift-effects.md](../../docs/formats/chameleon-drift-effects.md).
+**The switch in the game:** the Gameplay option **2012 soundtrack** (`bb.settings`, off by default, shown only when the playlist was
+written: a 2012 install is set and `music` is on). The mod reads it at the start and removes the playlist again while it is off, so a
+change in the game applies at the next start. `music = false` in the settings adds neither the playlist nor the option; the setting is not
+part of the conversion's fingerprint, so changing it never converts the cars again. Titles and artists are read from the language table by a
+rule that is partly inferred, so a few captions are wrong ([chameleon-sound.md](../../docs/formats/chameleon-sound.md#the-soundtrack-uisongs)).
+**Nothing of this has been heard in the game.** Test: `cargo test -p nfsmw-2012-content --lib soundtrack` (with `MW2012_GAME_DIR`, `-- --ignored`
+reads the install).
 
 ## License plates
 

@@ -95,6 +95,12 @@ impl Contacts {
         let seat = Vec3::from_array(seat.translation);
         for target in &self.targets {
             ensure!(finite(&target.position), "target {} is not finite", target.name);
+            ensure!(target.anchor.is_none_or(|a| finite(&a)), "the grip bone of target {} is not finite", target.name);
+            ensure!(
+                target.anchor_rotation.is_none_or(|q| finite(&q) && q.iter().any(|c| c.abs() > 1e-6)),
+                "the grip bone of target {} has no usable turn",
+                target.name
+            );
             ensure!(
                 target.rotation.is_none_or(|q| finite(&q) && q.iter().any(|c| c.abs() > 1e-6)),
                 "target {} has no usable turn",

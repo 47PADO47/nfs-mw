@@ -1,7 +1,7 @@
 //! Effect variants: an option per kind of effect (the nitrous, the tire smoke, ...) whose only value of the game's own is
 //! "Original" and to which a mod adds values (`docs/modding/effect-variants.md`).
 //!
-//! This is the shared part (kinds: the nitrous, the tire smoke, the collision sparks, the restored sparks). A kind is an [`EffectKind`]: the option's id and the folder of the profiles
+//! This is the shared part (kinds: the nitrous, the tire smoke, the collision sparks, the restored sparks, the wind, the trees). A kind is an [`EffectKind`]: the option's id and the folder of the profiles
 //! (`blackbox_modding::content::VariantKind`) and the catalogue ids of its texts. The game declares one list option for each
 //! kind in [`KINDS`] (`settings::builtin`), [`choice`] says which value the player chose and which mod provides it, and
 //! [`Bridge::variant_profile`] reads the profile of the chosen value through the install's layers, once per chosen value, with
@@ -11,7 +11,9 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use blackbox_modding::content::{COLLISION_SPARKS, ContentError, NITROUS, TIRE_SMOKE, VariantKind, WIND, XENON_SPARKS};
+use blackbox_modding::content::{
+    COLLISION_SPARKS, ContentError, NITROUS, TIRE_SMOKE, TREES, VariantKind, WIND, XENON_SPARKS,
+};
 
 use super::bridge::Bridge;
 use super::settings::{self, ORIGINAL};
@@ -69,8 +71,18 @@ pub const WIND_KIND: EffectKind = EffectKind {
     original: "options-wind-variant-original",
 };
 
+/// The trees of the world: the models and textures of the game's trees, replaced by a mod's (`model_swap.rs`). Not an effect, but
+/// the same option and folder of profiles: the choice is read when sections of the world load, not every frame.
+pub const TREES_KIND: EffectKind = EffectKind {
+    variant: TREES,
+    name: "trees",
+    label: "options-trees-variant",
+    original: "options-trees-variant-original",
+};
+
 /// Every kind the game offers variants of. A new kind is added here.
-pub const KINDS: [EffectKind; 5] = [NITROUS_KIND, TIRE_SMOKE_KIND, COLLISION_SPARKS_KIND, XENON_SPARKS_KIND, WIND_KIND];
+pub const KINDS: [EffectKind; 6] =
+    [NITROUS_KIND, TIRE_SMOKE_KIND, COLLISION_SPARKS_KIND, XENON_SPARKS_KIND, WIND_KIND, TREES_KIND];
 
 /// The variant of a kind in effect: the chosen value, and the mod that provides it (`None` for the game's own "Original").
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -4,7 +4,7 @@ use glam::Vec3;
 use super::*;
 
 /// Every clip the graph names, each holding its own number as the x of the one bone's translation.
-const ALL: [&str; 29] = [
+const ALL: [&str; 38] = [
     "motard_Leaning_Knee_LowSpeed_L",
     "motard_Leaning_Knee_LowSpeed_R",
     "motard_Leaning_Knee_HighSpeed_L",
@@ -34,6 +34,15 @@ const ALL: [&str; 29] = [
     "motard_wheelie_StandingInterpolation_anim",
     "motard_drift_pose_L",
     "motard_drift_pose_R",
+    "motard_restart_idle_both_feet",
+    "motard_start_both_feet",
+    "motard_stop_both_feet",
+    "motard_restart_idle_foot_L",
+    "motard_start_foot_L",
+    "motard_stop_foot_L",
+    "motard_restart_idle_foot_R",
+    "motard_start_foot_R",
+    "motard_stop_foot_R",
 ];
 /// The clips of `ALL` the ACL decoder provides.
 const ACL_ONLY: [&str; 7] = [
@@ -251,4 +260,77 @@ fn a_pack_missing_a_types_clips_cannot_build_its_graph_but_a_missing_walk_only_d
     assert!(graph_for(&pack, &graph_sets::RACE, 0).is_err(), "the motard-only pack has no race clips");
     let walkless = graph_for(&pack, &graph_sets::MOTARD, 0).unwrap();
     assert_eq!(x(&pack, &walkless, &[("reverse", 1.0)]), x(&pack, &walkless, &[]));
+}
+
+#[test]
+fn the_riding_style_parameter_picks_the_lean_set_of_a_graph_built_for_every_style() {
+    let pack = pack(&[]);
+    let graph = graph_selectable(&pack, &MOTARD).unwrap();
+    graph.validate(&pack.clips, &pack.skeleton).unwrap();
+    // The upright pose of each style: the first two share the centre pose, the old-school style has its own.
+    let upright = |style: f32| x(&pack, &graph, &[("riding_style", style)]);
+    assert_eq!(upright(0.0), clip_x(&pack, "motard_CenterPose_LowSpeed"));
+    assert_eq!(upright(1.0), clip_x(&pack, "motard_CenterPose_LowSpeed"));
+    assert_eq!(upright(2.0), clip_x(&pack, "motard_old_school_standard_pose"));
+    // Each style leans on its own clips.
+    let leaning = |style: f32| x(&pack, &graph, &[("riding_style", style), ("lean", -1.0), ("straight", 0.0)]);
+    assert_eq!(leaning(0.0), clip_x(&pack, "motard_Leaning_Knee_LowSpeed_L"));
+    assert_eq!(leaning(1.0), clip_x(&pack, "motard_Leaning_LowSpeed_L"));
+    assert_eq!(leaning(2.0), clip_x(&pack, "motard_Old_School_standard_L"));
+    // The graph carries the parameter, and the one for a single style does not need it.
+    assert!(graph.param_names.iter().any(|name| name == "riding_style"));
+    assert_eq!(x(&pack, &motard_graph(&pack, 2).unwrap(), &[("riding_style", 0.0)]), upright(2.0));
+}
+
+#[test]
+fn a_type_whose_styles_share_their_clips_has_one_lean_set() {
+    let pack = pack(&[]);
+    let shared = ClipSet {
+        lean: [graph_sets::MOTARD.lean[1]; graph_sets::STYLES],
+        centre: [graph_sets::MOTARD.centre[1]; 3],
+        ..graph_sets::MOTARD
+    };
+    let one = graph_selectable(&pack, &shared).unwrap();
+    let same = graph_for(&pack, &shared, 1).unwrap();
+    assert_eq!(one.root, same.root, "no Select where every style plays the same");
+}
+
+#[test]
+fn the_standstill_picks_the_clip_by_state_and_the_feet_by_leg() {
+    let pack = pack(&[]);
+    let graph = graph_selectable(&pack, &MOTARD).unwrap();
+    graph.validate(&pack.clips, &pack.skeleton).unwrap();
+    let sitting = x(&pack, &graph, &[]);
+    let stand = |state: f32, leg: f32, weight: f32| {
+        x(&pack, &graph, &[("stand", weight), ("stand_state", state), ("stand_leg", leg)])
+    };
+    assert_eq!(stand(1.0, 0.0, 0.0), sitting, "no standstill weight: the riding pose");
+    for (leg, names) in [
+        (0.0, ["motard_stop_both_feet", "motard_restart_idle_both_feet", "motard_start_both_feet"]),
+        (1.0, ["motard_stop_foot_L", "motard_restart_idle_foot_L", "motard_start_foot_L"]),
+        (2.0, ["motard_stop_foot_R", "motard_restart_idle_foot_R", "motard_start_foot_R"]),
+    ] {
+        for (state, name) in names.iter().enumerate() {
+            assert_eq!(stand(state as f32, leg, 1.0), clip_x(&pack, name), "state {state}, leg {leg}");
+        }
+    }
+    // Half the weight is half the way from the riding pose.
+    let half = stand(1.0, 0.0, 0.5);
+    assert!((half - (sitting + clip_x(&pack, "motard_restart_idle_both_feet")) / 2.0).abs() < 1e-3);
+    // A pack without the clips plays the riding pose whatever the parameters say.
+    let lacking = self::pack(&["motard_stop_foot_R"]);
+    let bare = graph_selectable(&lacking, &MOTARD).unwrap();
+    assert_eq!(x(&lacking, &bare, &[("stand", 1.0), ("stand_state", 1.0)]), x(&lacking, &bare, &[]));
+}
+
+#[test]
+fn the_standstill_clips_are_among_the_names_the_sets_list() {
+    for set in graph_sets::SETS {
+        let names = graph_sets::clip_names(set);
+        for leg in set.legs {
+            for name in [leg.stand, leg.start, leg.stop] {
+                assert!(names.contains(&name), "{name}");
+            }
+        }
+    }
 }

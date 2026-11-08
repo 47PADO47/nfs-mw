@@ -30,6 +30,16 @@ fn ids_and_versions_are_locked() {
 }
 
 #[test]
+fn content_table() {
+    assert_eq!(IFACE_CONTENT, "bb.content");
+    assert_eq!(IFACE_CONTENT_VERSION, (1, 1));
+    assert_eq!(size_of::<BbContent>(), 32);
+    assert_eq!(offset_of!(BbContent, ctx), 8);
+    assert_eq!(offset_of!(BbContent, rescan), 16);
+    assert_eq!(offset_of!(BbContent, provide_lazy_files), 24, "1.1 appended it after rescan");
+}
+
+#[test]
 fn ui_table_and_prim() {
     assert_eq!(size_of::<BbUiPrim>(), 96);
     assert_eq!(offset_of!(BbUiPrim, kind), 4);
