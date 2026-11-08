@@ -119,6 +119,15 @@ impl super::Settings {
 }
 
 impl super::Partial {
+    /// The change of the riding style of `class`, if there is one.
+    pub const fn riding_style_of(&self, class: BikeClass) -> Option<RidingStyle> {
+        match class {
+            BikeClass::Road => self.riding_style_road,
+            BikeClass::Motard => self.riding_style_motard,
+            BikeClass::Offroad => self.riding_style_offroad,
+        }
+    }
+
     /// A change of the riding style of `class`, as it is saved.
     pub fn set_riding_style(&mut self, class: BikeClass, style: RidingStyle) {
         let slot = match class {

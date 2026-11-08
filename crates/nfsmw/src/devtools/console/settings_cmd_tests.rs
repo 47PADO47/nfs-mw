@@ -340,6 +340,9 @@ fn the_riding_style_is_set_per_class_and_the_older_name_sets_every_class() {
         [RidingStyle::OldSchool; 3],
         "the single name sets all three"
     );
+    assert_eq!(get(&s, "riding_style").unwrap(), "riding_style = old-school");
+    set(&mut s, "riding_style_road", "balanced").unwrap();
+    assert_eq!(get(&s, "riding_style").unwrap(), "riding_style = road balanced, motard old-school, offroad old-school");
     let before = s;
     assert!(set(&mut s, "riding_style_road", "leaning").unwrap_err().contains("balanced, shoulders-out or old-school"));
     assert_eq!(s, before);

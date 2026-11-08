@@ -91,6 +91,7 @@ pub use road_reflections::{RoadReflectionResolution, RoadReflections};
 mod fingers;
 #[cfg(test)]
 mod renderer_tests;
+mod rider_write;
 mod riding_style;
 mod smoke_color;
 #[cfg(test)]

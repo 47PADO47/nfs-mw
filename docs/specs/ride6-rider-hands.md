@@ -131,6 +131,7 @@ the `Select`s, so a rig made before this change (`ride6-rider-import`) plays the
 `nfsmw view-car <ID>` shows the bike with its rider standing, his feet on the ground, once his smoothers have settled (five seconds of
 animation). `--zoom N` brings the camera N times closer, `--pitch DEGREES` tilts it, `--focus-height METRES` aims it (about 1 m for the grips),
 `--yaw` turns it; `--rider-state "speed=-5,clutch=1,throttle=1,brake=0.5,lean=0.6,tuck=1"` puts the rider in a state (km/h; a negative speed is a
-bike rolling back); the riding style is `NFSMW_RIDING_STYLE=balanced|shoulders-out|old-school`. Run offscreen with `--screenshot out.png --muted`
+bike rolling back); the riding styles are `NFSMW_RIDING_STYLE_ROAD`, `_MOTARD` and `_OFFROAD` `=balanced|shoulders-out|old-school` (`NFSMW_RIDING_STYLE` sets all three) and the fingers
+`NFSMW_BRAKE_FINGERS=1|2|4` and `NFSMW_CLUTCH_FINGERS=2|4`. Run offscreen with `--screenshot out.png --muted`
 and an isolated profile (`BLACKBOX_PROFILE_DIR`).
 

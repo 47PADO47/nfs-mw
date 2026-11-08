@@ -86,11 +86,12 @@ mod tests {
     #[test]
     fn the_clutch_fingers_follow_the_lever_at_two_and_a_half_clip_seconds_a_second_and_the_layer_comes_in_at_once() {
         let mut hands = Hands::default();
-        // The lever's clip time is 0.27 s when pulled: half of it in 0.054 s, all of it in 0.108 s.
-        let out = run(&mut hands, [1.0, 0.0, 0.0], 0.054);
-        assert!((out.clutch - 0.5).abs() < 0.02, "{out:?}");
+        // The lever's clip time is 0.27 s when pulled, so the lever goes at 9.3 a second: three frames (0.05 s) take it 0.46 of the way.
+        let out = run(&mut hands, [1.0, 0.0, 0.0], 0.05);
+        assert!((out.clutch - 0.463).abs() < 0.01, "{out:?}");
         let out = run(&mut Hands::default(), [1.0, 0.0, 0.0], 0.12);
         assert_eq!(out.clutch, 1.0, "a gear change's tenth of a second pulls the lever all the way in");
+        let out = run(&mut hands, [1.0, 0.0, 0.0], 0.2);
         assert_eq!(out.clutch_alpha, 1.0, "the layer is up while the lever is off its stop");
         assert_eq!(out.brake_alpha, 0.0);
         let out = run(&mut hands, [1.0, 0.0, 0.0], 1.0);

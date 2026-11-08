@@ -80,6 +80,11 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "hud_layout" | "hud-layout" => settings.hud_layout.to_string(),
         "ui_style" | "ui-style" | "radio_hud" | "radio-hud" => settings.ui_style.to_string(),
         "speed_units" | "speed-units" => settings.speed_units.to_string(),
+        // The one setting this was before the three: what they all are, or each.
+        "riding_style" | "riding-style" => match BikeClass::ALL.map(|class| settings.riding_style_of(class)) {
+            [road, motard, offroad] if road == motard && motard == offroad => road.to_string(),
+            [road, motard, offroad] => format!("road {road}, motard {motard}, offroad {offroad}"),
+        },
         "riding_style_road" => settings.riding_style_road.to_string(),
         "riding_style_motard" => settings.riding_style_motard.to_string(),
         "riding_style_offroad" => settings.riding_style_offroad.to_string(),
