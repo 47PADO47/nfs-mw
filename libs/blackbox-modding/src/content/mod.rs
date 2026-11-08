@@ -32,6 +32,8 @@ mod bike_ride_wheelie_blip;
 mod bike_ride_wheelie_script;
 #[cfg(test)]
 mod bike_ride_wheelie_steer;
+#[cfg(test)]
+mod bike_ride_wheelie_throttle;
 mod bike_rider;
 #[cfg(test)]
 mod bike_tests;
