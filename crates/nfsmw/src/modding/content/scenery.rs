@@ -6,7 +6,9 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use blackbox_modding::content::{Collision, Orientation, Place, SCENERY_FOLDER, SceneryManifest, parse_scenery};
+use blackbox_modding::content::{
+    Collision, Orientation, Place, SCENERY_FOLDER, SceneryManifest, WORLDS_FOLDER, parse_scenery,
+};
 use blackbox_scenery::build::{self, Placement, yaw_rows};
 use blackbox_solid::Solid;
 use blackbox_streaming::StreamingSection;
@@ -47,15 +49,28 @@ pub fn packs(dir: &GameDir, mods: &[ModDir], installed: &HashSet<i16>) -> Vec<Ma
     let mut taken = installed.clone();
     let mut out = Vec::new();
     for m in mods {
-        for path in toml_files(&m.dir.join(SCENERY_FOLDER)) {
-            match read_pack(dir, m, &path, &taken) {
-                Ok(pack) => {
-                    log::info!("mod {}: map pack {} at section {}", m.id, pack.key, pack.section.number);
-                    taken.insert(pack.section.number);
-                    out.push(pack);
-                }
-                Err(reason) => log::warn!("mod {}: map pack {} is not added: {reason}", m.id, path.display()),
+        out.extend(folder_packs(dir, m, &m.dir.join(SCENERY_FOLDER), &mut taken));
+    }
+    out
+}
+
+/// The packs of the world `world` of mod `m`: the manifests in its `worlds/<world>/` folder, checked like `scenery/` ones.
+/// `taken` holds the section numbers the install and the other packs have; the world's own are added to it.
+pub fn world_packs(dir: &GameDir, m: &ModDir, world: &str, taken: &mut HashSet<i16>) -> Vec<MapPack> {
+    folder_packs(dir, m, &m.dir.join(WORLDS_FOLDER).join(world), taken)
+}
+
+/// The valid packs of one folder of a mod, in file-name order; each one's number is added to `taken`.
+fn folder_packs(dir: &GameDir, m: &ModDir, folder: &Path, taken: &mut HashSet<i16>) -> Vec<MapPack> {
+    let mut out = Vec::new();
+    for path in toml_files(folder) {
+        match read_pack(dir, m, &path, taken) {
+            Ok(pack) => {
+                log::info!("mod {}: map pack {} at section {}", m.id, pack.key, pack.section.number);
+                taken.insert(pack.section.number);
+                out.push(pack);
             }
+            Err(reason) => log::warn!("mod {}: map pack {} is not added: {reason}", m.id, path.display()),
         }
     }
     out

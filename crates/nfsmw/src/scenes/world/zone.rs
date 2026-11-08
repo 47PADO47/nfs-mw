@@ -19,6 +19,11 @@ impl Zones {
         Self { visible, tiles, currents: vec![None] }
     }
 
+    /// Whether the index has no map tiles (a second world, `docs/specs/second-world.md`).
+    pub fn is_empty(&self) -> bool {
+        self.tiles.is_empty()
+    }
+
     /// Follow the camera at map position (x, y); true when its zone changed. Same as `update_many`
     /// with that one centre.
     #[cfg(test)]

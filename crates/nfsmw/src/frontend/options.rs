@@ -76,6 +76,8 @@ pub enum Setting {
     UpscaleSharpness,
     /// The game's language (`options_language.rs`): its choices are the languages on offer, not a fixed list.
     Language,
+    /// The Free Roam world (`options_world.rs`): the city or a second world a mod provides.
+    World,
     /// A row of the custom race's options (`custom_race/settings.rs`); its value is the session's, not a setting.
     Custom(super::custom_race::settings::Row),
     /// A row a mod added to the Mods page (`bb.menus`), by its handle; its label, value and control come from the bridge.
@@ -180,6 +182,8 @@ mod map_options;
 
 #[path = "options_language.rs"]
 mod language;
+#[path = "options_world.rs"]
+mod world;
 
 /// The original's `COMMON_AUTO` ("Auto"): the automatic transmission, and the Auto value of every row that has one.
 pub(super) const LABEL_AUTO: u32 = 0x8CD5_32A0;
@@ -295,6 +299,7 @@ impl Setting {
             Setting::Hd(setting) => return setting.step(s, changed, forward),
             Setting::CustomHud(setting) => return setting.step(s, changed, forward),
             Setting::Language => return language::step(s, changed, forward),
+            Setting::World => return world::step(s, changed, forward),
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);

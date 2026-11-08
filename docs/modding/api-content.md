@@ -318,6 +318,41 @@ promised for the first delivery, because the index and the road network are read
 Cross-game: scenery from another Black Box game works only where `libs/blackbox-solid`, `blackbox-tpk` and
 `blackbox-scenery` have a layout table for that game's version. The mod, or a tool, converts anything else.
 
+### Worlds
+
+A mod can provide a **second world** the player chooses instead of the city (`nfsmw view-world --world <id>`, the `world` setting,
+the Free Roam World row). Built in `bb.content` 1.0 as a declarative manifest like the scenery packs; the host feature and its rules are
+in [specs/second-world.md](../specs/second-world.md).
+
+```
+mods/example.tracks/
+  worlds/okayama.toml           the world: name and start
+  worlds/okayama/g000.toml      its map packs: one scenery pack manifest per piece (the schema above)
+  files/WORLDS/OKAYAMA/G000.BUN each piece's section file (solids, textures, collision)
+```
+
+```toml
+# worlds/okayama.toml
+[world]
+name = "Okayama (RIDE 6)"
+start = { pos = [-230.8, -214.7, 26.1], heading = 95.1 }   # render space, metres; heading in degrees (0 along +x)
+```
+
+- The file name is the id (letters, digits, `_`, `-`, 1 to 32 bytes); `rockport` is the city and cannot be provided; an id an earlier
+  mod provides is refused.
+- A world's packs are read only while the world is played: they are not part of the city. Their rules are the scenery pack's, and a
+  pack's collision (`collision = "static"` on a placement) is how the ground is driven on.
+- The list is read when a world opens or a menu is drawn, not sealed at start-up; a mod that writes a world on a thread calls
+  `content.rescan()` when it is done, as for cars.
+
+| Entry | Signature sketch | Scope | Implemented in |
+|---|---|---|---|
+| Parse manifest | `parse_world(id, text) -> Result<WorldManifest { id, name, start, heading }>` | G | `libs/blackbox-modding/src/content/world.rs` |
+| List, find | `worlds::list()`, `worlds::find(id)`, `worlds::chosen(setting)` | MW | `crates/nfsmw/src/modding/content/worlds.rs` |
+| Load | `WorldScene::load_in(dir, options, Some(world))` | MW | `scenes/world/open.rs` |
+
+The RIDE 6 tracks mod is the first user ([mods/ride6-tracks/README.md](../../mods/ride6-tracks/README.md)).
+
 ## Interiors
 
 ### Interior manifest (built)
