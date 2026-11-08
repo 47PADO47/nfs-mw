@@ -206,6 +206,9 @@ impl Bridge {
             };
             lines.push(format!("{}: {what}", record.set.id));
         }
+        if let Some(active) = replace::active() {
+            lines.extend(active.conflicts().iter().map(|line| format!("conflict: {line}")));
+        }
         lines.join("\n")
     }
 }

@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use blackbox_hash::bstring_hash;
-use blackbox_modding::content::{FitLimits, ReplaceSet, ReplaceTarget, SwapFit};
+use blackbox_modding::content::{FitLimits, Place, ReplaceSet, ReplaceTarget, SwapFit};
 use blackbox_scenery::ScenerySection;
 use blackbox_solid::Solid;
 use blackbox_tpk::Texture;
@@ -36,6 +36,17 @@ pub struct LoadedSet {
     pub replaced: Vec<(u32, Arc<TextureSlot>)>,
 }
 
+/// Objects a set places in the world (`[[add]]`): they become map packs when a world opens (`adds.rs`).
+pub struct Added {
+    pub owner: String,
+    pub set: String,
+    /// The set's geometry file, a path of the install's layout.
+    pub geometry: String,
+    /// The names of the solids in it, in upper case.
+    pub models: HashSet<String>,
+    pub places: Vec<Place>,
+}
+
 /// A replacement model: made ready once, and how it is fitted.
 struct Entry {
     model: Arc<Prepared>,
@@ -53,6 +64,7 @@ pub struct Active {
     pub(super) fitted: Mutex<HashMap<Key, Arc<Solid>>>,
     textures: HashMap<u32, Arc<TextureSlot>>,
     added: Vec<Texture>,
+    objects: Vec<Added>,
     /// The sets in effect, as `mod:set`, in the order they were merged.
     sets: Vec<String>,
     /// One line for every target two sets named, saying which won.
@@ -95,6 +107,7 @@ impl Active {
             fitted: Mutex::new(HashMap::new()),
             textures: HashMap::new(),
             added: Vec::new(),
+            objects: Vec::new(),
             sets: Vec::new(),
             conflicts: Vec::new(),
         }
@@ -117,6 +130,15 @@ impl Active {
                 active.textures.insert(hash, slot);
             }
             active.added.extend(input.added);
+            if let (false, Some(geometry)) = (input.set.adds.is_empty(), &input.set.geometry) {
+                active.objects.push(Added {
+                    owner: input.owner.clone(),
+                    set: input.set.id.clone(),
+                    geometry: geometry.clone(),
+                    models: input.models.iter().map(|model| model.name.to_ascii_uppercase()).collect(),
+                    places: input.set.adds.clone(),
+                });
+            }
             active.sets.push(label);
         }
         active
@@ -185,6 +207,11 @@ impl Active {
     /// shared sets once, and every section's solids find them there.
     pub fn textures(&self) -> &[Texture] {
         &self.added
+    }
+
+    /// The objects the sets place in the world.
+    pub fn objects(&self) -> &[Added] {
+        &self.objects
     }
 
     /// The sets in effect, as `mod:set`.

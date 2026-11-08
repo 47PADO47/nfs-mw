@@ -46,6 +46,14 @@ stay on. [ours]
 
 ## 6. Host status
 
-Built: parsers, writer, merge and pack plan with tests (`world.rs`, `world_patch_tests.rs`). The host (`modding/content/worlds.rs`,
-`scenes/world/open.rs`) applies the manifest as before; reading patches, `base`, and `environment` there is the open item of this
-spec (see the report of the round). The two world mods use the shared writer.
+Built and unit tested: parsers, writer, merge and pack plan (`world.rs`, `world_patch_tests.rs`); `worlds::list_in` reads the patches of
+every loaded mod and gives each world its patched manifest and its ordered patches; `worlds::packs` applies the pack plan (remove, replace,
+add; a taken section number goes to the first pack); `WorldScene::load_in` plays an alternative map in the city (`standalone` and
+`alternative` in `open.rs`: the city's index, gameplay data, roads and `scenery/` packs, plus the map's packs) and applies `environment`
+(`apply_world_environment`: the clock through `configure_environment`, held when asked, the rain through `Rain::configure`).
+`bb.content` capabilities `WORLD_PATCHES` and `ALT_MAPS` are set. Patches of the plain city (`target = "rockport"`) are not read: the
+city has `scenery/` packs for adding objects.
+
+Not built: placing players on `grid` slots, markers, surfaces table, removal of city tiles; the clock is set when the scene is built, so
+an option the frontend applies later (a saved time of day) can override it [not checked].
+The two world mods (RIDE 6 tracks, Fairhaven) write their `worlds/<id>.toml` through `WorldManifest::to_toml` and record a second-player slot.

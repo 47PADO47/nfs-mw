@@ -15,7 +15,8 @@ anyhow.workspace = true
 blackbox-attrib.workspace = true
 blackbox-collision.workspace = true
 blackbox-hash.workspace = true
-blackbox-modding = { workspace = true, features = ["sdk"] }
+# "host" is needed for the content schemas (`blackbox_modding::content`): the manifests the mod writes are the game's own types.
+blackbox-modding = { workspace = true, features = ["sdk", "host"] }
 blackbox-solid.workspace = true
 blackbox-tpk.workspace = true
 chameleon-bundle.workspace = true

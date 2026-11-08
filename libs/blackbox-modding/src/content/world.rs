@@ -177,6 +177,15 @@ impl WorldManifest {
         }
     }
 
+    /// The world with one more start slot `metres` to the left of the start (the heading turned a quarter towards +y), same heading and
+    /// height: the place of a second player. The host does not place players from slots yet, so this only records where they would stand.
+    pub fn with_side_slot(mut self, metres: f32) -> Self {
+        let side = (self.heading + 90.0).to_radians();
+        let [x, y, z] = self.start;
+        self.grid.push(Slot { pos: [x + metres * side.cos(), y + metres * side.sin(), z], heading: self.heading });
+        self
+    }
+
     /// Whether this world is an alternative map: it plays in the city.
     pub fn is_alternative_map(&self) -> bool {
         self.base.is_some()
@@ -260,6 +269,17 @@ start = { pos = [-228.0, -215.0, 26.5], heading = 95.0 }
         assert!(world.is_alternative_map());
         let other = TEXT.replace("[world]\n", "[world]\nbase = \"okayama\"\n");
         assert!(matches!(parse("alt", &other), Err(ContentError::Field { field: "base", .. })));
+    }
+
+    #[test]
+    fn a_side_slot_is_to_the_left_of_the_start() {
+        let world = WorldManifest::new("w", "W", [10.0, 20.0, 1.0], 0.0).with_side_slot(3.0);
+        let slot = world.grid[0];
+        assert!(
+            (slot.pos[0] - 10.0).abs() < 1e-4 && (slot.pos[1] - 23.0).abs() < 1e-4,
+            "heading +x, left is +y: {slot:?}"
+        );
+        assert_eq!((slot.pos[2], slot.heading), (1.0, 0.0));
     }
 
     #[test]

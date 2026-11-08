@@ -60,10 +60,12 @@ activation.
 ## 5. Status
 
 Built and unit tested: manifest, catalog, options, merge, four fits, textures, trees through the one mechanism, report text.
-Open, in this order: (1) **`[[add]]` placement**: parsed and kept (`ReplaceSet::adds`); the host has to turn a set's objects into
-synthetic map packs (`PackSource` in memory, sections from the 2700 band skipping `taken`, one pack per 512 m cell) when a world
-opens: the pieces exist (`scenery::assemble`); (2) the `bb.content` 1.2 table (section 8); (3) refreshing the shared sets in a drive;
-(4) a `replace` console command listing sets (the report text is the data).
+`[[add]]` is built: `replace/adds.rs` groups a set's objects by 512 m cell and makes one synthetic map pack per cell (`scenery::synthetic_pack`:
+the set's geometry file on disk, the next free section of the 2700 band, an anchor round the objects), added to the city's and the
+alternative maps' packs when the world opens (`open.rs`); the textures are the set's, shared. Open: (1) refreshing the shared sets'
+textures in a drive; (2) a `replace` console command listing sets (the report text is the data); (3) lazy geometry files for `[[add]]`;
+(4) collision `prop` for added objects; (5) the options group "variants" has no heading in the Gameplay page yet (the rows follow the
+game's own, labelled by the kind).
 
 ## 6. Worlds
 
@@ -78,11 +80,12 @@ set won). The game keeps playing with the game's own content for what failed.
 
 ## 8. `bb.content` 1.2
 
-Appended to `BbContent`: `capabilities(ctx) -> u32` with bits `LAZY_FILES 1`, `REPLACE_SETS 2`, `TEXTURES 4`, `WORLD_PATCHES 8`,
-`ALT_MAPS 16`, and `report(ctx, sink, sink_ctx) -> BbStatus` that writes the lines of `Bridge::replacement_report(owner)` through
-the lazy-file sink type. Main thread only; old mods are unaffected, a mod built for 1.2 on a 1.1 host gets `Unsupported`.
-**Not built in this round**: the host function exists (`replacement_report`), the ABI field, SDK wrapper and snapshot test do not.
-Until then a mod learns support by the manifest being read (the log line) and mods ship their files regardless.
+Built: two functions appended to `BbContent` (size 32 to 48): `capabilities(ctx) -> u32` with bits `LAZY_FILES 1`, `REPLACE_SETS 2`,
+`TEXTURES 4`, `WORLD_PATCHES 8`, `ALT_MAPS 16` (`BB_CONTENT_CAP_*`), and `report(ctx, sink, sink_ctx) -> BbStatus`, which writes the text
+of `Bridge::replacement_report(owner)` through the lazy-file sink type: one line per set (`<id>: chosen`, `not chosen`, `not read: ...`,
+`<file>: refused: ...`, `conflict: ...`). Main thread only for `report`. SDK: `Content::capabilities()`, `Content::replacement_report()`.
+A mod built for 1.2 on a 1.1 host gets 0 and `Unsupported`; a 1.1 mod on a 1.2 host is unaffected (fields are only appended; the
+snapshot test pins the layout). A breaking manifest change would be `format = 2`, not an ABI major.
 
 ## 9. Tests
 

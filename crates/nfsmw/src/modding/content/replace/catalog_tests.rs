@@ -38,16 +38,16 @@ fn sets_are_listed_in_load_order_then_file_name_and_grouped_by_kind() {
 
 #[test]
 fn a_second_set_with_the_same_kind_and_value_and_a_set_for_another_game_are_refused() {
-    let first = mod_with("first", &[("a", &set("trees", "tall", ""))]);
+    let first = mod_with("early", &[("a", &set("trees", "tall", ""))]);
     let second = mod_with(
-        "second",
+        "late",
         &[("b", &set("trees", "tall", "")), ("c", &set("trees", "x", "source_game = \"nfsu2\"")), ("d", "format = 1")],
     );
     let catalog = Catalog::scan(&[first, second]);
     assert_eq!(catalog.sets.len(), 1);
     assert_eq!(catalog.refused.len(), 3);
     let reasons: Vec<&str> = catalog.refused.iter().map(|refused| refused.reason.as_str()).collect();
-    assert!(reasons.iter().any(|reason| reason.contains("already provided by first:a")), "{reasons:?}");
+    assert!(reasons.iter().any(|reason| reason.contains("already provided by early:a")), "{reasons:?}");
     assert!(reasons.iter().any(|reason| reason.contains("no reader")), "{reasons:?}");
 }
 

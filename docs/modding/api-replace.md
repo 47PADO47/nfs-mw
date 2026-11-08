@@ -6,7 +6,7 @@ next kind of replacement (see [Adding a new kind](#adding-a-new-kind)).
 
 **Status.** Built and unit tested: the set manifest, models (four fits), textures (PNG, DDS, texture packs; lazy), the option per kind,
 priority and conflict rules, the old `TREES/` profile read as a set. Not yet run in the game window except where the spec says so.
-World patches are parsed and merged by the library; the host applies them as the spec's section 6 says.
+Alternative maps, world patches and the world `environment` are applied when a world opens ([api-content-worlds.md](api-content-worlds.md#alternative-maps-environment-and-world-patches-bbcontent-12)); `bb.content` 1.2 `capabilities` and `report` are in the table and the SDK (`Content::capabilities`, `Content::replacement_report`).
 
 ## The idea in one paragraph
 
@@ -104,7 +104,7 @@ logged). In a world-space copy every fit is cut into stretches like `row`/`heigh
   b:y replaced, and wins`) and listed by the report.
 - A mod built before 1.2 that adds a value to `trees_variant` in code and ships `TREES/<VALUE>/profile.toml` still works: the game reads the
   profile as a set of kind `trees` ([effect-variants.md](effect-variants.md#profile-format-of-the-trees)). New mods declare a set.
-- Replacements apply to sections as they load; added textures are uploaded once. `[[add]]` objects are checked and kept by the parser but **not yet placed** by the host (status in the spec, section 5); use a scenery pack ([api-content-worlds.md](api-content-worlds.md)) to place objects today.
+- Replacements apply to sections as they load; added textures are uploaded once. `[[add]]` objects become map packs when a world opens (the city and alternative maps, not standalone worlds): grouped by 512 m cell, each pack loads while the camera is within 150 m of its objects; a choice made in a drive shows at the next world. The geometry file must be a plain file (not a lazy stub).
 
 ## Versioning, errors
 
@@ -166,4 +166,4 @@ format = "bc1"
 max_size = 1024
 ```
 
-**Add a prop** (parsed; placement by the host is still open, see the spec): `[[add]] model = "BENCH" pos = [x, y, z]` in a set with `[files] geometry`.
+**Add a prop**: `[[add]] model = "BENCH" pos = [x, y, z]` in a set with `[files] geometry`.

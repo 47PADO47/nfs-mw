@@ -13,11 +13,13 @@
 //! |---|---|
 //! | `catalog.rs` | the manifests of the loaded mods, grouped by kind |
 //! | `load.rs` | one set read from its files |
+//! | `adds.rs` | the objects a set places (`[[add]]`) as map packs when a world opens |
 //! | `active.rs` | the merged replacements, and what a section gets |
 //! | `textures.rs` | pictures: PNG, DDS and texture packs as textures, and the rules of a replacing texture |
 //! | `fit.rs`, `place.rs` | fitting a model into the solid it replaces: `height`, `row`, `stand`, `exact` |
 
 mod active;
+mod adds;
 mod catalog;
 mod fit;
 mod load;
@@ -33,6 +35,7 @@ use std::sync::{Arc, RwLock};
 use nfsmw_data::world::{GlobalTextures, SectionData};
 
 pub use active::Active;
+pub use adds::packs as added_packs;
 pub use catalog::Catalog;
 pub use load::load_set;
 

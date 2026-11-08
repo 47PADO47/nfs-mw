@@ -45,6 +45,17 @@ impl ContentBackend for ContentPort {
         log::info!("mod {owner}: it makes some of its files when they are read");
         Ok(())
     }
+
+    fn capabilities(&self) -> u32 {
+        use blackbox_modding::abi::{BB_CONTENT_CAP_LAZY_FILES, BB_CONTENT_CAP_REPLACE_SETS, BB_CONTENT_CAP_TEXTURES};
+        // World patches and alternative maps are parsed and merged by the library; the game applies them when the world opens
+        // (`worlds.rs`): their bits are set with that work.
+        BB_CONTENT_CAP_LAZY_FILES | BB_CONTENT_CAP_REPLACE_SETS | BB_CONTENT_CAP_TEXTURES | content::WORLD_CAPABILITIES
+    }
+
+    fn report(&self, owner: &str) -> BackendResult<String> {
+        Ok(self.0.replacement_report(owner))
+    }
 }
 
 /// A mod's maker of lazy files, as the install's reads see it.

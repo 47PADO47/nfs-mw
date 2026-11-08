@@ -9,8 +9,7 @@ use super::BackendResult;
 use super::slot::{Attached, Slot, guard, slot_of};
 use crate::abi::{
     BB_ERR_ARG, BB_ERR_HOST, BB_ERR_STALE, BB_ERR_UNSUPPORTED, BB_OK, BbContent, BbContentBytesSinkFn,
-    BbContentReadLazyFn, BbIface, BbStatus, BbStr, IFACE_CONTENT, IFACE_CONTENT_VERSION,
-    MAX_PATH_BYTES,
+    BbContentReadLazyFn, BbIface, BbStatus, BbStr, IFACE_CONTENT, IFACE_CONTENT_VERSION, MAX_PATH_BYTES,
 };
 
 /// The most bytes one lazy file may have. A file a mod makes is a file the game reads whole, and none is near this size; a

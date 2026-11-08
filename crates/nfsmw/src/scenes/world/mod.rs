@@ -75,6 +75,7 @@ mod focus;
 mod focus_feed;
 mod object_geometry;
 mod open;
+mod open_packs;
 pub use open::WorldLoad;
 mod damage_effects;
 mod environment_lights;

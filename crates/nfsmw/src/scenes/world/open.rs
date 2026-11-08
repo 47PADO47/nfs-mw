@@ -44,7 +44,11 @@ impl WorldScene {
             (None, Some(world)) => world.manifest.heading,
             _ => options.heading,
         };
-        let world_id = world.as_ref().map(|w| w.id().to_owned());
+        // A standalone world replaces the city; an alternative map plays in it (the city plus the world's packs, start and environment).
+        let standalone = world.as_ref().filter(|w| !w.is_alternative_map());
+        let alternative = world.as_ref().filter(|w| w.is_alternative_map());
+        let world_environment = world.as_ref().and_then(|w| w.manifest.environment);
+        let world_id = standalone.map(|w| w.id().to_owned());
         // These loads need nothing another one produces, so they run at once. Every thread is joined before
         // any result is used, and errors are reported in the order the steps used to run. The index thread goes on
         // to start the streaming: the shared sets and the tiles around the start load while everything else is read.
@@ -132,14 +136,10 @@ impl WorldScene {
         // packs need neither and are read on this thread while the catalog is built. The helicopter sheet walks the
         // stream file's chunk headers, which takes a while, so it runs beside them.
         let (garage_catalog, map_packs, interiors, heli_sheet) = std::thread::scope(|s| {
-            let world = world.as_ref();
             let garage_catalog = s.spawn(|| garage::catalog(dir, &physics));
             let heli_sheet = s.spawn(|| heli_sheet(dir, &index.stream_file, road_network.is_some()));
-            let map_packs = match world {
-                Some(world) => crate::modding::content::worlds::packs(dir, world, &installed),
-                None => crate::modding::content::scenery::packs(dir, crate::modding::content::mod_dirs(), &installed),
-            };
-            let interiors = match world {
+            let map_packs = super::open_packs::map_packs(dir, standalone, alternative, &installed);
+            let interiors = match standalone {
                 Some(_) => Default::default(),
                 None => {
                     crate::modding::content::interior::load(crate::modding::content::mod_dirs(), &map_packs, first_pack)
@@ -164,8 +164,8 @@ impl WorldScene {
         };
         let entry_zones = entry_zones.with_interiors(interiors);
         // A second world has no collision grid in a file: its packs list themselves in an empty one as they arrive.
-        let world_grid = world.as_ref().map(|_| world_collision_grid(&map_packs));
-        let second_world = world.is_some();
+        let world_grid = standalone.map(|_| world_collision_grid(&map_packs));
+        let second_world = standalone.is_some();
         let dir = dir.clone();
         Ok(WorldLoad(Box::new(move || {
             let mut traffic = road_network.map(ai::TrafficWorld::new);
@@ -363,6 +363,9 @@ impl WorldScene {
                 net_client: None,
             };
             scene.switch_default_scenery_groups();
+            if let Some(environment) = world_environment {
+                scene.apply_world_environment(environment);
+            }
             scene
         })))
     }

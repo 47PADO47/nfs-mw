@@ -18,6 +18,8 @@ pub(crate) mod replace;
 pub mod scenery;
 pub mod worlds;
 
+pub(crate) use worlds::WORLD_CAPABILITIES;
+
 pub(crate) use music::{MusicSource, sources as music_sources};
 pub(crate) use racers::names as racer_names;
 
