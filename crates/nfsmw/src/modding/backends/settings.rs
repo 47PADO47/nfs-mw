@@ -166,6 +166,12 @@ pub fn visible(bridge: &Bridge) -> Vec<usize> {
     model.options().iter().enumerate().filter(|(_, option)| option.visible()).map(|(at, _)| at).collect()
 }
 
+/// The position of the option `id` when the page shows it (it has more than one value), else `None`.
+pub fn visible_index(bridge: &Bridge, id: &str) -> Option<usize> {
+    let model = bridge.options.borrow();
+    model.options().iter().position(|option| option.id == id && option.visible())
+}
+
 /// The option at `index` as the page shows it, or `None` when it is gone.
 pub fn info(bridge: &Bridge, index: usize) -> Option<OptionInfo> {
     let (id, label, owner, kind, values, section) = {

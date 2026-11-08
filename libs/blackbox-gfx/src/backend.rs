@@ -162,6 +162,11 @@ pub trait RenderBackend {
     /// multiply the graded colour by its brightness. With no profile set this does nothing; setting a profile again
     /// resets the look.
     fn set_colour_look(&mut self, _look: crate::ColourLook) {}
+    /// Grade the finished scene through a 3D look-up table (`docs/specs/colour-grading.md`), from the next frame on, until
+    /// replaced; `None` (or a neutral grade) draws nothing and costs nothing. Meant to be called every frame with the grade
+    /// in force: the cubes are shared, and a backend uploads one it has not seen once (by [`ColourCube::id`]). A backend
+    /// without the pass ignores it; `Capabilities::colour_cube` says whether it draws it.
+    fn set_colour_grade(&mut self, _grade: Option<&crate::ColourGrade>) {}
     /// Install a scene mask for the vignette; `None` releases it.
     /// The mask's green times its blue adds the vignette; red and alpha are ignored.
     /// Texels with zero green preserve the source; the UI follows.

@@ -54,6 +54,8 @@ pub struct Capabilities {
     pub bloom: bool,
     /// Display-space colour grading.
     pub scene_treatment: bool,
+    /// 3D look-up table colour grading ([`RenderBackend::set_colour_grade`](crate::RenderBackend::set_colour_grade)).
+    pub colour_cube: bool,
     /// The speed and pursuit radial blur ([`FocusFilter::radial_blur`](crate::FocusFilter)).
     pub radial_blur: bool,
     /// Frame generation (DLSS or FSR 3 interpolating frames). No renderer has it yet; the menu row reads
@@ -91,6 +93,7 @@ impl Capabilities {
             tonemaps: TonemapSet::of(&[Tonemap::Off]),
             bloom: false,
             scene_treatment: false,
+            colour_cube: false,
             radial_blur: false,
             frame_generation: false,
             local_reflections: false,

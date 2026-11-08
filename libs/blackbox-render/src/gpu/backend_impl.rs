@@ -127,6 +127,13 @@ impl RenderBackend for Renderer {
         self.touch_scene();
         self.set_scene_treatment(profile, gain);
     }
+    fn set_colour_grade(&mut self, grade: Option<&blackbox_gfx::ColourGrade>) {
+        let Some(flipped) = self.post.set_colour_grade(&self.device, &self.queue, grade) else { return };
+        self.touch_scene();
+        if flipped {
+            self.refresh_targets();
+        }
+    }
     fn set_colour_look(&mut self, look: blackbox_gfx::ColourLook) {
         if self.post.set_look(look) {
             self.touch_scene();

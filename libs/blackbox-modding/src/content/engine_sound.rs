@@ -221,7 +221,7 @@ pub(super) fn is_pack_path(path: &str) -> bool {
 }
 
 /// A relative path of the install's layout that ends in `extension` (lower case, with the dot).
-fn is_path(path: &str, extension: &str) -> bool {
+pub(super) fn is_path(path: &str, extension: &str) -> bool {
     let safe = path.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/'));
     let parts_ok = path.split('/').all(|part| !part.is_empty() && part != "." && part != "..");
     safe && parts_ok && path.len() <= 96 && path.to_ascii_lowercase().ends_with(extension)

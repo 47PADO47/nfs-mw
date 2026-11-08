@@ -29,7 +29,7 @@ the collision soup (`collision.rs`). All 169 units convert with no error. The Py
 | `AI/AIDATA.BNDL` | 1 | 358 KB | `AiData` (0x200) |
 | `TRAFFIC.BNDL` | 1 | 1.2 MB | `TrafficLaneData` (0x701) and 70 Genesys objects |
 | `TRIGGERS.BNDL` | 1 | 281 KB | `TriggerData` (0x202) |
-| `ENVIRONMENT.BNDL` | 1 | 5 MB | 13 colour cubes, 2 world paint maps, 27 textures, 220 Genesys objects (time of day, weather: not decoded) |
+| `ENVIRONMENT.BNDL` | 1 | 5 MB | 13 colour cubes, 2 world paint maps, 27 textures, 220 Genesys objects (175 environment keyframes, 25 timelines of them by hour: the cubes are decoded, see [chameleon-environment-grading.md](chameleon-environment-grading.md); the lighting, fog, sky values are not) |
 | `SURFACELIST.BNDL`, `SURFACESOUNDS.BNDL`, `AMBIENCES.BNDL`, `REVERBROADDATA.BNDL` | 4 | small | Surface kinds and their effects and sounds (see [chameleon-effects.md](chameleon-effects.md)), ambience |
 | `MAPS/<id>.BNDL` | 86 | 33 KB each | One texture each (the map screen and minimap pieces) **[unconfirmed]** |
 | `../WORLDLIST.BNDL` | 1 | 2 KB | Two Genesys objects |

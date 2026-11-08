@@ -82,8 +82,16 @@ pub const WET_ROAD: Kind = Kind {
     value_label: crate::rain_assets::LABEL,
 };
 
+/// The colour grading of the world (`grading.rs`): the cubes of the 2012 game's `ENVIRONMENT` bundle by hour and weather.
+pub const GRADING: Kind = Kind {
+    option: "grading_variant",
+    label: "Color grading",
+    value: crate::grading::VARIANT,
+    value_label: crate::grading::LABEL,
+};
+
 /// Every kind this mod adds a value to, besides the nitrous, the trees and the ones its settings turn on (`optional`).
-pub const ALL: [&Kind; 4] = [&TIRE_SMOKE, &COLLISION_SPARKS, &XENON_SPARKS, &WIND];
+pub const ALL: [&Kind; 5] = [&TIRE_SMOKE, &COLLISION_SPARKS, &XENON_SPARKS, &WIND, &GRADING];
 
 /// The kinds the settings turn on besides [`ALL`].
 fn optional(features: Features) -> Vec<&'static Kind> {
@@ -162,6 +170,13 @@ mod tests {
         let all = Features { trees: true, skid_marks: true, rain_splash: true, wet_road: true };
         assert_eq!(optional(all).len(), 4);
         assert!(optional(Features { trees: false, skid_marks: false, rain_splash: false, wet_road: false }).is_empty());
+    }
+
+    #[test]
+    fn the_grading_option_is_the_games_and_names_the_folder_the_mod_writes() {
+        assert_eq!(GRADING.option, blackbox_modding::content::GRADING.option);
+        let folder = format!("{}/{}", blackbox_modding::content::GRADING.folder, GRADING.value.to_ascii_uppercase());
+        assert_eq!(folder, crate::grading::FOLDER);
     }
 
     #[test]

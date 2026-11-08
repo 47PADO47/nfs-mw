@@ -302,6 +302,9 @@ impl ScreenLogic for WidgetMenu {
             super::logic::Category::Gameplay => {
                 options::page(super::logic::Category::Gameplay, &cx.caps, mod_options::gameplay_rows(cx.mods))
             }
+            super::logic::Category::Video => {
+                options::page(super::logic::Category::Video, &cx.caps, mod_options::video_page_rows(cx))
+            }
             category => options::page(category, &cx.caps, Vec::new()),
         };
         self.flags = self.rows.iter().map(Row::flags).collect();

@@ -51,6 +51,8 @@ pub const SKID_MARKS: VariantKind = VariantKind { option: "skid_marks_variant", 
 pub const RAIN_SPLASH: VariantKind = VariantKind { option: "rain_splash_variant", folder: "RAINSPLASH" };
 /// The wet road variants (`wet_road`): how strongly and how fast the rain wets the road.
 pub const WET_ROAD: VariantKind = VariantKind { option: "wet_road_variant", folder: "WETROAD" };
+/// The colour grading variants (`grading`): the cubes the finished frame is looked up in, by hour and weather.
+pub const GRADING: VariantKind = VariantKind { option: "grading_variant", folder: "GRADING" };
 
 /// Refuse a profile whose `format` is not the one this version reads.
 pub(super) fn check_format(format: u32) -> Result<(), ContentError> {
@@ -72,8 +74,18 @@ mod tests {
 
     #[test]
     fn the_kinds_have_distinct_options_and_folders() {
-        let kinds =
-            [NITROUS, TIRE_SMOKE, COLLISION_SPARKS, XENON_SPARKS, WIND, TREES, SKID_MARKS, RAIN_SPLASH, WET_ROAD];
+        let kinds = [
+            NITROUS,
+            TIRE_SMOKE,
+            COLLISION_SPARKS,
+            XENON_SPARKS,
+            WIND,
+            TREES,
+            SKID_MARKS,
+            RAIN_SPLASH,
+            WET_ROAD,
+            GRADING,
+        ];
         for (at, kind) in kinds.iter().enumerate() {
             for other in &kinds[at + 1..] {
                 assert_ne!(kind.option, other.option);
@@ -84,6 +96,7 @@ mod tests {
         assert_eq!(XENON_SPARKS.profile_path("mw2012"), "XENON/MW2012/profile.toml");
         assert_eq!(WIND.profile_path("mw2012"), "WIND/MW2012/profile.toml");
         assert_eq!(TREES.profile_path("mw2012"), "TREES/MW2012/profile.toml");
+        assert_eq!(GRADING.profile_path("mw2012"), "GRADING/MW2012/profile.toml");
     }
 
     #[test]

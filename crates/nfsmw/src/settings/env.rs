@@ -109,6 +109,7 @@ pub const MANUAL_CLUTCH: &str = "NFSMW_MANUAL_CLUTCH";
 pub const H_SHIFTER: &str = "NFSMW_H_SHIFTER";
 pub const MOTION_BLUR: &str = "NFSMW_MOTION_BLUR";
 pub const MOTION_BLUR_STRENGTH: &str = "NFSMW_MOTION_BLUR_STRENGTH";
+pub const GRADING_STRENGTH: &str = "NFSMW_GRADING_STRENGTH";
 
 /// Read the layer through `get`, so tests need not touch the process environment. A value that
 /// does not parse is reported and ignored.
@@ -258,6 +259,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         h_shifter: value(&get, H_SHIFTER, parse_bool),
         motion_blur: value(&get, MOTION_BLUR, parse_bool),
         motion_blur_strength: value(&get, MOTION_BLUR_STRENGTH, |s| s.trim().parse::<f32>().map_err(|e| e.to_string())),
+        grading_strength: value(&get, GRADING_STRENGTH, super::grading::parse_strength),
         hd_content: hd_content::from_env(&get),
         custom_fonts: custom_fonts::from_env(&get),
         fe_shadows: fe_shadows::from_env(&get),

@@ -47,6 +47,8 @@ pub fn capabilities_with_ray_tracing(
         tonemaps: TonemapSet::of(&[Tonemap::Off, Tonemap::Aces]),
         bloom: true,
         scene_treatment: false,
+        // The colour cube pass is the native renderer's only (docs/specs/colour-grading.md, "Renderers").
+        colour_cube: false,
         // The speed and pursuit blur is a post pass here too (`post::radial_blur`).
         radial_blur: true,
         frame_generation: false,

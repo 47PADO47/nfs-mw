@@ -111,3 +111,8 @@ fn options_that_name_no_section_have_no_title_to_show() {
     assert!(section_titles(&[(2, String::new())]).is_empty());
     assert!(shown(None, Setting::ModHeading(0)).is_none());
 }
+
+#[test]
+fn without_mods_the_video_page_gets_no_grading_rows() {
+    assert!(video_rows(None).is_empty(), "the page is as it was without mods");
+}

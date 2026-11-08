@@ -118,6 +118,7 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     crate::tire_smoke::write_variant(source, out);
     crate::spark_assets::write(source, out);
     crate::wind_assets::write(source, out);
+    crate::grading::write(source, out);
     crate::trees::write(source, config, out);
     if config.road_textures
         && let Err(error) = crate::road_textures::write(out)

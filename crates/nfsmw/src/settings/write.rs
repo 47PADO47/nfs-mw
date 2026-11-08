@@ -331,17 +331,19 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.paddle_down {
         put("paddle_down", Value::Integer(i64::from(v)));
     }
-    if let Some(v) = changes.manual_clutch {
-        put("manual_clutch", Value::Boolean(v));
-    }
-    if let Some(v) = changes.h_shifter {
-        put("h_shifter", Value::Boolean(v));
+    for (key, value) in [("manual_clutch", changes.manual_clutch), ("h_shifter", changes.h_shifter)] {
+        if let Some(v) = value {
+            put(key, Value::Boolean(v));
+        }
     }
     if let Some(v) = changes.motion_blur {
         put("motion_blur", Value::Boolean(v));
     }
     if let Some(v) = changes.motion_blur_strength {
         put("motion_blur_strength", Value::Float(f64::from(v)));
+    }
+    if let Some(v) = changes.grading_strength {
+        put("grading_strength", Value::Float(f64::from(v)));
     }
     fe_shadows::put_into(&changes.fe_shadows, &mut put);
     super::net::put_into(&changes.net, &mut put);

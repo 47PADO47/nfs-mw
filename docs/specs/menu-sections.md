@@ -89,7 +89,7 @@ The rewrite has no label that says "experimental" for a gameplay row, so the sec
 | Gameplay | RIDE 6 | Rider Gear, the gear a mod offers (one row per part), Riding Style (road, motard, offroad), Brake Fingers, Clutch Fingers | the rows that only matter on RIDE 6 bikes and riders ([ride6-rider-styles.md](ride6-rider-styles.md), [ride6-rider-gear.md](ride6-rider-gear.md)) |
 | Gameplay | default | everything else, and the options a mod adds without a section (the nitrous and other effect variants included) | |
 | Video | Experimental | Ray Tracing ([vulkan-ray-reflections.md](../vulkan-ray-reflections.md): wgpu's experimental ray queries), Ambient Occlusion ([ambient-occlusion.md](../ambient-occlusion.md): "Experimental ambient occlusion"), Speed Trails and Speed Trail Style ([vehicle-effects.md](../vehicle-effects.md): "Speed Trails are experimental") | the rows the docs call experimental |
-| Video | default | everything else | |
+| Video | default | everything else, and the colour grading rows a mod offers (Color Grading and its strength, `mod_options::video_rows`: appended after the page's own default rows, before the Experimental title) | a look is an ordinary video option, not an experimental one |
 
 The F5 and F8 developer panels ([extra-options.md](../extra-options.md)) have their own sections and are not changed. The rows stay in
 their category's order inside a section; moving a row between sections moves it in the page. `options::rows` still lists a page's rows

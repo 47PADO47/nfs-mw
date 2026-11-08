@@ -59,6 +59,10 @@ options-wind-variant-original = Original
 # The trees of the world: the game's own are the models of the 2005 game; a mod may replace their models and textures.
 options-trees-variant = Trees
 options-trees-variant-original = Original
+# The colour grading of the finished picture: the game has none of its own, so the one value is Off; a mod adds looks. This row is on the
+# Video page.
+options-grading-variant = Color Grading
+options-grading-variant-original = Off
 options-speed-units = Speed units
 options-speed-units-metric = Metric (km/h)
 options-speed-units-imperial = Imperial (mph)

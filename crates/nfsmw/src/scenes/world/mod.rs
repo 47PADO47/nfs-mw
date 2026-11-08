@@ -75,6 +75,7 @@ pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
 use car_loader::load_car;
 mod focus;
 mod focus_feed;
+mod grading_feed;
 mod object_geometry;
 mod open;
 mod open_packs;
@@ -300,6 +301,8 @@ pub struct WorldScene {
     /// The effects of the nitrous variant the player chose, if it is a mod's (`scene_effects.rs`), and the follower of the
     /// burn that fades its screen effects.
     nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    /// The colour grading of the variant the player chose and what picks its grade each frame (`grading_feed.rs`).
+    grading: grading_feed::GradingFeed,
     /// The loops of the wind variant the player chose, if it is a mod's (`scene_effects.rs`): the car's sound plays them.
     wind_fx: Option<std::sync::Arc<blackbox_modding::content::WindProfile>>,
     nitrous_screen: nitrous_screen::NitrousScreen,

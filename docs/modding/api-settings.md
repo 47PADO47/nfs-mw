@@ -15,7 +15,7 @@ in the game window.
 - **Menu.** Only the gameplay settings take options in this delivery (`BB_SETTING_MENU_GAMEPLAY`).
 - **Section.** An option can be listed under a **section**: a centred title in the menu with the mod's rows under it (see
   [Sections](#sections)). Without one, it is in the first section, which has no title.
-- **The game's own options.** The game declares its options by id and kind. `nitrous_variant`, `tire_smoke_variant`, `collision_spark_variant`, `xenon_spark_variant`, `wind_variant` and `trees_variant` are lists
+- **The game's own options.** The game declares its options by id and kind. `nitrous_variant`, `tire_smoke_variant`, `collision_spark_variant`, `xenon_spark_variant`, `wind_variant`, `trees_variant` and `grading_variant` (shown as "Color Grading" on the Video page, not Gameplay; its one value is "Off") are lists
   with one value, `original` ("Original"): one such option for every kind of effect that has variants (the trees are models of the world, not an effect, with the same option and folder); see
   [effect-variants.md](effect-variants.md) (the mechanism, the profile of each kind and how to add a kind) and
   [nitrous-variants.md](nitrous-variants.md). The game's other gameplay rows (`hud_layout`,

@@ -61,6 +61,8 @@ mod engine_sound;
 #[cfg(test)]
 mod engine_sound_tests;
 mod error;
+mod grading;
+mod grading_cube;
 mod interior;
 #[cfg(test)]
 mod interior_tests;
@@ -126,6 +128,11 @@ pub use engine_sound::{
     CarEffects, EngineSound, Layer as EngineLayer, MAX_EFFECT_FILES, MAX_LAYERS as MAX_ENGINE_LAYERS,
 };
 pub use error::ContentError;
+pub use grading::{
+    GRADING_FOLDER, GradingCube, GradingKey, GradingPair, GradingProfile, GradingSet, GradingWeather,
+    MAX_CUBES as MAX_GRADING_CUBES, grading_profile_path, is_cube_path, parse as parse_grading_profile,
+};
+pub use grading_cube::{CUBE_EDGE, CubeData, decode_cube, encode_lut};
 pub use interior::{Exit, InteriorManifest, Pose, Shape, Suspend, TimeOverride, parse as parse_interior};
 pub use lamp_flares::{
     LampFlare, LampLit, LampSide, LightBar, MAX_BARS as MAX_LIGHT_BARS, MAX_FLARES as MAX_LAMP_FLARES,
@@ -172,7 +179,7 @@ pub use tire_smoke::{
 };
 pub use traffic::{MAX_INSTANCES as MAX_TRAFFIC_INSTANCES, MAX_WEIGHT as MAX_TRAFFIC_WEIGHT, Traffic, TrafficClass};
 pub use variant::{
-    COLLISION_SPARKS, FORMAT, NITROUS, RAIN_SPLASH, SKID_MARKS, TIRE_SMOKE, TREES, VariantKind, WET_ROAD, WIND,
+    COLLISION_SPARKS, FORMAT, GRADING, NITROUS, RAIN_SPLASH, SKID_MARKS, TIRE_SMOKE, TREES, VariantKind, WET_ROAD, WIND,
     XENON_SPARKS,
 };
 pub use wet_road::{WETROAD_FOLDER, WetRoadProfile, parse as parse_wet_road_profile, wet_road_profile_path};

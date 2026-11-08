@@ -13,11 +13,12 @@ use blackbox_modding::host::MenuKind;
 
 use super::ids::{LABEL_OFF, LABEL_ON};
 use super::options::{Control, Data, Row, Setting, Title, message};
+use super::post_options::PostSetting;
 use crate::i18n::t;
 use crate::modding::manager::Row as Switch;
 use crate::modding::{
     Mods, RowInfo, change_gameplay_option, change_menu_row, gameplay_option, has_ui_themes, menu_rows,
-    step_ui_theme_choice, ui_theme_display, visible_gameplay_options,
+    step_ui_theme_choice, ui_theme_display, visible_gameplay_options, visible_option_index,
 };
 
 /// The title of a Mods row: its label is the mod's, shown in its place (`shown`).
@@ -67,8 +68,14 @@ pub fn gameplay_rows(mods: Option<&Mods>) -> Vec<SectionedRow> {
 /// The visible options of the options model with the section each is declared in (empty: the default section), in the order
 /// they stand in the model.
 fn declared_sections(mods: &Mods) -> Vec<(usize, String)> {
+    // The colour grading choice is on the Video page (`video_rows`), with the effects it belongs to.
+    let grading = visible_option_index(mods.bridge(), blackbox_modding::content::GRADING.option);
     let section_of = |index| gameplay_option(mods.bridge(), index).map(|info| info.section).unwrap_or_default();
-    visible_gameplay_options(mods.bridge()).into_iter().map(|index| (index, section_of(index))).collect()
+    visible_gameplay_options(mods.bridge())
+        .into_iter()
+        .filter(|index| Some(*index) != grading)
+        .map(|index| (index, section_of(index)))
+        .collect()
 }
 
 /// The rows of options `(index, section)`, each with its section and the title row of that section.
@@ -97,6 +104,32 @@ fn section_titles(options: &[(usize, String)]) -> Vec<String> {
         }
     }
     titles
+}
+
+/// The Video page's mod rows (`video_rows`), when the renderer has the colour grading pass: none otherwise.
+pub fn video_page_rows(cx: &super::logic::Cx) -> Vec<SectionedRow> {
+    match cx.caps.colour_cube {
+        true => video_rows(cx.mods),
+        false => Vec::new(),
+    }
+}
+
+/// The rows the Video page adds after its own: the colour grading choice (the `grading_variant` option, "Off" and the looks
+/// mods offer) and its strength, once a mod gives the option a second value. None without such a mod, as before. They are in
+/// the page's default section (a look is an ordinary video option, not an experimental one), after the page's own rows of it.
+pub fn video_rows(mods: Option<&Mods>) -> Vec<SectionedRow> {
+    let Some(mods) = mods else {
+        return Vec::new();
+    };
+    let Some(index) = visible_option_index(mods.bridge(), blackbox_modding::content::GRADING.option) else {
+        return Vec::new();
+    };
+    let heading = Row { setting: Setting::ModHeading(0), title: MOD_TITLE };
+    let plain = |row: Row| SectionedRow { row, section: String::new(), heading };
+    vec![
+        plain(Row { setting: Setting::GameplayOption(index), title: MOD_TITLE }),
+        plain(Row { setting: Setting::Post(PostSetting::GradingStrength), title: PostSetting::GradingStrength.title() }),
+    ]
 }
 
 /// The UI theme row, when `offered`: a mod registered a theme, so there is a choice to make.

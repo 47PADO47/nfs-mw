@@ -239,6 +239,10 @@ pub struct ViewArgs {
     /// [env NFSMW_MOTION_BLUR_STRENGTH; config `motion_blur_strength`; default 1].
     #[arg(long, value_name = "0-2")]
     pub motion_blur_strength: Option<f32>,
+    /// How far the colour grading of a mod's variant goes from the frame's own colour, 0 to 1
+    /// [env NFSMW_GRADING_STRENGTH; config `grading_strength`; default 1].
+    #[arg(long, value_name = "0-1")]
+    pub grading_strength: Option<f32>,
     #[command(flatten)]
     pub hd_content: crate::settings::hd_content::HdContentArgs,
     #[command(flatten)]
@@ -430,6 +434,7 @@ impl ViewArgs {
             cop_health_bars: switch(self.cop_health_bars, self.no_cop_health_bars),
             motion_blur: switch(self.motion_blur, self.no_motion_blur),
             motion_blur_strength: self.motion_blur_strength,
+            grading_strength: self.grading_strength,
             hd_content: self.hd_content.layer(),
             custom_fonts: self.custom_fonts.layer(),
             fe_shadows: self.fe_shadows.layer(),

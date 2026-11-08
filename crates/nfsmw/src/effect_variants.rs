@@ -13,6 +13,8 @@ use blackbox_modding::content::{
     XenonProfile,
 };
 
+use crate::grading::GradingLook;
+
 /// The profiles of the variants in effect, one field per kind.
 #[derive(Debug, Clone, Default)]
 pub struct EffectVariants {
@@ -32,6 +34,8 @@ pub struct EffectVariants {
     pub rain_splash: Option<Arc<RainSplashProfile>>,
     /// How strongly and how fast the rain wets the road (`WETROAD/<value>/profile.toml`).
     pub wet_road: Option<Arc<WetRoadProfile>>,
+    /// The colour grading: the cubes of the look the player chose, read from the install (`GRADING/<value>/profile.toml`).
+    pub grading: Option<Arc<GradingLook>>,
 }
 
 #[cfg(test)]
@@ -44,6 +48,7 @@ mod tests {
         assert!(variants.nitrous.is_none() && variants.tire_smoke.is_none());
         assert!(variants.collision_sparks.is_none() && variants.xenon_sparks.is_none() && variants.wind.is_none());
         assert!(variants.skid_marks.is_none() && variants.rain_splash.is_none() && variants.wet_road.is_none());
+        assert!(variants.grading.is_none());
     }
 
     #[test]

@@ -20,6 +20,7 @@ saved with the other settings (`[mod_values.nfsmw] option_<kind>_variant = "<val
 | Rain splash (splashes where the rain meets the road) | `rain_splash_variant` | `RAINSPLASH/<ID>/` | `blackbox_modding::content::rain_splash` | [effect-variants-marks-rain.md](effect-variants-marks-rain.md#profile-format-of-the-rain-splash) |
 | Wet road (how strongly and how fast the rain wets the road) | `wet_road_variant` | `WETROAD/<ID>/` | `blackbox_modding::content::wet_road` | [effect-variants-marks-rain.md](effect-variants-marks-rain.md#profile-format-of-the-wet-road) |
 | Rain drops (the lens drops) | `rain_drops_variant` | a replacement set of kind `rain_drops`, no profile | [api-replace.md](api-replace.md) | [effect-variants-marks-rain.md](effect-variants-marks-rain.md#the-rain-drops-a-replacement-set) |
+| Color grading (3D look-up tables of the finished picture, by hour and weather) | `grading_variant` | `GRADING/<ID>/` | `blackbox_modding::content::grading` | [below](#profile-format-of-the-grading) |
 
 ## How a variant works
 
@@ -194,6 +195,41 @@ then stay in the Trees set as before, and with it on they belong to the Bushes s
 labels are message ids of the mod's catalogue (`nfsmw2012-bushes` = "Bushes"), the value label is the proper name of the game. The older
 `TREES/MW2012/profile.toml` is still written for the trees set only.
 
+## Profile format of the grading
+
+The colour grading is a look of the finished picture: the host looks every pixel up in a 3D table (a *cube*) and the profile says which
+cube is in force at which hour of the day and in which weather. Its option, `grading_variant`, has the game's own value `original`
+shown as **Off**, and its row is on the **Video** page (with a strength row) instead of Gameplay, while the renderer has the pass.
+The renderer, the lookup and the selection are in [../specs/colour-grading.md](../specs/colour-grading.md).
+
+```toml
+format = 1
+
+[[cube]]                              # 1 to 32 cubes
+name = "noon"                         # a-z 0-9 _ -, 1 to 32 bytes: what the keys call it
+file = "GRADING/MW2012/C04E220.LUT"   # a .lut or an Adobe .cube of 2 to 64 entries a side, in the mod's files/
+
+[[set]]                               # one or two sets: "clear" is the fallback for every weather, "rain" the wet look
+weather = "clear"
+[[set.key]]                           # 1 to 64 keys; the hours rise (0 up to 24); the day wraps from the last key to the first
+hour = 12.0
+cube = "noon"
+```
+
+- **Cube files.** `.LUT` is the compact form: the bytes `B B L U T`, the version 1, the edge as a 16-bit little endian number, then
+  `edge`^3 entries of red, green, blue bytes, red varying fastest (12,296 bytes for a cube of 16). `.cube` is the Adobe / DaVinci text
+  format (`LUT_3D_SIZE n`, then `n`^3 lines of three numbers from 0 to 1, red fastest; `TITLE` and comments are skipped; the domain must be 0 to 1; a 1D table is
+  refused). A cube that does not read refuses the whole profile (a warning names the file); the picture then stays as the game draws it.
+- **Hours.** The game blends the cube of the last key at or before the clock's hour with the next key's by the share of the time
+  between them. Between two weathers it blends the four cubes by how wet it is (rain falling, or the wet the road keeps). A profile with one set looks the same in every weather.
+- **Refusals** (with the reason in the log): another `format`, an unknown key, a name that is not plain or is used twice, a file that is
+  not a `.lut` or `.cube` path, a key that names no cube, hours that do not rise inside 0 to 24, the same weather twice, no cube or no set.
+
+The 2012 mod's value, **NFS Most Wanted 2012**, is the cubes of `HAWAII/ENVIRONMENT.BNDL`: the dry cube of every key of its first
+timeline (six cubes: night, before dawn, dawn, morning, noon, evening) as the clear set, and the cube of each key's wet keyframe (five
+more) as the rain set. 11 cubes, 135 KB, read by ranges from the install. What the data holds, which cube is which and what is a reading:
+[chameleon-environment-grading.md](../formats/chameleon-environment-grading.md).
+
 ## The spark kinds
 
 The collision sparks (`SPARKS/<ID>/`) and the restored sparks (`XENON/<ID>/`) are two kinds with one page,
@@ -215,6 +251,7 @@ Restored (Experimental).
 | Drawing | the scene: for the tire smoke `WorldScene::scene_set_effect_variants` (`scene_effects.rs`) gives the profile to `TireEffects` (`scenes/world/effects/profile.rs`), which loads its pictures from `maintain_tire_smoke` and draws them with the game's particle system (`blackbox-particles`; `exhaust::variant::{emitter_spec, spawn_intensity, upload_png}` are shared by the effects that draw particles) |
 | Drawing the spark kinds | `WorldScene::scene_set_effect_variants` gives the collision sparks to `ImpactEffects::set_variant` (`scenes/world/impact_effects/variant*.rs`: its own small particle system with a streak quad and an overbright colour, loaded from `ImpactEffects::maintain`, played for vehicle contacts the install accepts) and the restored sparks to `VehicleEffects::set_spark_variant` (`scenes/world/vehicle_effects/sparks/variant.rs`: the restoration's line sparks with the profile's numbers). Each acts in its own spark style; the contrail and the speed streaks have no variant |
 | The skid marks, the rain splash and the wet road | `WorldScene::scene_set_effect_variants` gives the marks to `TireEffects::set_marks_variant` (`effects/marks_variant.rs`: textured strips cut at every repeat of the picture, loaded from `TireEffects::load_variant`; `Marks` keeps the road kind, the weather, the slide kind, the distance along the track and the life of every mark), the splash to `RainSplash::set_wanted` (`effects/rain_splash.rs`, stepped in `update.rs` next to the rain, drawn in `upload_effects`) and the wet road to `WetRoad::set_profile` (`wet_reflections/state.rs`). [effect-variants-marks-rain.md](effect-variants-marks-rain.md) |
+| The colour grading | `Bridge::grading_profile` (the same `variant_profile`) and `Bridge::grading_look` (`backends/grading.rs`: the cubes the profile names, read once per profile into a `GradingLook`), handed to the scene as `EffectVariants::grading`; `WorldScene::feed_grading` (`scenes/world/grading_feed.rs`) picks the grade every frame (`grading::Selector`) and gives it to `RenderBackend::set_colour_grade`. The rows are on the Video page (`frontend/mod_options.rs`, `video_rows`) |
 | The trees | not an effect: `Bridge::trees_profile` (the same `variant_profile`), `Bridge::publish_trees` (`backends/trees.rs`) reads the pack the profile names (`content::model_swap::Pack`) and makes it the pack in effect; the world's loader threads call `model_swap::rewrite` on every section (`residency/start.rs` sets it with `Streamer::set_rewrite` before the first request) |
 | The mod's side | `mods/nfsmw-2012-content/src/effect_variants.rs` (`Kind`, `ALL`, `add_all`) adds the values; `tire_smoke.rs` and `spark_assets*.rs` convert the files |
 

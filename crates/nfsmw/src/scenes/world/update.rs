@@ -184,6 +184,7 @@ impl WorldScene {
         let trace = blackbox_trace::scope("World: update / focus, rain and atmosphere");
         self.update_extra_view(camera_dt);
         self.feed_focus(renderer, sim_dt, camera_dt);
+        self.feed_grading(renderer);
         self.update_pursuit_reference(renderer);
         self.update_jump_chase(renderer);
         self.update_pursuit_trace(sim_dt);
