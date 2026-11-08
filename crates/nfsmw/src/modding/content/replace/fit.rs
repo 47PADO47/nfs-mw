@@ -62,6 +62,9 @@ pub fn fit_prepared(
     let seen = Stock { vertices: &stock.vertices, bounds: (stock.bounds_min, stock.bounds_max) };
     let placements = match (frame, how) {
         (Frame::Local, SwapFit::Height) => place::single(&model.measure, &seen, limits).into_iter().collect(),
+        (Frame::Local, SwapFit::Stand) => place::stand(&model.measure, &seen, limits).into_iter().collect(),
+        (Frame::Local, SwapFit::Exact) => place::exact(&model.measure, &seen, limits).into_iter().collect(),
+        // A world-space copy is cut into stretches whatever the fit: it stands where it is, and may be a whole row.
         _ => place::copies(&model.measure, &seen, how, limits),
     };
     if placements.is_empty() {
@@ -123,5 +126,5 @@ fn measure(groups: &[GroupSource]) -> Option<Measure> {
             *high = high.max(value);
         }
     }
-    Some(Measure { width: (high[0] - low[0]).max(high[1] - low[1]), height: high[2], vertices: count })
+    Some(Measure { width: (high[0] - low[0]).max(high[1] - low[1]), height: high[2], vertices: count, low, high })
 }

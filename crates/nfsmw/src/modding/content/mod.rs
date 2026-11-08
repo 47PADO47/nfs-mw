@@ -12,9 +12,9 @@ mod engine_layers;
 pub mod interior;
 mod lamp_flares;
 pub(crate) mod manufacturers;
-pub(crate) mod model_swap;
 mod music;
 mod racers;
+pub(crate) mod replace;
 pub mod scenery;
 pub mod worlds;
 

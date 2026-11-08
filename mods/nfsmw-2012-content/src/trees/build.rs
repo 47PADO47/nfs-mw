@@ -197,6 +197,50 @@ fn level_solid(name: String, level: &Level) -> Result<Option<SolidSource>> {
     Ok(Some(solid))
 }
 
+/// The text of the variant as a replacement set (`replace/trees-mw2012.toml`, `docs/modding/api-replace.md`): the same swaps as
+/// [`profile_text`], declared through the one API. The host adds the value to the trees option from it, so the mod needs no code.
+pub fn replace_manifest(built: &[(&str, usize)], value: &str, label: &str) -> String {
+    let mut text = format!(
+        "format = 1
+
+[set]
+kind = \"trees\"
+kind_label = \"Trees\"
+value = \"{value}\"
+value_label = \"{label}\"
+fit = \"height\"
+
+[files]
+geometry = \"{FOLDER}/{GEOMETRY_FILE}\"
+textures = \"{FOLDER}/{TEXTURES_FILE}\"
+
+[fit]
+spread = {FIT_SPREAD}
+squeeze = {FIT_SQUEEZE}
+min_height = {FIT_MIN_HEIGHT}
+"
+    );
+    for family in stock::FAMILIES {
+        let Some(&(_, levels)) = built.iter().find(|(key, _)| *key == family.species) else { continue };
+        for (solid, code) in family.names() {
+            let model = species::solid_name(family.species, stock::level(code, family.row, levels));
+            let fit = match family.row {
+                true => "row",
+                false => "height",
+            };
+            text.push_str(&format!(
+                "
+[[model]]
+target = \"{solid}\"
+model = \"{model}\"
+fit = \"{fit}\"
+"
+            ));
+        }
+    }
+    text
+}
+
 /// The text of the variant's `profile.toml`: a swap for every solid of [`stock::FAMILIES`] whose species is in `built` (the
 /// species and the number of levels each has).
 pub fn profile_text(built: &[(&str, usize)]) -> String {
