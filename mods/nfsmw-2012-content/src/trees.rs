@@ -11,9 +11,9 @@
 //! The setting `trees` (default `true`) turns the conversion, and the value in the gameplay setting, off.
 
 mod build;
-mod light;
+pub(crate) mod light;
 pub(crate) mod ranges;
-mod read;
+pub(crate) mod read;
 #[cfg(test)]
 mod real_tests;
 pub mod species;

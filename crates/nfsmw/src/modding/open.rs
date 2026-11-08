@@ -42,5 +42,8 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     // The language packs are mod content: the language is chosen once the mods' folders are known.
     crate::i18n::start(&dir, Settings::load(view.settings_layer()).language);
     mods.set_install(&dir);
+    // The replacements the saved choices make are in effect before the world's first section loads: a viewer or a drive that starts at
+    // once would otherwise load the shared library (where most signs, lamps and props are) with the game's own models for good.
+    mods.publish_replacements();
     Ok((dir, mods))
 }

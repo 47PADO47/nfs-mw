@@ -67,6 +67,17 @@ textures in a drive; (2) a `replace` console command listing sets (the report te
 (4) collision `prop` for added objects; (5) the options group "variants" has no heading in the Gameplay page yet (the rows follow the
 game's own, labelled by the kind).
 
+### 5.1 Added with the road signs and traffic lights (`docs/formats/chameleon-signs.md`)
+
+- **Markers.** A replacement keeps the authored lights of the solid it replaces: the model's own position markers, placed like its
+  vertices (the replacement keeps the replaced solid's pivot, and the files store a marker's translation with the pivot added, so the
+  host adds it), or, when the model has none, the markers of the replaced solid where they were (`fit.rs`, `markers_of`).
+- **Height.** A model counts as having a height when its **box** is taller than a centimetre (a signal head hangs below its origin, so
+  its top is at or below zero); the old test was its top above the origin.
+- **First publication.** The sets the saved choices name are made the replacements in effect when the mods are opened
+  (`modding/open.rs`), before any frame, so a viewer or a drive that starts at once loads the shared library `X0` (where most signs, lamps
+  and props are) with them. The frame update still publishes a change.
+
 ## 6. Worlds
 
 See [mod-content-replacement-worlds.md](mod-content-replacement-worlds.md).
@@ -118,3 +129,4 @@ BLACKBOX_PROFILE_DIR=<profile> nfsmw view-world --muted --mods-dir mods-dir --he
 ```
 
 The view above (the default start, 18 m up, pitch -60) shows the car park of tile I7 with oil stains and two street lamps.
+(`trees/tests.rs`: the set equals the old profile; `signs/tests.rs`, `signs/geometry_tests.rs`: the signs and lights packs on authored models, host `replace/marker_tests.rs`). Real-game checks are `#[ignore]` (`replace/real_tests.rs`, `replace/real_dump_tests.rs`, `signs/real_tests.rs`).

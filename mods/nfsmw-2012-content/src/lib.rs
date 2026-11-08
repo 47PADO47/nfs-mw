@@ -68,6 +68,7 @@ mod prepare;
 mod road_textures;
 mod sample;
 mod shared;
+mod signs;
 mod sound_store;
 mod sounds;
 mod soundtrack;

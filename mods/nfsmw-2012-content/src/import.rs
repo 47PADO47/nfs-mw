@@ -124,6 +124,7 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     {
         log::warn!("the road textures are not written: {error:#}");
     }
+    crate::signs::write(source, config, out);
     let makes: Vec<&str> =
         wanted.iter().zip(&results).filter(|(_, done)| done.is_ok()).map(|(car, _)| car.make.as_str()).collect();
     let written = brands::write_all(source, &folder, &makes);

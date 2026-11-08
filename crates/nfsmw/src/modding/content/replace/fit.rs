@@ -13,7 +13,7 @@
 
 use anyhow::{Context, Result, bail};
 use blackbox_modding::content::{FitLimits, SwapFit};
-use blackbox_solid::{GroupSource, Solid, SolidSource, Vertex, read_solids, write_geometry_pack};
+use blackbox_solid::{GroupSource, PositionMarker, Solid, SolidSource, Vertex, read_solids, write_geometry_pack};
 
 use super::place::{self, Measure, Placement, Stock};
 
@@ -39,7 +39,7 @@ impl Prepared {
     pub fn new(model: &Solid) -> Result<Self> {
         let source = SolidSource::from_solid(model).with_context(|| format!("the model {}", model.name))?;
         let Some(measure) = measure(&source.groups) else { bail!("the model {} has no vertices", model.name) };
-        if measure.height <= 0.01 {
+        if measure.high[2] - measure.low[2] <= 0.01 {
             bail!("the model {} has no height", model.name);
         }
         Ok(Self { source, measure })
@@ -90,10 +90,40 @@ pub fn fit_prepared(
     out.polygon_count = Some(stock.num_polys);
     out.texture_hashes = source.texture_hashes.clone();
     out.light_material_hashes = source.light_material_hashes.clone();
+    out.markers = markers_of(source, stock, &placements);
     let bytes = write_geometry_pack(&[out]).with_context(|| format!("writing the replacement of {}", stock.name))?;
     let mut solids = read_solids(&bytes).with_context(|| format!("reading the replacement of {}", stock.name))?;
     let solid = solids.pop().with_context(|| format!("the replacement of {} holds no solid", stock.name))?;
     Ok(Some(solid))
+}
+
+/// The position markers of the replacement (the authored lights of a signal head, `docs/specs/environment-prop-lights.md`): the model's own,
+/// placed like its vertices, when it has any; otherwise the ones of the solid it replaces, where they were. A marker's translation is stored
+/// with the solid's pivot added (the game takes it off again), and the replacement keeps the replaced solid's pivot.
+fn markers_of(source: &SolidSource, stock: &Solid, placements: &[Placement]) -> Vec<PositionMarker> {
+    if source.markers.is_empty() {
+        return stock.markers.clone();
+    }
+    let pivot = [stock.transform[12], stock.transform[13], stock.transform[14]];
+    let mut markers = Vec::with_capacity(source.markers.len() * placements.len());
+    for at in placements {
+        for marker in &source.markers {
+            let moved = place_point(marker.translation(), at);
+            let mut placed = *marker;
+            for axis in 0..3 {
+                placed.matrix[12 + axis] = moved[axis] + pivot[axis];
+            }
+            markers.push(placed);
+        }
+    }
+    markers
+}
+
+/// A point after the placement, as [`place_vertex`] moves a vertex.
+fn place_point(point: [f32; 3], at: &Placement) -> [f32; 3] {
+    let (sin, cos) = at.yaw.sin_cos();
+    let (x, y) = (point[0] * at.across, point[1] * at.across);
+    [cos * x - sin * y + at.offset[0], sin * x + cos * y + at.offset[1], point[2] * at.up + at.offset[2]]
 }
 
 /// A model vertex after the placement: scaled (across in x and y, up in z), turned about the vertical axis, and moved. The model's
