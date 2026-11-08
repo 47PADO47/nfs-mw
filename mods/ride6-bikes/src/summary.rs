@@ -56,6 +56,9 @@ pub struct Summary {
     /// The solids of the body after the first (`Built::extra_solids`); older files have none.
     #[serde(default)]
     extra_solids: Vec<ExtraSolid>,
+    /// The live screen of the cluster (`Built::dash`); older files have none.
+    #[serde(default)]
+    dash: Option<crate::dash::Screen>,
 }
 
 impl Summary {
@@ -70,6 +73,7 @@ impl Summary {
             liveries: built.liveries.clone(),
             levels: built.levels.clone(),
             extra_solids: built.extra_solids.clone(),
+            dash: built.dash.clone(),
         }
     }
 
@@ -93,6 +97,7 @@ impl Summary {
             liveries: self.liveries,
             levels: self.levels,
             extra_solids: self.extra_solids,
+            dash: self.dash,
         }
     }
 
@@ -133,6 +138,13 @@ mod tests {
                 solid: "KTM450_KIT00_BODY2".to_owned(),
                 role: "body".to_owned(),
             }],
+            dash: Some(crate::dash::Screen::new(
+                "KTM450_GAUGE1_D",
+                crate::dash::Window { x: 8, y: 16, width: 64, height: 32 },
+                (128, 128),
+                (128, 128),
+                1.0,
+            )),
         };
         let dir = std::env::temp_dir().join(format!("ride6-summary-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
