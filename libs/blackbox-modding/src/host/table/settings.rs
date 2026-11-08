@@ -7,9 +7,9 @@ use std::rc::Rc;
 use super::BackendResult;
 use super::slot::{Attached, Slot, emit_text, guard, name_of, slot_of, text_within};
 use crate::abi::{
-    BB_ERR_ARG, BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_TOGGLE, BbIface, BbSettingCallbackFn,
-    BbSettingOption, BbSettingValue, BbSettings, BbSinkFn, BbStatus, BbStr, IFACE_SETTINGS, IFACE_SETTINGS_VERSION,
-    MAX_NAME_BYTES,
+    BB_ERR_ARG, BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_OPTION_V0_SIZE, BB_SETTING_TOGGLE, BbIface,
+    BbSettingCallbackFn, BbSettingOption, BbSettingValue, BbSettings, BbSinkFn, BbStatus, BbStr, IFACE_SETTINGS,
+    IFACE_SETTINGS_VERSION, MAX_NAME_BYTES,
 };
 use crate::host::options::{MAX_OPTION_VALUES, OptionKind, OptionSpec, ValueSpec};
 
@@ -76,7 +76,9 @@ unsafe fn read_values<'a>(values: *const BbSettingValue, count: u64) -> Result<V
         .collect()
 }
 
-/// Read the option the mod wrote. Its `size` must cover the whole struct.
+/// Read the option the mod wrote. Its `size` must cover the struct as it was first published
+/// (`BB_SETTING_OPTION_V0_SIZE`); the fields appended since (`section`) are read only when the size covers them, and are
+/// empty otherwise.
 ///
 /// # Safety
 /// `option` must be valid for reads of the bytes its own `size` field declares, and its strings valid for the call.
@@ -86,11 +88,27 @@ unsafe fn read_option<'a>(option: *const BbSettingOption) -> Result<OptionSpec<'
     }
     // SAFETY: the option's size word is its first field (see `# Safety`).
     let size = unsafe { option.cast::<u32>().read() };
-    if (size as usize) < size_of::<BbSettingOption>() {
+    if size < BB_SETTING_OPTION_V0_SIZE {
         return Err(BB_ERR_ARG);
     }
-    // SAFETY: the size covers the struct, so the read is in bounds (see `# Safety`).
-    let option = unsafe { option.read() };
+    // The fields the mod did not fill in stay as they are here: no section.
+    let mut whole = BbSettingOption {
+        size,
+        kind: 0,
+        menu: 0,
+        reserved: 0,
+        id: BbStr::new(""),
+        label: BbStr::new(""),
+        values: core::ptr::null(),
+        value_count: 0,
+        default_on: 0,
+        pad: 0,
+        section: BbStr::new(""),
+    };
+    let take = (size as usize).min(size_of::<BbSettingOption>());
+    // SAFETY: the mod's struct has `size` bytes (see `# Safety`), `take` of them are copied into `whole`, which is big enough.
+    unsafe { core::ptr::copy_nonoverlapping(option.cast::<u8>(), (&raw mut whole).cast::<u8>(), take) };
+    let option = whole;
     if option.menu != BB_SETTING_MENU_GAMEPLAY {
         return Err(BB_ERR_ARG);
     }
@@ -105,7 +123,9 @@ unsafe fn read_option<'a>(option: *const BbSettingOption) -> Result<OptionSpec<'
     let label = unsafe { text_within(option.label, MAX_NAME_BYTES) }?;
     // SAFETY: the array and its strings are the mod's, valid for the call (see `# Safety`).
     let values = unsafe { read_values(option.values, option.value_count) }?;
-    Ok(OptionSpec { id, kind, label, values, default_on: option.default_on != 0 })
+    // SAFETY: as above; an empty string when the mod gave none.
+    let section = unsafe { text_within(option.section, MAX_NAME_BYTES) }?;
+    Ok(OptionSpec { id, kind, label, values, default_on: option.default_on != 0, section })
 }
 
 /// `add_option`: the option described by `option`; the registration's handle goes to `out_id`.

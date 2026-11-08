@@ -70,7 +70,7 @@ pub use input::Input;
 pub use map::Map;
 pub use menus::{Menus, SliderRange};
 pub use module::Mod;
-pub use settings::{SettingValue, Settings};
+pub use settings::{SettingValue, Settings, SettingsSection};
 pub use time::{Time, TimeOfDay};
 pub use traffic::{Traffic, TrafficCar};
 pub use ui::{Prim, Rect, Tokens, Ui};

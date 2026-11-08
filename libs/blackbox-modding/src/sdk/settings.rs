@@ -41,8 +41,52 @@ impl Settings {
     /// Add the list option `id` with `values`, or merge `values` into the game's option of that id. `label` is the row's
     /// text when the game does not have the option yet. The chosen value is read with [`Settings::get`].
     pub fn add_option(&self, id: &str, label: &str, values: &[SettingValue<'_>]) -> ModResult<SettingId> {
-        let spec = OptionSpec { toggle: false, id, label, values, default_on: false };
+        self.add_option_in("", id, label, values)
+    }
+
+    /// The options of this mod listed under the section `title` of the gameplay settings (a heading in the menu; the first,
+    /// default section has none). Rows added without a section go in the default section. `title` may be a message id of
+    /// the mod's own catalogue (`bb.i18n`). The section applies when the option is created: values merged into an option the
+    /// game has leave its row where the game has it. Sections with the same title are one section, whichever mod made them.
+    pub fn section<'a>(&'a self, title: &'a str) -> SettingsSection<'a> {
+        SettingsSection { settings: self, title }
+    }
+
+    fn add_option_in(&self, section: &str, id: &str, label: &str, values: &[SettingValue<'_>]) -> ModResult<SettingId> {
+        let spec = OptionSpec { toggle: false, id, label, values, default_on: false, section };
         host_settings::add_option(&self.fns, self.host, &self.keep, &spec, None)
+    }
+
+    fn add_option_with_in<F>(
+        &self,
+        section: &str,
+        id: &str,
+        label: &str,
+        values: &[SettingValue<'_>],
+        mut handler: F,
+    ) -> ModResult<SettingId>
+    where
+        F: FnMut(&mut Ctx, &str) + 'static,
+    {
+        let spec = OptionSpec { toggle: false, id, label, values, default_on: false, section };
+        let on_change: ChangeHandler = Box::new(move |ctx: &mut Ctx, value: &str| handler(ctx, value));
+        host_settings::add_option(&self.fns, self.host, &self.keep, &spec, Some(on_change))
+    }
+
+    fn add_toggle_in<F>(
+        &self,
+        section: &str,
+        id: &str,
+        label: &str,
+        default: bool,
+        mut handler: F,
+    ) -> ModResult<SettingId>
+    where
+        F: FnMut(&mut Ctx, bool) + 'static,
+    {
+        let spec = OptionSpec { toggle: true, id, label, values: &[], default_on: default, section };
+        let on_change: ChangeHandler = Box::new(move |ctx: &mut Ctx, value: &str| handler(ctx, value == "on"));
+        host_settings::add_option(&self.fns, self.host, &self.keep, &spec, Some(on_change))
     }
 
     /// As [`Settings::add_option`], and `handler` runs with the value's id each time the player picks another value.
@@ -56,19 +100,15 @@ impl Settings {
     where
         F: FnMut(&mut Ctx, &str) + 'static,
     {
-        let spec = OptionSpec { toggle: false, id, label, values, default_on: false };
-        let on_change: ChangeHandler = Box::new(move |ctx: &mut Ctx, value: &str| handler(ctx, value));
-        host_settings::add_option(&self.fns, self.host, &self.keep, &spec, Some(on_change))
+        self.add_option_with_in("", id, label, values, handler)
     }
 
     /// Add the on/off option `id`, or find the game's. `handler` runs with the new state.
-    pub fn add_toggle<F>(&self, id: &str, label: &str, default: bool, mut handler: F) -> ModResult<SettingId>
+    pub fn add_toggle<F>(&self, id: &str, label: &str, default: bool, handler: F) -> ModResult<SettingId>
     where
         F: FnMut(&mut Ctx, bool) + 'static,
     {
-        let spec = OptionSpec { toggle: true, id, label, values: &[], default_on: default };
-        let on_change: ChangeHandler = Box::new(move |ctx: &mut Ctx, value: &str| handler(ctx, value == "on"));
-        host_settings::add_option(&self.fns, self.host, &self.keep, &spec, Some(on_change))
+        self.add_toggle_in("", id, label, default, handler)
     }
 
     /// The chosen value of option `id`: a value's id, or `"on"` or `"off"` for a toggle.
@@ -80,5 +120,40 @@ impl Settings {
     /// made it and nothing is left in it.
     pub fn remove_option(&self, id: SettingId) -> ModResult<()> {
         host_settings::remove_option(&self.fns, id)
+    }
+}
+
+/// The options added under one section title ([`Settings::section`]): the same calls as [`Settings`], listed under the title.
+pub struct SettingsSection<'a> {
+    settings: &'a Settings,
+    title: &'a str,
+}
+
+impl SettingsSection<'_> {
+    /// As [`Settings::add_option`], listed under this section.
+    pub fn add_option(&self, id: &str, label: &str, values: &[SettingValue<'_>]) -> ModResult<SettingId> {
+        self.settings.add_option_in(self.title, id, label, values)
+    }
+
+    /// As [`Settings::add_option_with`], listed under this section.
+    pub fn add_option_with<F>(
+        &self,
+        id: &str,
+        label: &str,
+        values: &[SettingValue<'_>],
+        handler: F,
+    ) -> ModResult<SettingId>
+    where
+        F: FnMut(&mut Ctx, &str) + 'static,
+    {
+        self.settings.add_option_with_in(self.title, id, label, values, handler)
+    }
+
+    /// As [`Settings::add_toggle`], listed under this section.
+    pub fn add_toggle<F>(&self, id: &str, label: &str, default: bool, handler: F) -> ModResult<SettingId>
+    where
+        F: FnMut(&mut Ctx, bool) + 'static,
+    {
+        self.settings.add_toggle_in(self.title, id, label, default, handler)
     }
 }
