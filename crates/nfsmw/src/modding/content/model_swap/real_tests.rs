@@ -167,3 +167,45 @@ fn report_the_solid_names_of_the_world() {
     }
     std::fs::write(env_path("NFSMW_TREES_REPORT").with_extension("names.tsv"), report).unwrap();
 }
+
+/// Where the game places the solids of the trees that are modelled around their own origin: the position of each instance.
+#[test]
+#[ignore = "needs the game (NFSMW_GAME_DIR), the pack (NFSMW_TREES_DIR) and NFSMW_TREES_REPORT"]
+fn report_where_the_local_trees_are_placed() {
+    let dir = GameDir::open(env_path("NFSMW_GAME_DIR")).unwrap();
+    let profile_text = std::fs::read_to_string(env_path("NFSMW_TREES_DIR").join("profile.toml")).unwrap();
+    let profile = parse_model_swap_profile(&profile_text).unwrap();
+    let listed: std::collections::HashSet<&str> = profile.swaps.iter().map(|swap| swap.solid.as_str()).collect();
+    let index = WorldIndex::open(&dir, DEFAULT_TRACK).unwrap();
+    let mut report = String::from("section\tsolid\tposition\tbounds_min\tbounds_max\n");
+    let mut shared = std::collections::HashMap::new();
+    for i in index.shared() {
+        let section = &index.sections[i];
+        let bytes = dir.read_range(&index.stream_file, u64::from(section.file_offset), section.size as usize).unwrap();
+        for solid in parse_section(i, &bytes).unwrap().solids {
+            shared.insert(solid.name_hash, solid);
+        }
+    }
+    for (i, section) in index.sections.iter().enumerate() {
+        let bytes = dir.read_range(&index.stream_file, u64::from(section.file_offset), section.size as usize).unwrap();
+        let data = parse_section(i, &bytes).unwrap();
+        for scenery in &data.scenery {
+            for instance in &scenery.instances {
+                let Some(info) = scenery.info_of(instance) else { continue };
+                for key in &info.solid_keys {
+                    let Some(solid) = shared.get(key) else { continue };
+                    if !listed.contains(solid.name.as_str()) {
+                        continue;
+                    }
+                    let at = instance.position;
+                    let _ = writeln!(
+                        report,
+                        "{}\t{}\t{:.1},{:.1},{:.1}\t{:?}\t{:?}",
+                        section.name, solid.name, at[0], at[1], at[2], solid.bounds_min, solid.bounds_max
+                    );
+                }
+            }
+        }
+    }
+    std::fs::write(env_path("NFSMW_TREES_REPORT").with_extension("places.tsv"), report).unwrap();
+}
