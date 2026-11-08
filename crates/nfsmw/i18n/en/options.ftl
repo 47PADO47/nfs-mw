@@ -132,3 +132,11 @@ options-autosave-save-failed = Could not save the Autosave setting. Your previou
 # The Free Roam world row of the Gameplay options (docs/specs/second-world.md).
 options-world = Free Roam World
 options-world-city = Rockport
+# The marks the tyres leave, the splashes of the rain on the road and how the rain wets the road: the game's own look is
+# "Original"; a mod may add values.
+options-skid-marks-variant = Skid marks variant
+options-skid-marks-variant-original = Original
+options-rain-splash-variant = Rain splash variant
+options-rain-splash-variant-original = Original
+options-wet-road-variant = Wet road variant
+options-wet-road-variant-original = Original

@@ -196,6 +196,14 @@ impl WorldScene {
         let exposed = !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
         self.rain.update_view(sim_dt, lens.position, lens.forward, exposed);
         self.wet_road.step_rain(sim_dt, self.rain.intensity());
+        let splash_rain = if exposed { self.rain.visible_intensity() } else { 0.0 };
+        let splash_centre = self.players.lead().map_or(lens.position, |drive| drive.position());
+        self.rain_splash.step(
+            sim_dt,
+            splash_rain,
+            splash_centre,
+            super::effects::rain_splash::ground_query(self.residency.collision()),
+        );
         if let Some(traffic) = &mut self.traffic {
             traffic.step_rain(
                 self.physics.database(),

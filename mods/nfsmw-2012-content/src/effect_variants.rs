@@ -7,6 +7,8 @@
 
 use blackbox_modding::sdk::{Ctx, Level, SettingValue};
 
+use crate::features::Features;
+
 /// One option the mod adds a value to.
 pub struct Kind {
     /// The option's id (`tire_smoke_variant`) and label.
@@ -55,18 +57,52 @@ pub const WIND: Kind = Kind {
 pub const TREES: Kind =
     Kind { option: "trees_variant", label: "Trees", value: crate::trees::VARIANT, value_label: crate::trees::LABEL };
 
-/// Every kind this mod adds a value to, besides the nitrous and the trees.
+/// The marks the tyres leave (`marks_assets.rs`): the tyre mark pictures of the 2012 game's road surfaces. Offered only while the mod's
+/// setting `skid_marks` is on.
+pub const SKID_MARKS: Kind = Kind {
+    option: "skid_marks_variant",
+    label: "Skid marks variant",
+    value: crate::marks_assets::VARIANT,
+    value_label: crate::marks_assets::LABEL,
+};
+
+/// The splashes where the rain meets the road (`rain_assets.rs`). Offered only while the mod's setting `rain_splash` is on.
+pub const RAIN_SPLASH: Kind = Kind {
+    option: "rain_splash_variant",
+    label: "Rain splash variant",
+    value: crate::rain_assets::VARIANT,
+    value_label: crate::rain_assets::LABEL,
+};
+
+/// How the rain wets the road (`rain_assets.rs`). Offered only while the mod's setting `wet_road` is on.
+pub const WET_ROAD: Kind = Kind {
+    option: "wet_road_variant",
+    label: "Wet road variant",
+    value: crate::rain_assets::VARIANT,
+    value_label: crate::rain_assets::LABEL,
+};
+
+/// Every kind this mod adds a value to, besides the nitrous, the trees and the ones its settings turn on (`optional`).
 pub const ALL: [&Kind; 4] = [&TIRE_SMOKE, &COLLISION_SPARKS, &XENON_SPARKS, &WIND];
 
-/// Add the value of every kind, and the trees' when `trees` (the setting of that name) is on. A game without `bb.settings`
-/// keeps its own effects.
-pub fn add_all(ctx: &Ctx, trees: bool) {
+/// The kinds the settings turn on besides [`ALL`].
+fn optional(features: Features) -> Vec<&'static Kind> {
+    [
+        (features.trees, &TREES),
+        (features.skid_marks, &SKID_MARKS),
+        (features.rain_splash, &RAIN_SPLASH),
+        (features.wet_road, &WET_ROAD),
+    ]
+    .into_iter()
+    .filter_map(|(on, kind)| on.then_some(kind))
+    .collect()
+}
+
+/// Add the value of every kind, and those the settings turn on (`trees`, `skid_marks`, `rain_splash`, `wet_road`). A game without
+/// `bb.settings` keeps its own effects.
+pub fn add_all(ctx: &Ctx, features: Features) {
     let Some(settings) = ctx.settings() else { return };
-    let trees_kind: &[&Kind] = match trees {
-        true => &[&TREES],
-        false => &[],
-    };
-    for kind in ALL.iter().chain(trees_kind).copied() {
+    for kind in ALL.iter().copied().chain(optional(features)) {
         let values = [SettingValue { id: kind.value, label: kind.value_label }];
         if let Err(error) = settings.add_option(kind.option, kind.label, &values) {
             ctx.log(Level::Warn, &format!("nfsmw-2012-content: the {} value is not added: {error}", kind.option));
@@ -109,6 +145,23 @@ mod tests {
         let folder = format!("{}/{}", blackbox_modding::content::TREES.folder, TREES.value.to_ascii_uppercase());
         assert_eq!(folder, crate::trees::FOLDER);
         assert!(TREES.option.ends_with("_variant") && ALL.iter().all(|other| other.option != TREES.option));
+    }
+
+    #[test]
+    fn the_new_options_are_the_games_and_name_the_folders_the_mod_writes() {
+        use blackbox_modding::content::{RAIN_SPLASH as GAME_SPLASH, SKID_MARKS as GAME_MARKS, WET_ROAD as GAME_WET};
+        assert_eq!(SKID_MARKS.option, GAME_MARKS.option);
+        assert_eq!(RAIN_SPLASH.option, GAME_SPLASH.option);
+        assert_eq!(WET_ROAD.option, GAME_WET.option);
+        let folder = |kind: blackbox_modding::content::VariantKind, value: &str| {
+            format!("{}/{}", kind.folder, value.to_ascii_uppercase())
+        };
+        assert_eq!(folder(GAME_MARKS, SKID_MARKS.value), crate::marks_assets::FOLDER);
+        assert_eq!(folder(GAME_SPLASH, RAIN_SPLASH.value), crate::rain_assets::SPLASH_FOLDER);
+        assert_eq!(folder(GAME_WET, WET_ROAD.value), crate::rain_assets::WET_ROAD_FOLDER);
+        let all = Features { trees: true, skid_marks: true, rain_splash: true, wet_road: true };
+        assert_eq!(optional(all).len(), 4);
+        assert!(optional(Features { trees: false, skid_marks: false, rain_splash: false, wet_road: false }).is_empty());
     }
 
     #[test]

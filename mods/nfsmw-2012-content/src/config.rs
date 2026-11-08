@@ -117,6 +117,14 @@ signs = true
 # conversion as the trees (same pictures, a few hundred KB more), so they need `trees = true`. false adds no Bushes setting and
 # leaves the three bush families of the old Trees value (round bushes) in it as they were.
 bushes = true
+# Add the 2012 game's effects as values of the gameplay settings \"Skid marks variant\", \"Rain splash variant\" and
+# \"Wet road variant\", and a replacement set for the lens drops (the kind \"Rain drops\"): the tyre marks, the water splash and
+# the drop shapes are converted from your 2012 install into the mod's folder, a few KiB of it, read by ranges
+# (mods/nfsmw-2012-content/README.md, \"Skid marks and rain\"). false adds neither the files nor the value.
+skid_marks = true
+rain_splash = true
+rain_drops = true
+wet_road = true
 
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
@@ -231,6 +239,12 @@ pub struct Config {
     pub signs: bool,
     /// Whether the 2012 game's bushes and hedges are offered as their own variant (`trees/bushes.rs`); needs `trees`.
     pub bushes: bool,
+    /// Whether the 2012 game's skid marks, rain splash, lens drops and wet road look are converted and offered (`marks_assets.rs`,
+    /// `rain_assets.rs`).
+    pub skid_marks: bool,
+    pub rain_splash: bool,
+    pub rain_drops: bool,
+    pub wet_road: bool,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -257,6 +271,10 @@ impl Default for Config {
             road_textures: true,
             signs: true,
             bushes: true,
+            skid_marks: true,
+            rain_splash: true,
+            rain_drops: true,
+            wet_road: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),

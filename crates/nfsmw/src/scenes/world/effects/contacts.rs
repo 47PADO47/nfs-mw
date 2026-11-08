@@ -16,6 +16,29 @@ pub struct Contact {
     pub smoke: f32,
     /// Displayed tread width; the physics-only fallback keeps the original visual width.
     pub width: f32,
+    /// The road under the tyre is loose (grass, sand, dirt, mud, gravel, golf turf), not paved: a skid mark variant draws
+    /// another picture ([`is_loose_surface`]).
+    pub loose: bool,
+    /// How much of the tyre's slide is sideways, 0 (spinning or locking along the road) to 1 (sliding sideways) ([`slide_of`]).
+    pub slide: f32,
+}
+
+/// The `simsurface` names of the loose roads; every other surface is paved for the marks.
+const LOOSE: [&str; 8] = ["grass", "golf_fairway", "golf_rough", "golf_green", "sand", "dirt", "mud", "gravel"];
+
+/// Whether the `simsurface` hash `surface` is a loose road.
+pub fn is_loose_surface(surface: u32) -> bool {
+    static HASHES: std::sync::OnceLock<[u32; 8]> = std::sync::OnceLock::new();
+    HASHES.get_or_init(|| LOOSE.map(blackbox_attrib::vlt_hash)).contains(&surface)
+}
+
+/// The sideways share of a tyre's slide: its lateral slip speed against its longitudinal one (m/s, either sign).
+pub fn slide_of(lateral_speed: f32, slip_speed: f32) -> f32 {
+    let (lateral, along) = (lateral_speed.abs(), slip_speed.abs());
+    match (lateral.is_finite(), along.is_finite()) {
+        (true, true) => lateral / (lateral + along + 0.5),
+        _ => 0.0,
+    }
 }
 
 /// `forward` is the steered wheel direction in physics space.
@@ -45,5 +68,7 @@ pub fn project(wheel: WheelState, forward: Vec3, collision: &CollisionWorld) -> 
         skid: wheel.skid.clamp(0.0, 1.0),
         smoke: wheel.smoke.clamp(0.0, 1.0),
         width: 0.24,
+        loose: false,
+        slide: 0.0,
     })
 }

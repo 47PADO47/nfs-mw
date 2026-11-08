@@ -158,3 +158,14 @@ fn the_cars_stream_by_default_and_the_setting_and_the_decision_change_the_stamp(
         "stubs and files are different content"
     );
 }
+
+#[test]
+fn the_effect_variants_are_on_by_default_and_each_setting_turns_one_off() {
+    let config = Config::default();
+    assert!(config.skid_marks && config.rain_splash && config.rain_drops && config.wet_road);
+    let off = Config::parse("skid_marks = false\nrain_splash = false\nwet_road = false\n").unwrap();
+    assert!(!off.skid_marks && !off.rain_splash && !off.wet_road && off.rain_drops);
+    assert!(!off.features().skid_marks && off.features().trees);
+    let here = Path::new("definitely/not/here");
+    assert_ne!(crate::stamp::of(&config, here), crate::stamp::of(&Config { rain_drops: false, ..config.clone() }, here));
+}

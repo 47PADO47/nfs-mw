@@ -289,3 +289,86 @@ textures = \"T.BIN\"
     assert!(bridge.trees_profile().is_none(), "a profile with no swap is refused: the game's trees stay");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+const MARKS_PROFILE: &str = "format = 1
+[[set]]
+surface = \"paved\"
+slip = \"SKIDMARKS/MYMOD/SLIP.PNG\"
+width = 1.5
+";
+
+const SPLASH_PROFILE: &str = "format = 1
+[[layer]]
+texture = \"RAINSPLASH/MYMOD/RING.PNG\"
+rate = 90.0
+";
+
+const WET_PROFILE: &str = "format = 1
+film = 1.4
+soak = 2.0
+";
+
+#[test]
+fn the_skid_marks_rain_splash_and_wet_road_profiles_are_read_through_their_own_folders() {
+    use super::super::variants::{RAIN_SPLASH_KIND, SKID_MARKS_KIND, WET_ROAD_KIND};
+    for (kind, option, folder) in [
+        (&SKID_MARKS_KIND, "skid_marks_variant", "SKIDMARKS"),
+        (&RAIN_SPLASH_KIND, "rain_splash_variant", "RAINSPLASH"),
+        (&WET_ROAD_KIND, "wet_road_variant", "WETROAD"),
+    ] {
+        assert_eq!((kind.variant.option, kind.variant.folder), (option, folder));
+        assert!(KINDS.iter().any(|known| known.variant.option == option));
+    }
+    let (bridge, store, port) = setup();
+    let (root, dir) = install_with_kind("marks", &SKID_MARKS_KIND, MARKS_PROFILE);
+    bridge.set_install(dir);
+    assert!(bridge.skid_marks_profile().is_none(), "the original: nothing is read");
+    port.add_option("mymod", &spec(&SKID_MARKS_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    assert_eq!(store.saved_text("nfsmw", "option_skid_marks_variant").as_deref(), Some("mymod"));
+    let profile = bridge.skid_marks_profile().expect("the mod's profile");
+    assert_eq!((profile.sets.len(), profile.sets[0].width), (1, 1.5));
+    assert!(Arc::ptr_eq(&profile, &bridge.effect_variants().skid_marks.unwrap()));
+    assert!(
+        bridge.rain_splash_profile().is_none() && bridge.wet_road_profile().is_none(),
+        "the other kinds are untouched"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+
+    let (bridge, _, port) = setup();
+    let (root, dir) = install_with_kind("splash", &RAIN_SPLASH_KIND, SPLASH_PROFILE);
+    bridge.set_install(dir);
+    port.add_option("mymod", &spec(&RAIN_SPLASH_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    let profile = bridge.rain_splash_profile().expect("the mod's profile");
+    assert_eq!((profile.layers.len(), profile.layers[0].rate), (1, 90.0));
+    let _ = std::fs::remove_dir_all(&root);
+
+    let (bridge, _, port) = setup();
+    let (root, dir) = install_with_kind("wet", &WET_ROAD_KIND, WET_PROFILE);
+    bridge.set_install(dir);
+    port.add_option("mymod", &spec(&WET_ROAD_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    let profile = bridge.wet_road_profile().expect("the mod's profile");
+    assert_eq!((profile.film, profile.soak, profile.dry), (1.4, 2.0, 1.0));
+    let _ = std::fs::remove_dir_all(&root);
+
+    let (bridge, _, port) = setup();
+    let (root, dir) = install_with_kind(
+        "marks-bad",
+        &SKID_MARKS_KIND,
+        "format = 1
+[[set]]
+surface = \"paved\"
+slip = \"../A.PNG\"
+",
+    );
+    bridge.set_install(dir);
+    port.add_option("mymod", &spec(&SKID_MARKS_KIND, "mymod"), None).unwrap();
+    change(&bridge, visible(&bridge)[0], true);
+    assert!(
+        bridge.skid_marks_profile().is_none(),
+        "a path that escapes the folder is refused: the game's marks are drawn"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}

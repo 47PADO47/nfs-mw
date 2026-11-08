@@ -77,11 +77,13 @@ mod plate;
 mod racers;
 #[cfg(test)]
 mod racers_tests;
+mod rain_splash;
 mod replace;
 mod scenery;
 #[cfg(test)]
 mod scenery_tests;
 mod shared_sound;
+mod skid_marks;
 mod spark_gate;
 mod spark_variant;
 mod stats;
@@ -92,6 +94,7 @@ mod traffic;
 #[cfg(test)]
 mod traffic_tests;
 mod variant;
+mod wet_road;
 mod wheels;
 mod wind_fx;
 mod world;
@@ -142,6 +145,10 @@ pub use nitrous_fx::{
 pub use overrun_sound::Overrun as CarOverrun;
 pub use plate::{MAX_CELLS as MAX_PLATE_CELLS, MAX_SLOTS as MAX_PLATE_SLOTS, Plate};
 pub use racers::{RacersSection, parse as parse_racers};
+pub use rain_splash::{
+    MAX_LAYERS as MAX_SPLASH_LAYERS, RAINSPLASH_FOLDER, RainSplashProfile, SplashKind, SplashLayer,
+    parse as parse_rain_splash_profile, rain_splash_profile_path,
+};
 pub use replace::{
     Convert as TextureConvert, LEGACY_KIND, MAX_ENTRIES as MAX_REPLACE_ENTRIES, MAX_PRIORITY as MAX_REPLACE_PRIORITY,
     ModelEntry, REPLACE_FOLDER, ReplaceSet, StateRule as TextureState, Target as ReplaceTarget, TextureEntry,
@@ -149,6 +156,10 @@ pub use replace::{
 };
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
 pub use shared_sound::SharedSound;
+pub use skid_marks::{
+    MAX_SETS as MAX_MARK_SETS, MarkSet, MarkSurface, SKIDMARKS_FOLDER, SkidMarksProfile,
+    parse as parse_skid_marks_profile, skid_marks_profile_path,
+};
 pub use spark_gate::{HitChannel, HitGate, ScrapeChannel, ScrapeGate};
 pub use spark_variant::{
     MAX_SPARK_COUNT, MAX_SPARK_KEYS, MAX_SPARK_LAYERS, SPARKS_FOLDER, SparkKind, SparkLayer, SparksProfile,
@@ -160,7 +171,11 @@ pub use tire_smoke::{
     tire_smoke_profile_path,
 };
 pub use traffic::{MAX_INSTANCES as MAX_TRAFFIC_INSTANCES, MAX_WEIGHT as MAX_TRAFFIC_WEIGHT, Traffic, TrafficClass};
-pub use variant::{COLLISION_SPARKS, FORMAT, NITROUS, TIRE_SMOKE, TREES, VariantKind, WIND, XENON_SPARKS};
+pub use variant::{
+    COLLISION_SPARKS, FORMAT, NITROUS, RAIN_SPLASH, SKID_MARKS, TIRE_SMOKE, TREES, VariantKind, WET_ROAD, WIND,
+    XENON_SPARKS,
+};
+pub use wet_road::{WETROAD_FOLDER, WetRoadProfile, parse as parse_wet_road_profile, wet_road_profile_path};
 pub use wheels::{Tyre, WheelLayout};
 pub use wind_fx::{
     MAX_LAYERS as MAX_WIND_LAYERS, WIND_FOLDER, WindLayer, WindProfile, parse as parse_wind_profile, wind_profile_path,

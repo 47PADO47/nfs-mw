@@ -32,7 +32,6 @@ use crate::scenes::world::object_geometry::{BodyGeometryFrame, BodyPose};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
-
 mod telemetry;
 pub use telemetry::Telemetry;
 mod wheel_visuals;
@@ -305,6 +304,8 @@ impl CarSim {
                 wheel.position = Vec3::from_array(space::to_physics(point));
             }
             let mut contact = effects::project(wheel, forward, collision)?;
+            contact.loose = self.wheel_surface(i).is_some_and(effects::is_loose_surface);
+            contact.slide = effects::slide_of(wheel.lateral_speed, wheel.slip);
             if let Some(tire) = visual {
                 contact.width = tire.width;
             }

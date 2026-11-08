@@ -45,6 +45,13 @@ pub const WIND: VariantKind = VariantKind { option: "wind_variant", folder: "WIN
 /// The trees variants (`model_swap`): the world's tree models and their textures replaced by the mod's.
 pub const TREES: VariantKind = VariantKind { option: "trees_variant", folder: "TREES" };
 
+/// The skid mark variants (`skid_marks`): the pictures of the marks the tyres leave.
+pub const SKID_MARKS: VariantKind = VariantKind { option: "skid_marks_variant", folder: "SKIDMARKS" };
+/// The rain splash variants (`rain_splash`): the splashes where the rain meets the road.
+pub const RAIN_SPLASH: VariantKind = VariantKind { option: "rain_splash_variant", folder: "RAINSPLASH" };
+/// The wet road variants (`wet_road`): how strongly and how fast the rain wets the road.
+pub const WET_ROAD: VariantKind = VariantKind { option: "wet_road_variant", folder: "WETROAD" };
+
 /// Refuse a profile whose `format` is not the one this version reads.
 pub(super) fn check_format(format: u32) -> Result<(), ContentError> {
     if format != FORMAT {
@@ -65,7 +72,8 @@ mod tests {
 
     #[test]
     fn the_kinds_have_distinct_options_and_folders() {
-        let kinds = [NITROUS, TIRE_SMOKE, COLLISION_SPARKS, XENON_SPARKS, WIND, TREES];
+        let kinds =
+            [NITROUS, TIRE_SMOKE, COLLISION_SPARKS, XENON_SPARKS, WIND, TREES, SKID_MARKS, RAIN_SPLASH, WET_ROAD];
         for (at, kind) in kinds.iter().enumerate() {
             for other in &kinds[at + 1..] {
                 assert_ne!(kind.option, other.option);

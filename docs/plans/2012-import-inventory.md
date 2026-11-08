@@ -59,7 +59,7 @@ The slots a mod has ([api-content.md](../modding/api-content.md), [effect-varian
 
 Not available: replacing a texture or a sound **inside** a streamed 2005 container by name (only whole files, and only in the
 2005 formats), a HUD skin (`docs/formats/custom-hud-skin.md` exists only on the unmerged `feat/custom-hud-asi`
-branch), a font registry (planned in api-content.md), menu-sound or ambience slots, a rain or skid-mark variant kind.
+branch), a font registry (planned in api-content.md), menu-sound or ambience slots, (a rain and a skid-mark variant kind exist now: [effect-variants-marks-rain.md](../modding/effect-variants-marks-rain.md)).
 
 ## 3. The inventory
 
@@ -111,8 +111,8 @@ original file at load time with no file written (S), needs a small converter (C)
 | Nitrous sound and screen, tyre smoke, collision sparks, restored sparks, wind | `GAMELOGIC/HL_*`, `POSTFX`, `SURFACELIST`, `GLOBALEFFECTS`, `SOUND/GLOBAL` | variants | DONE | 7 MB of files | C |
 | Trees | `HAWAII/*` tree models and textures | `trees_variant` | DONE (other agent) | | |
 | **Collision debris and glass** | `GLOBALEFFECTS` (214 effects; the collision ones are read for the sparks, the glass and debris ones are not) | none | NEEDS HOST FEATURE | a variant kind for "impact debris" | C |
-| **Skid marks and tyre marks** | `TyreVfxBehaviour.SkidMarkParams` in car bundles; `SurfaceVfx.TyreMarksMaterials` in `SURFACELIST` | the 2005 skid mark decals (texture, width, fade) | NEEDS HOST FEATURE | a variant kind with one picture and four numbers per surface family | C |
-| Rain drops, rain splash, wet road | rain effects among the 214; wet-road is a shader parameter | the host's rain ([rain.md](../rain.md)) uses the install's textures | NEEDS HOST FEATURE | a rain variant kind (picture and counts); the wet road has no data in a form that is read | C |
+| **Skid marks and tyre marks** | `SurfaceVfx.TyreMarksMaterials` in `SURFACELIST` (the car bundles' `SkidMarkParams` is empty): two sets of slip and spin pictures (paved, loose) | the 2005 skid marks (dark untextured strips) | DONE (skid marks variant, [effect-variants-marks-rain.md](../modding/effect-variants-marks-rain.md), [chameleon-tyre-marks.md](../formats/chameleon-tyre-marks.md)) | 4 PNGs and a profile (about 4 KB), read by ranges | C |
+| Rain drops, rain splash, wet road | **the 2012 game has no rain** ([chameleon-rain-water.md](../formats/chameleon-rain-water.md)); its water pictures; the wet road is an undecoded engine constant | the host's rain ([rain.md](../rain.md)) uses the install's textures | DONE as made-from-water variants: rain splash (new host effect), rain drops (a replacement set of `RAINDROPPC`), wet road (chosen factors) | a few KiB read by ranges, 3 PNGs | C |
 | Headlight beams, lamp flares of cars | coronas | DONE (flares); beams: NOT FEASIBLE (not decoded) | | | |
 | Street-lamp coronas | `Genesys.Gen.Corona` on `PropObject`s | the world's lamps have 2005 flare data | NEEDS HOST FEATURE | with the props below | |
 | Sky, clouds, moon | `ENVIRONMENT`: cloud domes at several times, moon, noise | the host's sky (`enhanced-sky.md`) draws 2005 textures | NEEDS HOST FEATURE | a texture swap by name (below) or a sky variant kind | C |

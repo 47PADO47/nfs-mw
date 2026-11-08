@@ -9,6 +9,8 @@ pub(crate) struct WetRoad {
     time: f32,
     rain: f32,
     pub override_amount: Option<f32>,
+    /// How a mod's wet road variant wets and dries the road (`WETROAD/<value>/profile.toml`); the game's own when `None`.
+    profile: Option<std::sync::Arc<blackbox_modding::content::WetRoadProfile>>,
 }
 impl Default for WetRoad {
     fn default() -> Self {
@@ -20,6 +22,7 @@ impl Default for WetRoad {
             pooling: 0.0,
             time: 0.0,
             rain: 0.0,
+            profile: None,
             override_amount: std::env::var("NFSMW_ROAD_WETNESS")
                 .ok()
                 .and_then(|v| v.parse::<f32>().ok())
@@ -29,6 +32,13 @@ impl Default for WetRoad {
     }
 }
 impl WetRoad {
+    /// The wet road variant the player chose, if it is a mod's (`None`: the game's own wet road).
+    pub fn set_profile(&mut self, profile: Option<std::sync::Arc<blackbox_modding::content::WetRoadProfile>>) {
+        self.profile = profile;
+    }
+    fn look(&self) -> blackbox_modding::content::WetRoadProfile {
+        self.profile.as_deref().copied().unwrap_or_default()
+    }
     #[cfg(test)]
     pub fn step(&mut self, dt: f32, raining: bool) {
         self.step_rain(dt, u8::from(raining) as f32);
@@ -47,24 +57,26 @@ impl WetRoad {
         self.time = (self.time + dt) % 4096.0;
         // Pooling builds after saturation and drains faster than damp asphalt dries.
         let pool_target = ((self.wetness - 0.45) / 0.55).clamp(0.0, 1.0) * intensity;
-        let rate: f32 = match raining {
-            true => 0.08,
-            false => 0.45,
+        let look = self.look();
+        let (rate, pace) = match raining {
+            true => (0.08, look.soak),
+            false => (0.45, look.dry),
         };
+        let rate = rate * pace;
         self.pooling += (pool_target - self.pooling) * (1.0 - (-rate * dt).exp());
         // Elapsed-time adaptation of the original per-render-call 0.005 recurrence at 60 Hz.
-        self.wetness = target + (self.wetness - target) * 0.995_f32.powf(60.0 * dt);
+        self.wetness = target + (self.wetness - target) * 0.995_f32.powf(60.0 * dt * pace);
         if !raining && self.wetness < 0.05 {
             self.wetness = 0.0;
         }
     }
     pub fn amount(&self) -> f32 {
-        self.override_amount.unwrap_or(self.wetness)
+        self.override_amount.unwrap_or((self.wetness * self.look().film).clamp(0.0, 1.0))
     }
     pub fn water(&self) -> blackbox_gfx::SurfaceWater {
         blackbox_gfx::SurfaceWater {
             dampness: self.amount(),
-            pooling: self.override_amount.unwrap_or(self.pooling),
+            pooling: self.override_amount.unwrap_or((self.pooling * self.look().pooling).clamp(0.0, 1.0)),
             time: self.time,
             rain: self.rain,
         }

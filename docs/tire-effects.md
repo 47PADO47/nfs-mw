@@ -76,6 +76,16 @@ come from `blackbox-particles` (up to 128 live ones for each layer at each wheel
 per layer), so the **Smoke Quality** setting does not change a variant. If the variant's files cannot be read the game's own smoke
 is drawn.
 
+## Skid marks variants
+
+The gameplay settings have a **Skid marks variant** option whose only value in the game is **Original**: the dark untextured strips described
+below. A mod adds values to it ([effect-variants-marks-rain.md](modding/effect-variants-marks-rain.md)); `nfsmw-2012-content` adds **NFS Most
+Wanted 2012**, the tyre mark pictures of the 2012 game's road surfaces ([chameleon-tyre-marks.md](formats/chameleon-tyre-marks.md)). With
+a variant chosen, each mark is drawn with the picture of the set for its road (paved, loose), the weather and the kind of slide (sideways or
+spinning), cut at every repeat of the picture. **Where the marks begin and end, the tread width and the bike rules are unchanged**; a
+variant changes the picture, a width factor and how long a mark stays. The **Skid Marks** switch, the free camera, the reset and
+`tire-effects clear` act on them as on the game's own.
+
 ## Lifetime and limits
 
 Smoke fades over 1.4–2.0 seconds, rises and expands, and is sorted for transparency.
