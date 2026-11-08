@@ -101,7 +101,7 @@ rating bars still read the 2005 tables and do not move for a bike (the estimate 
 
 ## 7. Checked offscreen, and not done
 
-**Checked** (release build, muted, offscreen; the commands are in the work notes of the change, `C:6work\shop-shots`): a KTM450 as the career's
+**Checked** (release build, muted, offscreen; the commands are in the work notes of the change, `C:\r6work\shop-shots`): a KTM450 as the career's
 current car in a career auto shop: the Parts section (`Exhaust`, `Rims`, and the brake discs and bar pad where the bike has them), the exhaust
 list with the components' names (`Akrapovic S K4MET6 ...`), the bike's own rims (9 choices, which the brand pages never reached), the
 Performance section (`Engine`, `Chassis`, `Brakes` only), the engine page with the component's name (`Engine kit level 2`) and no 2005
