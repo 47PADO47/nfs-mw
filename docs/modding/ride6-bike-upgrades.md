@@ -61,6 +61,10 @@ race teams' table, `BikePhysicDataTable`, gives per-level fractions such as 0, 0
 the 0 to 1 reading). The `AdaptiveMultiplier` formula is an **inference** from the two ranges and the interval the rows carry.
 A component is defined once by its multiplier (`r6:engine.l2.10666`), so bikes with the same number share it.
 
+The developer tools read the same slots: the F11 vehicle panel and the `vehicle` console command list a bike's slots by their own names and
+groups (`looks`, `performance`), with the components' names, prices and rules, and change them live in the world and in the car viewer; a
+slot the garage has no category for is kept for the session ([devtools-vehicle.md](../devtools-vehicle.md)).
+
 ## What the importer writes
 
 ```

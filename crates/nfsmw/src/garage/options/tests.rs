@@ -97,7 +97,7 @@ fn a_choice_is_set_by_number_name_hash_or_stock() {
     };
     assert_eq!(set("spoiler", "2").unwrap(), "Spoiler: Wing Two");
     assert_eq!(set("Rims", "rim thr").unwrap(), "Rims: Rim Three");
-    assert_eq!(set("rims", "BB01").unwrap(), "Rims: Rim One", "a hash as the `parts` command prints it");
+    assert_eq!(set("rims", "0000BB01").unwrap(), "Rims: Rim One", "a hash as the `parts` command prints it");
     assert_eq!(set("engine", "2").unwrap(), "Engine: Stage 2");
     assert!(set("spoiler", "3").is_err() && set("spoiler", "nothing like it").is_err());
     assert!(set("rims", "rim").unwrap_err().contains("several"), "an ambiguous name lists the candidates");

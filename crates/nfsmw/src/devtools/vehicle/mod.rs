@@ -132,48 +132,21 @@ fn slot_row(ui: &mut egui::Ui, slot: &Slot, first: &mut bool, actions: &mut Vec<
         text.push_str(&format!(" · ${price}"));
     }
     let id = ui.make_persistent_id(("vehicle_slot", &slot.id));
+    let label_of = |at: usize| {
+        let choice = &slot.choices[at];
+        match &choice.blocked {
+            Some(reason) => format!("{} ({reason})", choice.label),
+            None => choice.label.clone(),
+        }
+    };
     let want_focus = std::mem::take(first);
-    ui.horizontal(|ui| {
-        let width = (ui.available_width() - 34.0).max(120.0);
-        let asked = ui
-            .scope(|ui| {
-                ui.set_width(width);
-                widgets::stepper(ui, id, &text, slot.current, slot.choices.len(), want_focus)
-            })
-            .inner;
-        if let Some(index) = asked {
-            actions.push(PanelAction::Vehicle(Change::Pick { slot: slot.id.clone(), index }));
-        }
-        if let Some(index) = list_button(ui, slot) {
-            actions.push(PanelAction::Vehicle(Change::Pick { slot: slot.id.clone(), index }));
-        }
-    });
+    let asked = widgets::chooser(ui, id, &text, (slot.current, slot.choices.len(), 0), want_focus, &label_of);
+    if let Some(index) = asked {
+        actions.push(PanelAction::Vehicle(Change::Pick { slot: slot.id.clone(), index }));
+    }
     if let Some(reason) = &choice.blocked {
         ui.label(RichText::new(reason).small().weak());
     }
-}
-
-/// The list of every choice of a slot, for a mouse: the stepper is for the controller and for short lists.
-fn list_button(ui: &mut egui::Ui, slot: &Slot) -> Option<usize> {
-    if slot.choices.len() < 3 {
-        return None;
-    }
-    let mut picked = None;
-    ui.menu_button("▾", |ui| {
-        ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
-            for (at, choice) in slot.choices.iter().enumerate() {
-                let label = match &choice.blocked {
-                    Some(reason) => format!("{at}: {} ({reason})", choice.label),
-                    None => format!("{at}: {}", choice.label),
-                };
-                if ui.selectable_label(at == slot.current, label).clicked() {
-                    picked = Some(at);
-                    ui.close();
-                }
-            }
-        });
-    });
-    picked
 }
 
 fn colour(ui: &mut egui::Ui, options: &VehicleOptions, actions: &mut Vec<PanelAction>) {
@@ -205,7 +178,9 @@ fn gear_section(ui: &mut egui::Ui, rows: &[GearRow], bike: bool, first: &mut boo
             let id = ui.make_persistent_id(("gear_row", row.part.key()));
             let want_focus = std::mem::take(first) && bike;
             let value = &row.entries[row.worn].label;
-            if let Some(at) = widgets::stepper(ui, id, value, row.worn, row.entries.len(), want_focus) {
+            let label_of = |at: usize| row.entries[at].label.clone();
+            let asked = widgets::chooser(ui, id, value, (row.worn, row.entries.len(), 1), want_focus, &label_of);
+            if let Some(at) = asked {
                 actions.push(PanelAction::Gear { part: row.part, id: row.entries[at].id.clone() });
             }
         }

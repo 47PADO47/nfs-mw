@@ -259,6 +259,14 @@ impl CarScene {
         self.car_instances = self.instances.len();
     }
 
+    /// Swap in the same car dressed in other parts: the camera stays where it is (the car's size has not changed).
+    pub(crate) fn redress_model(&mut self, renderer: &mut dyn RenderBackend, model: CarModel) {
+        self.release(renderer);
+        self.car += 1;
+        self.model = model;
+        self.upload(renderer);
+    }
+
     /// Swap in another car, keeping the viewing angle.
     pub(crate) fn replace_model(&mut self, renderer: &mut dyn RenderBackend, model: CarModel) {
         self.release(renderer);

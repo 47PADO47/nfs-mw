@@ -61,13 +61,20 @@ fn arrow(direction: Direction) -> egui::Key {
 /// The egui events that make `nav` and what it asks of the panels. `focused`: some widget has the keyboard focus; without one
 /// the arrows cannot start a move (egui moves a focus, it does not give one), so they hand the focus to the first widget (down,
 /// right) or the last (up, left). `escape`: a popup is open or a text field has the keyboard, which B leaves before it closes a panel.
-fn translate(nav: Nav, focused: bool, escape: bool, events: &mut Vec<egui::Event>) -> Option<Request> {
+pub(super) fn translate(nav: Nav, focused: bool, escape: bool, events: &mut Vec<egui::Event>) -> Option<Request> {
     match nav {
         Nav::Chord => return Some(Request::Toggle),
         Nav::Back if escape => events.extend(key_events(egui::Key::Escape, false)),
         Nav::Back => return Some(Request::Back),
         Nav::Activate => events.extend(key_events(egui::Key::Enter, false)),
         Nav::Tab(forward) => events.extend(key_events(egui::Key::Tab, !forward)),
+        Nav::Jump(forward) => {
+            let key = match forward {
+                true => egui::Key::PageDown,
+                false => egui::Key::PageUp,
+            };
+            events.extend(key_events(key, false));
+        }
         Nav::Arrow(direction) if focused => events.extend(key_events(arrow(direction), false)),
         Nav::Arrow(direction) => {
             let forward = matches!(direction, Direction::Down | Direction::Right);
@@ -88,7 +95,7 @@ pub(in crate::devtools) fn collect(
 ) {
     let _trace = blackbox_trace::scope("Devtools: controller");
     let input = read(&pads);
-    panels.state.pad = pads.iter().next().is_some();
+    panels.state.pad = pads.iter().next().is_some() || panels.state.simulated;
     let up = panels.which().is_some() || panels.state.any();
     let mut navs = nav.step(&input, time.delta_secs(), up);
     navs.extend(std::mem::take(&mut panels.state.pressed).into_iter().filter_map(super::state::press));

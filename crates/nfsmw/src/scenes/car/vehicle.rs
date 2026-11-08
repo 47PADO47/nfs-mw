@@ -86,7 +86,7 @@ impl CarScene {
         if let Some(rgb) = color {
             model.set_body_color(rgb).map_err(|e| format!("{e:#}"))?;
         }
-        self.replace_model(renderer, model);
+        self.redress_model(renderer, model);
         if let Some(dressing) = self.dressing_of_car() {
             dressing.parts = parts;
             dressing.color = color;

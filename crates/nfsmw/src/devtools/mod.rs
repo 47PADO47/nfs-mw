@@ -12,7 +12,7 @@ mod menu;
 mod metrics;
 mod overlay;
 pub(crate) mod pad_nav;
-mod panels;
+pub(crate) mod panels;
 mod readout;
 mod theme_style;
 pub(crate) mod trace;
@@ -130,7 +130,9 @@ fn run_ui(
         time: Some(time.elapsed_secs_f64()),
         predicted_dt: time.delta_secs(),
         events,
-        focused: window.focused,
+        // A press from the console (`devtools press`) stands in for a controller in a run whose window is hidden: egui shows no
+        // keyboard focus and reads no key in a window that is not focused.
+        focused: window.focused || dev.simulated,
         ..Default::default()
     };
     // The panels draw in the active theme's palette, radius, padding and text size, as the game does. The style is

@@ -101,6 +101,8 @@ pub(crate) struct DevPanels {
     pub pad: bool,
     /// Buttons pressed by the `devtools press` console command, served like the controller's own.
     pub pressed: Vec<super::pad_nav::Button>,
+    /// A button was pressed by the console: the panels show the controller's buttons as if one were connected.
+    pub simulated: bool,
 }
 
 impl DevPanels {

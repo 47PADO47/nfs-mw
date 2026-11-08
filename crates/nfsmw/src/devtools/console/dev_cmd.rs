@@ -53,6 +53,7 @@ fn run_devtools(command: DevtoolsCommand, host: &mut Host, dev: &mut DevPanels) 
         }
         DevtoolsCommand::Press(button) => {
             dev.pressed.push(button);
+            dev.simulated = true;
             Ok(String::new())
         }
         DevtoolsCommand::Open(Panel::Garage) if host.scene.garage().is_none() => {

@@ -45,6 +45,8 @@ pub(crate) enum Nav {
     Back,
     /// The focus to the next widget (`false`: the previous one).
     Tab(bool),
+    /// Left or right held for a while: ten steps of a stepper at a time (Page Down, Page Up).
+    Jump(bool),
     /// The chord that opens and closes the devtools menu.
     Chord,
 }
@@ -94,13 +96,23 @@ const RELEASE: f32 = 0.35;
 /// Seconds a direction is held before it repeats, and between repeats.
 const FIRST_REPEAT: f32 = 0.4;
 const REPEAT: f32 = 0.12;
+/// Seconds after which a held left or right jumps ten steps of a stepper at a time: a list of three hundred helmets is walked in
+/// seconds.
+const JUMP_AFTER: f32 = 1.2;
+
+/// A direction that is held: the seconds to its next repeat and how long it has been held.
+#[derive(Clone, Copy, Debug)]
+struct Held {
+    next: f32,
+    secs: f32,
+}
 
 /// The controller's state between frames: what was held, and how long each direction has been.
 #[derive(Debug, Default)]
 pub(crate) struct PadNav {
     before: HashSet<Button>,
-    /// For each of the four directions: held, and the seconds to its next repeat.
-    directions: [Option<f32>; 4],
+    /// For each of the four directions: held or not.
+    directions: [Option<Held>; 4],
     chord: bool,
 }
 
@@ -129,18 +141,24 @@ impl PadNav {
                 self.directions[at] = None;
                 continue;
             }
-            let Some(left) = self.directions[at] else {
-                self.directions[at] = Some(FIRST_REPEAT);
+            let Some(mut held) = self.directions[at] else {
+                self.directions[at] = Some(Held { next: FIRST_REPEAT, secs: 0.0 });
                 out.push(Nav::Arrow(direction));
                 continue;
             };
-            let left = left - dt;
-            if left > 0.0 {
-                self.directions[at] = Some(left);
+            held.next -= dt;
+            held.secs += dt;
+            if held.next > 0.0 {
+                self.directions[at] = Some(held);
                 continue;
             }
-            self.directions[at] = Some(left + REPEAT);
-            out.push(Nav::Arrow(direction));
+            held.next += REPEAT;
+            self.directions[at] = Some(held);
+            let sideways = matches!(direction, Direction::Left | Direction::Right);
+            match sideways && held.secs >= JUMP_AFTER {
+                true => out.push(Nav::Jump(direction == Direction::Right)),
+                false => out.push(Nav::Arrow(direction)),
+            }
         }
         let pressed = |button: Button| input.held.contains(&button) && !self.before.contains(&button);
         if pressed(Button::A) {

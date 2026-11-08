@@ -90,9 +90,10 @@ fn missing(bike: bool, slots: &[Slot]) -> Vec<String> {
     let mut lines = Vec::new();
     if bike && !mentions("road") {
         lines.push(
-            "road equipment (side mirrors, plate holder, lights): this bike's data has no slot for it; the importer leaves it out. \
-             Needed: the exporter writes those parts and the importer an optional slot (no default) that offers them; \
-             then `vehicle group <group> off` switches them"
+            "road equipment (side mirrors, homologation plate holder, lights): this bike's data has no slot for it. \
+             The exporter writes the mirrors and the plate holder as parts, but the importer keeps them in the body solid. \
+             Needed: the importer gives each a solid of its own and writes an optional slot, group `road`, whose default \
+             component shows them; then `vehicle group road off` takes them off (docs/devtools-vehicle.md)"
                 .to_owned(),
         );
     }
