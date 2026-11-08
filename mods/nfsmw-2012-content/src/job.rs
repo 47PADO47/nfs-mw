@@ -138,13 +138,13 @@ pub fn promote(mod_dir: &Path) -> Result<bool> {
         fs::rename(&staged_recipe, &recipe).context("moving the recipe of the lazy files into place")?;
     }
     for part in CONTENT {
-        let live = mod_dir.join(part);
-        if live.exists() {
-            fs::remove_dir_all(&live).with_context(|| format!("clearing {}", live.display()))?;
-        }
-        let staged = staging.join(part);
+        let (live, staged) = (mod_dir.join(part), staging.join(part));
         if staged.exists() {
-            fs::rename(&staged, &live).with_context(|| format!("moving {} into place", staged.display()))?;
+            crate::swap::replace_dir(&live, &staged).with_context(|| format!("replacing {}", live.display()))?;
+            continue;
+        }
+        if live.exists() {
+            crate::swap::replace_dir(&live, &staged).with_context(|| format!("clearing {}", live.display()))?;
         }
     }
     fs::rename(staging.join(stamp::FILE), mod_dir.join(stamp::FILE)).context("moving the import stamp into place")?;

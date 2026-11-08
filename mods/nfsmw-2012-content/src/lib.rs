@@ -69,6 +69,7 @@ mod source;
 mod spark_assets;
 mod stamp;
 pub mod stats;
+mod swap;
 mod textures;
 mod tire_smoke;
 mod traffic;
