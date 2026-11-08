@@ -55,6 +55,7 @@ default-members = [
     "libs/chameleon-bundle",
     "libs/chameleon-camera",
     "libs/chameleon-effects",
+    "libs/chameleon-environment",
     "libs/chameleon-engine-state",
     "libs/chameleon-gfx",
     "libs/chameleon-postfx",
@@ -84,6 +85,7 @@ chameleon-anim = { path = "libs/chameleon-anim" }
 chameleon-bundle = { path = "libs/chameleon-bundle" }
 chameleon-camera = { path = "libs/chameleon-camera" }
 chameleon-effects = { path = "libs/chameleon-effects" }
+chameleon-environment = { path = "libs/chameleon-environment" }
 chameleon-engine-state = { path = "libs/chameleon-engine-state" }
 chameleon-gfx = { path = "libs/chameleon-gfx" }
 chameleon-postfx = { path = "libs/chameleon-postfx" }
