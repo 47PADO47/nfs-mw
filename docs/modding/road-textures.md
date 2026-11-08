@@ -182,7 +182,7 @@ The places that were taken (`--at X,Y --height H --heading D --pitch P`), with w
 **Not obtained:** a close, unobstructed picture of the STOP face and of the storm grate, and the before shot of the 55 sign (the
 second batch of shots that was to take them, `grate2`/`grate3` at the `XO_MANHOLE` instances `3700,700` and `3726,730`, `speed55` at
 `2050,1575 2.5 100 0` and `stop_gate`, was stopped). The picture of every row, made from the real install, is also written as a PNG by
-the ignored test (`ROADTEX_OUT`), and those of the STOP, the 50 and the cover were looked at there. The pictures of the world are in
+the ignored test (`ROADTEX_OUT`), and those of the STOP and the cover were looked at there (the 50 and the 55 as built after the last change of their crop were seen only in the world, the 55). The pictures of the world are in
 `C:6workoadtex-shots` (`<name>_before.png`, `<name>_after.png`, `pair_<name>.png` with the two one above the other); they show the
 game's textures, so they are not in the repository.
 
