@@ -188,6 +188,25 @@ def export_textures(tool, builder, out_dir, size):
             os.remove(os.path.join(out_dir, name))
 
 
+# Pictures that live in a plugin of the engine and not in the install's packages, so the tool cannot export them: the colour each one
+# is (`T_White_Color` is a plain white picture the flags are tinted from; `T_Default_BC` is the engine's grey default).
+PLUGIN_COLOURS = {"t_white_color": [255, 255, 255], "t_default_bc": [128, 128, 128]}
+
+
+def use_colours_for_missing(builder, tex_dir):
+    """A material whose picture was not exported is drawn flat: its plugin picture's colour when it is one of `PLUGIN_COLOURS`."""
+    missing = []
+    for material in builder.materials:
+        stem = material["texture"]
+        if stem is None or os.path.exists(os.path.join(tex_dir, stem + ".png")):
+            continue
+        material["texture"] = None
+        material["color"] = PLUGIN_COLOURS.get(stem, material["color"])
+        missing.append(stem)
+    if missing:
+        common.log("pictures drawn flat:", ", ".join(sorted(set(missing))))
+
+
 def export_objects(tool, assets, builder, track, out, scratch, spline):
     """The barriers, buildings and props: `models.r6m` (each distinct mesh once), `instances.r6i`; the models for pack.json."""
     instances, models = props.collect(assets, track, common.log)
@@ -241,6 +260,7 @@ def run(track, out, size):
     os.makedirs(out, exist_ok=True)
     builder.ground.write(os.path.join(out, "ground.r6m"))
     export_textures(tool, builder, os.path.join(out, "tex"), size)
+    use_colours_for_missing(builder, os.path.join(out, "tex"))
     sea = find_sea(assets, tool, track, scratch)
     document = {
         "format": 1,
