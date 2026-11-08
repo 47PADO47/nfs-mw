@@ -174,6 +174,20 @@ levels of detail each (the ones that stand on the ground), 81 swaps (they reach 
 [chameleon-vegetation.md](../formats/chameleon-vegetation.md#what-the-conversion-costs). What the 2012 files hold, the species, and which
 solids they replace: [chameleon-vegetation.md](../formats/chameleon-vegetation.md). The mod's setting `trees = false` leaves them out.
 
+### The bushes set
+
+The 2012 mod declares a second set through the replacement API ([api-replace.md](api-replace.md)): `replace/bushes-mw2012.toml`, kind
+`bushes`, so the game offers a second option, **Bushes** (`bushes_variant`, Original / NFS Most Wanted 2012), next to Trees. It
+names the **same two pack files** as the trees set (`TREES/MW2012/GEOMETRY.BIN` and `TEXTURES.BIN`: the bush models are solids of the
+trees pack and their textures are in the trees' texture pack, so nothing is converted or stored twice, and the world adds a texture
+of the same name once even when both options are chosen), and lists the 2005 bush patches, hedges and grasses (58 solid names, 832 solids
+of the world, `fit = "row"` for the patches, hedges and grasses and `height` for the single bushes) with its own `[fit]` limits: spread 1.5, squeeze 0.5 and min_height 0.5, looser than
+the trees' because a bush is small and a patch is dense. What the families and models are, and why: [chameleon-vegetation.md](../formats/chameleon-vegetation.md#the-bushes).
+The mod's setting `bushes` (default on, needs `trees`) turns the set off; the three round-bush families the Trees value always had
+then stay in the Trees set as before, and with it on they belong to the Bushes set (the two sets never list one solid twice). The
+labels are message ids of the mod's catalogue (`nfsmw2012-bushes` = "Bushes"), the value label is the proper name of the game. The older
+`TREES/MW2012/profile.toml` is still written for the trees set only.
+
 ## The spark kinds
 
 The collision sparks (`SPARKS/<ID>/`) and the restored sparks (`XENON/<ID>/`) are two kinds with one page,
