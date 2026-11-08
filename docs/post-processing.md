@@ -10,6 +10,7 @@ The design is in [the spec](specs/post-processing.md).
 | Tone mapping | `post_tonemap` | `NFSMW_POST_TONEMAP` | `--post-tonemap` | `off`, `aces` |
 | Bloom | `post_bloom` | `NFSMW_POST_BLOOM` | `--post-bloom` | `off`, `low`, `medium`, `high` |
 | Anti-aliasing | `post_aa` | `NFSMW_POST_AA` | `--post-aa` | `off`, `fxaa`, `smaa`, `taa` |
+| Colour grading strength (of a mod's grading, below) | `grading_strength` | `NFSMW_GRADING_STRENGTH` | `--grading-strength` | `0` to `1` (default `1`) |
 
 Settings resolve like every other setting: command line, then environment, then the per-user config
 file, then the default. A value that does not parse is ignored (with a warning) and the next layer
@@ -61,6 +62,11 @@ A scene can also hand the renderer a **grade** with the same per-frame screen ef
 and a contrast about mid grey. It is not a setting: only a mod's nitrous variant uses it today
 ([nitrous variants](modding/nitrous-variants.md)). The native renderer draws it as one pass right after the radial
 blur (`post/grade.rs`), in the chain only while the grade is not neutral; the Bevy backend ignores it.
+
+A mod can also give the picture a **colour grade** with 3D look-up tables (cubes): one filtered 3D texture sample per pixel, right
+after these effects, with a strength (`grading_strength`, the Video row Color Grading Strength) and, between two cubes, a blend by the
+hour and the weather. Its look is chosen with the Color Grading row (Video page), which shows only while a mod offers one; off by
+default. The native renderer draws it; Bevy ignores it. [Spec](specs/colour-grading.md).
 
 ## Checking them
 

@@ -93,7 +93,7 @@ pub struct Bridge {
     /// The same for the colour grading variant (`grading_profile`), and the look made from the profile last read, with its cubes
     /// (`grading_look`; `None` for a profile whose cubes did not read).
     pub(super) grading_cache: CacheCell<GradingProfile>,
-    pub(super) grading_look_cache: RefCell<Option<(Arc<GradingProfile>, Option<Arc<crate::grading::GradingLook>>)>>,
+    pub(super) grading_look_cache: RefCell<Option<super::grading::LookCache>>,
     /// The themes the mods registered (`bb.ui`), with the draw specs of their slots.
     pub(super) ui_themes: RefCell<Vec<UiRecord>>,
     /// The mod theme the player chose on the Mods page, or `None` for the built-in style (`ui.rs`). The theme sync

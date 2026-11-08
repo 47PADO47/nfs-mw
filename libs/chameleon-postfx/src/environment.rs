@@ -167,7 +167,7 @@ pub fn cube_from_block(block: &[u8]) -> Option<CubeRgb> {
     if !(2..=64).contains(&size) || word(block, 4)? as u32 != size || block.len() != 16 + (size as usize).pow(3) * 3 {
         return None;
     }
-    let rgb = block[16..].chunks_exact(3).flat_map(|bgr| [bgr[2], bgr[1], bgr[0]]).collect();
+    let rgb = block[16..].as_chunks::<3>().0.iter().flat_map(|bgr| [bgr[2], bgr[1], bgr[0]]).collect();
     Some(CubeRgb { size, rgb })
 }
 

@@ -84,3 +84,8 @@ fn without_mods_the_gameplay_page_gets_no_extra_rows() {
     assert!(shown(None, Setting::GameplayOption(0)).is_none());
     change(None, Setting::GameplayOption(0), true);
 }
+
+#[test]
+fn without_mods_the_video_page_gets_no_grading_rows() {
+    assert!(video_rows(None).is_empty(), "the page is as it was without mods");
+}

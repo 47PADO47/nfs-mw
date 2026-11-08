@@ -140,7 +140,7 @@ fn the_rgba_copy_has_a_full_alpha() {
     let cube = ColourCube::identity(2).unwrap();
     let rgba = cube.rgba();
     assert_eq!(rgba.len(), 8 * 4);
-    assert!(rgba.chunks_exact(4).all(|px| px[3] == 255));
+    assert!(rgba.as_chunks::<4>().0.iter().all(|px| px[3] == 255));
     assert_eq!(&rgba[4..8], &[255, 0, 0, 255], "the second entry is red");
 }
 
@@ -150,7 +150,7 @@ fn a_blend_of_cubes_is_their_weighted_mean_at_every_entry() {
     let inverted = invert(16);
     let half = ColourCube::blend(&[(&identity, 1.0), (&inverted, 1.0)]).unwrap();
     assert_eq!(half.size(), 16);
-    for entry in half.rgb().chunks_exact(3) {
+    for entry in half.rgb().as_chunks::<3>().0.iter() {
         assert!(entry.iter().all(|b| (127..=128).contains(b)), "{entry:?}");
     }
     let mostly = ColourCube::blend(&[(&identity, 3.0), (&inverted, 1.0)]).unwrap();

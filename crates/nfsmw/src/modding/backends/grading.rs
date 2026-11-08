@@ -9,6 +9,9 @@ use std::sync::Arc;
 use super::bridge::Bridge;
 use crate::grading::GradingLook;
 
+/// The profile last read and the look made from it (`None` when its cubes did not read).
+pub(super) type LookCache = (Arc<blackbox_modding::content::GradingProfile>, Option<Arc<GradingLook>>);
+
 impl Bridge {
     /// The look of the grading variant the player chose, when it is a mod's: its profile with the cubes read. A look that
     /// cannot be read is logged once and is no look (the picture is as the game draws it).

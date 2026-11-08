@@ -19,6 +19,8 @@ pub(super) struct GradingFeed {
     selector: Selector,
     /// A grade was given to the renderer and not taken back.
     sent: bool,
+    /// The log said that the renderer does not draw the grading.
+    noted: bool,
 }
 
 impl GradingFeed {
@@ -31,6 +33,13 @@ impl WorldScene {
     /// Give the renderer this frame's grade, or take the last one back when there is none.
     pub(super) fn feed_grading(&mut self, renderer: &mut dyn RenderBackend) {
         if !renderer.capabilities().colour_cube {
+            if self.grading.look.is_some() && !self.grading.noted {
+                self.grading.noted = true;
+                log::info!(
+                    "the colour grading is not drawn by the {} renderer (docs/specs/colour-grading.md, \"Renderers\")",
+                    renderer.capabilities().renderer
+                );
+            }
             return;
         }
         // The garage's backdrop has its own look.

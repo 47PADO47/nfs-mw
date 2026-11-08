@@ -157,4 +157,20 @@ mod tests {
         assert_eq!(changed.motion_blur, Some(false));
         assert_eq!(changed.motion_blur_strength, Some(2.0));
     }
+
+    #[test]
+    fn the_grading_strength_row_steps_a_tenth_within_0_and_1() {
+        let mut s = Settings::from(Partial::default());
+        let mut changed = Partial::default();
+        assert_eq!(PostSetting::GradingStrength.data(&s), Data::Text("100%".into()));
+        assert!(!PostSetting::GradingStrength.step(&mut s, &mut changed, true), "stops at the top");
+        assert!(PostSetting::GradingStrength.step(&mut s, &mut changed, false));
+        assert_eq!(PostSetting::GradingStrength.data(&s), Data::Text("90%".into()));
+        for _ in 0..20 {
+            PostSetting::GradingStrength.step(&mut s, &mut changed, false);
+        }
+        assert_eq!(s.grading_strength, 0.0, "stops at the bottom, rounded to a tenth");
+        assert_eq!(changed.grading_strength, Some(0.0));
+        assert_eq!(PostSetting::GradingStrength.title(), Title::Key("options-grading-strength"));
+    }
 }

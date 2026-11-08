@@ -169,3 +169,68 @@ fn only_a_bounded_number_of_cubes_stay_uploaded() {
     pass.set(&gpu.device, &gpu.queue, Some(&again));
     assert_eq!(pass.resident(), RESIDENT_CUBES);
 }
+
+/// The cost of the pass at 1920 x 1080 from an HDR scene image into an 8-bit output, as wall time per draw of many draws in
+/// one submission (the draws run one after another on the GPU, so this is the GPU's time for one). Prints the numbers; run with
+/// `cargo test --release -p blackbox-gpu-passes cost -- --ignored --nocapture`. Meaningful only on an idle machine.
+#[test]
+#[ignore = "needs a Vulkan GPU; prints timings"]
+fn cost_of_the_pass_at_1080p() {
+    let _lock = serial();
+    let gpu = Gpu::new(wgpu::Backends::VULKAN);
+    let size = wgpu::Extent3d { width: 1920, height: 1080, depth_or_array_layers: 1 };
+    let make = |format, usage| {
+        gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("cost"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage,
+            view_formats: &[],
+        })
+    };
+    let input = make(
+        wgpu::TextureFormat::Rgba16Float,
+        wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+    );
+    let output = make(FORMAT, wgpu::TextureUsages::RENDER_ATTACHMENT);
+    let (input_view, output_view) = (input.create_view(&Default::default()), output.create_view(&Default::default()));
+    let mut pass = ColourCubePass::new(&gpu.device);
+    let cases = [
+        ("one cube of 16", ColourGrade::single(Arc::new(bent(16)), 1.0)),
+        ("one cube of 32", ColourGrade::single(Arc::new(bent(32)), 1.0)),
+        (
+            "two cubes of 16",
+            ColourGrade {
+                from: Arc::new(bent(16)),
+                to: Some(Arc::new(ColourCube::identity(16).unwrap())),
+                mix: 0.4,
+                strength: 1.0,
+            },
+        ),
+    ];
+    const DRAWS: usize = 300;
+    for (name, grade) in cases {
+        pass.set(&gpu.device, &gpu.queue, Some(&grade));
+        let mut encode = |count: usize| {
+            let mut encoder = gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+            for _ in 0..count {
+                pass.encode(
+                    &gpu.device,
+                    &gpu.queue,
+                    &mut encoder,
+                    &ColourCubeIo { input: &input_view, output: &output_view, output_format: FORMAT },
+                );
+            }
+            gpu.queue.submit([encoder.finish()]);
+            gpu.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        };
+        encode(10);
+        let start = std::time::Instant::now();
+        encode(DRAWS);
+        let each = start.elapsed().as_secs_f64() * 1000.0 / DRAWS as f64;
+        println!("colour cube pass, 1920x1080, {name}: {each:.3} ms per draw");
+    }
+}

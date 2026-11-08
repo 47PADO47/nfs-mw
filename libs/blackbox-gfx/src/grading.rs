@@ -71,7 +71,7 @@ impl ColourCube {
 
     /// The bytes as RGBA8 (alpha 255), the layout of the textures a renderer uploads.
     pub fn rgba(&self) -> Vec<u8> {
-        self.rgb.chunks_exact(3).flat_map(|c| [c[0], c[1], c[2], 255]).collect()
+        self.rgb.as_chunks::<3>().0.iter().flat_map(|c| [c[0], c[1], c[2], 255]).collect()
     }
 
     /// The entry at `(x, y, z)` as 0 to 1 floats; the indices are clamped into the cube.
