@@ -59,7 +59,7 @@ impl Entry {
         for layer in self.recipe.layers {
             draw(&mut canvas, layer, pictures).with_context(|| format!("{}: recipe {}", self.name, self.recipe.id))?;
         }
-        for pixel in canvas.pixels.chunks_exact_mut(4) {
+        for pixel in canvas.pixels.as_chunks_mut::<4>().0 {
             for channel in &mut pixel[..3] {
                 *channel = (f32::from(*channel) * self.gain).round().clamp(0.0, 255.0) as u8;
             }
