@@ -8,6 +8,10 @@ prescription exactly; limit 52 degrees, 80 percent of it as the target angle), *
 **[R]** read in this repository's code, **[C]** a choice of this project. **Nothing of this round was compiled or run** (the agent's rule:
 the lead builds once at the end): every test named here is unverified, and the in-game check was not made.
 
+> **Superseded in this game by [ride6-arcade-steering.md](ride6-arcade-steering.md):** the floor of 0.65 (section 4) and the stick's reach (section 6) are now fields of
+> `ArcadeSteering` (`time_scale_speed_floor` 1.0, `stick_reach` 0.9) with a quicker controller and a steady turn of 1.6 g; `choices::TIME_SCALE_SPEED_FLOOR` and
+> `choices::STEER_REACH` are gone. The analysis below still describes the reference game's chain (`ArcadeSteering::REFERENCE`).
+
 ## 1. What the players report, and what was asked
 
 1. Left turns lean in slower than right ones: make them the same.

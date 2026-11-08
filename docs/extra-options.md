@@ -33,6 +33,12 @@ The choice saves as `physics_rate_hz = 60` or `144` in `config.toml` and in alia
 settings. CLI `--physics-rate-hz 60|144` and environment `NFSMW_PHYSICS_RATE_HZ`
 can override it. Multiplayer always uses 60 Hz regardless of the local choice.
 
+Bike steering defaults to **arcade**: a modification made for this game that leans a bike quickly from side to side at any speed and
+holds a full-stick turn at about 1.6 g, so bikes keep to the road's bends ([the spec](specs/ride6-arcade-steering.md)). `reference`
+gives the RIDE 6 behaviour of the bikes' data back. It saves as `bike_steering = "arcade"` or `"reference"` in `config.toml` and in alias
+settings; `NFSMW_BIKE_STEERING` and the console command `set bike_steering reference` override it. It is part of the bike's tyres and
+controller, so it reaches the bike loaded next (pick another bike or restart); there is no menu row.
+
 Traffic off removes ambient civilians immediately and suppresses their automatic spawns.
 It retains police and race opponents and does not rewrite F8 density. Police off ends
 pursuits without awarding an escape and bars patrol/reinforcement spawning.
