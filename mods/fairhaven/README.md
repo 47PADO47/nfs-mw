@@ -19,6 +19,7 @@ The mod's own folder holds a few hundred bytes of text for each unit and nothing
    source = 'D:\Need For Speed Most Wanted 2012'   # the folder with HAWAII/ and SHADERS.BNDL
    enabled = true                                    # false: the world is not offered
    max_texture = 512                                 # the longest side of a picture
+   brightness = 70                                   # percent of the 2012 pictures' colour (20 to 150)
    ```
 
    The same keys work under `[mods.fairhaven]` in the game's config file.
@@ -35,7 +36,8 @@ The mod's own folder holds a few hundred bytes of text for each unit and nothing
 
 ## What the world has, and what it lacks
 
-The ground, roads, buildings and the models placed on them, with their pictures and the collision of the road and the ground, so a
-car or a bike can drive on it. The 2012 shading (lightmaps, reflections, lit windows, the blend of the terrain's layers) is not
-reproduced: each surface is drawn with its diffuse picture under the game's own lighting. No traffic, police, races, props that
-break, trees of the 2012 ground cover, water or minimap yet: see the status in the design page.
+The ground, roads, buildings and the models placed on them (the models that no unit holds are read from the arena bundles), with their
+pictures and the collision of the road and the ground, so a car or a bike can drive on it, and a flat sea past the coast. The 2012
+shading (lightmaps, reflections, lit windows, the blend of the terrain's layers) is not reproduced: each surface is drawn with its
+diffuse picture, at `brightness` percent, under the game's own lighting. No traffic, police, races, props that break, trees of the 2012
+ground cover, moving water or minimap yet (the original HUD's map dial is hidden in a second world): see the status in the design page.
