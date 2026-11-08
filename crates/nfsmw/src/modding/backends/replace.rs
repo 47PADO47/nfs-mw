@@ -143,7 +143,7 @@ impl Bridge {
 
     /// Make the sets the player chose the replacements the world applies. Runs every frame and works only when the choices, or the
     /// sets read for them, changed since the last call. A set that cannot be read is logged and left out; the rest stand.
-    pub(super) fn publish_replacements(&self) {
+    pub(in crate::modding) fn publish_replacements(&self) {
         let (selected, missing) = self.selected_sets();
         if missing {
             let mut state = self.replace.borrow_mut();

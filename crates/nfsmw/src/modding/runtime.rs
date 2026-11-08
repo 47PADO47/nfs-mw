@@ -99,6 +99,11 @@ impl Mods {
         self.bridge.declare_replacements(mods);
     }
 
+    /// Make the replacement sets the saved choices name the replacements in effect now (the frame update does it again when a choice changes).
+    pub fn publish_replacements(&self) {
+        self.bridge.publish_replacements();
+    }
+
     /// Give the mods the install, once its layers are in place (the cop waves are read through it).
     pub fn set_install(&self, dir: &game_install::GameDir) {
         self.bridge.set_install(dir.clone());
