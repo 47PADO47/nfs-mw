@@ -12,6 +12,10 @@ use std::path::Path;
 /// Make `live` hold exactly what `staged` holds: the files of `live` go, the entries of `staged` are moved in.
 pub fn replace_dir(live: &Path, staged: &Path) -> Result<()> {
     clear_contents(live)?;
+    // A run that wrote nothing for this folder leaves it empty.
+    if !staged.is_dir() {
+        return Ok(());
+    }
     move_into(staged, live)
 }
 
@@ -64,6 +68,18 @@ mod tests {
         assert_eq!(fs::read_to_string(live.join("same.bin")).unwrap(), "new");
         assert_eq!(fs::read_to_string(live.join("a/c/new.bin")).unwrap(), "new");
         assert!(!live.join("a/b/old.bin").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_folder_the_run_did_not_write_is_left_empty() {
+        let root = std::env::temp_dir().join(format!("swap-missing-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let live = root.join("live");
+        fs::create_dir_all(live.join("a")).unwrap();
+        fs::write(live.join("a/old.bin"), "old").unwrap();
+        replace_dir(&live, &root.join("missing")).unwrap();
+        assert!(!live.join("a/old.bin").exists());
         let _ = fs::remove_dir_all(&root);
     }
 }
