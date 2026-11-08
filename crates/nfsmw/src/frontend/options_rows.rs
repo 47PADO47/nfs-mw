@@ -2,7 +2,7 @@
 use super::hd_options::HdSetting;
 use super::hud_options::HudSetting;
 use super::rider_options::RiderSetting;
-use super::{LABEL_TRANSMISSION, Row, Setting, Title, gear, row};
+use super::{LABEL_TRANSMISSION, Row, Setting, Title, row};
 use crate::frontend::graphics_options::GraphicsSetting;
 use crate::frontend::input_options::InputSetting;
 use crate::frontend::logic::Category;
@@ -100,7 +100,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                 row(Setting::Metrics, Title::Key("options-performance-overlay")),
             ])
             .collect(),
-        Category::Gameplay => gameplay(gear::rows(crate::garage::rider_gear::loaded().as_deref())),
+        Category::Gameplay => gameplay(),
         Category::Player => vec![
             row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
             row(Setting::Camera, Title::Label(LABEL_CAMERA)),
@@ -134,20 +134,19 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
     }
 }
 
-/// The Gameplay page: its rows, with `gear` (the rider's gear, one row for each part a mod offers items for) after the switch that
-/// turns the gear on.
-pub(super) fn gameplay(gear: Vec<Row>) -> Vec<Row> {
+/// The Gameplay page: its rows. The rider's gear has none: it is bought in a bike's shop (`garage/rider_gear`) or set from the
+/// developer tools; the Rider Gear switch is the only row it keeps.
+pub(super) fn gameplay() -> Vec<Row> {
     let mut rows = vec![
         row(Setting::HudLayout, Title::Key("options-hud-layout")),
         row(Setting::UiStyle, Title::Key("options-hud-style")),
         row(Setting::CustomHudSkin, Title::Key("options-custom-hud-skin")),
         row(Setting::UiTheme, Title::Key("options-hud-theme")),
         row(Setting::SpeedUnits, Title::Key("options-speed-units")),
-        // The rider's rows come early, within a scroll of the top: the gear (when a mod offers it), the three riding styles (one
-        // per class of bike) and the fingers on the levers (`rider_options.rs`).
+        // The rider's rows come early, within a scroll of the top: the gear switch, the three riding styles (one per class of
+        // bike) and the fingers on the levers (`rider_options.rs`).
         row(Setting::RiderGear, Title::Key("options-rider-gear")),
     ];
-    rows.extend(gear);
     rows.extend(RiderSetting::ALL.into_iter().map(|setting| row(Setting::Rider(setting), setting.title())));
     rows.extend([
         row(Setting::ContextMinimap(MinimapContext::FreeRoam), Title::Key("options-free-roam-map-mode")),
