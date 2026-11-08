@@ -44,7 +44,10 @@ fn the_gear_follows_the_switch_in_the_gameplay_page() {
     let at = |setting: Setting| page.iter().position(|row| row.setting == setting).unwrap();
     assert_eq!(at(Setting::Gear(Part::Body)), at(Setting::RiderGear) + 1);
     assert_eq!(at(Setting::Gear(Part::Helmet)), at(Setting::RiderGear) + 2);
-    assert_eq!(at(Setting::Rider(super::rider_options::RiderSetting::ALL[0])), at(Setting::RiderGear) + 3);
+    assert_eq!(
+        at(Setting::Rider(crate::frontend::options::rider_options::RiderSetting::ALL[0])),
+        at(Setting::RiderGear) + 3
+    );
     assert_eq!(gameplay(Vec::new()).len(), page.len() - 2, "without gear the page is as it was");
 }
 
