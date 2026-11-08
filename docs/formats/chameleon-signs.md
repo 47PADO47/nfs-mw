@@ -162,12 +162,24 @@ the pivot to a marker it keeps, the way the files store it); a model with no mar
 |---|---|
 | The install's bundles read | by ranges: the table of each bundle that holds a model (`TRK_UNIT6`, `103`, `110`, `182`, `DISTRICT_1024094`, `GLOBALRESOURCES`) and the blocks of the models and their pictures |
 | Time | about 0.3 s on the install (warm cache) |
-| Written | `SIGNS/MW2012`: `GEOMETRY.BIN` 61 KiB, `TEXTURES.BIN` (at 512 pixels) below; `LIGHTS/MW2012`: `GEOMETRY.BIN` 225 KiB, `TEXTURES.BIN` 41 KiB; two manifests of 1 KiB |
+| Written | `SIGNS/MW2012`: `GEOMETRY.BIN` 61 KiB, `TEXTURES.BIN` 321 KiB (pictures cut to 512 pixels; 811 KiB at the 1,024 limit); `LIGHTS/MW2012`: `GEOMETRY.BIN` 220 KiB, `TEXTURES.BIN` 41 KiB; two manifests of about 1 KiB: **about 645 KiB** |
+| Read from the install | the log line `signs: read ... KiB of ... KiB of the bundles, ... ms` has the figures of an install (the reads are the tables of six bundles and the blocks of 8 models and their pictures) |
+| In the game | `view-world` offscreen at a junction, 12 s, vsync off, `--bench-seconds`: **p50 3.02 ms without the variants, 2.61 ms with them** (p95 41 and 12 ms, the machine was shared with other builds, so the tails are noise); resident set 555.5 MiB without, 568.0 MiB with (**+12 MiB**: the models and 21 pictures in the shared sets). The replaced solids have more triangles than the old ones (an arm about 1,000 against 171 for the old pole), so the cost is the extra geometry of 104 + 99 arms and 340 heads in view range, which the bench does not tell from noise |
 
 ## What was looked at
 
-The screenshots of both games' models side by side and of the world before and after (8 places at least, an intersection with the lamps
-in each state) were taken offscreen with the commands in the mod's README; the places are the placements of the tables above.
+Before and after pictures were taken offscreen, one run for each, in an isolated profile (`BLACKBOX_PROFILE_DIR`) whose config sets
+`[mod_values.nfsmw] option_road_signs_variant` and `option_traffic_lights_variant` to `original` or `mw2012` and `traffic_lights = true`:
+
+```
+nfsmw view-world --at X,Y --height 2 --heading DEG --pitch P --muted --wait-for-load --screenshot out.png --screenshot-delay 3     [--exec "signals force red"]
+```
+
+The camera is put in front of a placement of the tables above (the position and axes of the scenery instance give the heading). 17 places:
+the stop signs A and B (4), speed 45 and 55 (4), do not enter (2), the two no-parking signs (2), the signal heads in each state (red, amber
+and green at one junction, green and amber at two more) and the mast arms (2). In every pair the 2012 model stands where the 2005 one did,
+on its pole's foot and at its height; the lit lamp is on the red lens at the top, the amber one in the middle and the green one at the
+bottom. The shared library is loaded at the start of a world, so a choice made inside a drive shows at the next drive.
 
 ## Open questions
 
