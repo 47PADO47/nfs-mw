@@ -153,6 +153,7 @@ pub fn fields_from(json: &str, level: &Level, gain: f32) -> Vec<Field> {
         }
         let rect = [x0, y0, x1 - x0, y1 - y0];
         // The neutral lamp has no text colour: its lit colour is the brightest texel of the baked lamp.
+        let lit_lamp = raw.channel == "neutral";
         let colour = match raw.channel.as_str() {
             "neutral" => brightest(level, rect),
             _ => raw.colour.unwrap_or([110, 200, 255]),
@@ -160,7 +161,7 @@ pub fn fields_from(json: &str, level: &Level, gain: f32) -> Vec<Field> {
         out.push(Field {
             channel: raw.channel,
             rect,
-            color: crate::grade::lift_colour(colour, if raw.channel == "neutral" { 1.0 } else { gain }),
+            color: crate::grade::lift_colour(colour, if lit_lamp { 1.0 } else { gain }),
             background: median_colour(level, rect),
             align: raw.align.unwrap_or_else(|| "center".to_owned()),
             // A digit of the widget's font is about 0.72 of its size high.
