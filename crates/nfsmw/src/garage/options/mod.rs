@@ -21,6 +21,7 @@ mod change;
 mod groups;
 mod names;
 mod report;
+mod shop;
 #[cfg(test)]
 mod tests;
 
@@ -31,6 +32,7 @@ pub(crate) use build::Inputs;
 pub(crate) use change::{Change, Edit, Shortcut};
 pub(crate) use groups::Group;
 pub(crate) use names::humanize;
+pub(crate) use shop::{ShopSection, has_components};
 
 /// Where a slot's choice is kept.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

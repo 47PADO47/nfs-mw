@@ -13,25 +13,54 @@ replaces). The game reads it with `garage::rider_gear::Catalogue` when a garage 
 and again when the rider loads. A catalogue that does not read, or has nothing in any list, is as if there were none: no page and
 no rider in the garage's backdrop. Nothing names RIDE 6 in the game side; the `ride6-bikes` mod writes the file.
 
-## 2. The categories in the garage [ours]
+## 2. The categories in the shop [ours]
 
-The Visual category of the customization menu of a **bike** (a mod car with `kind = "bike"`) lists, right after Paint and Vinyls,
-one entry for each part that has something to pick: **Rider Body**, **Rider Helmet**, **Rider Suit**, **Rider Gloves**, **Rider
-Boots** (`frontend/garage_ui/choices.rs`, `rider_pages`), each with a helmet icon of its own (`ui/rider_icon.rs`,
-`assets/mods/rider-gear.png`, an original drawing). A car, the backroom and a game without gear list none. Every garage lists them
-for the bike it shows: My Cars (Customize Car, Visual), the world's garage and the shop. Each entry opens a page
-(`Page::Rider { part }`, `gear_page.rs`) built like the plate design page: the game's notice dialog, or a window of nine names in
-a theme with vertical menus.
+The gear is **for sale in a bike's shop and nowhere else**. The Visual category of the customization menu lists, right after Paint and
+Vinyls, one entry for each part that has something to pick: **Rider Body**, **Rider Helmet**, **Rider Suit**, **Rider Gloves**, **Rider
+Boots** (`frontend/garage_ui/choices.rs`, `rider_pages`, `shop_sells_gear`), each with a helmet icon of its own (`ui/rider_icon.rs`,
+`assets/mods/rider-gear.png`, an original drawing). They are listed only when **all** of these hold:
+
+| Condition | Why |
+|---|---|
+| the car on show is a **bike** (a mod car with `kind = "bike"`) | the gear is the rider's; a car has no rider |
+| the player is in a **career shop** (`Model::shop`: a safe house or an auto shop with the career's owned car) | it is a purchase: it needs cash and a save |
+| it is not the **backroom** (Junkman) | the backroom pays with markers, which the gear has none of |
+| the setting `rider_gear` is on and a mod offers a catalogue | section 5 |
+
+So **My Cars** (Customize Car), **the free roam garage** (no owned career car), **a car** and the F6 garage list none. The developer tools
+are the other way to change it (section 5). Each entry opens a page (`Page::Rider { part }`, `gear_page.rs`) built like the plate
+design page: the game's notice dialog, or a window of nine names in a theme with vertical menus.
 
 | Input | Does |
 |---|---|
-| Left, Right (Up, Down in the vertical list) | the previous or next item, wrapping; the rider on the bike shows it at once |
+| Left, Right (Up, Down in the vertical list) | the previous or next item, wrapping; the rider on the bike wears it at once; the text says the price |
 | L, R trigger, mouse wheel | ten at a time, wheel one |
-| Accept | keeps the item and leaves |
-| Back | puts back the item he wore and leaves |
+| Accept | puts the item in the **cart** and leaves |
+| Back | leaves the cart as it was |
 
-The first entry of every list is **Stock**: the rider's own gear (the suit, helmet, visor and boots of `parts.json`). Gear costs
-nothing and is not in the cart; leaving the garage has nothing to discard.
+The first entry of every list is **Stock**: the rider's own gear (the suit, helmet, visor and boots of `parts.json`). It is free and
+always owned.
+
+**It is a shop item.** The cart carries it (`garage::Selection::gear`, a `rider_gear::Choice`; `Row::Gear(part)`), so it appears in the
+shopping cart as `Rider Helmet: <item>`, with the other lines, can be unchecked there, and is part of the total. The checkout charges
+it with the rest and then writes the choice (`rider_gear::purchase`, section 4) after the career's own save has succeeded. Leaving the
+shop without paying (Back out, Leave Garage) discards it: the rider is dressed in what the profile kept.
+
+**Prices and ownership [ours].** Neither the mod's catalogue (`gear.json` has no price) nor the 2005 price table (its entities are car parts)
+has a price for gear, so each part has a **default price** (`garage/rider_gear/price.rs`) that every item of the part costs:
+
+| Part | Price |
+|---|---|
+| Rider Body | 500 |
+| Rider Helmet | 1,500 |
+| Rider Suit | 3,000 |
+| Rider Gloves | 600 |
+| Rider Boots | 900 |
+
+These sit near the first tier of the car shop's visual parts and are the ones to change if the career's economy is retuned. An item is
+bought **once**: the profile owns it (`owned` in the file of section 4), and wearing it again, after another item or the rider's own
+gear, costs nothing. The prices do not go through the career's unlock table (`shop_unlocks`): gear is open from the first visit to a bike's
+shop, and there is no trade-in. The shop refuses gear for a car, with the setting off, and any id the catalogue does not list.
 
 ## 3. Preview
 
@@ -57,7 +86,21 @@ helmet = "HL_AGV_Corsa-R_Mono-Black"
 A part left out wears the rider's own gear; an id the catalogue lacks does too. The file is replaced atomically. The rider of the
 world reads the kept choice (`committed`) when he loads and when the state moved; only the garage's backdrop reads the preview.
 
-## 5. The setting and the options rows
+**One file for the profile, not one for each bike.** `rider_gear::choice::path` is the profile's `rider-gear.toml`; no part of the
+path or of the table names a car. A bike swap (a different bike in the next shop visit, a different slot of My Cars, the free roam
+bike) reads the same choice, and the shop's own selection carries it from one car to the next (`Model::select` keeps
+`Selection::gear`); tests: `the_riders_gear_follows_the_player_not_the_bike` (`garage/menu_slots_tests.rs`) and the round trip of the file
+(`garage/rider_gear/tests.rs`). The car's own record never holds it (`garage/presets.rs` and the career's garage extension leave
+`gear` out), so a saved car is the same with any rider.
+
+What the shop sold is in the same file, the items the player owns (the choice `rider_gear::purchase` writes at the checkout owns every
+item in it; the developer tools' `commit` wears an item without owning it):
+
+```toml
+owned = ["helmet:HL_AGV_Corsa-R_Mono-Black", "suit:SU_Alpinestars_GP-Force_Black"]
+```
+
+## 5. The setting, the developer tools and no options rows
 
 `rider_gear` (Gameplay options, **Rider Gear**; `config.toml` key `rider_gear`, environment `NFSMW_RIDER_GEAR`, console `set rider_gear
 on|off`; on by default) turns the feature off: no gear page, no rider in the garage's backdrop, and the rider of the world wears his
@@ -65,14 +108,15 @@ own gear. It is a game-owned toggle declared in the mod settings table (`modding
 The host pushes it to `rider_gear::set_enabled` each frame with the other settings (`sync_settings`, `Host::new`).
 The `ride6-bikes` mod's own switches: `gear` (the catalogue folder) and `gear_texture` (README of the mod).
 
-**Gameplay options rows [ours].** The gear can be picked without a garage: Options > Gameplay (the main menu's, and the pause menu's
-Options) lists, right after the Rider Gear switch, one row for each part the catalogue has items for (Rider Body, Rider Helmet, Rider
-Suit, Rider Gloves, Rider Boots; `frontend/options_gear.rs`, `Setting::Gear(part)`). The value is the name of the kept item, the
-rider's own gear (Stock) first; Left and Right cycle it, wrapping, and the choice is kept at once as the garage's Accept does
-(`rider_gear::commit`, so a rider in the world dresses again). The rows are dimmed while the switch is off and not listed while no mod
-offers gear. The front end reads the catalogue when it starts (`Frontend::new`) and the page looks again when it opens
-(`rider_gear::rescan`: the catalogue and the profile's file), so a mod that finished converting meanwhile is seen. Nothing previews
-there: the rider is not on screen; the garage's pages are the ones that show him.
+**The Gameplay options have no gear rows.** An earlier round listed one row for each part after the Rider Gear switch (Options >
+Gameplay, in the main menu and the pause menu). They are gone: the gear is bought in a shop, not set in a menu, so the page keeps only
+the **Rider Gear** on/off switch (the toggle of the external content). `Setting::Gear`, `options_gear.rs`, the `options-rider-*` messages
+and `rider_gear::rescan` went with them; the catalogue is read when the world's garage model is made (`scenes/world/garage.rs`).
+
+**The developer tools stay.** The `gear [list|set <part> <choice>|stock]` console command and the **Rider gear** section of the F11
+vehicle panel ([devtools-vehicle.md](../devtools-vehicle.md)) still change the gear in any garage or in the world, without a shop and
+without a price: they write the same choice to the same file (`rider_gear::commit`) and the rider dresses again. They do not mark the
+item owned.
 
 ## 6. How the parts are put together
 

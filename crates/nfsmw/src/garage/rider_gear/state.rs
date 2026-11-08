@@ -2,6 +2,7 @@
 //! the one the garage shows before it is kept. One state for the process, since the rider is drawn by a world and by the garage's
 //! backdrop at once; [`generation`] moves whenever any of it changes, so a reader looks again only then.
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -10,7 +11,7 @@ use anyhow::{Context, Result};
 use game_install::GameDir;
 
 use super::catalogue::{Catalogue, Part};
-use super::choice::{self, Choice};
+use super::choice::{self, Choice, Kept};
 
 static ENABLED: AtomicBool = AtomicBool::new(true);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
@@ -19,17 +20,17 @@ static STATE: Mutex<State> = Mutex::new(State::new());
 struct State {
     /// The choice the profile kept, and the file it was read from.
     persisted: Choice,
+    /// What the profile bought: `part:id` of each item it owns (`choice::owned_key`).
+    owned: BTreeSet<String>,
     loaded_from: Option<PathBuf>,
     /// A choice on show in the garage, not kept.
     preview: Option<Choice>,
     catalogue: Option<Arc<Catalogue>>,
-    /// The install the last [`scan`] read, so [`rescan`] can look again without one at hand (the option screens have none).
-    dir: Option<GameDir>,
 }
 
 impl State {
     const fn new() -> Self {
-        Self { persisted: Choice::STOCK, loaded_from: None, preview: None, catalogue: None, dir: None }
+        Self { persisted: Choice::STOCK, owned: BTreeSet::new(), loaded_from: None, preview: None, catalogue: None }
     }
 }
 
@@ -65,21 +66,10 @@ pub(crate) fn scan(dir: &GameDir) {
     let mut state = lock();
     let changed = state.catalogue.is_some() != found.is_some();
     state.catalogue = found;
-    state.dir = Some(dir.clone());
     drop(state);
     if changed {
         moved();
     }
-}
-
-/// Looks again at what the Gameplay options list when they open: the catalogue, from the install the last [`scan`] read (a mod
-/// that finished converting after the game started is seen; nothing before the first scan), and the profile's file.
-pub(crate) fn rescan() {
-    let dir = lock().dir.clone();
-    if let Some(dir) = dir {
-        scan(&dir);
-    }
-    reload();
 }
 
 /// The catalogue the last [`scan`] found.
@@ -90,20 +80,27 @@ pub(crate) fn catalogue() -> Option<Arc<Catalogue>> {
 /// Reads the profile's file again, when the profile or the file changed.
 pub(crate) fn reload() {
     let path = choice::path();
-    let fresh = path.as_deref().map(choice::read).unwrap_or_default();
+    let fresh = path.as_deref().map(choice::read_kept).unwrap_or_default();
     let mut state = lock();
-    if state.persisted == fresh && state.loaded_from == path {
+    if state.persisted == fresh.choice && state.owned == fresh.owned && state.loaded_from == path {
         return;
     }
-    state.persisted = fresh;
+    state.persisted = fresh.choice;
+    state.owned = fresh.owned;
     state.loaded_from = path;
     drop(state);
     moved();
 }
 
-/// What the profile kept, whether or not the setting is on: the Gameplay options show it.
+/// What the profile kept, whether or not the setting is on: the shop's baseline is what the player wears, not what the rider
+/// wears while the setting is off.
 pub(crate) fn kept() -> Choice {
     lock().persisted.clone()
+}
+
+/// Whether the profile owns the item `id` of `part`: the rider's own gear (the empty id) always, the rest once bought.
+pub(crate) fn owns(part: Part, id: &str) -> bool {
+    id.is_empty() || lock().owned.contains(&choice::owned_key(part, id))
 }
 
 /// What the profile kept, whatever is on show: the rider of a world wears this. The rider's own gear when the setting is off.
@@ -130,16 +127,58 @@ pub(crate) fn set_preview(choice: Option<Choice>) {
 }
 
 /// Keeps `id` for `part` in the profile's file and takes the preview away.
+/// The developer tools' way: nothing is bought, so the item is worn but not owned.
 pub(crate) fn commit(part: Part, id: &str) -> Result<()> {
     let path = choice::path().context("No profile folder for the rider's gear")?;
-    let mut next = choice::read(&path);
-    next.set(part, id);
-    choice::write(&path, &next)?;
+    let mut next = choice::read_kept(&path);
+    next.choice.set(part, id);
+    keep(&path, next)
+}
+
+/// The shop's checkout: keeps the whole `choice` and owns each item of it, so wearing one again costs nothing.
+pub(crate) fn purchase(choice: &Choice) -> Result<()> {
+    let path = choice::path().context("No profile folder for the rider's gear")?;
+    let mut next = choice::read_kept(&path);
+    for part in Part::ALL {
+        let id = choice.get(part);
+        if !id.is_empty() {
+            next.owned.insert(choice::owned_key(part, id));
+        }
+    }
+    next.choice = choice.clone();
+    keep(&path, next)
+}
+
+/// Writes `next` to `path` and makes it the state.
+fn keep(path: &std::path::Path, next: Kept) -> Result<()> {
+    choice::write_kept(path, &next)?;
     let mut state = lock();
-    state.persisted = next;
-    state.loaded_from = Some(path);
+    state.persisted = next.choice;
+    state.owned = next.owned;
+    state.loaded_from = Some(path.to_owned());
     state.preview = None;
     drop(state);
     moved();
+    Ok(())
+}
+
+/// Whether the shop may sell the change from `installed` to `selected`: gear is sold for a bike only, while the setting is on, and
+/// only items the catalogue lists (the rider's own gear, the empty id, always).
+pub(crate) fn validate_change(bike: bool, installed: &Choice, selected: &Choice) -> Result<()> {
+    if installed == selected {
+        return Ok(());
+    }
+    anyhow::ensure!(bike, "Rider gear is sold for a bike only");
+    anyhow::ensure!(enabled(), "Rider gear is switched off");
+    let catalogue = catalogue();
+    for part in Part::ALL {
+        let id = selected.get(part);
+        if id == installed.get(part) || id.is_empty() {
+            continue;
+        }
+        let listed =
+            catalogue.as_ref().is_some_and(|catalogue| catalogue.entries(part).iter().any(|entry| entry.id == id));
+        anyhow::ensure!(listed, "{} {id:?} is not in the catalogue", part.label());
+    }
     Ok(())
 }

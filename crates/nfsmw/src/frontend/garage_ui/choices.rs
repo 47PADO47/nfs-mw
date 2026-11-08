@@ -2,11 +2,14 @@
 
 use super::{Page, Section};
 use crate::garage::{Model, menu_rows::Row};
-use nfsmw_data::car::customization::{Catalog, Category as Part};
+use nfsmw_data::car::customization::Category as Part;
 use nfsmw_data::car::physics::PerformanceCategory as Hardware;
 
 mod availability;
 pub(super) mod decal;
+mod slots;
+mod visual;
+use visual::visual;
 
 pub(super) fn can_enter_backroom(model: &Model) -> bool {
     model.shop
@@ -22,11 +25,13 @@ pub(super) struct Item {
     pub next: Option<Page>,
     pub option: Option<usize>,
     pub row: Option<Row>,
+    /// Why a vehicle's own rules refuse this choice with what the cart holds, in their words (only a vehicle with components has any).
+    pub blocked: Option<String>,
 }
 
 impl Item {
     fn page(label: &str, texture: u32, next: Page, enabled: bool) -> Self {
-        Self { label: label.into(), texture, next: Some(next), option: None, row: None, enabled }
+        Self { label: label.into(), texture, next: Some(next), option: None, row: None, enabled, blocked: None }
     }
 }
 
@@ -39,29 +44,42 @@ pub(super) fn items(page: Page, model: &Model) -> Vec<Item> {
 }
 
 fn build(page: Page, model: &Model) -> Vec<Item> {
+    // A vehicle with components lists its own slots in the Parts and Performance sections (`choices/slots.rs`).
+    if let Page::Categories { section, backroom } = page
+        && let Some(items) = slots::section(section, model, backroom)
+    {
+        return items;
+    }
     match page {
-        Page::Main => [
-            ("Parts", 0x6e0c_a66c, Section::Parts),
-            ("Performance", 0x3987_d054, Section::Performance),
-            ("Visual", 0x3e31_ba56, Section::Visual),
-        ]
-        .into_iter()
-        .filter(|(_, _, section)| match section {
-            Section::Parts => {
-                model.selected().filter(|car| !car.hero).and_then(|car| car.parts.as_ref()).is_some_and(|catalog| {
-                    Part::MODELS.into_iter().any(|part| !catalog.choices[part as usize].is_empty())
-                })
-            }
-            Section::Performance => model
-                .selected()
-                .filter(|car| !car.hero)
-                .is_some_and(|car| car.performance.categories.iter().any(|category| category.max_level > 0)),
-            Section::Visual => true,
-        })
-        .map(|(label, texture, section)| {
-            Item::page(label, texture, Page::Categories { section, backroom: model.backroom }, true)
-        })
-        .collect(),
+        Page::Main => {
+            [
+                ("Parts", 0x6e0c_a66c, Section::Parts),
+                ("Performance", 0x3987_d054, Section::Performance),
+                ("Visual", 0x3e31_ba56, Section::Visual),
+            ]
+            .into_iter()
+            .filter(|(_, _, section)| match section {
+                Section::Parts => match slots::section(Section::Parts, model, model.backroom) {
+                    // A vehicle with components has its Parts when its slots list a choice.
+                    Some(items) => !items.is_empty(),
+                    None => model.selected().filter(|car| !car.hero).and_then(|car| car.parts.as_ref()).is_some_and(
+                        |catalog| Part::MODELS.into_iter().any(|part| !catalog.choices[part as usize].is_empty()),
+                    ),
+                },
+                Section::Performance => match slots::section(Section::Performance, model, model.backroom) {
+                    Some(items) => !items.is_empty(),
+                    None => model
+                        .selected()
+                        .filter(|car| !car.hero)
+                        .is_some_and(|car| car.performance.categories.iter().any(|category| category.max_level > 0)),
+                },
+                Section::Visual => true,
+            })
+            .map(|(label, texture, section)| {
+                Item::page(label, texture, Page::Categories { section, backroom: model.backroom }, true)
+            })
+            .collect()
+        }
         Page::Categories { section: Section::Parts, backroom } => [
             (Part::Body, 0x028c_24f6),
             (Part::Spoiler, 0xbb03_4ea6),
@@ -123,117 +141,25 @@ fn build(page: Page, model: &Model) -> Vec<Item> {
     }
 }
 
-fn visual(model: &Model, backroom: bool) -> Vec<Item> {
-    let mut result = vec![
-        Item::page(
-            "Paint",
-            match backroom {
-                true => 0x0db8_9e17,
-                false => 0xa3b7_6154,
-            },
-            Page::Paint { color: 0, backroom },
-            Row::Color(0).enabled(model),
-        ),
-        Item::page(
-            "Vinyls",
-            match backroom {
-                true => 0xd35f_04c0,
-                false => 0x5577_8e5a,
-            },
-            Page::VinylGroups { backroom },
-            true,
-        ),
-    ];
-    if !backroom {
-        // The rider's gear comes right after Paint and Vinyls: on a bike it is what sets the Visual category apart.
-        result.extend(rider_pages(model));
-        if model
-            .selected()
-            .filter(|car| !car.hero)
-            .and_then(|car| car.parts.as_ref())
-            .is_some_and(|catalog| !catalog.choices[Part::Wheels as usize].is_empty())
-        {
-            result.push(Item::page(
-                "Rim Paint",
-                0xd223_f84a,
-                Page::Paint { color: 1, backroom },
-                Row::Color(1).enabled(model),
-            ));
-        }
-        result.push(Item::page(
-            "Window Tint",
-            0x3f23_165c,
-            Page::Choices { row: Row::Part(Part::WindowTint), backroom },
-            true,
-        ));
-    }
-    result.push(Item::page(
-        "Decals",
-        match backroom {
-            true => 0xa913_5927,
-            false => 0xda1d_ae54,
-        },
-        Page::DecalZones { backroom },
-        true,
-    ));
-    if !backroom {
-        result.push(Item::page("Numbers", 0x45a1_c644, Page::Numbers, Row::Number(0).enabled(model)));
-        result.extend(plate_pages(model.selected().and_then(|car| car.parts.as_deref())));
-    }
-    result.push(Item::page(
-        "Custom Gauges",
-        match backroom {
-            true => 0x8ba6_02fc,
-            false => 0x028f_88bc,
-        },
-        Page::Choices { row: Row::Gauge, backroom },
-        true,
-    ));
-    result
-}
-
-/// The licence plate entries of the Visual category, from the car's catalogue: "License Plate" only for a car whose manifest has
-/// a `[customization.plate]`, and "Plate Design" only when that plate also offers designs. A stock car lists neither. The pages
-/// have no icon of their own: they take the Numbers one.
-fn plate_pages(catalog: Option<&Catalog>) -> Vec<Item> {
-    let Some(catalog) = catalog.filter(|catalog| catalog.plate) else { return Vec::new() };
-    let mut result = vec![Item::page("License Plate", 0x45a1_c644, Page::Plate, true)];
-    if !catalog.plate_designs.is_empty() {
-        result.push(Item::page("Plate Design", 0x45a1_c644, Page::PlateDesign, true));
-    }
-    result
-}
-
-/// The rider's gear entries of the Visual category (`docs/specs/ride6-rider-gear.md`): one page for each part a mod offers
-/// items for, on a bike (a mod car of `kind = "bike"`), while the setting `rider_gear` is on. A car lists none.
-fn rider_pages(model: &Model) -> Vec<Item> {
-    let bike = model.selected().is_some_and(|car| nfsmw_data::car::mods::bike::is_bike(&car.folder));
-    gear_pages(bike && crate::garage::rider_gear::enabled(), crate::garage::rider_gear::loaded().as_deref())
-}
-
-/// The pages for `catalogue`, when `offered`: the parts with something to choose from, each with the helmet icon.
-fn gear_pages(offered: bool, catalogue: Option<&crate::garage::rider_gear::Catalogue>) -> Vec<Item> {
-    let Some(catalogue) = catalogue.filter(|_| offered) else { return Vec::new() };
-    crate::garage::rider_gear::Part::ALL
-        .into_iter()
-        .filter(|part| catalogue.entries(*part).len() > 1)
-        .map(|part| Item::page(part.label(), crate::ui::rider_icon::TEXTURE, Page::Rider { part }, true))
-        .collect()
-}
-
 fn options(row: Row, model: &Model) -> Vec<Item> {
     let (labels, _) = row.options(model);
+    let (enabled, mut refused) = (row.enabled(model), crate::garage::menu_slots::blocked_all(model, row));
     let mut result: Vec<_> = labels
         .into_iter()
         .enumerate()
         .filter(|(index, _)| !matches!(row, Row::Performance(_) | Row::Junkman(_)) || *index > 0)
-        .map(|(index, label)| Item {
-            label,
-            texture: texture(row, model, index),
-            enabled: row.enabled(model),
-            next: None,
-            option: Some(index),
-            row: Some(row),
+        .map(|(index, label)| {
+            // A choice the vehicle's own rules refuse with what the cart holds cannot be picked, and says why.
+            let blocked = refused.get_mut(index).and_then(Option::take);
+            Item {
+                label,
+                texture: texture(row, model, index),
+                enabled: enabled && blocked.is_none(),
+                next: None,
+                option: Some(index),
+                row: Some(row),
+                blocked,
+            }
         })
         .collect();
     if let Row::Performance(category) = row {
@@ -255,6 +181,7 @@ fn options(row: Row, model: &Model) -> Vec<Item> {
                 next: None,
                 option: Some(1),
                 row: Some(Row::Junkman(category)),
+                blocked: None,
             });
         }
     }
@@ -409,6 +336,7 @@ fn vinyl_groups(model: &Model, backroom: bool) -> Vec<Item> {
         next: None,
         option: Some(0),
         row: None,
+        blocked: None,
     }];
     let Some(catalog) = model.selected().and_then(|car| car.parts.as_ref()) else { return result };
     let mut groups: Vec<u8> = catalog.choices[Part::Vinyl as usize]
@@ -465,3 +393,6 @@ mod plate_tests;
 #[cfg(test)]
 #[path = "choices/rider_tests.rs"]
 mod rider_tests;
+#[cfg(test)]
+#[path = "choices/slots_tests.rs"]
+mod slots_tests;

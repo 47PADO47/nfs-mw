@@ -28,12 +28,12 @@ There is one reader (`garage/options/build.rs`) and one writer (`change.rs`), so
 |---|---|---|
 | A model category | the hash of the choice in `customization::Selection::parts` (a component choice is the hash of the car and the component, `select::choice_hash`) | with the garage's own selection (`my-cars.toml`, the save) |
 | A performance level | `PerformancePackage::levels` | with the save, as for every car |
-| **The session** (new) | `customization::Selection::slots`: slot id to component id, the empty id meaning "emptied on purpose", for a component slot **no category or level holds** | not saved: the original save and `my-cars.toml` hold hashes only |
+| **A component slot no category holds** | `customization::Selection::slots`: slot id to component id, the empty id meaning "emptied on purpose" | **saved with the car** since the shop reads the same model: in `my-cars.toml` and the career's `garage.toml` extension (`garage/presets.rs`, the `slots` table); the original save holds hashes only |
 
 The third store is what lets *any* slot of a vehicle's components be changed, not only the seven the garage knows: a mod that adds a
 `mirrors` slot to a bike gets it in the panel and the console with no change to the game, and `select::picks` (which resolves the
 components the car draws) reads it, so the part appears or goes at once. A slot's `param` effects reach the physics only for the
-slots the garage keeps (the performance ladders): a session slot changes what is drawn.
+slots the garage keeps (the performance ladders) **in the tools' own edits**; a component fitted in the shop, in whichever slot, reaches the physics (`PhysicsData::car_with_customization`, [bike upgrades](modding/ride6-bike-upgrades.md#in-the-shop)).
 
 A change is **checked** before it is applied: the vehicle's rules (a component that needs another slot's tier, an empty slot that
 cannot be empty) and the catalogue's (rim paint needs aftermarket rims; fitting other rims takes the rim paint off) are run on the
@@ -127,7 +127,7 @@ What the importer writes (the lights are still not offered):
   ```
 
   with `r6:road.on` a component whose `part` effect shows `mirrors` and `homologation`. Nothing else changes: `vehicle group road off` and
-  the panel's checkbox then take the road equipment off and on. (The slot's id has no garage category, so it is kept for the session.)
+  the panel's checkbox then take the road equipment off and on. (The slot's id has no garage category, so it is kept in `Selection::slots`, which the shop saves with the car.)
 - The lights are a preset of the RIDE 6 vehicle, not a mesh; they would need their own component with a `behaviour` effect the game maps
   to the lamp setup. Not done.
 
@@ -136,15 +136,17 @@ The same mechanism was checked with a real bike's own data by writing an optiona
 
 ## The rider's gear
 
-The rider's helmet, suit, gloves, boots and body are the garage's Visual pages (`garage/rider_gear`,
+The rider's helmet, suit, gloves, boots and body are sold on a bike shop's Visual pages (`garage/rider_gear`,
 [ride6-rider-gear.md](specs/ride6-rider-gear.md)): a mod lists them in `RIDER/GEAR/gear.json`. The tools change the same thing the same way:
 `gear list` prints each part's numbered entries (1 is the rider's own gear, as in `--part rider-helmet=N`) with the worn one starred,
 `gear set helmet 3` (or an id, or a part of a name, or `stock`) wears it, `gear stock` takes it all off. A choice is **kept in the
-profile's `rider-gear.toml`** (`rider-gear-guest.toml` for the guest) exactly like a choice made in the garage, and the rider in the
+profile's `rider-gear.toml`** (`rider-gear-guest.toml` for the guest) exactly like a choice bought in a bike's shop, and the rider in the
 world reads it at once (the rider's gear generation moves). The panel's **Rider gear** section has a stepper for each part with something
 to choose and a *Rider's own gear* button. Gear is the player's, not the bike's: it can be set with any vehicle on show and is worn on the
-next bike. The `rider_gear` setting off keeps the choice and shows the rider's own gear (the commands say so). The catalogue is read when a bike's
-rider loads or the garage opens; before that `gear list` says no gear is available.
+next bike. **These tools are one of the two places that change the gear** (the other is a bike's career shop, where it is bought: [spec](specs/ride6-rider-gear.md));
+there are no gear rows in the Gameplay options. The tools charge nothing and do not mark an item as owned.
+The `rider_gear` setting off keeps the choice and shows the rider's own gear (the commands say so). The catalogue is read when a
+bike's rider loads or the garage opens; before that `gear list` says no gear is available.
 
 ## The controller
 
@@ -209,7 +211,9 @@ closing, focus), `devtools/pad_nav/tests.rs` (the navigation), `devtools/console
 
 ## Limits
 
-- A session slot is not saved, and its `param` effects do not reach the physics (only the garage's performance ladders do).
+- A component slot no category holds (`Selection::slots`) is saved with the car by the shop and My Cars (`presets`), and the physics of a car
+  with components read its `param` effects whenever the selection reaches the world (a shop purchase, a My Cars car, and the panel's own
+  edits, which go through the same `apply_garage_selection`); the car viewer only dresses the model.
 - The panel does not buy: it is a developer tool, like F6, and never touches the career's cash, markers or car records.
 - The pages a vehicle's data builds work in the car viewer; the hosted ones (tuning, setups, vinyl colours, rim colour, gauges, plate) need
   the world's garage model. The console's `vehicle` commands cover the slots, the groups, the colour, the finishes and the performance

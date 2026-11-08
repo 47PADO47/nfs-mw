@@ -46,8 +46,6 @@ pub enum Setting {
     CustomFonts,
     TurnSignals,
     RiderGear,
-    /// One part of the rider's gear, picked among a mod's items (`options_gear.rs`): its value is the profile's, not a setting.
-    Gear(crate::garage::rider_gear::Part),
     CopHealthBars,
     RearViewMirror,
     Autosave,
@@ -174,8 +172,6 @@ pub(super) mod autosave;
 pub use sections::{page, rows};
 #[path = "options_caps.rs"]
 mod caps_rows;
-#[path = "options_gear.rs"]
-mod gear;
 #[path = "hd_options.rs"]
 mod hd_options;
 #[path = "hud_options.rs"]
@@ -256,8 +252,6 @@ impl Setting {
             Setting::DiscordTimePlayed | Setting::DiscordJoin => s.discord,
             // The kinds of game moment are dimmed while the Game Moment Camera is off.
             Setting::GameMoment(_) => s.game_moments.camera,
-            // The gear is dimmed while the switch is off: the rider wears his own gear then.
-            Setting::Gear(_) => s.rider_gear,
             Setting::CustomHud(setting) => setting.enabled(s),
             Setting::RenderScale => matches!(s.upscaler, UpscaleMode::Bilinear | UpscaleMode::Fsr1),
             // The upscalers that sharpen: FSR 1 (its RCAS pass) and FSR 3 (the RCAS of its own pipeline).
@@ -303,7 +297,6 @@ impl Setting {
                 super::custom_race::options::step(row, forward);
                 return true;
             }
-            Setting::Gear(part) => return gear::step(part, forward),
             Setting::Input(setting) => return setting.step(s, changed, forward),
             Setting::Post(setting) => return setting.step(s, changed, forward),
             Setting::Graphics(setting) => return setting.step(s, changed, forward),

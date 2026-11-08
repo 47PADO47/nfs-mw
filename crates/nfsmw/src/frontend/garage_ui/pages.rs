@@ -212,6 +212,16 @@ impl Page {
         }
     }
 
+    /// The title of a page that lists the choices of one of a vehicle's component slots: the slot's own name (`Exhaust`, `Brake
+    /// discs`), not the original category's (`Spoilers`, `Body Kits`). `None` for every other page and every car of the original game.
+    pub(super) fn component_title(self, model: &Model) -> Option<String> {
+        let Self::Choices { row, .. } = self else { return None };
+        match row {
+            Row::Part(_) | Row::Performance(_) | Row::Slot(_) => crate::garage::menu_slots::label(model, row),
+            _ => None,
+        }
+    }
+
     /// Installed language labels for the original category captions.
     pub(super) fn title_label(self, model: &Model) -> Option<u32> {
         use nfsmw_data::car::physics::PerformanceCategory as Hardware;
@@ -290,7 +300,7 @@ impl Page {
             Self::Vinyls { group: 6, .. } => "customize_customizeparts_1032",
             Self::Vinyls { group: 7, .. } => "customize_customizeparts_1033",
             Self::RimBrands { .. } => "customize_customizegenerictop_259",
-            Self::Rims { .. } => "customize_rims",
+            Self::Rims { .. } | Self::Choices { row: Row::Part(Part::Wheels), .. } => "customize_rims",
             Self::Paint { color: 0, .. } => "customize_paint_769",
             Self::Paint { color: 1, .. } => "customize_paint_771",
             Self::Paint { .. } => "customize_paint_770",

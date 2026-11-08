@@ -1,3 +1,4 @@
+use super::visual::gear_pages;
 use super::*;
 use crate::garage::rider_gear::{Catalogue, Part};
 

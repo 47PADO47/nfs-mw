@@ -111,8 +111,10 @@ pub struct Selection {
     pub plate_design: Option<String>,
     /// The components picked in the slots of a mod car's own components (ADR 0014) that the model categories above have no place
     /// for: the slot id to the component id, the empty id meaning the slot is emptied on purpose. A slot the garage has a category
-    /// for (`mods::components::select::category_of` and `performance_of`) never appears here. Kept for the session by the developer
-    /// tools (`vehicle set`): the original save and `my-cars.toml` hold hashes only.
+    /// for (`mods::components::select::category_of` and `performance_of`) never appears here. Bought in the shop and set by the
+    /// developer tools (`vehicle set`); kept with the car in `my-cars.toml` and the career's garage extension (`garage/presets`),
+    /// since the original save holds hashes only. Its components' number modifiers reach the physics
+    /// (`PhysicsData::car_with_customization`).
     pub slots: std::collections::BTreeMap<String, String>,
 }
 

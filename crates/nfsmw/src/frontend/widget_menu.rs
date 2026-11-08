@@ -300,8 +300,6 @@ impl ScreenLogic for WidgetMenu {
         self.rows = match self.args.category {
             super::logic::Category::Mods => mod_options::rows(cx.mods),
             super::logic::Category::Gameplay => {
-                // The rider's gear a mod offers and the profile's choice, as of now: the page lists one row for each part.
-                crate::garage::rider_gear::rescan();
                 options::page(super::logic::Category::Gameplay, &cx.caps, mod_options::gameplay_rows(cx.mods))
             }
             category => options::page(category, &cx.caps, Vec::new()),

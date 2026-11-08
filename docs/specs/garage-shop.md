@@ -1,5 +1,9 @@
 # Garage shopping and customization records
 
+This page is the **original game's** shop. A vehicle that has components (a RIDE 6 bike) is listed, priced, refused and saved from
+its own slots, and a bike's rider gear is a cart line of its own: [garage-shop-components.md](garage-shop-components.md). A car of the
+original game behaves exactly as described here.
+
 ## Sources and evidence
 
 **[decomp]** Read-only behavioral reference:

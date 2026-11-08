@@ -62,6 +62,15 @@ race teams' table, `BikePhysicDataTable`, gives per-level fractions such as 0, 0
 the 0 to 1 reading). The `AdaptiveMultiplier` formula is an **inference** from the two ranges and the interval the rows carry.
 A component is defined once by its multiplier (`r6:engine.l2.10666`), so bikes with the same number share it.
 
+### In the shop
+
+The shop's screens read the same slots ([specs/garage-shop-components.md](../specs/garage-shop-components.md)): a bike's Parts section lists
+**its** slots by name (`Exhaust`, `Rims`, `Brake discs`, `Bar pad`, any slot a mod adds), its Performance section the ladders it has
+(`Engine`, `Chassis`, `Brakes`), an empty slot is not listed, a component's `price` and `when` rules are the data's (a choice a rule refuses is
+dimmed and says why), and a bike's rims are one list of its own rims. A car keeps the 2005 categories. A pick in a slot **no garage category
+holds** is saved with the car (`my-cars.toml`, the career's garage extension) and every fitted component's `param` effects reach the
+bike's physics, not only the three ladders'.
+
 The developer tools read the same slots: the F11 vehicle panel and the `vehicle` console command list a bike's slots by their own names and
 groups (`looks`, `performance`), with the components' names, prices and rules, and change them live in the world and in the car viewer; a
 slot the garage has no category for is kept for the session ([devtools-vehicle.md](../devtools-vehicle.md)).
