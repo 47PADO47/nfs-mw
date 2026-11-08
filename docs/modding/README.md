@@ -28,6 +28,7 @@ when the module is new.
 | [api-settings.md](api-settings.md) | Settings (`bb.settings`): add an option to the gameplay settings or values to the game's own, the merge rules, when a list is hidden |
 | [api-replace.md](api-replace.md) | Replace or add models and textures of the world by sets (`replace/<id>.toml`, `bb.content` 1.2): kinds and their options, fits, textures, conflicts, how to add a kind; world patches |
 | [effect-variants.md](effect-variants.md) | The "<kind> variant" options (nitrous, tire smoke, collision sparks, restored sparks): how a mod adds a value, `<KIND>/<ID>/profile.toml`, the tire smoke profile, and a checklist for adding a kind |
+| [effect-variants-marks-rain.md](effect-variants-marks-rain.md) | The skid mark, rain splash and wet road variants (`SKIDMARKS/`, `RAINSPLASH/`, `WETROAD/` profiles) and the rain drops as a replacement set of the lens picture; the 2012 mod's values and what they are made from |
 | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) | The collision spark and restored (Xenon) spark variants: `SPARKS/<ID>/` and `XENON/<ID>/` profiles, the strength gates of impacts and scrapes, what the game keeps of its own (the restored variant is the sparks only: no contrail, no streaks) |
 | [nitrous-variants.md](nitrous-variants.md) | The "Nitrous variant" option, a variant's `profile.toml` (sounds, flame tint, screen effects) and how a mod adds one |
 | [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |

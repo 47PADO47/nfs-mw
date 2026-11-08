@@ -56,3 +56,11 @@ Materials > Road reflection resolution improves image detail and geometry covera
 Enhanced resolutions retain smaller reflected objects and cull the reflected mesh
 rather than its main-view source box. Original resolution keeps the original
 visibility thresholds. Existing capture filtering is unchanged.
+
+## Variants
+
+Three options in the gameplay settings let a mod change the rain (all hidden until a mod adds a value, [effect-variants-marks-rain.md](modding/effect-variants-marks-rain.md)):
+**Rain splash variant** (splashes on the road around the player while it rains, which the game's own rain does not make), **Wet road variant**
+(how strongly and how fast the road wets and dries) and **Rain drops variant** (the picture of the drops on the lens, a replacement of
+`RAINDROPPC`). `nfsmw-2012-content` adds **NFS Most Wanted 2012** to each, made from the 2012 game's water pictures: the 2012 game has no
+rain ([chameleon-rain-water.md](formats/chameleon-rain-water.md)).
