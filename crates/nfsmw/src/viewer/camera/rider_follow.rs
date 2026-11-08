@@ -186,7 +186,7 @@ impl RiderCam {
                 smooth.step(point, FOLLOW_OMEGA, FOLLOW_MAX_ACCEL, dt);
                 *smooth
             }
-            None => *self.smooth.insert(Damped::at(point)),
+            None => *self.smooth.insert(Damped::moving(point, bike.velocity)),
         };
         let point = smooth.position();
         self.velocity = smooth.velocity();

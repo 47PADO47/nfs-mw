@@ -105,6 +105,21 @@ fn the_pelvis_of_a_shaking_ragdoll_does_not_shake_the_followed_point() {
 }
 
 #[test]
+fn a_rider_thrown_from_a_fast_bike_is_followed_from_the_first_step() {
+    // He leaves at the bike's 25 m/s: the point starts with that velocity instead of sagging behind him while it picks it up.
+    let mut cam = RiderCam::default();
+    let fast = Bike { velocity: Vec3::new(25.0, 0.0, 0.0), ..bike(0.0) };
+    let mut at = Vec3::new(0.0, 0.0, 1.0);
+    let mut worst = 0.0_f32;
+    for _ in 0..30 {
+        at.x += 25.0 * DT;
+        cam.step(Phase::Fallen, Some(at), fast, DT);
+        worst = worst.max(at.x - cam.focus_at(1.0).unwrap_or(at).x);
+    }
+    assert!(worst < 2.0 * 25.0 / FOLLOW_OMEGA + 0.15, "{worst} m behind him: no more than the steady lag");
+}
+
+#[test]
 fn the_point_never_accelerates_beyond_the_cap_and_never_leaves_the_path_by_more_than_the_lag() {
     let path = slide(25.0, 0.0, 4.0);
     let speeds: Vec<Vec3> = path.iter().map(|&(p, _)| p).collect();

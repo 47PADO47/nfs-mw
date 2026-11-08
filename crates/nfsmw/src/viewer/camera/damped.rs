@@ -21,6 +21,11 @@ impl Damped {
         Self { position, velocity: Vec3::ZERO }
     }
 
+    /// A point at `position` already moving at `velocity`: a rider thrown at 25 m/s is followed from the first step, not from rest.
+    pub fn moving(position: Vec3, velocity: Vec3) -> Self {
+        Self { position, velocity: if velocity.is_finite() { velocity } else { Vec3::ZERO } }
+    }
+
     pub fn position(&self) -> Vec3 {
         self.position
     }
@@ -132,6 +137,23 @@ mod tests {
             }
             assert!((point.position() - Vec3::new(4.0, 2.0, 1.0)).length() < 1e-2, "dt {dt}: {}", point.position());
         }
+    }
+
+    #[test]
+    fn a_point_that_starts_moving_with_its_target_does_not_sag_behind_it() {
+        let (mut rest, mut moving) = (Damped::at(Vec3::ZERO), Damped::moving(Vec3::ZERO, Vec3::new(25.0, 0.0, 0.0)));
+        let mut target = Vec3::ZERO;
+        let mut lags = (0.0_f32, 0.0_f32);
+        for _ in 0..3 {
+            target.x += 25.0 * DT;
+            rest.step(target, OMEGA, 300.0, DT);
+            moving.step(target, OMEGA, 300.0, DT);
+            lags = (target.x - rest.position().x, target.x - moving.position().x);
+        }
+        // Three steps in: the one that started at the target's speed has hardly fallen behind, the one from rest has lost most of a metre.
+        assert!(lags.1 < 0.6, "{} m behind", lags.1);
+        assert!(lags.0 > lags.1 + 0.3, "from rest it falls further behind at first: {} against {}", lags.0, lags.1);
+        assert_eq!(Damped::moving(Vec3::ONE, Vec3::NAN).velocity(), Vec3::ZERO);
     }
 
     #[test]
