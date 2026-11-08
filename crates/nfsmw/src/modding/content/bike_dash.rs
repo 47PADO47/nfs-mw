@@ -31,6 +31,7 @@ pub(super) fn publish(folder: &str, table: &Table) {
                 BikeDashAlign::Center => Align::Center,
                 BikeDashAlign::Right => Align::Right,
             },
+            height: field.height,
             segments: field.segments,
         })
         .collect();

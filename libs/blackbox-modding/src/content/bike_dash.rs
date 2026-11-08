@@ -65,6 +65,9 @@ pub struct Field {
     pub background: [u8; 3],
     #[serde(default)]
     pub align: Align,
+    /// The height of a digit in texels (the cluster's font size); 0: as high as the rectangle allows.
+    #[serde(default)]
+    pub height: u32,
     /// A bar's segments (1: a continuous bar).
     #[serde(default = "one")]
     pub segments: u32,

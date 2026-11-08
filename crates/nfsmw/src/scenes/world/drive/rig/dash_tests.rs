@@ -69,7 +69,15 @@ fn field(
     rect: [u32; 4],
 ) -> nfsmw_data::car::mods::bike_dash::Field {
     use nfsmw_data::car::mods::bike_dash::{Align, Field};
-    Field { channel, rect, color: [0, 255, 112], background: [20, 30, 40], align: Align::Center, segments: 1 }
+    Field {
+        channel,
+        rect,
+        color: [0, 255, 112],
+        background: [20, 30, 40],
+        align: Align::Center,
+        height: 0,
+        segments: 1,
+    }
 }
 
 #[test]

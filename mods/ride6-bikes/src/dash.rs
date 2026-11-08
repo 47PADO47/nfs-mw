@@ -73,6 +73,9 @@ pub struct Field {
     pub color: [u8; 3],
     pub background: [u8; 3],
     pub align: String,
+    /// The height of a digit in texels of the stored texture (the widget's font size scaled); 0: unknown.
+    #[serde(default)]
+    pub height: u32,
     pub segments: u32,
 }
 
@@ -84,6 +87,8 @@ struct RawField {
     colour: Option<[u8; 3]>,
     #[serde(default)]
     align: Option<String>,
+    #[serde(default)]
+    px: Option<f32>,
     #[serde(default)]
     segments: Option<u32>,
 }
@@ -118,6 +123,11 @@ pub fn fields_from(json: &str, level: &Level, gain: f32) -> Vec<Field> {
     let scale = level.width as f32 / layout.canvas.max(1.0);
     let mut out = Vec::new();
     for raw in layout.fields {
+        // The rev bar is not drawn: the baked picture's bar or scale is a picture with its own shape (a numbered arc on some clusters), which
+        // a flat slab would cover; the baked one stays.
+        if raw.channel == "rpm_bar" {
+            continue;
+        }
         let [x, y, w, h] = raw.rect.map(|v| v * scale);
         let (x0, y0) = (x.max(0.0).floor() as u32, y.max(0.0).floor() as u32);
         let (x1, y1) =
@@ -133,6 +143,8 @@ pub fn fields_from(json: &str, level: &Level, gain: f32) -> Vec<Field> {
             color: crate::grade::lift_colour(colour, gain),
             background: median_colour(level, rect),
             align: raw.align.unwrap_or_else(|| "center".to_owned()),
+            // A digit of the widget's font is about 0.72 of its size high.
+            height: raw.px.map_or(0, |px| (px * scale * 0.72).round() as u32),
             segments: raw.segments.unwrap_or(1),
         });
     }
@@ -165,12 +177,14 @@ rect = [{x}, {y}, {w}, {h}]
 color = {}
 background = {}
 align = \"{}\"
+height = {}
 segments = {}
 ",
                 field.channel,
                 colour(field.color),
                 colour(field.background),
                 field.align,
+                field.height,
                 field.segments
             ));
         }
@@ -429,15 +443,15 @@ background = ["
             }
         }
         let json = r#"{"canvas": 200, "fields": [
-            {"channel": "speed", "rect": [60.0, 60.0, 60.0, 40.0], "colour": [100, 200, 50], "align": "right"},
+            {"channel": "speed", "rect": [60.0, 60.0, 60.0, 40.0], "colour": [100, 200, 50], "align": "right", "px": 40.0},
             {"channel": "rpm_bar", "rect": [0.0, 0.0, 100.0, 20.0], "segments": 3},
             {"channel": "gear", "rect": [10.0, 10.0, 2.0, 2.0]}]}"#;
         let fields = fields_from(json, &level, 1.0);
-        assert_eq!(fields.len(), 2, "the two texel rectangle is left out");
+        assert_eq!(fields.len(), 1, "the bar is not drawn and the two texel rectangle is left out");
         assert_eq!((fields[0].channel.as_str(), fields[0].rect), ("speed", [30, 30, 30, 20]));
         assert_eq!((fields[0].color, fields[0].align.as_str()), ([100, 200, 50], "right"));
         assert_eq!(fields[0].background, [40, 50, 60], "the glyph is voted out");
-        assert_eq!((fields[1].channel.as_str(), fields[1].segments, fields[1].rect), ("rpm_bar", 3, [0, 0, 50, 10]));
+        assert_eq!(fields[0].height, 14, "a digit of the 40 px font at half the size");
         assert!(fields_from("not json", &level, 1.0).is_empty());
         let mut screen =
             Screen::new("CAR_G_D", Window { x: 0, y: 0, width: 50, height: 50 }, (100, 100), (100, 100), 1.0);

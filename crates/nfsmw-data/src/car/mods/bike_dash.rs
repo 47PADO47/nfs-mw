@@ -40,6 +40,8 @@ pub struct Field {
     pub color: [u8; 3],
     pub background: [u8; 3],
     pub align: Align,
+    /// The height of a digit in texels; 0: as high as the rectangle allows.
+    pub height: u32,
     pub segments: u32,
 }
 

@@ -47,8 +47,7 @@ color = [..]  background = [..]  align = "right"  segments = 1
 ## The painter [M]
 
 **With fields** the host erases each rectangle with its background and draws the value in it, scaled to the rectangle (the 5 by 7 dot font, the field's colour and justification): the
-speed in whole km/h, the gear (`N` when the bike stands still (under 0.5 m/s): a bike has no neutral, so standing still is shown as `N`; `R`; else its number), the revs as the
-lit part of the bar from the left (in its segments). Only those rectangles are uploaded. The glyphs of RIDE 6's fonts are not reproduced (the dot font is the host's), the position,
+speed in whole km/h, the gear (`N` when the bike stands still (under 0.5 m/s): a bike has no neutral, so standing still is shown as `N`; `R`; else its number), Only those rectangles are uploaded. The glyphs of RIDE 6's fonts are not reproduced (the dot font is the host's), the position,
 size and colour are the cluster's. **Without fields** it is the generic panel below.
 
 The generic panel is the idle panel of `mods/ride6-bikes/src/dash.rs` with live values: a 24 segment rev bar along the top (the share of the engine's `MAX_RPM`), the gear on the
@@ -78,3 +77,5 @@ and the KTM 450's pictures have none that `find_window` accepts, so they keep th
 - The odometer, the clock, the units setting (the speed is km/h) and a night colour.
 - A row in the gameplay options: `live_dash` is a config key and a console setting.
 - The garage and the car viewer (`view-car`) show the baked picture; the feed runs in the world scene for the lead player's bike.
+
+**The rev bar is not drawn** (`rpm_bar` fields are left out by the importer): a cluster's bar or scale is a picture with its own shape (the Panigale's is a numbered arc along the top of the display), and a flat slab hid it. The baked one stays at idle revs; drawing it live needs the bar widget's mask rendered at the current fill.

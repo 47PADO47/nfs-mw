@@ -35,7 +35,12 @@ pub(super) fn paint_field(field: &Field, state: &DashState) -> Vec<u8> {
 fn text(canvas: &mut Canvas, field: &Field, text: &str) {
     let (width, height) = (canvas.width, canvas.height);
     let glyphs = text.chars().count().max(1) as u32;
-    let unit = (height * 9 / 10 / 7).min(width / (6 * glyphs - 1).max(1)).max(1);
+    // As high as the cluster's own font (the field's `height`), else as high as the rectangle allows; never wider than the rectangle.
+    let high = match field.height {
+        0 => height * 9 / 10,
+        own => own.min(height),
+    };
+    let unit = (high / 7).min(width / (6 * glyphs - 1).max(1)).max(1);
     let used = text_width(unit, text);
     let x = match field.align {
         Align::Left => 0,
