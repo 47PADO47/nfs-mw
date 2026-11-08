@@ -9,6 +9,21 @@
 
 use glam::Vec3;
 
+use super::damped::Damped;
+
+/// How tightly the followed point holds to the rider's pelvis (1/s, a critically damped spring): it lags a steady 20 m/s by 1.1 m and
+/// takes out what moves faster than about 5 Hz, which is the shake of a ragdoll's pelvis (`docs/specs/ride6-feel-round14.md`, section 1).
+/// A modelling choice, picked in offscreen runs: 20 let him run away from the picture, 60 kept half of the noise.
+pub const FOLLOW_OMEGA: f32 = 35.0;
+/// The most the followed point accelerates (m/s^2): a body falling freely does 9.8, a hard landing a few hundred for a step.
+pub const FOLLOW_MAX_ACCEL: f32 = 300.0;
+/// The fastest the heading the camera sits behind turns (rad/s).
+pub const HEADING_MAX_RATE: f32 = 5.0;
+/// How far above the ground the followed point is kept (m) when the ground is just above it (a pelvis that sank into the road), and the
+/// most the point is lifted for that: a point further under the ground than this is under the map, which the host's guard deals with.
+pub const GROUND_CLEARANCE_M: f32 = 0.25;
+pub const MAX_LIFT_M: f32 = 1.5;
+
 /// How long the camera takes to move its attention from the bike to the rider (s). A modelling choice: the rider leaves the
 /// bike at its place, so the shot only has to follow him as he flies off; a third of a second keeps the fall's start in view.
 pub const TO_RIDER_S: f32 = 0.35;
@@ -85,6 +100,9 @@ pub struct RiderCam {
     focus: Option<Vec3>,
     /// The focus of the step before, for the frame's blend between two steps.
     before: Option<Vec3>,
+    /// The spring that follows his pelvis, and the height of the ground under it (render space) the host last said.
+    smooth: Option<Damped>,
+    floor: Option<f32>,
     offset: Vec3,
     velocity: Vec3,
     /// The camera was cut to the bike (a placement): it keeps to the bike until the rider is on it again.
@@ -98,6 +116,23 @@ pub fn blend_angle(from: f32, to: f32, share: f32) -> f32 {
     let tau = std::f32::consts::TAU;
     let gap = (to - from + std::f32::consts::PI).rem_euclid(tau) - std::f32::consts::PI;
     from + gap * share
+}
+
+/// The angle `from` turned towards `to` the short way by at most `step` radians.
+fn turn_towards(from: f32, to: f32, step: f32) -> f32 {
+    let gap = (to - from + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    from + gap.clamp(-step, step)
+}
+
+/// `point` held above the ground: when the ground (render height `floor`) is above it by up to [`MAX_LIFT_M`], the point is raised to
+/// [`GROUND_CLEARANCE_M`] over it. A point that is above the ground, has no ground known or is far under it is returned as it is.
+pub fn above_ground(point: Vec3, floor: Option<f32>) -> Vec3 {
+    let Some(floor) = floor.filter(|floor| floor.is_finite()) else { return point };
+    let lift = floor + GROUND_CLEARANCE_M - point.z;
+    match lift > 0.0 && lift <= MAX_LIFT_M + GROUND_CLEARANCE_M {
+        true => Vec3::new(point.x, point.y, point.z + lift),
+        false => point,
+    }
 }
 
 fn smooth(x: f32) -> f32 {
@@ -132,6 +167,7 @@ impl RiderCam {
         self.amount += (target - self.amount).clamp(-travel, travel);
         if self.amount <= 0.0 && subject == Subject::Bike {
             self.focus = None;
+            self.smooth = None;
         }
     }
 
@@ -145,17 +181,25 @@ impl RiderCam {
             self.focus = self.focus.map(|_| bike.position + self.offset);
             return;
         };
-        self.velocity = self.focus.map_or(Vec3::ZERO, |last| (point - last) / dt);
+        let smooth = match &mut self.smooth {
+            Some(smooth) => {
+                smooth.step(point, FOLLOW_OMEGA, FOLLOW_MAX_ACCEL, dt);
+                *smooth
+            }
+            None => *self.smooth.insert(Damped::at(point)),
+        };
+        let point = smooth.position();
+        self.velocity = smooth.velocity();
         self.focus = Some(point);
         self.offset = point - bike.position;
         let flat = Vec3::new(self.velocity.x, self.velocity.y, 0.0);
         if phase == Phase::Fallen && flat.length() >= HEADING_MIN_SPEED {
-            self.heading = flat.y.atan2(flat.x);
+            self.heading = turn_towards(self.heading, flat.y.atan2(flat.x), HEADING_MAX_RATE * dt);
         }
         let to_bike = bike.position - point;
         let flat = Vec3::new(to_bike.x, to_bike.y, 0.0);
         if phase == Phase::Jogging && flat.length() >= FACE_BIKE_MIN_M {
-            self.heading = flat.y.atan2(flat.x);
+            self.heading = turn_towards(self.heading, flat.y.atan2(flat.x), HEADING_MAX_RATE * dt);
         }
     }
 
@@ -171,13 +215,19 @@ impl RiderCam {
 
     /// The rider's pelvis, while the camera is on him.
     pub fn focus(&self) -> Option<Vec3> {
-        self.focus.filter(|_| self.active())
+        self.focus.filter(|_| self.active()).map(|point| above_ground(point, self.floor))
+    }
+
+    /// The ground under the rider (render height), as the host found it this step; `None` where there is none.
+    pub fn set_floor(&mut self, floor: Option<f32>) {
+        self.floor = floor;
     }
 
     /// The rider's pelvis `alpha` (0 to 1) of the way from the step before to the last one, for a frame drawn between two steps.
     pub fn focus_at(&self, alpha: f32) -> Option<Vec3> {
         let focus = self.focus()?;
-        Some(self.before.map_or(focus, |before| before.lerp(focus, alpha.clamp(0.0, 1.0))))
+        let before = self.before.map(|before| above_ground(before, self.floor));
+        Some(before.map_or(focus, |before| before.lerp(focus, alpha.clamp(0.0, 1.0))))
     }
 
     /// His velocity as the camera takes it (m/s, render space).
@@ -223,6 +273,7 @@ impl RiderCam {
         self.amount = 0.0;
         self.focus = None;
         self.before = None;
+        self.smooth = None;
         self.ignore = self.phase.off_bike();
     }
 }

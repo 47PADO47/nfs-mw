@@ -64,13 +64,109 @@ fn the_chase_point_blends_between_the_bike_and_the_rider() {
 }
 
 #[test]
-fn the_camera_follows_a_rider_who_moves() {
+fn the_camera_follows_a_rider_who_moves_and_eases_into_a_jump_instead_of_snapping() {
     let mut cam = RiderCam::default();
     run(&mut cam, Phase::Fallen, Some(Vec3::new(5.0, 0.0, 0.3)), bike(0.0), 1.0);
-    run(&mut cam, Phase::Fallen, Some(Vec3::new(9.0, 0.0, 0.3)), bike(0.0), DT);
+    cam.step(Phase::Fallen, Some(Vec3::new(9.0, 0.0, 0.3)), bike(0.0), DT);
     let point = cam.chase_point(Vec3::ZERO, 0.0);
-    assert!((point.x - 9.0).abs() < 1e-4, "the point is where he is now: {point}");
-    assert!(cam.velocity().x > 100.0, "a jump of 4 m in a step is a velocity: {}", cam.velocity());
+    assert!(point.x > 5.0 && point.x < 6.0, "a jump of 4 m in one step is not followed in one frame: {point}");
+    assert!(cam.velocity().x > 5.0 && cam.velocity().x <= FOLLOW_MAX_ACCEL * DT + 1e-3, "{}", cam.velocity());
+    run(&mut cam, Phase::Fallen, Some(Vec3::new(9.0, 0.0, 0.3)), bike(0.0), 1.0);
+    let point = cam.chase_point(Vec3::ZERO, 0.0);
+    assert!((point.x - 9.0).abs() < 0.05, "and arrives: {point}");
+}
+
+/// The point the camera follows (the pelvis, `focus`) for a rider sliding along +X at `speed` whose pelvis shakes by `noise` metres.
+fn slide(speed: f32, noise: f32, seconds: f32) -> Vec<(Vec3, f32)> {
+    let mut cam = RiderCam::default();
+    let mut out = Vec::new();
+    for i in 0..(seconds / DT) as u32 {
+        let jitter = if i % 2 == 0 { noise } else { -noise };
+        let at = Vec3::new(speed * i as f32 * DT + jitter, jitter, 0.3 - jitter);
+        cam.step(Phase::Fallen, Some(at), bike(0.0), DT);
+        out.push((cam.focus().unwrap_or(Vec3::ZERO), cam.heading));
+    }
+    out
+}
+
+/// The mean magnitude of the second difference of a path, as an acceleration (m/s^2).
+fn shake(path: &[Vec3]) -> f32 {
+    let sum: f32 = path.windows(3).map(|w| (w[2] - 2.0 * w[1] + w[0]).length() / (DT * DT)).sum();
+    sum / (path.len() - 2) as f32
+}
+
+#[test]
+fn the_pelvis_of_a_shaking_ragdoll_does_not_shake_the_followed_point() {
+    // The measured pelvis of a sliding rider moved by tens of cm/s^2 of noise: 6 cm of alternating noise at 60 Hz stands for it.
+    let quiet: Vec<Vec3> = slide(6.0, 0.0, 3.0).iter().map(|&(p, _)| p).skip(60).collect();
+    let noisy: Vec<Vec3> = slide(6.0, 0.06, 3.0).iter().map(|&(p, _)| p).skip(60).collect();
+    assert!(shake(&quiet) < 1.0, "a steady slide is a steady point: {}", shake(&quiet));
+    assert!(shake(&noisy) < 100.0, "6 cm of noise shakes the point by {} m/s^2 (the raw one by 1500)", shake(&noisy));
+}
+
+#[test]
+fn the_point_never_accelerates_beyond_the_cap_and_never_leaves_the_path_by_more_than_the_lag() {
+    let path = slide(25.0, 0.0, 4.0);
+    let speeds: Vec<Vec3> = path.iter().map(|&(p, _)| p).collect();
+    let worst = speeds.windows(3).map(|w| (w[2] - 2.0 * w[1] + w[0]).length() / (DT * DT)).fold(0.0, f32::max);
+    // The second difference of positions is not exactly the change of the velocity the cap holds: a quarter of room.
+    assert!(worst <= FOLLOW_MAX_ACCEL * 1.25, "{worst}");
+    let last = speeds.len() as f32 * DT;
+    let lag = 25.0 * (last - DT) - speeds[speeds.len() - 1].x;
+    assert!(lag < 2.0 * 25.0 / FOLLOW_OMEGA + 0.2, "{lag} m behind at 25 m/s");
+}
+
+#[test]
+fn the_heading_does_not_flip_with_the_shake_of_a_slow_slide() {
+    // At 2 m/s the shake's velocity is 7 m/s the other way: taken raw, the heading turned back and forth.
+    let headings: Vec<f32> = slide(2.0, 0.06, 4.0).iter().map(|&(_, h)| h).skip(60).collect();
+    let swing = headings.iter().cloned().fold(f32::MIN, f32::max) - headings.iter().cloned().fold(f32::MAX, f32::min);
+    assert!(swing < 0.3, "the heading swung {swing} rad");
+}
+
+#[test]
+fn the_heading_turns_at_a_limited_rate() {
+    let mut cam = RiderCam::default();
+    // A slide that turns round at once: the rider moves along +X, then along -X.
+    let mut at = Vec3::new(0.0, 0.0, 0.3);
+    for _ in 0..90 {
+        at.x += 8.0 * DT;
+        cam.step(Phase::Fallen, Some(at), bike(0.0), DT);
+    }
+    assert!(cam.heading.abs() < 0.05, "along +X: {}", cam.heading);
+    let mut worst = 0.0_f32;
+    for _ in 0..180 {
+        let before = cam.heading;
+        at.x -= 8.0 * DT;
+        cam.step(Phase::Fallen, Some(at), bike(0.0), DT);
+        worst = worst.max(blend_angle(0.0, cam.heading - before, 1.0).abs());
+    }
+    assert!(worst <= HEADING_MAX_RATE * DT + 1e-4, "{worst} rad in a step");
+    assert!((cam.heading.abs() - std::f32::consts::PI).abs() < 0.05, "it does turn round in the end: {}", cam.heading);
+}
+
+#[test]
+fn the_followed_point_is_kept_above_the_ground_it_sank_into() {
+    let above = Vec3::new(1.0, 2.0, 5.0);
+    assert_eq!(above_ground(above, Some(4.0)), above, "above the ground: as it is");
+    assert_eq!(above_ground(above, None), above, "no ground known: as it is");
+    let sunk = above_ground(Vec3::new(1.0, 2.0, 3.9), Some(4.0));
+    assert!((sunk.z - (4.0 + GROUND_CLEARANCE_M)).abs() < 1e-6 && sunk.x == 1.0 && sunk.y == 2.0, "{sunk}");
+    let lost = Vec3::new(1.0, 2.0, 1.0);
+    assert_eq!(above_ground(lost, Some(4.0)), lost, "3 m under it is under the map, not a pelvis in the road");
+    assert_eq!(above_ground(above, Some(f32::NAN)), above, "a ground that is not a number is no ground");
+}
+
+#[test]
+fn the_camera_on_a_rider_who_sank_looks_above_the_ground() {
+    let mut cam = RiderCam::default();
+    let sunk = Some(Vec3::new(12.0, 3.0, 9.8));
+    cam.set_floor(Some(10.0));
+    run(&mut cam, Phase::Fallen, sunk, bike(0.0), TO_RIDER_S * 2.0);
+    let focus = cam.focus().expect("on the rider");
+    assert!(focus.z >= 10.0 + GROUND_CLEARANCE_M - 1e-5, "{focus}");
+    let shown = cam.focus_at(0.5).expect("on the rider");
+    assert!(shown.z >= 10.0 + GROUND_CLEARANCE_M - 1e-5, "{shown}");
 }
 
 #[test]
