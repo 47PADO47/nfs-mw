@@ -23,4 +23,5 @@ pub mod objects;
 pub mod pack;
 pub mod section;
 pub mod stamp;
+pub mod swap;
 pub mod textures;
