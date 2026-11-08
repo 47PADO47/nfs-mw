@@ -101,6 +101,13 @@ traffic = true
 # (mods/nfsmw-2012-content/README.md, \"Trees\"); the max_texture_size key applies to their textures.
 trees = true
 
+# Add the 2012 game's road signs (stop, speed limit 45 and 55, do not enter, tow zone) and traffic light models (the mast arm and
+# the three-lens signal head) as values of the gameplay settings \"Road signs\" and \"Traffic light models\": they replace the
+# 2005 game's solids of the same signs and lights while the settings say so. false adds neither the models nor the values. They are
+# converted from your 2012 install into the mod's folder (mods/nfsmw-2012-content/README.md, \"Road signs and traffic lights\");
+# the max_texture_size key applies to their textures.
+signs = true
+
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
 # weight, grip the tyres, brakes the brake torque (0.25 to 4 each, grip 0.25 to 3), nitrous_power the extra torque of
@@ -207,6 +214,8 @@ pub struct Config {
     pub traffic: bool,
     /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
     pub trees: bool,
+    /// Whether the 2012 game's road signs and traffic light models are converted and offered as variants (`signs.rs`).
+    pub signs: bool,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -230,6 +239,7 @@ impl Default for Config {
             lazy: false,
             traffic: true,
             trees: true,
+            signs: true,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),
@@ -322,6 +332,19 @@ mod tests {
     fn defaults_want_everything() {
         let config = Config::default();
         assert!(config.wants("POR911CARR12", "Porsche 911 Carrera S 2012"));
+    }
+
+    #[test]
+    fn the_signs_are_on_by_default_and_the_setting_turns_them_off() {
+        assert!(Config::default().signs);
+        assert!(
+            !Config::parse(
+                "signs = false
+"
+            )
+            .unwrap()
+            .signs
+        );
     }
 
     #[test]

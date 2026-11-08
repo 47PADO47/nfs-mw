@@ -62,6 +62,7 @@ mod police;
 mod prepare;
 mod sample;
 mod shared;
+mod signs;
 mod sound_store;
 mod sounds;
 mod soundtrack;
