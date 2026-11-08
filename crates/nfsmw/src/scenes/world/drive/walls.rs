@@ -23,9 +23,9 @@ use crate::scenes::world::space;
 const FLOOR_NORMAL: f32 = 0.7;
 /// Hits deeper than this are ignored (a wall we are already far inside is not one we just hit).
 const MAX_DEPTH: f32 = 1.5;
-/// The most a wall pushes a body out of itself in one step (m): a bike at 60 m/s moves 1 m in a step, and a push of more than that is a
+/// The most a wall pushes a body out of itself in one step (m): a bike at 90 m/s moves 1.5 m in a step (the sweep puts a centre that crossed a thin wall back by that much), and a push of more than that is a
 /// contact that found the body deep inside something, which must not throw it across the road.
-const MAX_PUSH: f32 = 1.0;
+const MAX_PUSH: f32 = 2.0;
 /// Visual telemetry budget, deepest first; the physics contacts remain unrestricted.
 const MAX_VISUAL_CONTACTS: usize = 16;
 
@@ -445,7 +445,7 @@ pub fn resolve_into(
     impact
 }
 
-/// How a wall of normal `normal` moves a body that is `depth` inside it: out along the normal, by at most [`MAX_PUSH`], and never down.
+/// How a wall of normal `normal` moves a body that is `depth` inside it: out along the normal, by at most [`MAX_PUSH`] (2 m), and never down.
 /// A wall that leans over the road (a normal pointing a little down, which the probes accept up to [`FLOOR_NORMAL`]) pushed a bike
 /// into the road it stood on, under the reach of its tyres' rays, and it fell through the map (`docs/specs/ride6-feel-round14.md`,
 /// section 3); a push along the road's surface cannot do that.
