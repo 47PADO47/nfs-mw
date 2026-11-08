@@ -16,11 +16,6 @@ pub struct Damped {
 }
 
 impl Damped {
-    /// A point at rest at `position`.
-    pub fn at(position: Vec3) -> Self {
-        Self { position, velocity: Vec3::ZERO }
-    }
-
     /// A point at `position` already moving at `velocity`: a rider thrown at 25 m/s is followed from the first step, not from rest.
     pub fn moving(position: Vec3, velocity: Vec3) -> Self {
         Self { position, velocity: if velocity.is_finite() { velocity } else { Vec3::ZERO } }
@@ -68,7 +63,7 @@ mod tests {
 
     #[test]
     fn a_step_in_the_target_is_reached_without_overshoot() {
-        let mut point = Damped::at(Vec3::ZERO);
+        let mut point = Damped::moving(Vec3::ZERO, Vec3::ZERO);
         let target = Vec3::new(10.0, 0.0, 0.0);
         let mut farthest = 0.0_f32;
         for _ in 0..120 {
@@ -82,7 +77,7 @@ mod tests {
 
     #[test]
     fn a_steady_speed_lags_by_two_speeds_over_omega() {
-        let mut point = Damped::at(Vec3::ZERO);
+        let mut point = Damped::moving(Vec3::ZERO, Vec3::ZERO);
         let mut target = Vec3::ZERO;
         for _ in 0..240 {
             target.x += 20.0 * DT;
@@ -96,7 +91,7 @@ mod tests {
     #[test]
     fn the_jitter_of_a_ragdoll_is_mostly_taken_out() {
         // A pelvis sliding along at 6 m/s with 6 cm of alternating noise in each axis, as the capsule turns on the road.
-        let mut point = Damped::at(Vec3::new(0.0, 0.0, 0.3));
+        let mut point = Damped::moving(Vec3::new(0.0, 0.0, 0.3), Vec3::ZERO);
         let (mut raw, mut smooth) = (Vec::new(), Vec::new());
         for i in 0..300 {
             let noise = if i % 2 == 0 { 0.06 } else { -0.06 };
@@ -116,7 +111,7 @@ mod tests {
 
     #[test]
     fn the_acceleration_is_capped() {
-        let mut point = Damped::at(Vec3::ZERO);
+        let mut point = Damped::moving(Vec3::ZERO, Vec3::ZERO);
         let mut last = point.velocity();
         let mut worst = 0.0_f32;
         for _ in 0..60 {
@@ -131,7 +126,7 @@ mod tests {
     #[test]
     fn a_slow_frame_is_as_stable_as_a_fast_one() {
         for dt in [1.0 / 240.0, 1.0 / 60.0, 0.25, 2.0] {
-            let mut point = Damped::at(Vec3::ZERO);
+            let mut point = Damped::moving(Vec3::ZERO, Vec3::ZERO);
             for _ in 0..((3.0 / dt) as usize).max(1) {
                 point.step(Vec3::new(4.0, 2.0, 1.0), OMEGA, NO_CAP, dt);
             }
@@ -141,7 +136,8 @@ mod tests {
 
     #[test]
     fn a_point_that_starts_moving_with_its_target_does_not_sag_behind_it() {
-        let (mut rest, mut moving) = (Damped::at(Vec3::ZERO), Damped::moving(Vec3::ZERO, Vec3::new(25.0, 0.0, 0.0)));
+        let (mut rest, mut moving) =
+            (Damped::moving(Vec3::ZERO, Vec3::ZERO), Damped::moving(Vec3::ZERO, Vec3::new(25.0, 0.0, 0.0)));
         let mut target = Vec3::ZERO;
         let mut lags = (0.0_f32, 0.0_f32);
         for _ in 0..3 {
@@ -158,7 +154,7 @@ mod tests {
 
     #[test]
     fn a_bad_step_or_target_changes_nothing() {
-        let mut point = Damped::at(Vec3::ONE);
+        let mut point = Damped::moving(Vec3::ONE, Vec3::ZERO);
         for (target, dt) in [(Vec3::ZERO, 0.0), (Vec3::ZERO, f32::NAN), (Vec3::NAN, DT), (Vec3::ZERO, -1.0)] {
             point.step(target, OMEGA, NO_CAP, dt);
             assert_eq!((point.position(), point.velocity()), (Vec3::ONE, Vec3::ZERO));

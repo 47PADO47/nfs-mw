@@ -246,6 +246,19 @@ fn after_the_remount_the_blend_follows_the_moving_bike_without_a_jump() {
 }
 
 #[test]
+fn the_bike_standing_up_at_the_remount_does_not_move_the_followed_point() {
+    // It lay on its side with its origin 0.1 m up and stands with it 0.5 m up, 0.3 m further on: the point he was followed at stays.
+    let mut cam = RiderCam::default();
+    let lying = Bike { position: Vec3::new(10.0, 0.0, 0.1), ..bike(0.0) };
+    run(&mut cam, Phase::Jogging, Some(Vec3::new(10.4, 0.0, 1.2)), lying, 1.0);
+    let before = cam.chase_point(lying.position, 0.5);
+    let standing = Bike { position: Vec3::new(10.3, 0.0, 0.5), ..lying };
+    cam.step(Phase::Riding, None, standing, DT);
+    let after = cam.chase_point(standing.position, 0.5);
+    assert!((after - before).length() < 0.02, "{before} -> {after}");
+}
+
+#[test]
 fn a_rider_with_no_body_leaves_the_camera_on_the_bike() {
     let mut cam = RiderCam::default();
     run(&mut cam, Phase::Fallen, None, bike(0.0), 3.0);

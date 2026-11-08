@@ -156,6 +156,10 @@ impl RiderCam {
         if !phase.off_bike() {
             self.ignore = false;
         }
+        if remounted && let Some(focus) = self.focus {
+            // The bike stands up for him: its origin moves (it lay on its side), and the point must not move with it.
+            self.offset = focus - bike.position;
+        }
         let located = rider.filter(|_| !self.ignore);
         let subject = subject(phase, located.is_some());
         self.follow_rider(phase, located, bike, dt);
