@@ -77,6 +77,7 @@ mod scenery;
 #[cfg(test)]
 mod scenery_tests;
 mod shared_sound;
+mod sky_variant;
 mod spark_gate;
 mod spark_variant;
 mod stats;
@@ -144,6 +145,10 @@ pub use replace::{
 };
 pub use scenery::{Collision, MAX_COMPONENT, Orientation, Place, SceneryManifest, parse as parse_scenery};
 pub use shared_sound::SharedSound;
+pub use sky_variant::{
+    Dome as SkyDome, Moon as SkyMoon, Pose as SkyPose, SKY, SKY_FOLDER, SkyProfile, Weather as SkyWeather,
+    parse as parse_sky_profile, sky_profile_path,
+};
 pub use spark_gate::{HitChannel, HitGate, ScrapeChannel, ScrapeGate};
 pub use spark_variant::{
     MAX_SPARK_COUNT, MAX_SPARK_KEYS, MAX_SPARK_LAYERS, SPARKS_FOLDER, SparkKind, SparkLayer, SparksProfile,
