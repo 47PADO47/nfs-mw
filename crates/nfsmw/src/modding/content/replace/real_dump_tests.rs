@@ -71,19 +71,15 @@ fn dump_solids_by_name_prefix() {
                     .map(|index| u32::from(*index) + group.base_vertex)
                     .collect();
                 let texture = group.diffuse_texture(solid);
-                if let Some(hash) = texture {
-                    if let Some(picture) = data.textures.iter().find(|t| t.name_hash == hash) {
-                        if let Some(rgba) = blackbox_tpk::decode_rgba8(picture) {
-                            let _ = std::fs::write(out.join(format!("{hash:08X}.rgba")), &rgba);
-                            let _ = std::fs::write(
-                                out.join(format!("{hash:08X}.txt")),
-                                format!(
-                                    "{} {} {} {}",
-                                    picture.width, picture.height, picture.name, picture.compression_type
-                                ),
-                            );
-                        }
-                    }
+                if let Some(hash) = texture
+                    && let Some(picture) = data.textures.iter().find(|t| t.name_hash == hash)
+                    && let Some(rgba) = blackbox_tpk::decode_rgba8(picture)
+                {
+                    let _ = std::fs::write(out.join(format!("{hash:08X}.rgba")), &rgba);
+                    let _ = std::fs::write(
+                        out.join(format!("{hash:08X}.txt")),
+                        format!("{} {} {} {}", picture.width, picture.height, picture.name, picture.compression_type),
+                    );
                 }
                 groups.push(json!({
                     "effect": group.effect_id, "flags": group.flags, "texture": texture,
