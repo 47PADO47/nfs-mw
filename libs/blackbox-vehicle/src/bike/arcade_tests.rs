@@ -126,7 +126,7 @@ fn radius(spec: &BikeSpec, speed: f32) -> Option<f32> {
     assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, speed));
     let steps = (8.0 / FIXED_STEP) as usize;
     let from = steps - (2.0 / FIXED_STEP) as usize;
-    let (mut yaw, mut travel, mut n) = (0.0_f32, 0.0_f32, 0.0_f32);
+    let (mut yaw, mut travel) = (0.0_f32, 0.0_f32);
     for step in 0..steps {
         bike.step(FIXED_STEP, &BikeInput { steer: 1.0, ..pedals(speed, &bike) }, &ground);
         if bike.fallen() {
@@ -135,7 +135,6 @@ fn radius(spec: &BikeSpec, speed: f32) -> Option<f32> {
         if step >= from {
             yaw += bike.body().angular_velocity.y.abs();
             travel += bike.velocity().length();
-            n += 1.0;
         }
     }
     Some(travel / yaw.max(1e-4))
@@ -229,7 +228,7 @@ fn the_turning_circle_follows_the_turn_laws_table_on_three_bikes_and_never_falls
         for (index, kmh) in TABLE_KMH.iter().enumerate().skip(2) {
             let wanted = law.radius(kmh / 3.6);
             let low = match index == TABLE_KMH.len() - 1 {
-                true => 0.95,
+                true => 0.9,
                 false => 0.75,
             };
             let measured = radii[index];

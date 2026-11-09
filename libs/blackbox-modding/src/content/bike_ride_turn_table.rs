@@ -21,6 +21,8 @@ struct Run {
     fell: bool,
     radius: f32,
     t80: f32,
+    /// The mean speed (m/s) of the measured part: the throttle and the brakes hold it near the asked one, not exactly.
+    speed: f32,
 }
 
 /// The heading (rad) of the bike velocity.
@@ -51,10 +53,13 @@ fn run(spec: &BikeSpec, speed: f32) -> Run {
         let t = step as f32 * FIXED_STEP;
         let stick = if t < lead { 0.0 } else { 1.0 };
         let v = bike.velocity().length();
-        let throttle = held_throttle(speed, v);
-        bike.step(FIXED_STEP, &BikeInput { throttle, steer: stick, ..Default::default() }, &ground);
+        // Both brakes take back the speed that the idle drive and the assist's work add to a slow bike in a tight circle.
+        let brake = ((v - speed - 0.1) * 1.0).clamp(0.0, 0.8);
+        let input =
+            BikeInput { throttle: held_throttle(speed, v), front_brake: brake, rear_brake: brake, steer: stick };
+        bike.step(FIXED_STEP, &input, &ground);
         if bike.fallen() {
-            return Run { fell: true, radius: f32::NAN, t80: f32::NAN };
+            return Run { fell: true, radius: f32::NAN, t80: f32::NAN, speed: f32::NAN };
         }
         let now = heading(&bike);
         rates.push(wrap(now - last).abs() / FIXED_STEP);
@@ -66,7 +71,7 @@ fn run(spec: &BikeSpec, speed: f32) -> Run {
     let mean_speed = speeds.iter().rev().take(tail).sum::<f32>() / tail as f32;
     let from = (lead / FIXED_STEP) as usize;
     let t80 = rates.iter().skip(from).position(|&r| r >= 0.8 * rate).map_or(f32::NAN, |at| at as f32 * FIXED_STEP);
-    Run { fell: false, radius: mean_speed / rate.max(1e-4), t80 }
+    Run { fell: false, radius: mean_speed / rate.max(1e-4), t80, speed: mean_speed }
 }
 
 /// Whether a flip of the stick from side to side every 0.8 s for 6 s keeps the bike up at `speed` m/s.
@@ -114,7 +119,7 @@ fn bike_turn_table() {
         "{} bikes; radius after the lean has built up, seconds to 80 percent of the yaw rate, falls (full stick held)",
         bikes.len()
     );
-    println!("km/h | table m | median radius m | min..max m | median t80 s | falls (turn / flip)");
+    println!("km/h | table m | median radius m | min..max m | median speed km/h | median t80 s | falls (turn / flip)");
     for &speed in &kmh {
         let ms = speed / 3.6;
         let runs: Vec<Run> = bikes.iter().map(|(_, spec)| run(spec, ms)).collect();
@@ -124,9 +129,10 @@ fn bike_turn_table() {
         let turn_falls = runs.iter().filter(|r| r.fell).count();
         let flip_falls = bikes.iter().filter(|(_, spec)| !flips_without_a_fall(spec, ms)).count();
         println!(
-            "{speed:4.0} | {:7.1} | {:15.1} | {low:.1}..{high:.1} | {:12.2} | {turn_falls} / {flip_falls}",
+            "{speed:4.0} | {:7.1} | {:15.1} | {low:.1}..{high:.1} | {:17.1} | {:12.2} | {turn_falls} / {flip_falls}",
             law.radius(ms),
             median(radii.clone()),
+            median(runs.iter().map(|r| r.speed * 3.6).collect()),
             median(runs.iter().map(|r| r.t80).collect()),
         );
     }

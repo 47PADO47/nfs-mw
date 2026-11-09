@@ -5,7 +5,7 @@
 speed authority's assist with the **turn law**, `blackbox_vehicle::bike::TurnLaw` (`libs/blackbox-vehicle/src/bike/turn_law.rs`), one
 field of `ArcadeSteering` (`turn`). `bike_steering = reference` (`ArcadeSteering::REFERENCE`, `turn: None`) still gives the original
 behaviour exactly. Tags: **[R]** read in this repository's code, **[C]** a choice of this project, **[M]** measured in the model,
-**[U]** not yet measured (the code of this round was written and committed before any build; section 8 says what to run).
+**[U]** not measured.
 
 ## 1. What the player reported
 
@@ -59,13 +59,13 @@ is held):
 
 | km/h | radius m | asked | exponent to the next | `v^2 / r` in g |
 |---|---|---|---|---|
-| 6 | 1.8 | (walking pace: the handlebar's own lock turns the bike) | 0.11 | 0.16 |
-| 15 | 2.0 | at most 3 | 1.14 | 0.89 |
+| 6 | 1.8 | (walking pace: the handlebar's own lock turns the bike) | 0.06 | 0.16 |
+| 15 | 1.9 | at most 3 | 1.21 | 0.93 |
 | 30 | 4.4 | at most 6 | 2.27 | 1.61 |
-| 50 | 14 | about 15 | 2.18 | 1.40 |
-| 80 | 39 | about 40 | 2.01 | 1.29 |
-| 120 | 88 | about 90 | 2.37 | 1.29 |
-| 180 | 230 | about 220 or wider | 2.37 (beyond) | 1.11 |
+| 50 | 14 | about 15 | 2.23 | 1.40 |
+| 80 | 40 | about 40 | 2.03 | 1.26 |
+| 120 | 91 | about 90 | 2.39 | 1.24 |
+| 180 | 240 | about 220 or wider | 2.39 (beyond) | 1.06 |
 
 [C] Why these numbers: the low-speed radii are put under the asked limits (2.2 against 3, 4.5 against 6) so that "clearly tighter" holds
 with a margin and the 20 and 25 km/h in between (3.0 and 3.7 m) are tight too. From 50 km/h up they are the asked ones. The
@@ -79,32 +79,41 @@ skid cut are asked for more than they gave. 1.1 to 1.3 g from 50 km/h up is what
 |---|---|---|
 | `fade` | 0.3 to 1.5 m/s | the assist comes in over walking pace (1 to 5 km/h), not 7 to 29 km/h; below it the handlebar's direct mapping (`blend_range`, 2 to 4 m/s) is what turns the bike |
 | `quick` | 4 to 12 m/s (14 to 43 km/h) | the share the assist follows goes from the **stick's** (the hand's filter, 0.15 s) at 14 km/h and under to the lean target's at 43 km/h and over: a slow turn needs little lean, so the path does not wait for it; a fast flip keeps the target's pace (a quick path with a slow lean at speed is what the falls of the sweeps were about) |
+| `trim_gain`, `trim_reach` | 3 per second, 4 m/s^2 | the trim of section 4 |
 | `max_assist` | 1.7 g | the assist never gives more than round 2's most (1.1 g x 1.5): the stick's first instant can ask for `wanted - expect` of 2 g and more while the lean is still on the other side |
 | `slow_lean_rate` | 2.2 at 4 m/s and under, 1 at 12 m/s and over | the time scale of the controller's target filter, the one stage of the four that carries a lever of its own (`lean_rate`): 1.38 x 2.2 = 3.0, round 1's value, at a low speed, where the lean needed is small and the slowing of round 2 only hurt |
 
 Not touched: `lean_limit`, `roll_spring`, `stick_response`, `handlebar_response`, the lean help, `time_scale_speed_floor`: above 43 km/h the
 lean-in is as round 2 left it, and so is the flip time of the lean (0.9 to 1.0 s to 95 percent).
 
-## 4. Before and after
+## 4. Before and after [M]
 
-Before = round 2 on `bike_steer_audit` medians over 25 imported bikes (`ride6-arcade-steering.md`, section 11) and on the example bike of
-`arcade_tests.rs`. The table is the law's own radius; the measured rows of the new law **[U]** are to be filled from
-`bike_turn_table` and the tests (`--nocapture`) once the code is built (section 8).
+`bike_turn_table` on 25 of the 293 installed bikes (every 12th of the folder `config\mods\ride6-bikes\cars` of the game's profile), a full stick held for 10 s after a second of
+straight running, the speed held by the throttle and, over the speed, both brakes; the radius is the mean speed over the mean yaw rate of the last 3 s, the time is the
+curvature (yaw rate over speed) of the path reaching 80 percent of its steady value. "Round 2" is the same run with `RIDE6_ARCADE=round2` (the authority of section 11 of the arcade
+steering spec, no turn law). Medians, then the range over the bikes.
 
-| km/h | asked | round 2, example bike | round 2, imported median | **table (new)** | measured new [U] |
-|---|---|---|---|---|---|
-| 15 | at most 3 | (1.5 m at 20) | (4 m at 20) | **2.2 m** | |
-| 20 | | 1.5 m | 4 m | **3.0 m** | |
-| 30 | at most 6 | | | **4.5 m** | |
-| 40 | | 6.3 m | 7 m | **8.9 m** | |
-| 50 | about 15 | | | **15 m** | |
-| 80 | about 40 | 29.9 m | 30 m | **40 m** | |
-| 120 | about 90 | 75.7 m | 76 m | **90 m** | |
-| 180 | 220 or wider | (233 m at 200) | (234 m at 200) | **225 m** | |
+| km/h asked | asked | table | **round 2** radius m | round 2 t80 s | **new** radius m (range) | new t80 s | falls |
+|---|---|---|---|---|---|---|---|
+| 15 | at most 3 | 1.9 | 4.0 | 1.02 | **2.5** (2.4 to 3.1) | 0.75 | 0 |
+| 30 | at most 6 | 4.4 | 4.4 | 0.58 | **4.9** (4.7 to 5.0) | 0.42 | 0 |
+| 50 | about 15 | 14 | 10.8 | 0.57 | **14.4** (13.6 to 14.6) | 0.45 | 0 |
+| 80 | about 40 | 40 | 30.1 | 0.60 | **39.7** (37.8 to 41.1) | 0.48 | 0 |
+| 120 | about 90 | 91 | 75.4 | 0.62 | **88.8** (85.5 to 92.0) | 0.58 | 0 |
+| 180 | 220 or wider | 240 | 185 | 0.62 | **228.5** (207.4 to 236.2) | 0.77 | 0 |
 
-The table between 15 and 40 km/h is the law; round 2's example bike measured **tighter** than the table at 20 km/h (1.5 m) and the imported bikes
-wider (4 m): round 2's circle depended on the bike (section 2, item 4), the law puts every bike on the one circle. Where the table is wider than round 2 (40 and 120 km/h and the 80 km/h row on the median) it is because the playtest asked for it:
-"more when fast".
+(The mean speed of the runs was 19, 32, 51, 80, 119 and 176 km/h; the radius is a little tighter than the table's where the bike was faster than asked. 0 falls in the turn and
+0 in a flip of the stick every 0.8 s for 6 s, at every speed, on all 25 bikes. One bike of the 25 turns 3.1 m at 15 km/h, the median is 2.5 m. The logs: `C:
+6work\still-turn-table.log`.)
+
+The slow turns are tighter or as tight and the path turns sooner (t80 0.42 s at 30 km/h against 0.58, 0.75 s at 15 km/h against 1.02); the fast turns are 20 to 25 percent wider than round 2, as asked.
+On the example bike of `arcade_tests.rs` (3 bikes: the example, a heavy and a light one) the closed loop gives within -25 to +35 percent of the table at 50, 80, 120 km/h and 0.9 of it or more at 180.
+
+**The trim.** The first version of the law (the assist alone, section 3) came out 10 to 55 percent wider than the table in the closed loop, more at a low speed: the bike's
+tyres resist a side force at the centre of gravity until they have turned the bike (the heading lags the velocity), by a margin that depends on the bike and the speed. An integral
+term (`TurnLaw::trim_step`: `trim_gain` 3 per second on the shortfall of `speed x yaw rate` about the **road normal** from the circle's acceleration, the shortfall counted at most
+`trim_reach` 4 m/s^2 per step so a flip does not wind it up, the trim held so that the assist stays between 0 and `max_assist`) makes up the rest; it dies away with the stick and is zero
+under walking pace. Measuring the yaw rate about the leaned bike's own up made the circle 20 percent too tight (`cos` of the lean): the road normal is the right axis.
 
 ## 5. Tests
 
@@ -149,13 +158,11 @@ new law too; `RIDE6_ARCADE=round2` gives them round 2's steering.
 Round 2's sweep had 0 falls on every manoeuvre but two on one scooter at 70 and 80 m/s (`ride6-arcade-steering.md`, section 5). The law asks
 less lateral acceleration than round 2 at every speed (never over 1.57 g against 1.65 to 1.68), so the tyres and the fall limit are asked for less;
 the new thing is the quick path at a low speed (the stick's share) and the cap of 1.7 g, which a flip at under 43 km/h meets. The test
-`a_flip_of_the_stick_at_a_low_speed_does_not_fall` and the `bike_turn_table` falls column are the checks **[U]**.
+`a_flip_of_the_stick_at_a_low_speed_does_not_fall` and the `bike_turn_table` falls column are the checks; both show 0 falls (section 4).
 
 ## 8. What is not verified
 
-- Nothing of this round has been compiled or run yet: the numbers in section 4's last column, the tests' bands (the measured circle within -25 to
-  +35 percent of the table, the yaw rate at 80 percent within 0.8 s) and the zero falls are expectations from the formulas, to be checked with the commands
-  above. If a bike's measured circle is off the table, the one number to look at is `expect`: the lean part is taken as `g tan(target lean)`.
+- The `nfsmw` bike tests pass (166); the one failure of that filter, `viewer::camera::bike::fov_tests`, is the camera's and was not touched. The three `air_tests` of `blackbox-vehicle` fail on `integ/bike-2012-sweep` without this branch too.
 - At walking pace (under 7 km/h) the circle is the handlebar's own lock (`blend_range`, direct mapping): the data's `max_angle` of 18 to 42
   degrees gives 4.3 to 1.6 m with a wheelbase of 1.4 m. The table's 1.8 m under 6 km/h is only reached with the assist (fade 0.3 to 1.5 m/s). A
   yaw-rate servo for the first metres per second (a handlebar steer-angle model: `psi' = v / r(v)` with no lean) is the next step if the harness shows

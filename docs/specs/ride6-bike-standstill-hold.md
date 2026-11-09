@@ -41,7 +41,7 @@ Below a small speed, with no throttle, on a slope, the bike is **held**: the rid
 | `LEVER` | 0.5 | enough to lock a wheel that no engine drives, little enough to be a hold and not a stoppie |
 | `DAMPING_TIME` | 0.15 s | quick enough to stop a creep within a few frames (9 at 60 Hz), slow enough that a bike stopped by the hold from 0.8 m/s does not jerk |
 
-The hold is **off** in a fall, a burnout, with the rider off the bike, with a wheel off the road, while the rider pushes the bike back, at the
+The hold is **off** in a fall, a burnout, with the rider off the bike, with both wheels off the road, while the rider pushes the bike back, at the
 throttle and above `LEAVE_SPEED`. It needs no setting: with `bike_steering = reference` the steering is the original but a bike still does not roll
 away from its parked rider (the same for a bike of another game that reuses the library: `Bike::held_on_slope` reads the state).
 
@@ -91,11 +91,11 @@ setting is a mod setting and a second, parallel setting would have two switches 
 `the_delay_setting_picks_how_long_a_standing_vehicle_waits` (every delay: no stop 0.3 s early, one stop 0.3 s late) and
 `the_delay_values_are_plain_ids_the_first_is_the_old_five_seconds...`.
 
-## 7. What is not verified [U]
+## 7. Measured [M] and not verified
 
-Nothing of this was compiled or run when it was written. To check: `cargo test -p blackbox-vehicle --lib hold` and `reverse`; `cargo test -p chameleon-engine-state`;
-`cargo test -p nfsmw-2012-content engine_stop`; in the game, park a bike on a hill (Fairhaven's streets, any slope of 3 to 20 degrees), no throttle, no brake: it must
-stand, the rider's feet down, no walk; with the brake held through the stop likewise; let go and pull the brake again: the walk starts after `hold_time`. With **2012 engine auto-stop**
-on, the engine stops after the delay and the throttle starts it. The hold's force and damping are applied to the body directly, so a host that moves the bike by
-contacts of its own (a wall) is not hindered, but a bike parked against a slope **and** a wall has not been looked at. Open: the hold does not look at the surface (ice,
-gravel: a locked wheel holds less there).
+`cargo test --release -p blackbox-vehicle --lib hold`: the example bike set down at rest on 10 and 20 degrees, uphill and downhill, no input for 6 s: it moves 0.04 to 0.28 m in the first
+half second (the settling of the suspension on a bike placed unpitched) and then 0 m, speed under 0.01 m/s, held, no fall; never under -0.28 m/s (the walk's threshold) on 15 degrees after the
+settling. The brake held through the stop on 10 degrees never asks for the reverse in 4 s; let go and pulled again it does, and the bike goes back 0.3 m or more; on flat ground the held brake
+walks the bike back as before. **At 30 degrees the model's own fall test ends the bike (`Generic`) within half a second whatever the hold does**, so the steepest slope tested is 20 degrees; `MAX_SLOPE` stays 30 degrees
+as the hold's own limit. Not looked at: in the game on a real hill, a bike parked against a slope **and** a wall, the surface (ice, gravel: a locked wheel holds less there).
+`cargo test -p chameleon-engine-state` and `-p nfsmw-2012-content` (the delay setting) pass.

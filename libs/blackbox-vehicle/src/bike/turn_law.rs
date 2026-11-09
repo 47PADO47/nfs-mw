@@ -29,7 +29,7 @@ use super::curve::ramp;
 /// at 30, 1.3 g at 50, 1.26 g at 80 and 120, 1.1 g at 180 km/h: never over the 1.65 g the earlier rounds turned at, so no bike's grip is asked for
 /// more than it gave, and what the lean (0.7 g at the limit of 36 degrees) does not give is the assist's.
 pub const RADIUS: &[(f32, f32)] =
-    &[(6.0, 1.8), (15.0, 2.0), (30.0, 4.4), (50.0, 14.0), (80.0, 39.0), (120.0, 88.0), (180.0, 230.0)];
+    &[(6.0, 1.8), (15.0, 1.9), (30.0, 4.4), (50.0, 14.0), (80.0, 40.0), (120.0, 91.0), (180.0, 240.0)];
 
 /// The numbers of the turn law; see the module's documentation.
 #[derive(Clone, Copy, Debug, PartialEq)]
