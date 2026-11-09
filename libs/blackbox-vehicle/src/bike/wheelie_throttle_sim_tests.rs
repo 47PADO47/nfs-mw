@@ -78,6 +78,7 @@ fn unlimited() -> ThrottleWheelie {
         lead: 10.0,
         shift_dip: 0.0,
         cut_most: 0.0,
+        shift_cut: 0.0,
         ..ThrottleWheelie::GAME
     }
 }

@@ -335,3 +335,21 @@ fn the_game_caps_are_forty_thirty_five_and_thirty_degrees_in_three_gears() {
     assert_eq!(game.cap(0), None);
     assert_eq!(ThrottleWheelie::REFERENCE.cap(1), None);
 }
+
+#[test]
+fn the_clutch_cuts_the_gas_for_the_change_and_the_dip_after_it() {
+    let game = ThrottleWheelie::GAME;
+    let mut state = State::default();
+    ride(&game, &mut state, ask(), 60 * 2);
+    let nose = state.reach;
+    let quiet = update(&game, &mut state, &Ask { pitch: nose, front_on_ground: false, ..ask() });
+    assert_eq!(quiet.cut, 0.0);
+    let mut cuts = Vec::new();
+    for step in 0..40 {
+        let lever =
+            update(&game, &mut state, &Ask { shifting: step < 4, pitch: nose, front_on_ground: false, ..ask() });
+        cuts.push(lever.cut);
+    }
+    assert!(cuts[..16].iter().all(|&cut| (cut - game.shift_cut).abs() < 1e-6), "the gas is cut for the dip: {cuts:?}");
+    assert_eq!(ThrottleWheelie::REFERENCE.shift_cut, 0.0);
+}

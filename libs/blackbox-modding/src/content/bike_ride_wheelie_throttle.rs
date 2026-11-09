@@ -178,8 +178,8 @@ fn bike_wheelie_throttle() {
         println!("{name}:\n  reference {}\n  throttle  {}", both[0].line(), both[1].line());
     }
     println!(
-        "{total} bikes. Reference: lift in 1.5 s {}, hold {}, fell {}, flat out past 60 degrees {}, highest pitch {:.0}. \
-         Throttle assist: lift {}, hold {}, fell {}, flat out past 60 degrees {}, highest pitch {:.0}",
+        "{total} bikes. Reference: lift in 3.5 s {}, hold {}, fell {}, flat out past 60 degrees {}, highest pitch {:.0}. \
+         Throttle assist: lift {}, hold {}, fell {}, flat out past 60 degrees {}, highest pitch {:.0}, over a gear's cap by 6 degrees {over}",
         lifts[0], holds[0], falls[0], flat_loops[0], worst[0], lifts[1], holds[1], falls[1], flat_loops[1], worst[1]
     );
 }

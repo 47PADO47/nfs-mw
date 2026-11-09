@@ -67,6 +67,8 @@ pub struct ThrottleWheelie {
     pub cut_over: [f32; 2],
     /// The share of the engine's drive cut at the far end of `cut_over` (0 to 1).
     pub cut_most: f32,
+    /// The share of the engine's drive cut while a gear is being changed and for the dip after it: the clutch cuts the gas (0 to 1).
+    pub shift_cut: f32,
     /// The speed (m/s) under which the bike counts as stopped and the latch lets go.
     pub rearm_speed: f32,
 }
@@ -89,14 +91,15 @@ impl ThrottleWheelie {
         shift_dip_time: 0.0,
         cut_over: [0.0, 0.0],
         cut_most: 0.0,
+        shift_cut: 0.0,
         rearm_speed: 0.0,
     };
 
     /// What this game plays with: flat out (0.9) with the lever at rest pulls it fully back, below 40 m/s (144 km/h) and
     /// under half the lean limit; the nose stays asked for until it is under 3 degrees. The playtest's numbers: a cap of 40, 35 and 30
     /// degrees in the first three gears, a rise of 8 degrees a second (10 degrees take 1.25 s from the level, the cap of first gear 5 s), a fall
-    /// of 34 degrees a second, a dip of 8 degrees for at least 0.3 s at a gear change, the engine cut from 3 degrees over the allowed
-    /// angle to 70 percent at 12 degrees over, and the latch letting go under 1 m/s.
+    /// of 34 degrees a second, a dip of 8 degrees for at least 0.3 s at a gear change, the engine cut from 2 degrees over the allowed
+    /// angle to 90 percent at 8 degrees over, and the latch letting go under 1 m/s.
     pub const GAME: Self = Self {
         enabled: true,
         throttle: 0.9,
@@ -111,8 +114,9 @@ impl ThrottleWheelie {
         lead: 0.1,
         shift_dip: 0.14,
         shift_dip_time: 0.3,
-        cut_over: [0.052, 0.21],
-        cut_most: 0.7,
+        cut_over: [0.035, 0.14],
+        cut_most: 0.9,
+        shift_cut: 0.9,
         rearm_speed: 1.0,
     };
 
@@ -263,6 +267,10 @@ pub(super) fn update(config: &ThrottleWheelie, state: &mut State, s: &Ask) -> Le
     let reach = move_towards(state.reach, goal, config.rise_rate * s.dt, config.fall_rate * s.dt);
     state.reach = reach.min(s.pitch.max(0.0) + config.lead);
     let cut = ramp(s.pitch - state.reach, config.cut_over) * config.cut_most;
+    let cut = match dipping {
+        true => cut.max(config.shift_cut),
+        false => cut,
+    };
     Lever { weight: config.lever, active: true, reach: state.reach, cut }
 }
 
