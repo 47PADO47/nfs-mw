@@ -39,6 +39,7 @@ textures = "REPLACE/LAMPS/TEXTURES.BIN"   # the textures they use (as a car's TE
 spread = 1.25                     # 1..4  how much wider than the old footprint a replacement may be
 squeeze = 0.5                     # 0.1..1 how far a tree may be squeezed sideways before it is made smaller
 min_height = 0.7                  # 0..1  share of the old height under which the old model is kept
+clearance = false                 # true: copies keep clear of the walls, rails, barriers and buildings next to them (Clearance, below)
 
 [[model]]                         # replace models of the game
 targets = ["XT_LAMP_1A", "XT_LAMP_1B"]   # the game's solid names (case-sensitive); or target = "X", target_hash = 0x1234, target_hashes = [..]
@@ -80,6 +81,29 @@ earlier mod already provides is refused. A target is replaced once per set.
 A model that cannot be fitted within the limits is **not used**: the solid keeps the game's own (a rule, not an error; nothing is
 logged). In a world-space copy every fit is cut into stretches like `row`/`height`.
 
+### Clearance
+
+`[fit] clearance = true` (default `false`; for low growth: bushes, grass, hedges) makes the `height` and `row` copies of a set **keep off
+the solid objects next to them**. `spread` lets a copy be wider than the stretch it replaces (the 2012 bushes are 1.5 times as wide as the
+2005 ones), and beside a guard rail or a concrete barrier that grows the grass through it. Once per section, when its loader thread rewrites
+it, the host lists the section's **objects**: the scenery instances whose name begins `XW_` (walls, guard rails, barriers) or `XB_`
+(buildings), except hedges (`XW_HEDGE*`, which are growth). An object is the oriented box of its solid's bounds as the instance places it
+(the solid's bounds are remembered from every section parsed, so a rail of a shared section is known to the tiles that place it; a tile
+that loads before it uses the world box the instance carries), and the heights it spans. Each copy is tested against the objects near it,
+in plan (convex quadrilaterals, the separating axis rule) and in height (the copy's range against the object's, 10 cm of slack):
+
+1. the copy is made **narrower in 4 steps** (a geometric series) from the width it was placed at down to the width of the stretch of the old
+   geometry it replaces (`base`), and never below what `squeeze` and `min_height` allow (its height follows at `width / squeeze`, and may not
+   fall below `min_height` of the height wanted); the first width that clears every object is used;
+2. a copy that touches an object even at that width **keeps it** (the old bushes stood there too; counted as *held*);
+3. a copy whose **foot is inside an object** is left out. A solid left with no copy keeps the game's own model.
+
+A solid modelled around its own origin (`height` on a single bush) is tested at every place the section puts it and made as narrow as the
+tightest one needs; it is then not shared with the other sections' (the fitted-solid cache is skipped for it). `stand` and `exact` are never
+cleared (a lamp or a sign is itself an object, and `exact` is the author's word). Objects not named `XW_`/`XB_`, world-space `_DEINST`
+objects and the road surface are not considered. The cost is one pass over a section's instances plus a few quadrilateral tests for each
+copy near an object, once when the section is loaded. `Active::clearance()` reports what it did (`Tally`: copies looked at, narrowed, held,
+left out).
 ## Textures
 
 - **Targets** are looked up by name hash in every section the game streams and in the global textures. Any size: a larger or smaller

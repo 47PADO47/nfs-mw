@@ -174,6 +174,17 @@ a hedge row is the hedge model 6.7 m long, repeated along the stretch at the old
 its own model, and the new footprint is 1.0 to 1.5 times the old** (median 1.01: the 1.5 is the `spread` of the bushes' limits) and 0.8 to 1.4 times as tall
 **[verified]** on the real tiles. What was looked at in the game, and where it differs from the 2005 look: [below](#what-was-looked-at).
 
+### Clearance **[ours]**
+
+The bushes' limits (`spread` 1.5) make a copy up to half as wide again as the old stretch, and playing showed it: grass clumps and
+hedges grew through the guard rails and concrete barriers they stand beside. The bushes set therefore asks for **clearance**
+(`[fit] clearance = true`, [`api-replace.md`](../modding/api-replace.md#clearance)): each copy is narrowed until it clears the walls, rails,
+barriers and buildings (`XW_`, `XB_`) of its section, to no less than the width of the stretch it replaces, and a copy rooted inside one is
+left out. The trees do not ask for it (a crown may overhang a rail). The mod's conversion number went up with it, so an installed 2012
+mod converts again on the next start. The ignored test `report_how_many_bushes_are_made_smaller_to_clear_their_neighbours`
+(`crates/nfsmw/src/modding/content/replace/clear_real_tests.rs`) rewrites every section of the installed world and prints how many
+copies near an object were narrowed, held or left out.
+
 ### What was looked at
 
 Offscreen screenshots of the real world (`nfsmw view-world --muted --wait-for-load --at x,y --height 2.5 --heading 0 --pitch -8`, the camera 2.5 m above the
