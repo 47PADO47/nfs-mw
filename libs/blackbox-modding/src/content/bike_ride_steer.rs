@@ -9,10 +9,11 @@
 //! `RIDE6_ARCADE=reference` rides the bikes with the reference game's steering (`ArcadeSteering::REFERENCE`), anything else with the
 //! game's own.
 
-use blackbox_vehicle::bike::{ArcadeSteering, Bike, BikeInput, BikeSpec};
+use blackbox_vehicle::bike::{Bike, BikeInput, BikeSpec};
 use blackbox_vehicle::{FIXED_STEP, FlatGround};
 use glam::Vec3;
 
+use super::bike_ride_steer_arcade::arcade;
 use super::bike_ride_sweep::{held_throttle, specs};
 
 const G: f32 = 9.81;
@@ -22,41 +23,6 @@ fn list(key: &str, default: &[f32]) -> Vec<f32> {
         Ok(text) => text.split(',').filter_map(|p| p.parse().ok()).collect(),
         Err(_) => default.to_vec(),
     }
-}
-
-/// The arcade steering of the run: `RIDE6_ARCADE=reference` the reference game's, `RIDE6_ARCADE=grip=1.2,rate=3,...` the game's values with
-/// those fields changed (`grip`, `rate`, `floor`, `mirror`, `spring`, `roll`, `assist`, `reach`), unset the game's values.
-fn arcade() -> ArcadeSteering {
-    let text = std::env::var("RIDE6_ARCADE").unwrap_or_default();
-    if text == "reference" {
-        return ArcadeSteering::REFERENCE;
-    }
-    // The steering the game had before the arcade steering (rounds 12 and 13): the data's controller, the speed curve held at 0.65, the stick curve mirrored.
-    if text == "before" {
-        return ArcadeSteering { time_scale_speed_floor: 0.65, mirror_stick_curve: true, ..ArcadeSteering::REFERENCE };
-    }
-    let mut arcade = ArcadeSteering::default();
-    for part in text.split(',').filter(|p| !p.is_empty()) {
-        let Some((key, value)) = part.split_once('=') else { continue };
-        let Ok(v) = value.parse::<f32>() else { continue };
-        match key {
-            "grip" => arcade.lateral_grip = v,
-            "lean" => arcade.lean_limit = v,
-            "rate" => arcade.lean_rate = v,
-            "floor" => arcade.time_scale_speed_floor = v,
-            "mirror" => arcade.mirror_stick_curve = v > 0.5,
-            "spring" => arcade.roll_spring = v,
-            "help" => arcade.lean_help = v,
-            "helplimit" => arcade.lean_help_limit = v,
-            "spin" => arcade.fall_angular_speed = v,
-            "stick" => arcade.stick_response = v,
-            "bar" => arcade.handlebar_response = v,
-            "assist" => arcade.cornering_assist = v,
-            "reach" => arcade.stick_reach = v,
-            _ => {}
-        }
-    }
-    arcade
 }
 
 /// Every `RIDE6_EVERY`th bike of the folder (all of them by default), with the run's arcade steering.

@@ -21,6 +21,9 @@
 //! 4. `cornering_assist`: a side force at the centre of gravity (no roll torque) towards the lean, which is what a higher grip gives a
 //!    bike that cannot lean further.
 //! 5. `stick_reach`: the share of the pad stick's travel that reads as the whole stick (the host's input layer).
+//! 6. `authority`, `authority_speed`: the cornering assist's factor over the speed, high when the bike is slow (a tighter circle) and low
+//!    when it is fast (a wider one), a smooth curve with no step (`docs/specs/ride6-arcade-steering.md`, section 11).
+//! 7. `wheelie_steer_drop`: a floor under a steered wheelie, so the stick lowers the front wheel only a little (section 12).
 
 /// The values of the arcade steering; see the module's documentation. `REFERENCE` is neutral.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -58,6 +61,15 @@ pub struct ArcadeSteering {
     pub assist_speed: [f32; 2],
     /// The share of the pad stick's travel that reads as the whole stick (the host's input layer). 1: the stick as it is.
     pub stick_reach: f32,
+    /// The factor on the cornering assist at the slow and at the fast end of `authority_speed`: above 1 at the slow end the bike turns a tighter
+    /// circle, below 1 at the fast end a wider one. Between the ends the factor follows a smooth curve over the logarithm of the speed
+    /// ([`ArcadeSteering::authority_factor`]). `[1, 1]`: the assist as it is at every speed.
+    pub authority: [f32; 2],
+    /// The speeds (m/s) of the two ends of `authority`: the factor is the slow end's at or under the first and the fast end's at or over the second.
+    pub authority_speed: [f32; 2],
+    /// The most (rad) the stick lowers the front wheel of a wheelie: while the bike leans in a wheelie the pitch assist lifts the nose whenever it is
+    /// under the pitch the wheelie had before the lean, less this (the data's assist fades out with the lean). `None`: the data's assist only.
+    pub wheelie_steer_drop: Option<f32>,
 }
 
 impl ArcadeSteering {
@@ -77,6 +89,9 @@ impl ArcadeSteering {
         cornering_assist: 0.0,
         assist_speed: [2.0, 8.0],
         stick_reach: 1.0,
+        authority: [1.0, 1.0],
+        authority_speed: [5.0, 70.0],
+        wheelie_steer_drop: None,
     };
 
     /// The reference game's steering ([`ArcadeSteering::REFERENCE`]).
@@ -93,7 +108,21 @@ impl ArcadeSteering {
     /// (-1 to 1, positive to the right) at `speed` m/s.
     pub fn cornering_acceleration(&self, lean_share: f32, speed: f32) -> f32 {
         let fade = super::curve::ramp(speed.abs(), self.assist_speed);
-        self.cornering_assist * 9.81 * lean_share.clamp(-1.0, 1.0) * fade
+        self.cornering_assist * 9.81 * lean_share.clamp(-1.0, 1.0) * fade * self.authority_factor(speed)
+    }
+
+    /// The factor of the speed on the cornering assist: the slow end of `authority` at or under `authority_speed[0]`, the fast end at or over
+    /// `authority_speed[1]`, and between them a smoothstep of the logarithm of the speed (a progressive curve: it changes fast where the
+    /// speed doubles from a little, with no step and no kink at the ends). 1 for the reference's `[1, 1]`.
+    pub fn authority_factor(&self, speed: f32) -> f32 {
+        let [slow, fast] = self.authority;
+        if slow == fast {
+            return slow;
+        }
+        let first = self.authority_speed[0].max(0.01);
+        let second = self.authority_speed[1].max(first * 1.01);
+        let along = super::curve::ramp(speed.abs().max(0.01).ln(), [first.ln(), second.ln()]);
+        slow + (fast - slow) * along * along * (3.0 - 2.0 * along)
     }
 
     /// The speed factor of the lean time scale: the data's curve `table` at `speed`, held at `time_scale_speed_floor` at least (and never
@@ -119,18 +148,21 @@ impl Default for ArcadeSteering {
         Self {
             lateral_grip: 1.0,
             lean_limit: 0.7,
-            lean_rate: 3.0,
+            lean_rate: 1.38,
             time_scale_speed_floor: 1.0,
             mirror_stick_curve: true,
-            roll_spring: 2.0,
-            stick_response: 2.0,
-            handlebar_response: 1.25,
+            roll_spring: 1.28,
+            stick_response: 1.28,
+            handlebar_response: 1.085,
             lean_help: 6.25,
             lean_help_limit: 3.0,
             fall_angular_speed: 3.0,
             cornering_assist: 1.1,
             assist_speed: [2.0, 8.0],
             stick_reach: 0.9,
+            authority: [1.5, 0.6],
+            authority_speed: [5.0, 70.0],
+            wheelie_steer_drop: Some(7.0_f32.to_radians()),
         }
     }
 }
@@ -160,11 +192,49 @@ mod tests {
 
     #[test]
     fn the_cornering_assist_follows_the_lean_and_fades_in_with_the_speed() {
-        let arcade = ArcadeSteering { cornering_assist: 0.5, ..ArcadeSteering::default() };
+        let arcade = ArcadeSteering { cornering_assist: 0.5, authority: [1.0, 1.0], ..ArcadeSteering::default() };
         assert!((arcade.cornering_acceleration(1.0, 30.0) - 0.5 * 9.81).abs() < 1e-4);
         assert!((arcade.cornering_acceleration(-0.5, 30.0) + 0.25 * 9.81).abs() < 1e-4);
         assert_eq!(arcade.cornering_acceleration(1.0, 1.0), 0.0);
         assert!(arcade.cornering_acceleration(1.0, 5.0) > 0.0 && arcade.cornering_acceleration(1.0, 5.0) < 0.5 * 9.81);
+    }
+
+    #[test]
+    fn the_authority_is_neutral_in_the_reference_and_falls_smoothly_with_the_speed() {
+        let reference = ArcadeSteering::REFERENCE;
+        for speed in [0.0_f32, 5.0, 20.0, 80.0] {
+            assert_eq!(reference.authority_factor(speed), 1.0);
+        }
+        let arcade = ArcadeSteering::default();
+        let [slow, fast] = arcade.authority;
+        assert!(slow > 1.0 && fast < 1.0, "tighter when slow, wider when fast");
+        assert_eq!(arcade.authority_factor(0.0), slow);
+        assert_eq!(arcade.authority_factor(arcade.authority_speed[0]), slow);
+        assert!((arcade.authority_factor(arcade.authority_speed[1]) - fast).abs() < 1e-6);
+        assert!((arcade.authority_factor(300.0) - fast).abs() < 1e-6);
+        // Never rises with the speed, and no step: a tenth of a m/s moves it by under 1.5 percent.
+        let mut last = arcade.authority_factor(0.0);
+        let mut speed = 0.1;
+        while speed < 90.0 {
+            let now = arcade.authority_factor(speed);
+            assert!(now <= last + 1e-6, "{speed} m/s: {now} after {last}");
+            assert!(last - now < 0.015, "a step at {speed} m/s: {last} to {now}");
+            last = now;
+            speed += 0.1;
+        }
+        // The crossing of 1 (the assist as before) lies between 50 and 90 km/h.
+        let crossing = (1..400).map(|i| i as f32 * 0.25).find(|&v| arcade.authority_factor(v) < 1.0).unwrap();
+        assert!((14.0..25.0).contains(&crossing), "the factor passes 1 at {crossing} m/s");
+    }
+
+    #[test]
+    fn the_assist_acceleration_carries_the_authority() {
+        let arcade = ArcadeSteering::default();
+        let plain = ArcadeSteering { authority: [1.0, 1.0], ..arcade };
+        assert!(arcade.cornering_acceleration(1.0, 9.0) > plain.cornering_acceleration(1.0, 9.0));
+        assert!(arcade.cornering_acceleration(1.0, 60.0) < plain.cornering_acceleration(1.0, 60.0));
+        assert_eq!(ArcadeSteering::REFERENCE.wheelie_steer_drop, None);
+        assert!(arcade.wheelie_steer_drop.is_some_and(|drop| drop > 0.0));
     }
 
     #[test]

@@ -175,3 +175,10 @@ What the frames show:
   ([ride6-bike-cameras](ride6-bike-cameras.md)); it was not changed here (that page is being edited elsewhere) and is a question for the camera, not the wheelie.
 
 Nothing needed fixing from these frames. The front wheel and the handlebar angle of the far view are hard to judge (the front wheel is behind the rider); the helmet view is the clear one.
+
+## 10. Round 2: the stick lowers the front only a little (the game's addition) [C]
+
+Playtest: "if I'm wheeling and go right/left the bike should be brought down only a little bit, not all the way." The pitch assist of the data fades out with the lean (`PitchParams::lean_help`, 0.2 to 1 of the lean over
+its limit), so a wheelie with the stick over loses its assist; the throttle's wheelie of the game then fell to the road at a full stick. `ArcadeSteering::wheelie_steer_drop` (7 degrees in this game, none in `REFERENCE`) puts a floor
+under a steered wheelie: the assist lifts a nose that falls more than that under the pitch the wheelie had before the lean, and never lowers it. About 10 degrees are lost at a full stick, the wheelie stays up. See
+[ride6-arcade-steering.md](ride6-arcade-steering.md), section 12 (the measurements, the limits and the tests).

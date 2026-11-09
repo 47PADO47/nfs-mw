@@ -17,6 +17,8 @@ fn input(weight: f32, pitch: f32, rate: f32) -> PitchInput {
         inertia: 80.0,
         body_inertia: 70.0,
         dt: 1.0 / 60.0,
+        reach_limit: f32::INFINITY,
+        steer_floor: None,
     }
 }
 
@@ -181,4 +183,42 @@ fn the_assist_adds_the_lowering_torque_to_a_wheelie_that_drops_and_not_to_a_stop
     let stoppie_drop = PitchInput { body_inertia: 100.0, ..stoppie(1.0, 0.5, -1.5) };
     let stoppie_without = PitchInput { body_inertia: 0.0, ..stoppie_drop };
     assert_eq!(torque(&s, &stoppie_drop), torque(&s, &stoppie_without));
+}
+
+#[test]
+fn a_reach_limit_holds_the_wheelie_target_down_and_no_limit_changes_nothing() {
+    let s = spec();
+    let high = PitchInput { pitch: 0.2, ..input(-1.0, 0.2, 0.0) };
+    let free = torque(&s, &high);
+    assert_eq!(free, torque(&s, &PitchInput { reach_limit: f32::INFINITY, ..high }));
+    // The target is the limit: a nose above it is pulled down, a nose below it is lifted, and the pull grows with the gap.
+    let limit = 0.1;
+    assert!(torque(&s, &PitchInput { reach_limit: limit, ..high }) < free);
+    assert!(torque(&s, &PitchInput { reach_limit: limit, pitch: 0.3, ..high }) < 0.0);
+    assert!(torque(&s, &PitchInput { reach_limit: limit, pitch: 0.0, ..high }) > 0.0);
+}
+
+#[test]
+fn a_steered_wheelie_is_lifted_when_it_falls_under_the_floor_and_never_lowered_by_it() {
+    let s = spec();
+    let up = |lean: f32, floor: Option<f32>, pitch: f32| PitchInput {
+        normalised_lean: lean,
+        front_on_ground: false,
+        steer_floor: floor,
+        ..input(-1.0, pitch, 0.0)
+    };
+    let target = s.wheelie.max_angle;
+    // The data's assist: at a full lean its torque is gone, whatever the pitch.
+    assert_eq!(torque(&s, &up(1.0, None, target - 0.2)), 0.0);
+    // With a floor the nose under it is lifted at the full lean, and the farther under, the more.
+    let floor = target - 0.17;
+    assert!(torque(&s, &up(1.0, Some(floor), floor - 0.05)) > 0.0);
+    // A nose over the floor is left alone (the floor never lowers it), also above the target.
+    assert_eq!(torque(&s, &up(1.0, Some(floor), floor + 0.05)), 0.0);
+    assert_eq!(torque(&s, &up(1.0, Some(floor), target + 0.2)), 0.0);
+    // Without a lean the data's assist is all there is: the floor adds nothing over it where the assist already lifts.
+    assert!(torque(&s, &up(0.0, Some(floor), target - 0.2)) >= torque(&s, &up(0.0, None, target - 0.2)));
+    // With the front wheel on the road it is the data's assist.
+    let down = PitchInput { front_on_ground: true, ..up(1.0, Some(floor), floor - 0.05) };
+    assert_eq!(torque(&s, &down), 0.0);
 }

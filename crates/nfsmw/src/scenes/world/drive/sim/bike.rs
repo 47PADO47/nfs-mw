@@ -399,6 +399,11 @@ impl CarSim {
         Some(ride.bike.abs_level())
     }
 
+    /// Whether the bike is in a burnout (the throttle and the front brake held with it standing or crawling); false for a car.
+    pub fn bike_burnout(&self) -> bool {
+        self.ride.as_ref().is_some_and(|ride| ride.bike.burnout())
+    }
+
     /// The bike's state for its rider's animation; `None` for a car.
     pub fn rider_sample(&self) -> Option<RiderSample> {
         self.ride.as_ref().map(|ride| ride.rider_sample())

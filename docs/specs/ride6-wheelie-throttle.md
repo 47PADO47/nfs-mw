@@ -4,7 +4,8 @@ The player's wish: "spamming the gas, or not, must lift and hold a wheelie easil
 lever released no launch lifts the front wheel, 0 of 288 bikes; "if the players want the throttle alone to start a wheelie, the rider help's cut and the auto-rider's
 forward weight under the throttle are the two things to open for a launch"). Tags: **[M]** measured on the model (the tests and the sweep below), **[R]** read in this
 repository's code, **[C]** a choice of this project. **This is not the reference's behaviour**: the reference lifts a wheel with the weight lever and the throttle
-([ride6-tricks.md](ride6-tricks.md), section 1). It is switchable and the reference's behaviour is the neutral value.
+([ride6-tricks.md](ride6-tricks.md), section 1). It is switchable and the reference's behaviour is the neutral value. **[Playtest round 2, section 6: the assist is slower, only in
+the first three gears with caps of 40, 35 and 30 degrees, dips at a gear change, and is latched off after the front wheel is put down.]**
 
 ## 1. The mechanism: a virtual lever [C]
 
@@ -43,7 +44,7 @@ A bike with no wheelie control in its data (none of the 293) asks for nothing.
   (`scenes/world/bike_assist.rs`), so a change reaches a bike on the road. It applies to the bike the player rides: a computer driver's bike (`collision_role.player`
   false) keeps the reference's behaviour. There is **no menu row**: the options menu is being reorganised by another change; the key is the switch.
 
-## 3. Measured [M]
+## 3. Measured, first version [M] (the numbers are those before the playtest round 2; the current behaviour is section 6)
 
 `cargo test -p blackbox-vehicle wheelie_throttle` (13 tests: the lever's rules, and the example supermoto and a superbike with the lever never touched): with `REFERENCE` a full
 throttle launch keeps the front wheel down (under 10 degrees in 4 s); with `GAME` it lifts 10 degrees in under 1.5 s; the throttle held flat out for 12 s from 0, 10, 20 and 30
@@ -109,3 +110,61 @@ cargo test -p blackbox-vehicle wheelie_throttle
 RIDE6_CARS=<folder of manifests> [RIDE6_FILTER=a,b] [RIDE6_TW_LEVER=-1 RIDE6_TW_THROTTLE=0.9] cargo test --release -p blackbox-modding --features host --lib bike_wheelie_throttle -- --ignored --nocapture
 nfsmw view-world --drive KTM450 --muted --camera-mode chase --drive-script "3:throttle=1;5:throttle=0;2:throttle=1;1:throttle=0" --screenshot out/wheelie.png --screenshot-delay 3 --screenshot-interval 0.5 --screenshot-count 20
 ```
+
+## 6. Playtest round 2: slower, in three gears, a dip at the shift, and a latch [C]
+
+The player's report: "bike wheelie too easily/autonomously. manual wheelies are ok currently, but if just press gas the bike wheelies automatically. ok but: it should happen slower, only in first (max 40
+degrees), second (max 35 degrees) and third (max 30 degrees). max ignored if wheeling manually. also when the gear changes it should go down a little before going up (simulate clutch that stops gas).
+also if I put it down it then shouldn't do it again automatically (unless I go back to first or stop)." Sections 1 to 5 describe the first version; this is what the throttle-only wheelie does now. The
+group `ThrottleWheelie` gained the fields below (`REFERENCE` has them all at 0, so the reference behaviour is unchanged); the state lives in `wheelie_throttle.rs` (`State`, `update`).
+
+**The allowed angle.** Besides the virtual lever the assist keeps one number, the angle it may lift to now (`State::reach`). It is the **ceiling of the pitch assist's target** (`PitchInput::reach_limit`) and
+an **engine cut** when the nose is over it (`Lever::cut`, folded into the rider help's electronic cut), so it holds a nose that the assist alone cannot (a launch below 15 km/h, where the assist does not act). It
+moves like this each step:
+
+| what | rule | field, `GAME` |
+|---|---|---|
+| gears | the cap of the gear in use: first 40, second 35, third 30 degrees; in a higher gear **no wheelie is asked** (a wheelie that is up when the gear goes beyond the third is let down gently: the allowed angle falls to 0) | `gear_caps` 0.698, 0.611, 0.524 rad |
+| the rider's own lever | the cap **does not apply**: a real lever (beyond `free_lever`) or a front brake hands the bike back to the rider and the allowed angle is infinite | `free_lever` 0.2 |
+| the rise | the allowed angle rises at 8 degrees a second from the angle the nose has when the wheelie starts: 10 degrees take 1.25 s, the cap of first gear 5 s (before: 10 degrees in 1.3 s and the whole 38 in 3) | `rise_rate` 0.14 rad/s |
+| the fall | it comes down at 34 degrees a second (to a dip, to a lower gear's cap, to nothing in a gear without one) | `fall_rate` 0.6 rad/s |
+| the lead | it is never more than 6 degrees above the nose: a nose that lags (a bike that cannot lift, a wheelie just let down) is not run away from, so the rise always starts from the nose | `lead` 0.1 rad |
+| the dip | a gear change (`Powertrain::shifting`, the clutch is out) lowers it by 8 degrees below where it was (or below the cap, if that is lower) for the change **and at least 0.3 s** (the bikes' own change takes 0.06 s, less than the nose needs to answer), then it rises again at the slow rate | `shift_dip` 0.14 rad, `shift_dip_time` 0.3 s |
+| the engine cut | the drive is cut from 2 degrees above the allowed angle, to 90 percent at 8 degrees above | `cut_over` 0.035, 0.14 rad, `cut_most` 0.9 |
+| the clutch | the gas is cut to 10 percent for the change and the dip after it ("simulate clutch that stops gas"): without it the nose rose through the dip, the target alone did not bring it down | `shift_cut` 0.9 |
+
+Why these numbers: the three caps are the player's. 8 degrees a second is slower than every lift the first version made (10 degrees in 1.3 s was the engine's own pace under the assist) and still reaches the cap of
+first gear in 5 s, which a standing start spends in first and second; 34 degrees a second is the pace of the gentle lowering of the data (7 to 40 degrees a second, section 1); a dip of 8 degrees is the "a little" of
+the player (measured: the nose comes down 3 to 4.5 degrees in the dip, 30.2 to 27.4 on the supermoto and 36.3 to 31.8 on the superbike); the cut ramps over 6 degrees and the sweep shows a launch still reaches 108 to 131 km/h in 8 s (the first version 80 to 137). The unit test
+`the_lift_is_slower_than_it_was` measures the time to 25 degrees against the first version's behaviour (`unlimited()`: the same assist without the rise, the caps, the dip and the cut) and wants at least 1.3 times it plus 0.2 s: supermoto 2.55 s against 1.53 s, superbike 2.45 s against 1.25 s.
+
+**The latch.** Once the front wheel has been put **down**, the throttle asks for no more wheelies. "Put down" is a wheelie of the throttle that had really gone up (the front wheel off the road and the pitch over 3 degrees)
+and ended by: the front wheel touching the road (also with the gas still down), the nose under 3 degrees with the throttle shut, the rider's lever or the front brake, or a gear beyond the third. The latch
+lets go when the bike **enters first gear** (from the second: a downshift, or the standing start's first change back) or **stops** (speed under 1 m/s). A wheelie that never went up (the gas lifted before the nose
+rose) latches nothing, and a rider's own wheelie that the throttle never joined latches nothing. So: launch, wheelie, shut the gas, front down: pressing the gas again at the same gear does nothing; a stop, or first
+gear again, arms it. (`rearm_speed` 1 m/s.) Spamming the throttle still keeps a wheelie that is up alive (the virtual lever holds while the nose is over 3 degrees) as in section 1.
+
+**A wheelie can only start under its cap**: pitch under the cap of the gear, the lever at rest, throttle 0.9, speed under 40 m/s, lean under half the limit; the rest of the conditions of section 1 are unchanged.
+
+**Tests.** `wheelie_throttle_tests.rs` (the rules, as pure functions of `State` and `Ask`): the cap of each gear is reached and never exceeded, no wheelie in the fourth gear and above, a wheelie up when the gear goes beyond the third
+comes down and is put down, the cap does not touch the rider's lever, the rise is 8 degrees a second, the allowed angle does not run from a nose that stays low, the dip (from the cap and from a lower angle, never
+deeper than `shift_dip`) and the rise after it, a lower gear's cap is reached at the fall rate, the engine cut's ramp, the latch (touchdown, lever, front brake) and its release (first gear, a stop; not by staying in first),
+a wheelie that never went up latches nothing, blips keep it alive. `wheelie_throttle_sim_tests.rs` (the example supermoto and a superbike, the bike's own gearbox): the lift from a standstill, slower than before, never
+more than 6 degrees over the cap of the gear (a second and a half after a change left out), no lever in the fourth gear, the rider's lever wheelie goes above the cap of the third gear where the assist's does not, the nose goes
+down at a gear change and up again, and the front put down is not lifted again by the gas. The sweep `bike_wheelie_throttle` over the imported bikes also reports, per bike, how far over the cap of its gear the assist's
+wheelie went; its "hold" column now reads a bang-bang throttle from a standstill (the pitch between 8 and 46 degrees from 2 s to 9 s) because the assist only works in the first three gears.
+
+**Measured** [M]. The sweep `bike_wheelie_throttle` over the **293 imported bikes**, the lever never touched (`RIDE6_CARS=<the ride6-bikes mod's cars folder>`; log `C:\r6work\feel-sweep-wt.log`), assist off (reference) and on:
+
+| 293 bikes | assist off (reference) | assist on (round 2) |
+|---|---|---|
+| front wheel up (10 degrees) within 3.5 s of a flat-out launch | **0** | **291** (median 1.5 s, from 1.0 s to 2.7 s; 25 degrees take 2.5 s on the supermoto and the superbike of the unit test, against 1.5 s and 1.3 s before) |
+| a bang-bang throttle from a standstill keeps the nose between 8 and 46 degrees from 2 s to 9 s | 0 | **257** |
+| falls (any of the six rides) | 0 | **0** |
+| highest pitch of any ride | 6 degrees | **42** |
+| bikes whose assisted wheelie went more than 6 degrees over the cap of its gear (1.5 s after a change left out) | | **0** (the largest excess is 5 degrees) |
+| speed after 8 s of flat-out launch | | 108 to 131 km/h on five sampled bikes (Aprilia RS 250 108, Hypermotard 112, Yamaha R1M 121, Honda X-ADV 130, MV Agusta Superveloce 131) |
+
+The unit tests (`wheelie_throttle_sim_tests.rs`) on the supermoto and the superbike: never more than 6 degrees over the cap of the gear; no lever in the fourth gear; the lever's wheelie in the third gear reaches 39.8
+degrees where the assist's reaches 1.9 (the superbike in the third gear from a standing start has hardly any lift: the assist is a ceiling, not a lifter); the nose goes down at the first gear change made in a wheelie by 3 to 4.5
+degrees and up again; the front put down is not lifted again by the gas.
