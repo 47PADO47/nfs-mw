@@ -102,7 +102,7 @@ impl Binding {
             value *= s.controls.mouse_sensitivity.factor();
             // The head look is a stick (spring-loaded), so the mouse is read as the speed of its motion, not the
             // distance of a frame: pixels per second, whatever the frame rate.
-            if matches!(self.action, Action::HeadLookX | Action::HeadLookY) {
+            if matches!(self.action, Action::HeadLookX | Action::HeadLookY | Action::AirPitch | Action::AirYaw) {
                 value = mouse_rate(value, s.dt);
             }
         }
@@ -319,6 +319,24 @@ fn driving() -> Vec<Binding> {
         Binding::new(HeadLookY, key(KeyCode::Numpad9), 1.0),
         Binding::new(HeadLookY, key(KeyCode::Numpad3), -1.0),
         Binding::new(AbsLevel, button(GamepadButton::LeftThumb), 1.0),
+        // The air control (`docs/specs/air-control.md`): the keys that drive are the stick (W and S, the arrows up and down: pitch; A and D,
+        // the arrows left and right: roll; E and Q: spin), the left stick pitches and rolls, the right stick's X spins, and the mouse is a
+        // stick whose deflection is its speed: right spins, up (negative motion) pitches the nose down, as a stick pushed forward does.
+        Binding::new(AirPitch, key(KeyCode::KeyW), 1.0),
+        Binding::new(AirPitch, key(KeyCode::ArrowUp), 1.0),
+        Binding::new(AirPitch, key(KeyCode::KeyS), -1.0),
+        Binding::new(AirPitch, key(KeyCode::ArrowDown), -1.0),
+        Binding::new(AirRoll, key(KeyCode::KeyD), 1.0),
+        Binding::new(AirRoll, key(KeyCode::ArrowRight), 1.0),
+        Binding::new(AirRoll, key(KeyCode::KeyA), -1.0),
+        Binding::new(AirRoll, key(KeyCode::ArrowLeft), -1.0),
+        Binding::new(AirYaw, key(KeyCode::KeyE), 1.0),
+        Binding::new(AirYaw, key(KeyCode::KeyQ), -1.0),
+        Binding::new(AirPitch, Source::PadAxis(GamepadAxis::LeftStickY), 1.0),
+        Binding::new(AirRoll, Source::PadAxis(GamepadAxis::LeftStickX), 1.0),
+        Binding::new(AirYaw, Source::PadAxis(GamepadAxis::RightStickX), 1.0),
+        Binding::new(AirYaw, Source::MouseMotion { y: false, gate: Gate::Look }, 1.0 / MOUSE_HEAD_LOOK_PIXELS),
+        Binding::new(AirPitch, Source::MouseMotion { y: true, gate: Gate::Look }, -1.0 / MOUSE_HEAD_LOOK_PIXELS),
         Binding::new(ResetCar, button(GamepadButton::Select), 1.0),
         Binding::new(ToggleCamera, button(GamepadButton::North), 1.0),
         Binding::new(CycleCamera, button(GamepadButton::RightTrigger), 1.0),
