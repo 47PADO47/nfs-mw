@@ -23,7 +23,7 @@
 //! height of the solid it replaces and stands its origin on that solid's floor, at the solid's origin. `fit = "row"` is for
 //! solids that are a stretch of trees: copies of the model, scaled to the replaced height but not past one and a half times
 //! their own size, are set where the replaced solid's own geometry is, one for each stretch of it, at the floor of that stretch.
-//! An optional `[fit]` table sets the limits ([`FitLimits`]): `spread`, `squeeze` and `min_height`.
+//! An optional `[fit]` table sets the limits ([`FitLimits`]): `spread`, `squeeze`, `min_height` and `clearance`.
 
 use std::collections::HashSet;
 
@@ -85,11 +85,15 @@ pub struct FitLimits {
     pub squeeze: f32,
     /// The least share of the replaced height a replacement may have after being made smaller to fit (0 to 1).
     pub min_height: f32,
+    /// Whether the copies of a replacement keep clear of the solid objects next to them (walls, guard rails, barriers, buildings): a
+    /// copy that would reach into one is made smaller, down to the footprint it replaces, or left out. For low growth (bushes, grass,
+    /// hedges); a tree's crown may overhang a rail, so it is off by default.
+    pub clearance: bool,
 }
 
 impl Default for FitLimits {
     fn default() -> Self {
-        Self { spread: 1.25, squeeze: 0.5, min_height: 0.7 }
+        Self { spread: 1.25, squeeze: 0.5, min_height: 0.7, clearance: false }
     }
 }
 
@@ -124,6 +128,7 @@ pub(super) struct RawLimits {
     spread: Option<f32>,
     squeeze: Option<f32>,
     min_height: Option<f32>,
+    clearance: Option<bool>,
 }
 
 impl RawLimits {
@@ -142,7 +147,7 @@ impl RawLimits {
         if !(0.0..=1.0).contains(&min_height) {
             return Err(field("fit.min_height", "0 to 1"));
         }
-        Ok(FitLimits { spread, squeeze, min_height })
+        Ok(FitLimits { spread, squeeze, min_height, clearance: self.clearance.unwrap_or(defaults.clearance) })
     }
 }
 
