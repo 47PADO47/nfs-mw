@@ -217,7 +217,7 @@ fn arm_skeleton() -> Skeleton {
 }
 
 fn arm_pose(body: Body) -> Vec<Transform> {
-    let resolved = Resolved { limbs: Vec::new(), shift_bone: 1, torso: None, seat: None };
+    let resolved = Resolved { limbs: Vec::new(), shift_bone: 1, torso: None, seat: None, clearance: None };
     run(&arm_skeleton(), &resolved, &[], body)
 }
 

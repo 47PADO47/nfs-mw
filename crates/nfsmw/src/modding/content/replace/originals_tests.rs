@@ -5,8 +5,9 @@ use std::sync::Arc;
 use blackbox_modding::content::{TextureState, parse_replace_set};
 use blackbox_tpk::{PixelFormat, Texture, TextureSource};
 
-use super::super::active::{Active, LoadedSet};
-use super::super::textures::TextureSlot;
+use super::active::{Active, LoadedSet};
+use super::originals::*;
+use super::textures::TextureSlot;
 use super::*;
 
 /// A texture of `side` by `side` with a hash of its own, so tests that share the process-wide ledger do not meet.
