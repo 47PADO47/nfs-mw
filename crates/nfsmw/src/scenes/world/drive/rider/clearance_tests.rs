@@ -155,9 +155,9 @@ fn the_section_reads_its_cells_and_takes_a_point_near_a_wall_for_being_at_it() {
 
 #[test]
 fn a_rider_clear_of_the_bike_is_left_exactly_as_he_is() {
-    // The knees and thighs outside the tank: the feet 0.40 m out.
+    // The knees and thighs outside a narrow tank (9 cm each side; the thigh's skin is 9 cm from its axis): the feet 0.40 m out.
     let pose = legs(Vec3::new(0.1, 0.40, 0.30), Vec3::new(0.6, 0.40, 0.65));
-    let clearance = clearance(0.13);
+    let clearance = clearance(0.09);
     for (n, limb) in resolved().limbs.iter().enumerate() {
         assert_eq!(clearance.limb_pole((n, limb), &pose, &frame()), None);
     }
