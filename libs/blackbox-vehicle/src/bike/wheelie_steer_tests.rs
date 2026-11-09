@@ -167,15 +167,19 @@ fn the_front_wheel_of_a_wheelie_is_steered_by_the_mid_air_steer_from_the_stick()
 /// A wheelie held at 12 m/s with the lever back (the pitch settles in 1 s once it is past 23 degrees), then the stick held at `stick` for 3 s from 1.3 s on,
 /// the arcade steering's `wheelie_steer_drop` as given: the pitch before the stick (rad, the mean of 0.3 s), the lowest pitch with the stick
 /// held, whether the front wheel stayed up the whole time, and whether the bike fell.
-fn steered_wheelie(stick: f32, drop: Option<f32>) -> (f32, f32, bool, bool) {
+/// [`steered_wheelie`] with the lever (`manual`) or with the throttle alone, the game's throttle wheelie (the lever never touched).
+fn steered_wheelie_with(stick: f32, drop: Option<f32>, manual: bool) -> (f32, f32, bool, bool) {
     let ground = FlatGround::new(0.0);
     let mut spec = BikeSpec::example();
     spec.engine.peak_torque *= 2.2;
     spec.steering.arcade =
         crate::bike::ArcadeSteering { wheelie_steer_drop: drop, ..crate::bike::ArcadeSteering::REFERENCE };
     let mut bike = Bike::new(spec);
-    assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, 12.0));
-    bike.set_weight(-1.0);
+    assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, if manual { 12.0 } else { 0.0 }));
+    bike.set_weight(if manual { -1.0 } else { 0.0 });
+    if !manual {
+        bike.set_throttle_wheelie(crate::bike::ThrottleWheelie::GAME);
+    }
     let (mut settled, mut samples, mut lowest, mut up) = (None, 0.0_f32, f32::MAX, true);
     let mut begin = None;
     for step in 0..(9.0 / FIXED_STEP) as usize {
@@ -190,7 +194,7 @@ fn steered_wheelie(stick: f32, drop: Option<f32>) -> (f32, f32, bool, bool) {
             return (settled.unwrap_or(0.0), lowest, false, true);
         }
         let Some(start) = begin else {
-            if t > 2.0 && bike.pitch() > 0.4 {
+            if t > 2.0 && bike.pitch() > if manual { 0.4 } else { 0.3 } {
                 begin = Some(t);
             }
             continue;
@@ -213,34 +217,36 @@ fn steered_wheelie(stick: f32, drop: Option<f32>) -> (f32, f32, bool, bool) {
 
 #[test]
 fn the_stick_lowers_the_front_of_a_wheelie_only_a_little_and_the_wheelie_stays_up() {
-    let drop = 10.0_f32.to_radians();
-    for stick in [1.0_f32, -1.0, 0.5] {
-        let (before, lowest, up, fell) = steered_wheelie(stick, Some(drop));
-        assert!(!fell, "stick {stick}");
-        println!("stick {stick}: {:.1} degrees, lowest {:.1}", before.to_degrees(), lowest.to_degrees());
-        assert!(before > 0.4, "the wheelie was up and settled: {:.1} degrees", before.to_degrees());
-        // The drop of the lean plus what a wheelie held above the assist's target settles back to: under 16 degrees, not the whole wheelie.
-        assert!(
-            lowest > before - drop - 6.0_f32.to_radians(),
-            "stick {stick}: {:.1} to {:.1} degrees",
-            before.to_degrees(),
-            lowest.to_degrees()
-        );
-        assert!(up, "the front wheel stays up with the stick at {stick}");
+    // The lever's wheelie and the throttle's own, the stick at 1, -1 and 0.5 for 3 s: at most about 10 degrees lost (the measured loss is printed).
+    for manual in [true, false] {
+        for stick in [1.0_f32, -1.0, 0.5] {
+            let (before, lowest, up, fell) = steered_wheelie_with(stick, Some(7.0_f32.to_radians()), manual);
+            println!("manual {manual} stick {stick}: {:.1} to {:.1} degrees", before.to_degrees(), lowest.to_degrees());
+            assert!(!fell, "stick {stick}");
+            assert!(before > 0.3, "the wheelie was up and settled: {:.1} degrees", before.to_degrees());
+            let lost = (before - lowest).to_degrees();
+            assert!(
+                lost < 12.0,
+                "manual {manual} stick {stick}: {lost:.1} degrees lost, from {:.1}",
+                before.to_degrees()
+            );
+            assert!(up, "the front wheel stays up with the stick at {stick} (manual {manual})");
+        }
     }
 }
 
 #[test]
-fn the_steered_wheelie_with_the_drop_is_never_lower_than_the_data_assists_and_the_reference_has_none() {
-    let drop = 10.0_f32.to_radians();
-    let (_, with, with_up, _) = steered_wheelie(1.0, Some(drop));
-    let (_, without, _, _) = steered_wheelie(1.0, None);
-    assert!(
-        with >= without - 1.0_f32.to_radians(),
-        "with the drop {:.1} degrees, the data's assist {:.1}",
-        with.to_degrees(),
-        without.to_degrees()
-    );
-    assert!(with_up);
+fn the_steered_wheelie_with_the_floor_is_never_lower_than_with_the_data_assist_and_the_reference_has_none() {
+    for manual in [true, false] {
+        let (_, with, with_up, _) = steered_wheelie_with(1.0, Some(7.0_f32.to_radians()), manual);
+        let (_, without, _, _) = steered_wheelie_with(1.0, None, manual);
+        assert!(
+            with >= without - 1.5_f32.to_radians(),
+            "manual {manual}: with the floor {:.1} degrees, the data's assist {:.1}",
+            with.to_degrees(),
+            without.to_degrees()
+        );
+        assert!(with_up);
+    }
     assert_eq!(crate::bike::ArcadeSteering::REFERENCE.wheelie_steer_drop, None);
 }

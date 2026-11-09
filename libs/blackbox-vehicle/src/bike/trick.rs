@@ -33,7 +33,12 @@ pub(super) struct TrickState {
     /// The virtual lever's memory (its latch, the gear and the dip), and the ceiling (rad) it gives the pitch assist's target; `None` is none.
     pub throttle_state: wheelie_throttle::State,
     pub reach: Option<f32>,
+    /// The pitch (rad) the wheelie had before it was steered: followed while the front wheel is up and the lean small, held while it leans, 0 on the road.
+    pub wheelie_ref: f32,
 }
+
+/// The lean (share of its limit) under which a wheelie counts as unsteered: its pitch is the one a steered wheelie is kept near (`wheelie_steer_drop`).
+const STEER_REF_LEAN: f32 = 0.25;
 
 /// The rate (1/s) at which the tuck level rises while the rider tucks and falls when he does not: the constructor defaults of
 /// the input handler (`TuckInRaiseRate`, `TuckInFallRate`, both 2; no bike's data sets them).
@@ -322,6 +327,7 @@ impl Bike {
                 throttle_lever,
                 throttle_state,
                 reach,
+                wheelie_ref: self.trick.wheelie_ref,
             };
             return passthrough;
         };
@@ -355,6 +361,7 @@ impl Bike {
             throttle_lever,
             throttle_state,
             reach,
+            wheelie_ref: self.trick.wheelie_ref,
         };
         help
     }
@@ -383,6 +390,20 @@ impl Bike {
         let Some(assist) = &self.spec.wheelie else { return };
         let rotation = self.body.rotation();
         let limit = self.plan.limit.max(0.05);
+        // The pitch the wheelie had before the lean: followed with the front wheel up and the lean small, held while it leans.
+        let lean_share = (lean_of(rotation).abs() / limit).min(1.0);
+        self.trick.wheelie_ref = match (self.wheels[FRONT].on_ground, lean_share < STEER_REF_LEAN) {
+            (true, _) => 0.0,
+            (false, true) => pitch_of(rotation).max(0.0),
+            (false, false) => self.trick.wheelie_ref,
+        };
+        let steer_floor = self
+            .spec
+            .steering
+            .arcade
+            .wheelie_steer_drop
+            .map(|drop| self.trick.wheelie_ref - drop)
+            .filter(|floor| *floor > 0.0);
         let request = PitchInput {
             weight: self.trick.weight,
             throttle: self.trick.throttle,
@@ -399,7 +420,7 @@ impl Bike {
             body_inertia: self.pivot_inertia(rotation),
             dt,
             reach_limit: self.trick.reach.unwrap_or(f32::INFINITY),
-            steer_drop: self.spec.steering.arcade.wheelie_steer_drop,
+            steer_floor,
         };
         let torque = pitch_assist::torque(assist, &request);
         self.body.apply_torque(rotation * Vec3::X * -torque);

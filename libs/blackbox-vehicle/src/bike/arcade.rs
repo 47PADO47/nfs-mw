@@ -23,7 +23,7 @@
 //! 5. `stick_reach`: the share of the pad stick's travel that reads as the whole stick (the host's input layer).
 //! 6. `authority`, `authority_speed`: the cornering assist's factor over the speed, high when the bike is slow (a tighter circle) and low
 //!    when it is fast (a wider one), a smooth curve with no step (`docs/specs/ride6-arcade-steering.md`, section 11).
-//! 7. `wheelie_steer_drop`: the most the stick lowers the front wheel of a wheelie (section 12).
+//! 7. `wheelie_steer_drop`: a floor under a steered wheelie, so the stick lowers the front wheel only a little (section 12).
 
 /// The values of the arcade steering; see the module's documentation. `REFERENCE` is neutral.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -67,8 +67,8 @@ pub struct ArcadeSteering {
     pub authority: [f32; 2],
     /// The speeds (m/s) of the two ends of `authority`: the factor is the slow end's at or under the first and the fast end's at or over the second.
     pub authority_speed: [f32; 2],
-    /// The most the stick lowers the front wheel of a wheelie (rad): the pitch assist keeps working with the lean (the data's lets it go as the bike
-    /// leans, so the front falls) and aims that much lower at the full lean. `None`: the data's assist, which loses its hold with the lean.
+    /// The most (rad) the stick lowers the front wheel of a wheelie: while the bike leans in a wheelie the pitch assist lifts the nose whenever it is
+    /// under the pitch the wheelie had before the lean, less this (the data's assist fades out with the lean). `None`: the data's assist only.
     pub wheelie_steer_drop: Option<f32>,
 }
 
@@ -148,12 +148,12 @@ impl Default for ArcadeSteering {
         Self {
             lateral_grip: 1.0,
             lean_limit: 0.7,
-            lean_rate: 1.3,
+            lean_rate: 1.38,
             time_scale_speed_floor: 1.0,
             mirror_stick_curve: true,
-            roll_spring: 1.2,
-            stick_response: 1.2,
-            handlebar_response: 1.07,
+            roll_spring: 1.28,
+            stick_response: 1.28,
+            handlebar_response: 1.085,
             lean_help: 6.25,
             lean_help_limit: 3.0,
             fall_angular_speed: 3.0,
@@ -162,7 +162,7 @@ impl Default for ArcadeSteering {
             stick_reach: 0.9,
             authority: [1.5, 0.6],
             authority_speed: [5.0, 70.0],
-            wheelie_steer_drop: Some(10.0_f32.to_radians()),
+            wheelie_steer_drop: Some(7.0_f32.to_radians()),
         }
     }
 }
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn the_cornering_assist_follows_the_lean_and_fades_in_with_the_speed() {
-        let arcade = ArcadeSteering { cornering_assist: 0.5, ..ArcadeSteering::default() };
+        let arcade = ArcadeSteering { cornering_assist: 0.5, authority: [1.0, 1.0], ..ArcadeSteering::default() };
         assert!((arcade.cornering_acceleration(1.0, 30.0) - 0.5 * 9.81).abs() < 1e-4);
         assert!((arcade.cornering_acceleration(-0.5, 30.0) + 0.25 * 9.81).abs() < 1e-4);
         assert_eq!(arcade.cornering_acceleration(1.0, 1.0), 0.0);
