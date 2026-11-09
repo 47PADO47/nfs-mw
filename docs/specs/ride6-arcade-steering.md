@@ -88,7 +88,7 @@ The lateral acceleration of the turn is `g tan(lean) + assist x (target lean / l
 while it rolls, so the path turns as soon as the stick is moved (a path flip of 0.35 to 0.5 s) and the bike's lean follows (0.65 s). It is a force
 at the centre of gravity, so it adds no roll torque and does not change the balance of the bike; the stability help's wanted yaw rate adds it
 (`(g tan(lean) + assist) / v`, `lean_help.rs`) so the two do not fight. It needs the rear wheel on the road and is off in a burnout and a
-fall. It does not look at the surface: on gravel or in the rain the bike still turns at 1.6 g (open item).
+fall. It did not look at the surface (on gravel or in the rain the bike still turned at 1.6 g); it does now, scaled by the grip the bike believes in ([ride6-bike-rough-ground.md](ride6-bike-rough-ground.md)).
 
 Why a force and not the tyre's grip: raising `lateral_grip` to 1.15 gives 1.19 g only (the lean goes to 56 degrees, the rider's offset and the tyre's
 patch take the rest), and a lean of 60 degrees or more is beyond the fall limit of the data (57 degrees); 1.6 g is `tan(58 degrees)` of the line from the
@@ -162,7 +162,7 @@ settings and the two runs do not stay on the same path, so the frames show that 
 
 - Flip time of the lean 0.65 s, not 0.4 s: needs the wheels to stay on the road while the body rolls above `sqrt(g / h)`; a kinematic roll about the
   centre of gravity (the body's roll set directly with a hold-down force) would give 0.4 s; not done (it would also have to drive the yaw).
-- The cornering assist does not look at the surface (gravel, rain): scale it by the rear contact's lateral grip once the wheel state carries it.
+- The cornering assist looks at the surface since [ride6-bike-rough-ground.md](ride6-bike-rough-ground.md) (it was an open item here). Jumps: [ride6-bike-jumps.md](ride6-bike-jumps.md).
 - The bikes with the lowest grip (the adventure bikes: base limit 49 degrees, 0.77 g) turn at the same 1.6 to 1.7 g as the others; the Italjet scooter falls in a slalom at 70 m/s and more.
 - The in-scene check is not a trajectory (section 6); a drive-script log of the car's position would give one.
 - The Challenger fall of the playtest is not reproduced by the harness (section 5).
