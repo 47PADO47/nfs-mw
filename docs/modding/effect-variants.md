@@ -113,6 +113,7 @@ textures = "TREES/MW2012/TEXTURES.BIN"   # the textures they use (a texture pack
 spread = 1.25                            # at most this much wider than the footprint it replaces (1 to 4)
 squeeze = 0.5                            # squeezed sideways to no less than this share of its height scale (0.1 to 1)
 min_height = 0.7                         # not used if it would be shorter than this share of the replaced height (0 to 1)
+settle = true                            # optional: copies of a stretch of trees stand on the real ground and off the road (api-replace.md, "Settling")
 
 [[swap]]                                 # one per replaced solid, 1 to 4096
 solid = "XT_CEDARM_1B_JG_00"             # the game's solid, by name as the game spells it (the hash is case-sensitive)
@@ -154,6 +155,10 @@ fit = "height"                           # "height" (default) or "row"
     one before. So a line of trees that climbs a slope or bends round a road keeps its shape and every copy stands on its own floor: it
     neither floats over a lower floor nor sinks into a higher one (the older rule put at most eight copies on a straight line on the
     lowest floor of the solid, which hung the crowns of a row that climbed 50 metres in the air and carried them past the old footprint by up to 45 m).
+  - *Settled on the ground.* With `[fit] settle = true` (the trees' sets) the copies of a world-space stretch are then put on the terrain under
+    them instead of on the lowest old vertex of their cell, kept off the carriageways and their crowns kept clear of the road below
+    ([api-replace.md](api-replace.md#settling)): a 2005 tree line is crowns that hang metres above the ground, and a tree stood on that floor had a
+    trunk ending in the air.
 - **What is swapped.** A section is rewritten right after it is parsed (`Streamer::set_rewrite`), before its textures are decoded: each
   solid whose name hash a swap lists is replaced (a swap whose model or texture is missing from the packs is left out, with a warning). The
   shared sets (`X0`: the library of the scenery, which the scenery places with a matrix) are rewritten like the tiles. Solids the profile does

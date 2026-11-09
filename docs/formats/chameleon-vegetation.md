@@ -271,6 +271,56 @@ geometry, never wider than the old footprint, or the solid keeps its own tree) i
 [effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees); it is done by the game, from the vertices of the solid
 it replaces, so the mod never reads the 2005 install.
 
+## Standing on the ground
+
+The playtest after the first fit rules (quoted as written): "some trees are still in the middle of the street attached to nothing at the
+bottom and some trees sit to low/are the wrong models because around the map in some places the trees leaves are kinda blocking the street
+view". Three symptoms, and what in the fit makes each **[verified]** from reading `replace/place.rs` and the vertex data of the tile solids
+(the numbers of the audit below are **[unconfirmed]** until it has been run):
+
+| Symptom | Cause in the fit |
+|---|---|
+| A tree in the street, its trunk ending in the air | A copy of a stretch stands on **the lowest vertex of the old cell** it replaces. A 2005 tree line is crowns without trunks whose lowest leaves are 7 to 8 m up (`XT_CT_TREELINE1_1B_00` from 7.4 m, the canopy from 8 m), so a 2012 tree stood on that floor has its trunk end that high; over a road it is a trunk with a crown, hovering in the middle of the street |
+| A tree too low (sunk) | The lowest vertex of a cell on a slope is under the ground at the cell's middle, where the trunk stands: the foot sinks by the slope across the cell |
+| A tree on the road, a crown that blocks the view | The foot is the middle of the cell's vertices, which may be on the carriageway (the old crown reached over the road from a trunk beside it); the 2012 crowns are up to 1.25 times as wide as the old (`spread`) and begin at 3.5 m on the broadleaf tree, and nothing looked at the road |
+
+**What the fit now reads** (`[fit] settle`, [api-replace.md](../modding/api-replace.md#settling), `replace/settle.rs`): the terrain of the tile
+(`ground.rs`: the triangles of the `TRN_*` solids, 6,792 of the world's solids and 637,000 triangles, which are in world coordinates; the
+collision of a tile holds the roads and walls but not the hills, which is why the earlier look through the collision found a floor under only
+186 of 881 trees), the world's road network (`roads.rs`: centre lines as pieces of about 4 m with the half width of the lanes a vehicle drives on:
+traffic, shoulder, parking, plain road, centre and drivable zones; sidewalks, medians and barriers are not carriageway) and the tops of walls and
+buildings (an instance of `XW_`/`XB_`, or a world-space copy of one: a tree line whose crowns begin at a wall's top stands on the wall). The
+constants and why:
+
+| Constant | Value | Why |
+|---|---|---|
+| `FOOT_TOLERANCE` | 0.3 m | the playtest brief's own limit for a trunk base that floats or sinks |
+| `MAX_DROP`, `MAX_RISE` | 12 m, 3 m | the crowns of the tree lines hang 7 to 8 m up; a cell's lowest vertex is under the ground by a few metres on a slope |
+| `TRUNK_MARGIN`, `MAX_SHIFT` | 1 m, 5 m | a trunk stands a metre outside the edge of the carriageway; a copy that would have to move further, or onto another road, is left out |
+| `LEVEL_WINDOW` | 3 m | a road whose height is within 3 m of the foot is the one the tree stands by; a bridge over it is another road |
+| `CROWN_CLEARANCE`, `OVERHANG` | 4.5 m, 0.5 m | a crown that hangs under 4.5 m over a road may reach no more than half a metre over the carriageway; the audit's own flag is under 3.5 m (a bus) |
+| `NARROW_FLOOR` | 0.5 | a crown that would have to lose more than half its width takes its copy with it |
+
+Species and families were looked at against the same complaint: `XT_CT_TREELINE1*` (the broadleaf tree), `XT_EVRGRN_TREELINE*` (the small
+spruce), the fall-tree fillers (the thin autumn tree), `XT_CT_TREECANOPY` (the large broadleaf tree) and the cedars, poplars and cypresses
+(the tall conifer and the columnar tree) are the families the 2005 names say they are; **no family was changed**: what the player reads as "the
+wrong model" is first the floating and sunk copies and the crowns over the road, and that is what the settling mends. A tree line is replaced by
+the second level of detail of its species (the row takes one level coarser), which is a coarser model than a single tree's, an open question.
+
+**The audit** (`replace/audit.rs`, the ignored test `audit_the_trees_of_the_installed_world` in `replace/audit_real_tests.rs`): for every
+copy that the trees set makes in the installed world, as the set was (no settling) and as it is, it reads the terrain under the foot, the
+road network and the wall tops, and flags a copy whose foot floats more than 0.3 m above the terrain (and no wall top holds it), sinks more than
+0.3 m under it, is on a carriageway, or whose crown reaches more than the allowed overhang over a carriageway with its underside under 3.5 m. It
+also judges the single trees the scenery places (their foot is their instance), which settling does not move. Run:
+`NFSMW_GAME_DIR=... NFSMW_TREES_DIR=<the mod's files/TREES/MW2012> NFSMW_TREES_REPORT=<name>.tsv cargo test -p nfsmw audit_the_trees -- --ignored`;
+it writes `<name>.audit.txt` (the totals and the families, before and after) and `<name>.audit.tsv` (every flagged copy: kind, tile, solid, x, y,
+foot, ground and flags: the places to look at with `nfsmw view-world --at x,y --height 3 --pitch -5`).
+
+| What | Before | After |
+|---|---|---|
+| World-space copies, flagged of all | not measured **[unconfirmed]** | not measured **[unconfirmed]** |
+| Floating, sunk, on the road, crown low over a road | not measured | not measured |
+
 ## What the conversion costs
 
 The 2012 game's files are never converted whole: the conversion opens the nine bundles the species come from by **ranges**
@@ -305,10 +355,13 @@ nothing: the mod's fingerprint says the files are right).
   bundle must hold their material or texture (not searched).
 - The 2005 world's own placement of the replaced solids is unchanged, so a 2012 tree stands where the 2005 tree stood; the crowns are
   fitted to the cells of the old vertices, not to the old silhouette ([effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)).
-  The real ground under a tree-line's crowns is not read: a collision query of the tile found it under only 186 of the 881 replaced
+  The real ground under a tree-line's crowns was first not read: a collision query of the tile found it under only 186 of the 881 replaced
   solids (the terrain is not in a tile's collision), and where it was found the old crowns' floor was at the ground or below it (median
   3 m below). Trying to hang the crown of a replacement on the old floor and let its trunk reach down put the trunks through a wall in a
-  screenshot, so a replacement's foot stands on the old floor of its stretch.
+  screenshot, so a replacement's foot stood on the old floor of its stretch. It is now read from the tile's `TRN_*` solids
+  ([above](#standing-on-the-ground)), and a foot that a wall's top holds up stays where the wall puts it.
+- Whether the `TRN_*` solids are the whole visible ground of a tile (a tile with none, or a road that is not in them, keeps the old placement
+  for the step that needs it), and whether a tree line should take the same level of detail as a single tree.
 - The bushes' density: a hedge row is a row of separate copies; a per-set overlap (more copies, narrower cells) would close the gaps in planters but is a
   new field of the replacement API (`copies`, `overlap`), not built. The grasses were not looked at in the game (`XT_GRASS*`, `XT_BEACHGRASS`, `XO_GRASSCLUMPCT`).
 - Whether every name of the 99 base names that is a tree (and not a panorama or a stand) is in `trees/stock.rs`: the families were

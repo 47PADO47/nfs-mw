@@ -40,6 +40,7 @@ spread = 1.25                     # 1..4  how much wider than the old footprint 
 squeeze = 0.5                     # 0.1..1 how far a tree may be squeezed sideways before it is made smaller
 min_height = 0.7                  # 0..1  share of the old height under which the old model is kept
 clearance = false                 # true: copies keep clear of the walls, rails, barriers and buildings next to them (Clearance, below)
+settle = false                    # true: the copies of a stretch of trees stand on the real ground and off the road (Settling, below)
 
 [[model]]                         # replace models of the game
 targets = ["XT_LAMP_1A", "XT_LAMP_1B"]   # the game's solid names (case-sensitive); or target = "X", target_hash = 0x1234, target_hashes = [..]
@@ -104,6 +105,34 @@ cleared (a lamp or a sign is itself an object, and `exact` is the author's word)
 objects and the road surface are not considered. The cost is one pass over a section's instances plus a few quadrilateral tests for each
 copy near an object, once when the section is loaded. `Active::clearance()` reports what it did (`Tally`: copies looked at, narrowed, held,
 left out).
+
+### Settling
+
+`[fit] settle = true` (default `false`; for trees) makes the copies of a **world-space stretch** (a `_DEINST` solid, a `row` or a `height`
+swap that the game cuts into stretches) **stand on the real ground and off the road**. The placement puts each copy on the lowest vertex of
+the old cell it replaces, which is the ground only where the old geometry reached it; the 2005 tree lines are crowns without trunks whose
+lowest leaves hang metres above the ground, so a replacement stood on that floor has its trunk ending in the air, and a cell on a slope
+puts its lowest vertex under the ground at its middle, so a tree there sinks. Once per section, when its loader thread rewrites it, the host
+reads the section's **terrain** (the triangles of the solids named `TRN_*`, and of the world-space copies of walls and buildings, `XW_`/`XB_`:
+the visible ground and what stands on it), the world's **road network** (`blackbox_roads`, read when the world opens: each centre line as short
+pieces with the half width of the outermost lane a vehicle drives on) and the objects of `clearance`. Each copy is then settled in this order
+(`replace/settle.rs`; every number is a named constant there):
+
+1. **Ground.** The terrain surface under the foot nearest to where it was placed, from 12 m below it to 3 m above it. A foot more than 0.3 m
+   off it is put on it, unless the top of a wall or building holds it up (within 0.6 m of the top and 0.5 m of the plan: a tree line whose
+   crowns begin on a wall's top stands on the wall). A lowered copy keeps its top where it was, growing to the scale cap and the `squeeze`
+   limit; a raised one keeps its top and at least 60 percent of its height scale. No terrain in the window: the foot is left as placed.
+2. **Off the carriageway.** A foot closer than 1 m to the edge of a carriageway (a road whose height is within 3 m of the foot's: a bridge
+   over the tree, or a road under it, is another road) is moved straight away from the road to that margin when that is at most 5 m and the new
+   place is on no other road (a junction); otherwise the copy is left out. The moved copy is put on the ground again.
+3. **Over the road.** A crown whose underside is under 4.5 m above a road it reaches over (the road below it, or within a metre above it) is
+   narrowed until it reaches at most 0.5 m over the edge of the carriageway; a copy that would lose more than half its width is left out.
+
+A copy that is in the way of none of these is left exactly as placed, a solid left with no copy keeps the game's own model, and a section
+with no terrain solids or a world with no road network skips the step that needs it. A single tree that the scenery places with a matrix
+(`Frame::Local`) is not settled: its foot is the scenery's own point. `Active::settled()` reports what it did (`Settled`: copies looked at,
+feet lowered and raised, copies moved, crowns narrowed, copies left out). The cost is one pass over the terrain triangles of a section that has
+such a copy (a plan grid of 16 m cells) and a few distance tests to the road pieces near each copy, once when the section loads.
 
 ## Textures
 
