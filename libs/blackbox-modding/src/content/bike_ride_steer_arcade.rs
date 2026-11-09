@@ -1,11 +1,13 @@
 //! The arcade steering of the steering audits' runs (`RIDE6_ARCADE`, see `bike_ride_steer.rs`).
 
-use blackbox_vehicle::bike::ArcadeSteering;
+use blackbox_vehicle::bike::{ArcadeSteering, TurnLaw};
 
 /// The arcade steering of the run: `RIDE6_ARCADE=reference` the reference game's, `RIDE6_ARCADE=grip=1.2,rate=3,...` the game's values with
 /// those fields changed (`grip`, `rate`, `floor`, `mirror`, `spring`, `roll`, `assist`, `reach`, `slow` and `fast` for the speed authority's ends,
-/// `drop` for the wheelie's steer drop in degrees), unset the game's values; `RIDE6_ARCADE=previous` is the game's values of the round before the
-/// slower lean-in and the speed authority (`docs/specs/ride6-arcade-steering.md`, sections 10 and 11).
+/// `drop` for the wheelie's steer drop in degrees, `turn=0` for no turn law, `slowlean` and `maxassist` for the turn law's quicker lean-in
+/// at a low speed and its most assist in g), unset the game's values; `RIDE6_ARCADE=previous` is the game's values of the round before the
+/// slower lean-in and the speed authority (`docs/specs/ride6-arcade-steering.md`, sections 10 and 11), and `RIDE6_ARCADE=round2` the game's of
+/// the round before the turn law (its authority and lean-in, `docs/specs/ride6-bike-turn-radius.md`).
 pub(super) fn arcade() -> ArcadeSteering {
     let text = std::env::var("RIDE6_ARCADE").unwrap_or_default();
     if text == "reference" {
@@ -24,8 +26,12 @@ pub(super) fn arcade() -> ArcadeSteering {
             handlebar_response: 1.25,
             authority: [1.0, 1.0],
             wheelie_steer_drop: None,
+            turn: None,
             ..arcade
         };
+    }
+    if text == "round2" {
+        return ArcadeSteering { turn: None, ..arcade };
     }
     for part in text.split(',').filter(|p| !p.is_empty()) {
         let Some((key, value)) = part.split_once('=') else { continue };
@@ -47,6 +53,9 @@ pub(super) fn arcade() -> ArcadeSteering {
             "slow" => arcade.authority[0] = v,
             "fast" => arcade.authority[1] = v,
             "drop" => arcade.wheelie_steer_drop = Some(v.to_radians()),
+            "turn" if v < 0.5 => arcade.turn = None,
+            "slowlean" => arcade.turn = arcade.turn.map(|law| TurnLaw { slow_lean_rate: v, ..law }),
+            "maxassist" => arcade.turn = arcade.turn.map(|law| TurnLaw { max_assist: v, ..law }),
             _ => {}
         }
     }

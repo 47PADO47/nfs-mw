@@ -116,3 +116,9 @@ graph when a bike is loaded, as before; the per-frame cost is one more clip blen
 The `Idle` machine (the rider fidgeting at a standstill: `race_trottle`, `race_check_tyres` and the other idle clips, picked by
 `IdleAnim_Index` every 5 to 15 s), the leaning start clips (`*_start_*_leaning_L/R`: they follow the lean at the start), the starting grid and traffic
 light states, the ground IK, and the female rider's clips (`race_F_*`).
+
+## 9. A bike held on a slope
+
+The walk of section 4 starts when the bike's speed along itself is under -1 km/h. A bike parked on a slope with no throttle used to roll back at once and walk;
+it is now held by the rider (`Bike::step_hold`), and the walk is for the reverse the rider asks for (a fresh pull of the brake). See
+[ride6-bike-standstill-hold.md](ride6-bike-standstill-hold.md).

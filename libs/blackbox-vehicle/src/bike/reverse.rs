@@ -39,6 +39,10 @@ pub struct ReverseState {
     timer: f32,
     /// Whether the rider is pushing the bike back in this step.
     pushing: bool,
+    /// The front lever was pulled while the bike still rolled on (at `REQUEST_SPEED` or more) and has not been let go since: a rider who
+    /// stopped with the brake and holds it. On a slope that is a rider holding the bike, not one who asks for the reverse walk
+    /// (`docs/specs/ride6-bike-standstill-hold.md`): the walk wants a fresh pull of the lever on the standing bike.
+    carried: bool,
 }
 
 /// What the reverse does in one step: the force along the bike (N, negative backwards) and whether the brakes are let go.
@@ -74,7 +78,27 @@ impl ReverseState {
     /// times the lever times `1 + min(0, speed / max_speed)`: full at a standstill, 0 at the limit, and pushing back towards it
     /// beyond.
     pub fn step(&mut self, spec: &ReverseSpec, dt: f32, speed: f32, input: &BikeInput) -> ReverseDrive {
+        self.step_on(spec, dt, speed, input, false)
+    }
+
+    /// As [`ReverseState::step`] for a bike that `on_slope` or not. On a slope a lever that was pulled while the bike was still rolling on and
+    /// has been held since does not ask for the reverse; a lever let go and pulled again on the standing bike does.
+    pub fn step_on(
+        &mut self,
+        spec: &ReverseSpec,
+        dt: f32,
+        speed: f32,
+        input: &BikeInput,
+        on_slope: bool,
+    ) -> ReverseDrive {
+        let pulled = input.front_brake > PRESSED;
+        match (pulled, speed >= REQUEST_SPEED) {
+            (false, _) => self.carried = false,
+            (true, true) => self.carried = true,
+            (true, false) => {}
+        }
         let requested = spec.is_valid()
+            && !(on_slope && self.carried)
             && input.front_brake > PRESSED
             && input.throttle < PRESSED
             && speed < REQUEST_SPEED
@@ -103,7 +127,8 @@ impl Bike {
             self.reverse.reset();
             return ReverseDrive::default();
         }
-        let drive = self.reverse.step(&spec, dt, speed, input);
+        let on_slope = self.ground_slope() >= super::hold::MIN_SLOPE;
+        let drive = self.reverse.step_on(&spec, dt, speed, input, on_slope);
         if drive.force != 0.0 {
             let forward = self.body.rotation() * Vec3::Z;
             self.body.apply_force(forward * drive.force);

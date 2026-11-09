@@ -32,6 +32,8 @@ mod bike_ride_steer_arcade;
 #[cfg(test)]
 mod bike_ride_sweep;
 #[cfg(test)]
+mod bike_ride_turn_table;
+#[cfg(test)]
 mod bike_ride_wheelie_blip;
 #[cfg(test)]
 mod bike_ride_wheelie_script;
