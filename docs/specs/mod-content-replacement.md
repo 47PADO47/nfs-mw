@@ -48,7 +48,8 @@ thread that parses a section holding the hash reads and decodes the file (`read_
 replaced texture is put into the section's `textures`, so the later steps (decode for upload, upload) see an ordinary texture; its
 `name_hash` is the original's. Added textures (the set's pack, `name = ...` entries) join the global textures before the shared
 upload and are uploaded once at a change during a drive. The upload rule of the residency (a hash that is resident is not uploaded
-again) is why a replacement of a shared texture follows at the next drive. [ours]
+again) is why a replacement of a shared texture needs its own path: a change with the world open draws the new picture over the shared
+texture by a redirect (`residency/shared_textures.rs`, `replace/originals.rs` keeps the game's own texture to go back to). [ours]
 
 Resolution rule: the GPU texture has the picture's size; the renderer's texture detail (`texture_discard`) drops top mips of mod and
 game textures alike. Nothing else assumes a size (UVs are normalised); a texture whose size is not a multiple of 4 is decoded to
@@ -62,8 +63,8 @@ activation.
 Built and unit tested: manifest, catalog, options, merge, four fits, textures, trees through the one mechanism, report text.
 `[[add]]` is built: `replace/adds.rs` groups a set's objects by 512 m cell and makes one synthetic map pack per cell (`scenery::synthetic_pack`:
 the set's geometry file on disk, the next free section of the 2700 band, an anchor round the objects), added to the city's and the
-alternative maps' packs when the world opens (`open.rs`); the textures are the set's, shared. Open: (1) refreshing the shared sets'
-textures in a drive; (2) a `replace` console command listing sets (the report text is the data); (3) lazy geometry files for `[[add]]`;
+alternative maps' packs when the world opens (`open.rs`); the textures are the set's, shared. Open: (1) the shared sets' models and the global
+textures in a drive (the shared textures are done, by redirect); (2) a `replace` console command listing sets (the report text is the data); (3) lazy geometry files for `[[add]]`;
 (4) collision `prop` for added objects; (5) the options group "variants" has no heading in the Gameplay page yet (the rows follow the
 game's own, labelled by the kind).
 

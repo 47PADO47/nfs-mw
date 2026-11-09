@@ -104,6 +104,7 @@ cleared (a lamp or a sign is itself an object, and `exact` is the author's word)
 objects and the road surface are not considered. The cost is one pass over a section's instances plus a few quadrilateral tests for each
 copy near an object, once when the section is loaded. `Active::clearance()` reports what it did (`Tally`: copies looked at, narrowed, held,
 left out).
+
 ## Textures
 
 - **Targets** are looked up by name hash in every section the game streams and in the global textures. Any size: a larger or smaller
@@ -121,8 +122,17 @@ left out).
   would miss what loads before it (found by running a texture set offscreen: with the saved choice only published in the first frame the
   first screenshot showed the game's own road). Run offscreen with the choice saved
   and the replacement is in the first screenshot.
-- **Limits.** A choice made during a drive re-streams the map tiles, so tile textures change within seconds. Textures of the shared
-  sets and the global textures were replaced when they loaded and follow at the next drive.
+- **A choice made with the world open.** The options are in the game's own menus, in the process that already opened the world, so a
+  player turns a texture set on with the world loaded; that is the common case and it must work. The map tiles are streamed again (their
+  textures change within seconds). The textures of the **shared sets** (`V`, `X`, `Y`, where most of the road, the ground and the props'
+  textures are, loaded once when the world opens) cannot be streamed again cheaply, so the host draws the new picture over the texture
+  the upload made: a **texture redirect** (`RenderBackend::redirect_texture`, as the animated textures use), picture by picture, made on a
+  worker thread (a road strip is 130 ms of resizing) and shown a few at a time within the upload budget. Turning the set off removes the
+  redirect, or, when the world opened with the set on, redirects to the game's own texture, which was kept when the set first replaced it
+  (`replace::original`; only the textures a set replaced, once each). Before this was built (found in playing: the Road textures option
+  turned on in the menus, the asphalt unchanged), a change reached the tiles but not the shared textures until the process was restarted.
+- **Limits.** The **models** of the shared sets and the **global textures** (`InGameA`) were replaced when they loaded and follow at the
+  next start of the game, not at the next drive.
 
 ## Options, choice and conflicts
 
