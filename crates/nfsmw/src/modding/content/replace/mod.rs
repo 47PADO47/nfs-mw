@@ -18,6 +18,7 @@
 //! | `textures.rs` | pictures: PNG, DDS and texture packs as textures, and the rules of a replacing texture |
 //! | `fit.rs`, `place.rs` | fitting a model into the solid it replaces: `height`, `row`, `stand`, `exact` |
 //! | `clear.rs` | keeping the copies off the walls, rails, barriers and buildings of the section (`[fit] clearance`) |
+//! | `settle.rs`, `ground.rs`, `roads.rs` | settling the copies of a stretch on the terrain under them and off the carriageways (`[fit] settle`) |
 
 mod active;
 mod adds;
@@ -26,6 +27,7 @@ mod clear;
 #[cfg(test)]
 mod clear_real_tests;
 mod fit;
+mod ground;
 mod load;
 #[cfg(test)]
 mod marker_tests;
@@ -37,6 +39,8 @@ mod place;
 mod real_dump_tests;
 #[cfg(test)]
 mod real_tests;
+mod roads;
+mod settle;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -54,6 +58,7 @@ pub use load::load_set;
 pub use originals::{original, original_hashes};
 #[cfg(test)]
 pub(crate) use originals_tests::{set_replacing, set_replacing_all};
+pub use roads::set_roads;
 pub use textures::TextureSlot;
 
 /// The replacements in effect: `None` for the game's own models and textures.

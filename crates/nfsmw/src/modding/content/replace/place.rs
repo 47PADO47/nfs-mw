@@ -47,6 +47,8 @@ pub struct Measure {
     /// The box that holds its vertices (the `stand` and `exact` fits place a model by its box, not by its origin).
     pub low: [f32; 3],
     pub high: [f32; 3],
+    /// How high the lowest leaf is above the origin (the underside of the crown); the lowest point of the model when it has no leaves.
+    pub crown_low: f32,
 }
 
 /// What the replaced solid is, as the placement needs it.
@@ -97,6 +99,14 @@ fn tree(model: &Measure, target: &Target, cap: f32, limits: &FitLimits) -> Optio
         return None;
     }
     Some(at(sideways, shrunk))
+}
+
+/// The most a copy of `how` is scaled up: a row's copies are held to [`ROW_MAX_SCALE`], every other fit to [`MAX_SCALE`].
+pub fn scale_cap(how: SwapFit) -> f32 {
+    match how {
+        SwapFit::Row => ROW_MAX_SCALE,
+        SwapFit::Height | SwapFit::Stand | SwapFit::Exact => MAX_SCALE,
+    }
 }
 
 /// The one copy of a model that replaces a solid modelled around its own origin (the scenery places it with a matrix): at the

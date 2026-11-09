@@ -31,6 +31,9 @@ const GROWTH_WORD: &str = "HEDGE";
 pub const STEPS: usize = 4;
 /// A copy and an object are at different heights when they are this far apart, metres.
 const Z_MARGIN: f32 = 0.1;
+/// A foot is held up by the top of an object when it is within this many metres of the top, and this far outside its plan.
+pub const TOP_SLACK: f32 = 0.6;
+pub const PLAN_SLACK: f32 = 0.5;
 
 /// One matrix, as the scenery has it (`SceneryInstance::matrix_columns`): `world = columns[0] * x + columns[1] * y + columns[2] * z + columns[3]`.
 type Matrix = [[f32; 4]; 4];
@@ -225,6 +228,12 @@ impl Neighbours {
         tally
     }
 
+    /// Whether the top of an object holds up a foot at plan point `at` and height `z` (a tree line whose crowns begin on a wall's top
+    /// stands on it): the point is inside the object's plan, grown by [`PLAN_SLACK`], and `z` is within [`TOP_SLACK`] of its top.
+    pub fn supports(&self, at: [f32; 2], z: f32) -> bool {
+        self.walls.iter().any(|wall| (wall.high - z).abs() <= TOP_SLACK && inside(&wall.quad, at, PLAN_SLACK))
+    }
+
     /// The objects whose box is within `reach` of one of the places.
     fn near(&self, places: &[Placed], reach: f32) -> Vec<Wall> {
         let close = |wall: &Wall| {
@@ -336,6 +345,17 @@ fn contains(wall: &Wall, place: &Placed, at: &Placement) -> bool {
     };
     let signs: [f32; 4] = std::array::from_fn(|i| side(wall.quad[i], wall.quad[(i + 1) % 4]));
     signs.iter().all(|sign| *sign >= 0.0) || signs.iter().all(|sign| *sign <= 0.0)
+}
+
+/// Whether `at` is inside the convex quadrilateral `quad`, or within `slack` metres of it.
+fn inside(quad: &Quad, at: [f32; 2], slack: f32) -> bool {
+    let side = |from: [f32; 2], to: [f32; 2]| {
+        let edge = [to[0] - from[0], to[1] - from[1]];
+        let length = (edge[0] * edge[0] + edge[1] * edge[1]).sqrt().max(1e-6);
+        (edge[0] * (at[1] - from[1]) - edge[1] * (at[0] - from[0])) / length
+    };
+    let distances: [f32; 4] = std::array::from_fn(|i| side(quad[i], quad[(i + 1) % 4]));
+    distances.iter().all(|d| *d >= -slack) || distances.iter().all(|d| *d <= slack)
 }
 
 /// Whether two convex quadrilaterals overlap (the separating axis rule on the edges of both).

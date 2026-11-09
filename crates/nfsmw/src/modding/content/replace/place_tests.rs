@@ -10,8 +10,14 @@ fn vertex(x: f32, y: f32, z: f32) -> Vertex {
 }
 
 /// A model 10 metres wide and 20 tall whose crown begins 4 metres up.
-const MODEL: Measure =
-    Measure { width: 10.0, height: 20.0, vertices: 100, low: [-5.0, -5.0, 0.0], high: [5.0, 5.0, 20.0] };
+const MODEL: Measure = Measure {
+    width: 10.0,
+    height: 20.0,
+    vertices: 100,
+    low: [-5.0, -5.0, 0.0],
+    high: [5.0, 5.0, 20.0],
+    crown_low: 4.0,
+};
 
 fn stock(vertices: &[Vertex]) -> Stock<'_> {
     let first = vertices[0].position;
@@ -165,7 +171,14 @@ fn the_vertices_of_all_the_copies_stay_under_the_writers_limit() {
 fn a_standing_model_fits_inside_the_old_box_on_its_floor() {
     // A lamp post box: 2 by 2 and 8 tall, its floor at 0. The model is 4 wide, 4 deep and 16 tall, authored around its middle.
     let points = [vertex(0.0, 0.0, 0.0), vertex(2.0, 2.0, 8.0)];
-    let model = Measure { width: 4.0, height: 8.0, vertices: 50, low: [-2.0, -2.0, -8.0], high: [2.0, 2.0, 8.0] };
+    let model = Measure {
+        width: 4.0,
+        height: 8.0,
+        vertices: 50,
+        low: [-2.0, -2.0, -8.0],
+        high: [2.0, 2.0, 8.0],
+        crown_low: -8.0,
+    };
     let at = stand(&model, &stock(&points), &FitLimits::default()).unwrap();
     assert!((at.across - 0.5).abs() < 1e-4 && at.up == at.across, "the old height binds: 8 over 16: {at:?}");
     assert!((at.offset[0] - 1.0).abs() < 1e-4 && (at.offset[1] - 1.0).abs() < 1e-4, "centred on the old box: {at:?}");
@@ -182,7 +195,14 @@ fn a_standing_model_fits_inside_the_old_box_on_its_floor() {
 #[test]
 fn a_standing_model_that_would_be_too_short_is_refused() {
     let points = [vertex(0.0, 0.0, 0.0), vertex(0.2, 6.0, 8.0)];
-    let model = Measure { width: 4.0, height: 8.0, vertices: 50, low: [-2.0, -2.0, 0.0], high: [2.0, 2.0, 8.0] };
+    let model = Measure {
+        width: 4.0,
+        height: 8.0,
+        vertices: 50,
+        low: [-2.0, -2.0, 0.0],
+        high: [2.0, 2.0, 8.0],
+        crown_low: 0.0,
+    };
     assert!(stand(&model, &stock(&points), &FitLimits::default()).is_none(), "a 0.2 m wide old footprint: too short");
     let flat = Measure { low: [0.0; 3], high: [1.0, 1.0, 0.0], ..model };
     assert!(stand(&flat, &stock(&points), &FitLimits::default()).is_none(), "a model with no height");
@@ -191,7 +211,14 @@ fn a_standing_model_that_would_be_too_short_is_refused() {
 #[test]
 fn an_exact_model_stays_where_it_was_authored_or_not_at_all() {
     let points = [vertex(-1.0, -1.0, 0.0), vertex(1.0, 1.0, 6.0)];
-    let inside = Measure { width: 2.0, height: 6.0, vertices: 10, low: [-0.9, -0.9, 0.0], high: [0.9, 0.9, 6.0] };
+    let inside = Measure {
+        width: 2.0,
+        height: 6.0,
+        vertices: 10,
+        low: [-0.9, -0.9, 0.0],
+        high: [0.9, 0.9, 6.0],
+        crown_low: 0.0,
+    };
     let at = exact(&inside, &stock(&points), &FitLimits::default()).unwrap();
     assert_eq!((at.across, at.up, at.offset), (1.0, 1.0, [0.0; 3]));
     let outside = Measure { high: [5.0, 0.9, 6.0], ..inside };

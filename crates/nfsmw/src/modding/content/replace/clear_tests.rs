@@ -8,10 +8,11 @@ use super::super::fit::{Frame, Prepared, fit_clear};
 use super::super::tests::{cloud, tree};
 use super::*;
 
-const BUSHES: FitLimits = FitLimits { spread: 1.5, squeeze: 0.5, min_height: 0.5, clearance: true };
+const BUSHES: FitLimits = FitLimits { spread: 1.5, squeeze: 0.5, min_height: 0.5, clearance: true, settle: false };
 
 /// A model 4 metres wide and deep and 2 tall, its foot on the origin.
-const MODEL: Measure = Measure { width: 4.0, height: 2.0, vertices: 8, low: [-2.0, -2.0, 0.0], high: [2.0, 2.0, 2.0] };
+const MODEL: Measure =
+    Measure { width: 4.0, height: 2.0, vertices: 8, low: [-2.0, -2.0, 0.0], high: [2.0, 2.0, 2.0], crown_low: 0.0 };
 
 /// A copy at `x`, 1.5 times as wide as the stretch (4 metres) it replaces.
 fn copy_at(x: f32) -> Placement {
@@ -103,7 +104,8 @@ fn the_height_follows_when_a_narrow_copy_would_be_too_thin() {
 #[test]
 fn a_copy_in_a_turned_instance_is_tested_where_the_scenery_puts_it() {
     // A model 2 wide in x and 6 deep in y, placed by an instance turned a quarter: its depth runs along the world x axis.
-    let long = Measure { width: 6.0, height: 2.0, vertices: 8, low: [-1.0, -3.0, 0.0], high: [1.0, 3.0, 2.0] };
+    let long =
+        Measure { width: 6.0, height: 2.0, vertices: 8, low: [-1.0, -3.0, 0.0], high: [1.0, 3.0, 2.0], crown_low: 0.0 };
     let turned: Matrix = [[0.0, 1.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [100.0, 200.0, 0.0, 1.0]];
     let (low, high) = ([97.0, 197.0, 0.0], [103.0, 203.0, 3.0]);
     let near = Neighbours::from_parts(
@@ -173,4 +175,14 @@ fn a_row_of_copies_keeps_off_a_barrier_standing_at_its_start() {
     assert!(tally.shrunk >= 1 && tally.skipped == 0, "{tally:?}");
     let off = FitLimits { clearance: false, ..BUSHES };
     assert_eq!(fit(&off, &near).0, open, "a set that does not ask for clearance is fitted as before");
+}
+
+#[test]
+fn the_top_of_an_object_holds_up_a_foot_that_is_on_it() {
+    let near = Neighbours::from_parts(vec![barrier(0.0, 4.0)], &[]);
+    assert!(near.supports([2.0, 0.0], 1.0));
+    assert!(near.supports([4.3, 0.0], 1.2), "within the slack of its edge and its top");
+    assert!(!near.supports([6.0, 0.0], 1.0), "past the edge");
+    assert!(!near.supports([2.0, 0.0], 2.0), "a metre over its top");
+    assert!(!near.supports([2.0, 0.0], 0.0), "at its foot: that is the ground's, not the object's");
 }

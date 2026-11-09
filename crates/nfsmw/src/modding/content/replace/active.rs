@@ -15,7 +15,10 @@ use blackbox_tpk::Texture;
 use nfsmw_data::world::SectionData;
 
 use super::clear::{self, Neighbours, Tally};
-use super::fit::{Frame, Prepared, fit_clear};
+use super::fit::{Frame, Prepared, fit_site};
+use super::ground::Terrain;
+use super::roads;
+use super::settle::{Settled, Site};
 use super::textures::TextureSlot;
 use crate::scenes::culling::is_mirrored;
 
@@ -66,6 +69,9 @@ pub struct Active {
     /// Whether a set keeps its copies off the objects next to them (`[fit] clearance`), and what that has done so far.
     clearance: bool,
     cleared: Mutex<Tally>,
+    /// Whether a set settles its world-space copies on the ground and off the roads (`[fit] settle`), and what that has done so far.
+    settles: bool,
+    settled: Mutex<Settled>,
     textures: HashMap<u32, Arc<TextureSlot>>,
     added: Vec<Texture>,
     objects: Vec<Added>,
@@ -111,6 +117,8 @@ impl Active {
             fitted: Mutex::new(HashMap::new()),
             clearance: false,
             cleared: Mutex::new(Tally::default()),
+            settles: false,
+            settled: Mutex::new(Settled::default()),
             textures: HashMap::new(),
             added: Vec::new(),
             objects: Vec::new(),
@@ -200,6 +208,7 @@ impl Active {
                     self.conflict("model", hash, label, &earlier);
                 }
                 self.clearance |= set.limits.clearance;
+                self.settles |= set.limits.settle;
                 self.models.insert(hash, Entry { model: ready.clone(), fit: entry.fit, limits: set.limits });
             }
         }
@@ -219,6 +228,12 @@ impl Active {
     #[cfg(test)]
     pub fn clearance(&self) -> Tally {
         self.cleared.lock().map(|tally| *tally).unwrap_or_default()
+    }
+
+    /// What settling the copies on the ground and off the roads has done to the sections loaded so far ([`Settled`]).
+    #[cfg(test)]
+    pub fn settled(&self) -> Settled {
+        self.settled.lock().map(|tally| *tally).unwrap_or_default()
     }
 
     /// The name hashes of the textures the sets replace.
@@ -282,6 +297,9 @@ impl Active {
     fn apply_models(&self, data: &mut SectionData) {
         let mut mirrored: Option<HashSet<u32>> = None;
         let near = self.neighbours(data);
+        let terrain = self.terrain(data);
+        let roads = self.settles.then(roads::roads).flatten();
+        let site = Site { terrain: terrain.as_ref(), roads: roads.as_deref(), near: &near };
         for solid in &mut data.solids {
             let Some((entry, world_copy)) = self.entry_for(solid) else { continue };
             let frame = match world_copy {
@@ -291,21 +309,31 @@ impl Active {
                     Frame::World { mirrored: set.contains(&solid.name_hash) }
                 }
             };
-            let Some(replacement) = self.replacement(entry, solid, frame, &near) else { continue };
+            let Some(replacement) = self.replacement(entry, solid, frame, &site) else { continue };
             *solid = replacement;
         }
     }
 
-    /// The objects of the section that the copies of a set with clearance keep off; none when no set in effect asks for it or the
-    /// section has no solid such a set replaces.
+    /// The objects of the section that the copies of a set with clearance keep off (and whose tops hold up a settled tree); none when no
+    /// set in effect asks for either or the section has no solid such a set replaces.
     fn neighbours(&self, data: &SectionData) -> Neighbours {
-        let clears = |entry: &Entry| entry.limits.clearance;
-        if !self.clearance
+        let clears = |entry: &Entry| entry.limits.clearance || entry.limits.settle;
+        if !(self.clearance || self.settles)
             || !data.solids.iter().any(|solid| self.entry_for(solid).is_some_and(|(entry, _)| clears(entry)))
         {
             return Neighbours::none();
         }
         Neighbours::of_section(data, |hash| self.models.get(&hash).is_some_and(clears))
+    }
+
+    /// The ground of the section, when a set settles a world-space copy that it holds ([`Terrain::of_solids`]).
+    fn terrain(&self, data: &SectionData) -> Option<Terrain> {
+        let settled =
+            |solid: &Solid| self.entry_for(solid).is_some_and(|(entry, world_copy)| world_copy && entry.limits.settle);
+        if !self.settles || !data.solids.iter().any(settled) {
+            return None;
+        }
+        Terrain::of_solids(&data.solids)
     }
 
     /// The entry that replaces `solid`, and whether the solid is a world-space copy of the one the entry is listed under.
@@ -320,10 +348,10 @@ impl Active {
 
     /// The fitted replacement of `stock`. A local solid is cached by its bounds (the game uses one solid in many places with the
     /// same bounds); a world copy is its own, so it is fitted every time and nothing of it is kept.
-    fn replacement(&self, entry: &Entry, stock: &Solid, frame: Frame, near: &Neighbours) -> Option<Solid> {
+    fn replacement(&self, entry: &Entry, stock: &Solid, frame: Frame, site: &Site) -> Option<Solid> {
         // A solid that keeps off the objects next to it is fitted to this section's, so it is not shared with the others.
-        if frame != Frame::Local || (entry.limits.clearance && !near.is_empty()) {
-            return self.fit_now(entry, stock, frame, near);
+        if frame != Frame::Local || (entry.limits.clearance && !site.near.is_empty()) {
+            return self.fit_now(entry, stock, frame, site);
         }
         let bits = |v: [f32; 3]| v.map(f32::to_bits);
         let [a, b, c] = bits(stock.bounds_min);
@@ -332,7 +360,7 @@ impl Active {
         if let Some(found) = self.fitted.lock().ok().and_then(|cache| cache.get(&key).cloned()) {
             return Some((*found).clone());
         }
-        let solid = self.fit_now(entry, stock, frame, near)?;
+        let solid = self.fit_now(entry, stock, frame, site)?;
         if let Ok(mut cache) = self.fitted.lock() {
             cache.insert(key, Arc::new(solid.clone()));
         }
@@ -341,11 +369,14 @@ impl Active {
 
     /// The replacement of `stock`, or `None` when the solid keeps the game's own model: the model cannot be fitted into its
     /// footprint within the limits (that is the rule, not an error), or the result cannot be made (a warning says why).
-    fn fit_now(&self, entry: &Entry, stock: &Solid, frame: Frame, near: &Neighbours) -> Option<Solid> {
-        match fit_clear(&entry.model, stock, entry.fit, frame, &entry.limits, near) {
-            Ok((solid, tally)) => {
+    fn fit_now(&self, entry: &Entry, stock: &Solid, frame: Frame, site: &Site) -> Option<Solid> {
+        match fit_site(&entry.model, stock, entry.fit, frame, &entry.limits, site) {
+            Ok((solid, tally, settled)) => {
                 if let Ok(mut total) = self.cleared.lock() {
                     total.merge(tally);
+                }
+                if let Ok(mut total) = self.settled.lock() {
+                    total.merge(settled);
                 }
                 solid
             }

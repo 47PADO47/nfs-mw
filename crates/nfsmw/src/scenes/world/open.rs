@@ -391,6 +391,8 @@ fn start_streaming(
     };
     let stream =
         dir.resolve(&index.stream_file).with_context(|| format!("{} is missing", index.stream_file))?.to_path_buf();
+    // Before the loader threads start: a tile that loads without the roads would keep trees on the carriageway (`[fit] settle`).
+    crate::modding::content::replace::set_roads(index.road_network.as_ref());
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get().clamp(2, 6));
     let at = at.unwrap_or_else(|| index.centre());
     let started = super::residency::start::begin(stream, &index.sections, &index.visible, at, threads);

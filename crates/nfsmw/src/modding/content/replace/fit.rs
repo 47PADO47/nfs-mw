@@ -17,6 +17,10 @@ use blackbox_solid::{GroupSource, PositionMarker, Solid, SolidSource, Vertex, re
 
 use super::clear::{Neighbours, Tally};
 use super::place::{self, Measure, Placement, Stock};
+use super::settle::{self, Settled, Site};
+
+/// The effect of the leaf groups of a model (the game's tree shader): the underside of the crown is the lowest of their vertices.
+const LEAVES: u32 = 6;
 
 /// What space the replaced solid's vertices are in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +40,12 @@ pub struct Prepared {
 }
 
 impl Prepared {
+    /// What the model measures (the audit judges a copy by it).
+    #[cfg(test)]
+    pub fn measure(&self) -> &Measure {
+        &self.measure
+    }
+
     /// Fails when the model cannot be written back (it has no groups, or wide vertices), or has no vertices or no height.
     pub fn new(model: &Solid) -> Result<Self> {
         let source = SolidSource::from_solid(model).with_context(|| format!("the model {}", model.name))?;
@@ -61,9 +71,8 @@ pub fn fit_prepared(
     Ok(fit_clear(model, stock, how, frame, limits, &Neighbours::none())?.0)
 }
 
-/// [`fit_prepared`] that also keeps the copies off the objects of the section (`neighbours`, [`clear`](super::clear)) when `limits` ask
-/// for it and the fit is a `height` or a `row` (a lamp, a sign or a building is itself an object, and `exact` is the author's word), and
-/// says what that did.
+/// [`fit_site`] with nothing but the objects of the section to keep clear of (no terrain and no roads).
+#[cfg(test)]
 pub fn fit_clear(
     model: &Prepared,
     stock: &Solid,
@@ -72,6 +81,43 @@ pub fn fit_clear(
     limits: &FitLimits,
     neighbours: &Neighbours,
 ) -> Result<(Option<Solid>, Tally)> {
+    let (solid, tally, _) =
+        fit_site(model, stock, how, frame, limits, &Site { terrain: None, roads: None, near: neighbours })?;
+    Ok((solid, tally))
+}
+
+/// The solid that takes the place of `stock`: copies of `model`, fitted as `how` says in the space `frame` names and held to `limits`
+/// (`None` when the solid keeps its own model: no copy can be fitted into its footprint within the limits). The copies of a world-space
+/// stretch are settled on the ground and off the roads of `site` when `limits` ask for it ([`settle`]), and kept off the objects of the
+/// section (`site.near`, [`clear`](super::clear)) when `limits` ask for that and the fit is a `height` or a `row` (a lamp, a sign or a
+/// building is itself an object, and `exact` is the author's word). Says what that did. Fails when the solid has no height or the result
+/// cannot be written.
+pub fn fit_site(
+    model: &Prepared,
+    stock: &Solid,
+    how: SwapFit,
+    frame: Frame,
+    limits: &FitLimits,
+    site: &Site,
+) -> Result<(Option<Solid>, Tally, Settled)> {
+    let (placements, tally, settled) = plan_copies(model, stock, how, frame, limits, site)?;
+    if placements.is_empty() {
+        return Ok((None, tally, settled));
+    }
+    let solid = write_fitted(model, stock, frame, &placements)?;
+    Ok((Some(solid), tally, settled))
+}
+
+/// Where the copies of `model` stand when it replaces `stock` (the part of [`fit_site`] before the solid is written): placed, settled, and
+/// kept clear. Empty when the solid keeps its own model.
+pub fn plan_copies(
+    model: &Prepared,
+    stock: &Solid,
+    how: SwapFit,
+    frame: Frame,
+    limits: &FitLimits,
+    site: &Site,
+) -> Result<(Vec<Placement>, Tally, Settled)> {
     if stock.bounds_max[2] - stock.bounds_min[2] <= 0.01 {
         bail!("the solid {} has no height", stock.name);
     }
@@ -83,16 +129,16 @@ pub fn fit_clear(
         // A world-space copy is cut into stretches whatever the fit: it stands where it is, and may be a whole row.
         _ => place::copies(&model.measure, &seen, how, limits),
     };
+    let mut settled = Settled::default();
+    if limits.settle && matches!(frame, Frame::World { .. }) {
+        settled = settle::settle(&model.measure, &mut placements, place::scale_cap(how), site, limits);
+    }
     let mut tally = Tally::default();
     if limits.clearance && matches!(how, SwapFit::Height | SwapFit::Row) {
         let owner = matches!(frame, Frame::Local).then_some(stock.name_hash);
-        tally = neighbours.clear(owner, seen.bounds, &model.measure, &mut placements, limits);
+        tally = site.near.clear(owner, seen.bounds, &model.measure, &mut placements, limits);
     }
-    if placements.is_empty() {
-        return Ok((None, tally));
-    }
-    let solid = write_fitted(model, stock, frame, &placements)?;
-    Ok((Some(solid), tally))
+    Ok((placements, tally, settled))
 }
 
 /// The solid made of copies of `model` at `placements`, with the identity of `stock`.
@@ -183,5 +229,19 @@ fn measure(groups: &[GroupSource]) -> Option<Measure> {
             *high = high.max(value);
         }
     }
-    Some(Measure { width: (high[0] - low[0]).max(high[1] - low[1]), height: high[2], vertices: count, low, high })
+    let crown_low = groups
+        .iter()
+        .filter(|group| group.effect_id == LEAVES)
+        .flat_map(|group| group.vertices.iter())
+        .map(|vertex| vertex.position[2])
+        .fold(f32::MAX, f32::min);
+    let crown_low = (crown_low < f32::MAX).then_some(crown_low).unwrap_or(low[2]);
+    Some(Measure {
+        width: (high[0] - low[0]).max(high[1] - low[1]),
+        height: high[2],
+        vertices: count,
+        low,
+        high,
+        crown_low,
+    })
 }
