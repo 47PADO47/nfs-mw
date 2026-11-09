@@ -185,6 +185,7 @@ pub fn read(get: impl Fn(&str) -> Option<String>) -> Partial {
         turn_signals: None,
         rider_gear: value(&get, "NFSMW_RIDER_GEAR", parse_bool),
         easy_wheelie: value(&get, "NFSMW_EASY_WHEELIE", parse_bool),
+        air_control: value(&get, "NFSMW_AIR_CONTROL", parse_bool),
         live_dash: value(&get, "NFSMW_LIVE_DASH", parse_bool),
         rear_view_mirror: value(&get, REAR_VIEW_MIRROR, parse_bool),
         discord: value(&get, DISCORD, parse_bool),

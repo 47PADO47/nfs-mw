@@ -50,7 +50,7 @@ fn gameplay_groups_the_experimental_rows_and_the_rider_rows_and_keeps_the_rest_u
     let page = page(Category::Gameplay, &caps(), Vec::new());
     assert_eq!(heading_titles(&page), ["Experimental", "RIDE 6"]);
     let experimental = under(&page, "Experimental");
-    assert_eq!(experimental, [Setting::TurnSignals, Setting::CopHealthBars]);
+    assert_eq!(experimental, [Setting::TurnSignals, Setting::CopHealthBars, Setting::AirControl]);
     let ride6 = under(&page, "RIDE 6");
     assert_eq!(ride6[0], Setting::RiderGear);
     assert!(ride6.iter().all(|setting| matches!(setting, Setting::RiderGear | Setting::Rider(_))));

@@ -359,3 +359,16 @@ fn the_fingers_are_set_by_number() {
     assert!(set(&mut s, "clutch_fingers", "1").unwrap_err().contains("expected 2 or 4"));
     assert_eq!(set(&mut s, "clutch_fingers", "").unwrap_err(), "usage: set clutch_fingers <2|4> (now 4)");
 }
+
+#[test]
+fn air_control_is_a_switch_the_console_gets_sets_and_toggles() {
+    let mut s = defaults();
+    assert_eq!(get(&s, "air_control").unwrap(), "air_control = off");
+    assert_eq!(set(&mut s, "air_control", "on").unwrap(), "air_control = on");
+    assert!(s.air_control);
+    assert_eq!(set(&mut s, "air-control", "off").unwrap(), "air_control = off");
+    assert!(!s.air_control);
+    assert!(set(&mut s, "air_control", "maybe").is_err());
+    assert!(KEYS.contains(&"air_control"));
+    assert!(get_all(&s).lines().any(|line| line.starts_with("air_control")));
+}

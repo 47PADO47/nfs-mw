@@ -80,6 +80,8 @@ options-riding-style-balanced = Balanced
 options-riding-style-shoulders-out = Shoulders Out
 options-riding-style-old-school = Old School
 options-cop-health-bars = Cop Health Bars
+# Steer a car or a bike while it is in the air (stick or keys to pitch and roll, Q and E or the other stick to spin, the mouse); off by default.
+options-air-control = Air Control
 # The kinds of moment the Game Moment Camera plays (the row itself is the game's own label).
 options-game-moment-breakers = Moments: Pursuit Breakers
 options-game-moment-pursuit = Moments: Pursuit Start

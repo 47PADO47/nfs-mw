@@ -1,5 +1,9 @@
+use blackbox_vehicle::air_control::AirAxes;
+
 use super::terrain::TerrainQuery;
 use super::*;
+
+mod air;
 
 /// What the start of a step leaves for the rest of it: the library's input and the terrain query.
 #[derive(Debug, Clone, Copy)]
@@ -7,6 +11,9 @@ pub(in crate::scenes::world) struct StepStart {
     pub(super) input: InputState,
     /// The rider's weight the player asks, -1 (back) to 1 (forward): only a bike's ride reads it.
     pub(super) weight: f32,
+    /// The player's air control for this step (`air_control` setting, `docs/specs/air-control.md`); `None` when it is off or the car is not
+    /// the player's.
+    pub(super) air: Option<AirAxes>,
     pub(super) delta: f32,
     /// `None` without a collision world: the car then only meets the road.
     pub(super) terrain: Option<TerrainQuery>,
@@ -67,7 +74,7 @@ impl CarSim {
         props: Option<&mut PropWorld>,
     ) -> StepStart {
         if !dt.is_finite() || dt <= 0.0 {
-            return StepStart { input: input.to_vehicle(), weight: input.weight, delta: dt, terrain: None };
+            return StepStart { input: input.to_vehicle(), weight: input.weight, air: None, delta: dt, terrain: None };
         }
         self.step_delta = dt;
         self.pull_bike();
@@ -77,6 +84,7 @@ impl CarSim {
         let terrain = has_world.then(|| self.terrain_query());
         self.before_velocity = self.vehicle.body().linear_velocity;
         let weight = input.weight;
+        let air = crate::scenes::world::bike_assist::air_control(self.collision_role.player, input.air);
         let input = input.to_vehicle();
         self.previous_contact_pose = (self.vehicle.position(), self.vehicle.body().orientation);
         if let (Some(props), Some(events)) = (props, &self.events) {
@@ -88,7 +96,7 @@ impl CarSim {
                 self.vehicle.tire_damage.puncture(wheel);
             }
         }
-        StepStart { input, weight, delta: dt, terrain }
+        StepStart { input, weight, air, delta: dt, terrain }
     }
 
     /// Resolves world contacts and body drag after the shared pair pass, before driving response.
@@ -196,6 +204,7 @@ impl CarSim {
         self.memo.record(&input, &impact, self.before_velocity, body.linear_velocity, body.mass());
         self.queue_non_player_sounds(&impact);
         self.advance_lamps(input.brake, start.delta);
+        self.apply_air_control(start.air);
         impact
     }
 }

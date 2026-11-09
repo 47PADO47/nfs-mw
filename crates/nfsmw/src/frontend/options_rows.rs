@@ -161,6 +161,7 @@ pub(super) fn gameplay() -> Vec<Row> {
         moment_row(MomentKind::Crashes),
         row(Setting::TurnSignals, Title::Key("options-turn-signals")),
         row(Setting::CopHealthBars, Title::Key("options-cop-health-bars")),
+        row(Setting::AirControl, Title::Key("options-air-control")),
         // The same row as the Player page's, so the camera can be switched from the pause menu's gameplay options too.
         row(Setting::Camera, Title::Label(LABEL_CAMERA)),
         // The general game options live here; the original has no label that names the language row.

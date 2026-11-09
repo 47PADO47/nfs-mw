@@ -181,6 +181,7 @@ impl BikeRide {
             false => command(input, self.bike.spec().steering.arcade.stick_reach),
         };
         self.bike.set_weight(start.weight);
+        self.bike.set_air_control(start.air);
         self.bike.respond(start.delta, &rider, ground);
         match self.bike.fallen() {
             true => self.lie(start.delta, ground),

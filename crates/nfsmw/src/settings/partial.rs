@@ -124,6 +124,8 @@ pub struct Partial {
     pub rider_gear: Option<bool>,
     /// The throttle alone lifts and holds a bike's wheelie (`easy_wheelie`); on by default.
     pub easy_wheelie: Option<bool>,
+    /// Steer a vehicle in the air (`air_control`); off by default.
+    pub air_control: Option<bool>,
     /// The live screen of a bike's instrument cluster (`live_dash`); on by default.
     pub live_dash: Option<bool>,
     pub rear_view_mirror: Option<bool>,
@@ -290,6 +292,7 @@ impl Partial {
             turn_signals: self.turn_signals.or(lower.turn_signals),
             rider_gear: self.rider_gear.or(lower.rider_gear),
             easy_wheelie: self.easy_wheelie.or(lower.easy_wheelie),
+            air_control: self.air_control.or(lower.air_control),
             live_dash: self.live_dash.or(lower.live_dash),
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
             discord: self.discord.or(lower.discord),
