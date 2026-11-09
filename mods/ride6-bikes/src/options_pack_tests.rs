@@ -91,7 +91,7 @@ fn flame_points_of_fitted_exhausts_move_with_the_part_on_real_bikes() {
     let (bikes, parts) = (Path::new("C:/r6work/bikes"), Path::new("C:/r6work/bike-parts"));
     let catalogue = Catalogue::read(parts).expect("the catalogue");
     let library = Library::open(parts).expect("the parts");
-    let wanted = ["Ducati_Panigale-V4-S-2025", "BMW_S-1000-RR-2019", "KTM_RC-390-2023", "Yamaha_YZF-R1-2024"];
+    let wanted = ["Ducati_Panigale-V4-S-2025", "BMW_S-1000-RR-2019", "KTM_RC-390-2023", "Yamaha_YZF-R1-2020"];
     let mut checked = 0;
     for name in wanted {
         let dir = bikes.join(name);
