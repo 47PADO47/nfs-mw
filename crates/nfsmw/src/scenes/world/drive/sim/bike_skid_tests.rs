@@ -172,7 +172,9 @@ fn a_locked_rear_wheel_under_the_brakes_marks_and_screeches() {
     });
     let example = &runs[0];
     assert!(example.slide[1] > 2.0 && example.skid[1] == 1.0 && example.smoke[1] == 1.0, "{example:?}");
-    assert!(example.loop_volume > 0.2, "{example:?}");
+    // The squeal's volume follows the speed, and the brake help (`docs/specs/ride6-bike-braking.md`) has the bike slower after the first second (the
+    // settling second the run skips): 0.18 at 21 m/s where it was above 0.2 at 26 m/s. Still well heard.
+    assert!(example.loop_volume > 0.15, "{example:?}");
 }
 
 #[test]
