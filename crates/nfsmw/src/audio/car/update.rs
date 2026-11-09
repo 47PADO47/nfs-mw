@@ -37,6 +37,7 @@ impl Audio {
                 dt: frame.dt,
                 delay: frame.delay,
                 gear: input.gear,
+                pop: input.exhaust_pop && !frame.engine_stopped,
             };
             sfx.drive(self, &sfx_frame, &mut commands);
         }

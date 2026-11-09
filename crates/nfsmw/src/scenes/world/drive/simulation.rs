@@ -209,7 +209,10 @@ impl Drive {
         self.prop_touch.step(&impact.contacts, dt);
         let car = effect_feed::car_state(&pose, &telemetry, velocity, input.throttle);
         // A burnout pops the pipe every few seconds, the same small flame as a gear change (`exhaust/burnout.rs`).
-        self.flames.note_burnout(dt, sim.bike_burnout());
+        // The same pop is heard: the sound's own backfire recording plays with it (`audio/car/own_sfx.rs`).
+        if self.flames.note_burnout(dt, sim.bike_burnout()) {
+            self.sound.note_exhaust_pop();
+        }
         self.flames.step(dt, &car);
         self.tail_trails.step(car.to_world, car.nitrous, velocity.length());
         self.sound.after_step(sim, surfaces, &impact, &input, dt, self.gridded);

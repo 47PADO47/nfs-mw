@@ -45,11 +45,14 @@ impl BurnoutPops {
 
 impl ExhaustFlames {
     /// One physics step of the bike: while it is in a burnout a pop is made every [`BURNOUT_POP_INTERVAL`] seconds, at the next step like the
-    /// console's `exhaust-flames pop` (and nothing when the `exhaust_flames` setting is off).
-    pub fn note_burnout(&mut self, dt: f32, burnout: bool) {
-        if self.burnout.step(dt, burnout) {
+    /// console's `exhaust-flames pop` (and no flame when the `exhaust_flames` setting is off). Returns whether a pop is due now, flames
+    /// or not: the caller voices it (the sound of a pop does not depend on the flames setting), see `audio/car/own_sfx.rs`.
+    pub fn note_burnout(&mut self, dt: f32, burnout: bool) -> bool {
+        let due = self.burnout.step(dt, burnout);
+        if due {
             self.pop();
         }
+        due
     }
 }
 
@@ -102,12 +105,14 @@ mod tests {
     fn the_pop_is_the_consoles_pop_and_the_flames_setting_switches_it_off() {
         let mut flames = ExhaustFlames::default();
         // The first pop is due after a second, with the setting off: nothing is asked.
-        flames.note_burnout(1.0, true);
-        assert!(!flames.forced, "the exhaust_flames setting is off: no pop");
+        assert!(flames.note_burnout(1.0, true), "the pop is due: its sound plays whatever the flames setting");
+        assert!(!flames.forced, "the exhaust_flames setting is off: no flame");
         flames.set_enabled(true);
-        flames.note_burnout(2.9, true);
-        assert!(!flames.forced, "not due yet");
-        flames.note_burnout(0.2, true);
-        assert!(flames.forced, "three seconds later: the same backfire as `exhaust-flames pop`");
+        assert!(!flames.note_burnout(2.9, true) && !flames.forced, "not due yet");
+        assert!(
+            flames.note_burnout(0.2, true) && flames.forced,
+            "three seconds later: the same backfire as `exhaust-flames pop`"
+        );
+        assert!(!flames.note_burnout(0.1, false), "no burnout, no pop");
     }
 }
