@@ -56,12 +56,14 @@ impl VehicleOptions {
         edit: &mut Edit<'_>,
         change: &Change,
     ) -> Result<String, String> {
+        let before = (edit.parts.clone(), *edit.performance);
         let mut next = (edit.parts.clone(), *edit.color, *edit.performance);
         let message = {
             let mut scratch = Edit { parts: &mut next.0, color: &mut next.1, performance: &mut next.2 };
             self.edit(catalog, &mut scratch, change)?
         };
         next.2 = self.without_unavailable_junkman(next.2);
+        self.with_bundles((&before.0, before.1), (&mut next.0, &mut next.2));
         self.check(catalog, &next.0, next.2)?;
         *edit.parts = next.0;
         *edit.color = next.1;
@@ -226,7 +228,7 @@ impl VehicleOptions {
     }
 }
 
-fn write(slot: &Slot, choice: &Choice, edit: &mut Edit<'_>) {
+pub(super) fn write(slot: &Slot, choice: &Choice, edit: &mut Edit<'_>) {
     match (slot.store, &choice.value) {
         (Store::Category(category), Value::Hash(hash)) => edit.parts.parts[category as usize] = Some(*hash),
         (Store::Category(category), _) => edit.parts.parts[category as usize] = None,

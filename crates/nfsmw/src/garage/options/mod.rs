@@ -17,6 +17,9 @@
 //! (the world's `apply_garage_selection`, the car viewer's reload), so a change is on the vehicle at once.
 
 mod build;
+mod bundle;
+#[cfg(test)]
+mod bundle_tests;
 mod change;
 mod groups;
 mod names;

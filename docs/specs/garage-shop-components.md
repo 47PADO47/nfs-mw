@@ -51,6 +51,14 @@ fitting other rims takes the rim paint off), an empty slot that cannot be empty.
 
 The F6 garage and the vehicle panel use the same function, so the shop, the console (`vehicle set`) and the panel cannot disagree.
 
+A choice can also **bring others with it** (an offer's `bundle`, [data model](vehicle-components/data-model.md#offer)): choosing `Brakes level 2`
+(a level) fits the brake discs of the bike's kit 2 (a part), and going down to level 1 swaps them for kit 1's and to the original
+equipment takes them off. It is part of the same `VehicleOptions::apply` (`garage/options/bundle.rs`, after the edit and before the
+rules are checked), so the shop, the panel, `vehicle set`, the performance shortcuts (Maximum and Stock) and Reset all do it, and the
+cart shows the part as a line of its own. The link is the vehicle's data and any slot can have it (a level, a model category or a
+slot only the components know); the RIDE 6 importer writes it for the brake ladder and the disc kit of the same level. Choosing the
+discs by themselves does not change the level.
+
 ## 4. Prices and unlocks **[ours]**
 
 | Slot kept as | Price | Trade-in (non-backroom) | Unlock |
