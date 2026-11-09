@@ -3,7 +3,7 @@
 
 use glam::{Quat, Vec3};
 
-use super::{ArcadeSteering, Bike, BikeInput, BikeSpec, InputRates};
+use super::{ArcadeSteering, Bike, BikeInput, BikeSpec, InputRates, TurnLaw};
 use crate::FIXED_STEP;
 use crate::ground::FlatGround;
 
@@ -27,6 +27,7 @@ fn previous() -> ArcadeSteering {
         handlebar_response: 1.25,
         authority: [1.0, 1.0],
         wheelie_steer_drop: None,
+        turn: None,
         ..ArcadeSteering::default()
     }
 }
@@ -151,24 +152,110 @@ fn the_slower_lean_in_does_not_slow_with_the_speed() {
 /// The speeds of the turning circle table (km/h).
 const KMH: [f32; 5] = [20.0, 40.0, 80.0, 120.0, 200.0];
 
+/// The speeds of the turn law's table (km/h): the ones the playtest named.
+const TABLE_KMH: [f32; 6] = [15.0, 30.0, 50.0, 80.0, 120.0, 180.0];
+
+/// The steering as the previous round left it, with the lean-in's quickness at a low speed taken off (the turn law's other levers kept).
+fn slow_lean_in() -> ArcadeSteering {
+    let law = TurnLaw { slow_lean_rate: 1.0, ..TurnLaw::GAME };
+    ArcadeSteering { turn: Some(law), ..ArcadeSteering::default() }
+}
+
+/// The seconds a full stick, stepped on after a second of straight running at `speed`, takes to bring the yaw rate to 80 percent of its steady
+/// value (the mean of the last 2 s of 6); `None` for a fall.
+fn yaw_step_time(spec: &BikeSpec, speed: f32) -> Option<f32> {
+    let ground = FlatGround::new(0.0);
+    let mut bike = Bike::new(spec.clone());
+    assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, speed));
+    let (lead, total) = (1.0_f32, 6.0_f32);
+    let mut rates = Vec::new();
+    for step in 0..(total / FIXED_STEP) as usize {
+        let t = step as f32 * FIXED_STEP;
+        let stick = if t < lead { 0.0 } else { 1.0 };
+        let throttle = hold(speed, &bike);
+        bike.step(FIXED_STEP, &BikeInput { throttle, steer: stick, ..Default::default() }, &ground);
+        if bike.fallen() {
+            return None;
+        }
+        rates.push(bike.body().angular_velocity.y.abs());
+    }
+    let last = (2.0 / FIXED_STEP) as usize;
+    let steady = rates.iter().rev().take(last).sum::<f32>() / last as f32;
+    let from = (lead / FIXED_STEP) as usize;
+    let at = rates.iter().skip(from).position(|&rate| rate >= 0.8 * steady)?;
+    Some(at as f32 * FIXED_STEP)
+}
+
 #[test]
-fn the_turning_circle_is_tighter_when_slow_and_wider_when_fast_progressively() {
-    for (which, (now, new)) in bikes(previous()).into_iter().zip(bikes(ArcadeSteering::default())).enumerate() {
-        let ratio: Vec<f32> = KMH
+fn the_turning_circle_follows_the_turn_laws_table_on_three_bikes_and_never_falls() {
+    for (which, spec) in bikes(ArcadeSteering::default()).into_iter().enumerate() {
+        let law = TurnLaw::GAME;
+        let radii: Vec<f32> = TABLE_KMH
             .iter()
             .map(|kmh| {
                 let speed = kmh / 3.6;
-                let was = radius(&now, speed).expect("no fall (now)");
-                let is = radius(&new, speed).expect("no fall (new)");
-                println!("bike {which}: {kmh} km/h radius now {was:.1} m, new {is:.1} m, ratio {:.2}", is / was);
-                is / was
+                let measured = radius(&spec, speed).expect("no fall");
+                println!("bike {which}: {kmh} km/h radius {measured:.1} m, table {:.1} m", law.radius(speed));
+                measured
             })
             .collect();
-        assert!(ratio[0] < 0.97 && ratio[1] < 0.97, "bike {which}: tighter at 20 and 40 km/h: {ratio:?}");
-        assert!(ratio[3] > 1.03 && ratio[4] > 1.03, "bike {which}: wider at 120 and 200 km/h: {ratio:?}");
-        for pair in ratio.windows(2) {
-            assert!(pair[1] >= pair[0] - 0.02, "bike {which}: the ratio rises with the speed: {ratio:?}");
+        assert!(radii[0] <= 3.0, "bike {which}: 15 km/h {} m", radii[0]);
+        assert!(radii[1] <= 6.0, "bike {which}: 30 km/h {} m", radii[1]);
+        for (index, kmh) in TABLE_KMH.iter().enumerate().skip(2) {
+            let wanted = law.radius(kmh / 3.6);
+            let low = match index == TABLE_KMH.len() - 1 {
+                true => 0.95,
+                false => 0.75,
+            };
+            let measured = radii[index];
+            assert!(
+                measured > low * wanted && measured < 1.35 * wanted,
+                "bike {which}: {kmh} km/h {measured} m for {wanted}"
+            );
         }
+        assert!(
+            radii.windows(2).all(|pair| pair[1] > pair[0]),
+            "bike {which}: the radius grows with the speed: {radii:?}"
+        );
+    }
+}
+
+#[test]
+fn the_slow_turn_is_tighter_than_the_originals_and_the_fast_one_is_not_tighter_than_the_table() {
+    let new = bike_with(ArcadeSteering::default());
+    let original = bike_with(ArcadeSteering::REFERENCE);
+    for kmh in [15.0_f32, 30.0] {
+        let speed = kmh / 3.6;
+        let (tight, wide) = (radius(&new, speed).expect("no fall"), radius(&original, speed).expect("no fall"));
+        println!("{kmh} km/h: new {tight:.1} m, original {wide:.1} m");
+        assert!(wide > 1.2 * tight, "{kmh} km/h: {tight} m new against {wide} m original");
+    }
+}
+
+#[test]
+fn a_full_stick_turns_the_path_quickly_at_a_low_speed() {
+    let spec = bike_with(ArcadeSteering::default());
+    for kmh in [15.0_f32, 30.0] {
+        let time = yaw_step_time(&spec, kmh / 3.6).expect("no fall");
+        println!("{kmh} km/h: the yaw rate is at 80 percent after {time:.2} s");
+        assert!(time <= 0.8, "{kmh} km/h: {time} s");
+    }
+}
+
+#[test]
+fn the_lean_in_is_quicker_at_a_low_speed_than_without_the_turn_laws_rate() {
+    let quick = lean_step_time(&bike_with(ArcadeSteering::default()), 3.0).expect("no fall");
+    let slow = lean_step_time(&bike_with(slow_lean_in()), 3.0).expect("no fall");
+    println!("lean 0 to 90 percent at 3 m/s: with the quicker rate {quick:.3} s, without {slow:.3} s");
+    assert!(quick < slow, "{quick} < {slow}");
+}
+
+#[test]
+fn a_flip_of_the_stick_at_a_low_speed_does_not_fall() {
+    let spec = bike_with(ArcadeSteering::default());
+    for speed in [3.0_f32, 4.2, 6.0, 8.3, 11.0] {
+        let time = flip_time(&spec, speed);
+        assert!(time.is_some(), "{speed} m/s: fell in a flip");
     }
 }
 
@@ -200,6 +287,7 @@ fn the_reference_steering_is_neutral_and_the_default_is_not() {
         cornering_assist: 0.0,
         authority: [1.0, 1.0],
         wheelie_steer_drop: None,
+        turn: None,
         ..ArcadeSteering::REFERENCE
     };
     assert_eq!(by_hand, ArcadeSteering::REFERENCE);
@@ -212,7 +300,8 @@ fn the_reference_steering_is_neutral_and_the_default_is_not() {
 fn the_reference_turns_at_about_one_g_and_the_arcade_at_about_one_and_a_half() {
     // The arcade bike turns harder than 1.3 g at low and medium speeds and still more than the lean alone (0.75 g) at 144 km/h, where the
     // speed authority takes part of the assist away.
-    for (speed, least, most) in [(20.0_f32, 1.4, 1.95), (40.0, 1.15, 1.85)] {
+    // (The turn law asks 1.27 g at 20 m/s and 1.2 g at 40 m/s, `docs/specs/ride6-bike-turn-radius.md`.)
+    for (speed, least, most) in [(20.0_f32, 1.1, 1.5), (40.0, 1.0, 1.4)] {
         let (fell, reference, _) = steady(&bike_with(ArcadeSteering::REFERENCE), speed, 1.0, 8.0);
         assert!(!fell && reference < 1.3, "{speed} m/s: the reference turns at {reference} g");
         let (fell, arcade, lean) = steady(&bike_with(ArcadeSteering::default()), speed, 1.0, 8.0);

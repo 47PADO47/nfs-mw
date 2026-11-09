@@ -60,6 +60,7 @@ mod suspension;
 mod thermal;
 mod trick;
 mod trick_spec;
+mod turn_law;
 mod tyre;
 mod wheel;
 mod wheel_step;
@@ -86,6 +87,7 @@ pub use spec::{
     RiderHelpSpec, StabilitySpec, SteeringSpec, SuspensionSpec, TcsSpec, TerrainLimit, TransmissionSpec, TyreSection,
     TyreThermal, WheelSpec, WheelieSpec,
 };
+pub use turn_law::{TurnInput, TurnLaw};
 pub use tyre::{TyreInput, TyreOutput};
 pub use wheel::WheelState;
 pub use wheelie_throttle::ThrottleWheelie;

@@ -24,6 +24,12 @@
 //! 6. `authority`, `authority_speed`: the cornering assist's factor over the speed, high when the bike is slow (a tighter circle) and low
 //!    when it is fast (a wider one), a smooth curve with no step (`docs/specs/ride6-arcade-steering.md`, section 11).
 //! 7. `wheelie_steer_drop`: a floor under a steered wheelie, so the stick lowers the front wheel only a little (section 12).
+//! 8. `turn`: the turn law (`turn_law.rs`, `docs/specs/ride6-bike-turn-radius.md`): the cornering assist as the part of the circle's
+//!    acceleration that the lean does not give, with the circle a full stick turns named at each speed by one table (tight when slow, wide when
+//!    fast), a path that follows the stick at a low speed, and a quicker lean-in there. While `turn` is set it replaces the assist of
+//!    `cornering_assist` and `authority` (levers 4 and 6), which stay for a steering that has none.
+
+use super::turn_law::{TurnInput, TurnLaw};
 
 /// The values of the arcade steering; see the module's documentation. `REFERENCE` is neutral.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -70,6 +76,9 @@ pub struct ArcadeSteering {
     /// The most (rad) the stick lowers the front wheel of a wheelie: while the bike leans in a wheelie the pitch assist lifts the nose whenever it is
     /// under the pitch the wheelie had before the lean, less this (the data's assist fades out with the lean). `None`: the data's assist only.
     pub wheelie_steer_drop: Option<f32>,
+    /// The turn law: the circle of a full stick at each speed, and what shapes the path's response ([`TurnLaw`]). While it is set it replaces the
+    /// assist of `cornering_assist`, `assist_speed` and `authority`. `None`: the assist those fields give.
+    pub turn: Option<TurnLaw>,
 }
 
 impl ArcadeSteering {
@@ -92,6 +101,7 @@ impl ArcadeSteering {
         authority: [1.0, 1.0],
         authority_speed: [5.0, 70.0],
         wheelie_steer_drop: None,
+        turn: None,
     };
 
     /// The reference game's steering ([`ArcadeSteering::REFERENCE`]).
@@ -109,6 +119,21 @@ impl ArcadeSteering {
     pub fn cornering_acceleration(&self, lean_share: f32, speed: f32) -> f32 {
         let fade = super::curve::ramp(speed.abs(), self.assist_speed);
         self.cornering_assist * 9.81 * lean_share.clamp(-1.0, 1.0) * fade * self.authority_factor(speed)
+    }
+
+    /// The side acceleration (m/s^2, positive to the right) of the cornering assist now: the turn law's when `turn` is set (`input` is what it reads),
+    /// otherwise [`ArcadeSteering::cornering_acceleration`] for `lean_share`.
+    pub fn assist_acceleration(&self, lean_share: f32, input: &TurnInput, speed: f32) -> f32 {
+        match &self.turn {
+            Some(law) => law.acceleration(input, speed),
+            None => self.cornering_acceleration(lean_share, speed),
+        }
+    }
+
+    /// The factor on the lean controller's target filter's time scale at `speed` m/s: `lean_rate`, times the turn law's quicker lean-in at a low
+    /// speed when `turn` is set.
+    pub fn lean_rate_at(&self, speed: f32) -> f32 {
+        self.lean_rate * self.turn.map_or(1.0, |law| law.lean_rate(speed))
     }
 
     /// The factor of the speed on the cornering assist: the slow end of `authority` at or under `authority_speed[0]`, the fast end at or over
@@ -163,6 +188,7 @@ impl Default for ArcadeSteering {
             authority: [1.5, 0.6],
             authority_speed: [5.0, 70.0],
             wheelie_steer_drop: Some(7.0_f32.to_radians()),
+            turn: Some(TurnLaw::GAME),
         }
     }
 }

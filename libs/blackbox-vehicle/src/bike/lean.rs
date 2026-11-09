@@ -54,6 +54,8 @@ pub struct LeanPlan {
     /// The lean limit this step (rad) and the target lean after the filters.
     pub limit: f32,
     pub target: f32,
+    /// The stick after the rider's hand filter (-1 to 1, positive right): what the turn law's path follows at a low speed.
+    pub stick: f32,
     /// The prescribed roll acceleration (rad/s^2, positive to the right) and the roll torque it needs (N m).
     pub acceleration: f32,
     pub torque: f32,
@@ -126,7 +128,7 @@ impl Lean {
         let arcade = &steering.arcade;
         let scale = attenuation
             * spec.time_scale
-            * arcade.lean_rate
+            * arcade.lean_rate_at(input.speed)
             * arcade.speed_scale(&spec.time_scale_speed, input.speed)
             * arcade.stick_scale(&spec.time_scale_input, input.stick.clamp(-1.0, 1.0))
             * sensitivity;
@@ -148,7 +150,7 @@ impl Lean {
         // to the left first.
         let arm = input.cg_height.max(0.05) * input.front_arm.max(choices::MIN_LEAN_ARM);
         let front_force = -torque / arm;
-        LeanPlan { limit, target, acceleration: accel, torque, front_force, arm, capped: target != free }
+        LeanPlan { limit, target, stick, acceleration: accel, torque, front_force, arm, capped: target != free }
     }
 }
 
