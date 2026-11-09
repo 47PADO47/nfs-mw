@@ -56,7 +56,7 @@ pub struct Tally {
 }
 
 impl Tally {
-    pub fn add(&mut self, other: Tally) {
+    pub fn merge(&mut self, other: Tally) {
         self.copies += other.copies;
         self.shrunk += other.shrunk;
         self.held += other.held;
@@ -199,7 +199,7 @@ impl Neighbours {
         let identity = [Placed { matrix: IDENTITY, low: bounds.0, high: bounds.1 }];
         let places: &[Placed] = match solid {
             None => &identity,
-            Some(hash) => self.placed.get(&hash).map_or(&[], Vec::as_slice),
+            Some(hash) => self.placed.get(&hash).map_or(&[][..], Vec::as_slice),
         };
         if places.is_empty() || self.walls.is_empty() {
             return tally;
@@ -345,8 +345,7 @@ fn overlap(a: &Quad, b: &Quad) -> bool {
         })
     };
     for quad in [a, b] {
-        for i in 0..4 {
-            let (from, to) = (quad[i], quad[(i + 1) % 4]);
+        for (from, to) in quad.iter().zip(quad.iter().cycle().skip(1)) {
             let axis = [from[1] - to[1], to[0] - from[0]];
             if axis == [0.0, 0.0] {
                 continue;

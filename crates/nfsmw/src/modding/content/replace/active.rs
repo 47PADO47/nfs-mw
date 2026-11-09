@@ -344,7 +344,7 @@ impl Active {
         match fit_clear(&entry.model, stock, entry.fit, frame, &entry.limits, near) {
             Ok((solid, tally)) => {
                 if let Ok(mut total) = self.cleared.lock() {
-                    total.add(tally);
+                    total.merge(tally);
                 }
                 solid
             }
