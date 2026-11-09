@@ -10,7 +10,7 @@
 //! - with no input on an axis the same bounded torque damps its angular speed (`damping`, per second), so the body settles instead of
 //!   tumbling for ever;
 //! - an input never pushes an axis that already turns faster than it asks for, and when the caller gives the attitude limits (a bike
-//!   falls over beyond them) the push fades out as the attitude nears them.
+//!   falls over beyond them) the rate it asks for fades out as the attitude nears them, so the body stops at the limit.
 //!
 //! Axes and signs, as the stick is used: **pitch** positive is the stick forward, the nose down; **roll** positive is the stick right,
 //! the right side down; **yaw** positive is a turn to the right. The body frame is x right, y up, z forward.
@@ -116,10 +116,12 @@ impl AirControlSpec {
     };
 
     /// The angular acceleration (rad/s^2) one axis asks for: `command` is -1 to 1 along the axis, `omega` the body's angular speed about it.
-    fn acceleration(&self, limit: AxisLimit, command: f32, omega: f32) -> f32 {
+    /// `held` is whether the player touches the axis: a held axis whose command has faded to nothing (an attitude limit) is still steered, to
+    /// a standstill, so the body stops at the limit instead of drifting on.
+    fn acceleration(&self, limit: AxisLimit, command: f32, omega: f32, held: bool) -> f32 {
         let bound = limit.accel;
         let damp = (-self.damping * omega).clamp(-bound, bound);
-        if command.abs() < DEAD {
+        if !held {
             return damp;
         }
         let target = command * limit.rate;
@@ -146,9 +148,9 @@ impl AirControlSpec {
         let pitch = axes.pitch * headroom(pitch_toward, attitude.pitch_limit);
         let roll = axes.roll * headroom(roll_toward, attitude.lean_limit);
         let accelerations = Vec3::new(
-            self.acceleration(self.pitch, pitch, omega.x),
-            self.acceleration(self.yaw, axes.yaw, omega.y),
-            self.acceleration(self.roll, -roll, omega.z),
+            self.acceleration(self.pitch, pitch, omega.x, axes.pitch.abs() > DEAD),
+            self.acceleration(self.yaw, axes.yaw, omega.y, axes.yaw.abs() > DEAD),
+            self.acceleration(self.roll, -roll, omega.z, axes.roll.abs() > DEAD),
         );
         body.rotation * (accelerations * body.inertia)
     }

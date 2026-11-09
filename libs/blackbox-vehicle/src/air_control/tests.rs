@@ -126,3 +126,13 @@ fn bad_input_reads_as_none() {
     let torque = AirControlSpec::CAR.torque(AirAxes { pitch: f32::NAN, ..AirAxes::ZERO }, &body(Vec3::ZERO), &none());
     assert!(torque.is_finite());
 }
+
+#[test]
+fn a_body_turning_into_an_attitude_limit_is_braked_and_not_left_to_drift_on() {
+    let spec = AirControlSpec::BIKE;
+    let at_limit = Attitude { pitch_up: -1.0, pitch_limit: 1.0, ..Attitude::default() };
+    let turning = body(Vec3::new(1.5, 0.0, 0.0));
+    let braked = spec.torque(AirAxes { pitch: 1.0, ..AirAxes::ZERO }, &turning, &at_limit);
+    let drifting = spec.torque(AirAxes::ZERO, &turning, &at_limit);
+    assert!(braked.x < 0.0 && braked.x < drifting.x, "{} against the damping's {}", braked.x, drifting.x);
+}
