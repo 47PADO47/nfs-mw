@@ -6,6 +6,7 @@
 //! as the particle textures say. Nothing here is stored in the repository: definitions and textures come from
 //! the install, and only while the `exhaust_flames` setting is on.
 
+mod burnout;
 mod command;
 mod enhanced;
 mod tint;
@@ -115,6 +116,8 @@ pub struct ExhaustFlames {
     pops: u32,
     /// The console asked for a backfire.
     forced: bool,
+    /// The pops of a bike's burnout (`burnout.rs`).
+    burnout: burnout::BurnoutPops,
     /// The tint of the nitrous variant the player chose, if it is a mod's. `None` draws the game's own blue flame.
     profile: Option<FlameProfile>,
     /// The particle effects of the nitrous variant the player chose (`variant.rs`).
@@ -132,6 +135,7 @@ impl Default for ExhaustFlames {
             engine_level: 0,
             pops: 0,
             forced: false,
+            burnout: burnout::BurnoutPops::default(),
             profile: None,
             variant: variant::Variant::default(),
         }

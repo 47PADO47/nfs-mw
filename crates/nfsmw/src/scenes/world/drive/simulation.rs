@@ -208,6 +208,8 @@ impl Drive {
         self.markers.record(&impact.contacts, sim.tyre_hits());
         self.prop_touch.step(&impact.contacts, dt);
         let car = effect_feed::car_state(&pose, &telemetry, velocity, input.throttle);
+        // A burnout pops the pipe every few seconds, the same small flame as a gear change (`exhaust/burnout.rs`).
+        self.flames.note_burnout(dt, sim.bike_burnout());
         self.flames.step(dt, &car);
         self.tail_trails.step(car.to_world, car.nitrous, velocity.length());
         self.sound.after_step(sim, surfaces, &impact, &input, dt, self.gridded);
