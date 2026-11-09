@@ -222,8 +222,8 @@ everywhere. Logs: `C:\r6work\fix3\turn-round3.log`, `turn-new3.log`.
 which is the range's low end. The path reaches 80 percent of its yaw rate in 0.42 to 0.67 s, a little quicker than round 3 from 100 km/h up.) The lean reaches its
 limit from 50 km/h up: the circle is the lean's 0.73 g plus the assist.
 
-**All 293 bikes** (`RIDE6_EVERY=1`, logs `turn-all3.log`): no fall in a held full stick at 15, 30, 100 and 250 km/h, and no fall in a flip of the stick every
-0.8 s for 6 s at 30, 100 and 250 km/h; at 15 km/h 6 bikes fall in a flip, as in round 3 (not touched).
+**All 293 bikes** (`RIDE6_EVERY=1`, logs `turn-all3.log`, `turn-all4.log`): no fall in a held full stick at 15, 30, 50, 80, 100, 120, 150, 180 and 250 km/h, and no
+fall in a flip of the stick every 0.8 s for 6 s at 30 km/h and over; at 15 km/h 6 bikes fall in a flip, as in round 3 (not touched).
 
 **Tests.** `turn_law_tests.rs`: the table's numbers at the six asked speeds (within 12 percent);
 `above_100_kmh_the_circle_is_about_half_of_round_3s_or_less_and_the_slow_end_is_kept` (the old table copied in the test: 6 to 50 km/h unchanged, 100 km/h and over
