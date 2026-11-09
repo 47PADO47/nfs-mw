@@ -345,3 +345,59 @@ fn the_players_finger_choices_reach_the_graph_and_two_fingers_are_the_default() 
     smoothed.set_choices(0, BrakeFingers::One, ClutchFingers::Two);
     assert_eq!((smoothed.values().brake_fingers, smoothed.values().clutch_fingers), (0.0, 0.0));
 }
+
+#[test]
+fn the_fingers_and_the_wrist_follow_the_inputs_at_any_speed_in_any_state_of_the_bike() {
+    // A user's playtest: the fingers showed only in first gear, accelerating. Nothing the hands read depends on the speed, the
+    // wheelie, the lean or the tuck: every state below sets the levers' signals to their inputs.
+    let states = [
+        RiderSample { speed: 0.0, ..sample() },
+        RiderSample { speed: 8.0, ..sample() },
+        RiderSample { speed: 55.0, tuck_level: 1.0, ..sample() },
+        RiderSample { speed: 30.0, bike_lean: 0.8, rider_lean: 0.8, ..sample() },
+        RiderSample { speed: 20.0, front_down: false, elevation: 0.5, ..sample() },
+        RiderSample { speed: -2.0, ..sample() },
+    ];
+    for (n, state) in states.into_iter().enumerate() {
+        let pulled = RiderSample { front_brake: 0.6, throttle: 0.4, ..state };
+        let values = settle(&mut Smoothed::default(), &pulled, 2.0);
+        assert!((values.brake - 0.6).abs() < 1e-5 && values.brake_alpha == 1.0, "state {n}: {values:?}");
+        assert!((values.wrist - 0.4).abs() < 0.01, "state {n}: {values:?}");
+        let clutched = RiderSample { clutch: 1.0, ..state };
+        let values = settle(&mut Smoothed::default(), &clutched, 1.0);
+        assert!(values.clutch == 1.0 && values.clutch_alpha == 1.0, "state {n}: {values:?}");
+    }
+}
+
+#[test]
+fn a_gear_change_at_speed_closes_the_left_fingers_and_holds_them_closed_long_enough_to_be_seen() {
+    let mut smoothed = Smoothed::default();
+    let cruising = RiderSample { speed: 40.0, throttle: 1.0, ..sample() };
+    assert_eq!(settle(&mut smoothed, &cruising, 1.0).clutch, 0.0);
+    // The lever is in for three frames (a change on a fast bike) and out again.
+    let change = RiderSample { clutch: 1.0, ..cruising };
+    let mut peak = 0.0_f32;
+    for _ in 0..3 {
+        smoothed.step(&change, &inertia(), 1.0 / 60.0);
+    }
+    for _ in 0..12 {
+        smoothed.step(&cruising, &inertia(), 1.0 / 60.0);
+        peak = peak.max(smoothed.values().clutch);
+    }
+    assert_eq!(peak, 1.0, "the fingers closed all the way");
+    assert_eq!(smoothed.values().clutch, 1.0, "and were still closed a quarter of a second after the change began");
+    let after = settle(&mut smoothed, &cruising, 1.0);
+    assert_eq!((after.clutch, after.clutch_alpha), (0.0, 0.0), "then let go");
+}
+
+#[test]
+fn only_a_scooters_left_hand_works_a_rear_brake_lever() {
+    let braking = RiderSample { rear_brake: 1.0, front_brake: 1.0, speed: 10.0, ..sample() };
+    for (bike_type, lever) in [(Some(3), 1.0), (Some(0), 0.0), (Some(2), 0.0), (None, 0.0)] {
+        let mut smoothed = Smoothed::default();
+        smoothed.set_kind(bike_type, None);
+        let values = settle(&mut smoothed, &braking, 1.0);
+        assert_eq!((values.rear, values.rear_alpha), (lever, lever), "bike type {bike_type:?}");
+        assert_eq!(values.brake, 1.0, "the front lever is every bike's");
+    }
+}

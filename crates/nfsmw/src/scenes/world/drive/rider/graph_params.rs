@@ -7,7 +7,7 @@ use super::params::Values;
 /// for the standing wheelie, `drift` for the drift poses and `reverse`, `reverse_start`, `reverse_loop` and `reverse_cycle` for the
 /// walk back, `lean_out` and `straight` for the lean pose, `riding_style` for the lean set, `stand`, `stand_state`, `stand_leg`,
 /// `stop_time` and `start_time` for the standstill and `clutch`, `clutch_alpha`, `brake` and `brake_alpha` for the fingers on the
-/// levers and `brake_fingers` and `clutch_fingers` for the clips they play); a parameter the graph has and this does not know is 0.
+/// levers, `rear` and `rear_alpha` for a scooter's rear brake lever and `brake_fingers` and `clutch_fingers` for the clips they play); a parameter the graph has and this does not know is 0.
 pub fn param_values(names: &[String], values: &Values) -> Vec<f32> {
     names
         .iter()
@@ -40,6 +40,8 @@ pub fn param_values(names: &[String], values: &Values) -> Vec<f32> {
             "clutch_alpha" => values.clutch_alpha,
             "brake" => values.brake,
             "brake_alpha" => values.brake_alpha,
+            "rear" => values.rear,
+            "rear_alpha" => values.rear_alpha,
             "brake_fingers" => values.brake_fingers,
             "clutch_fingers" => values.clutch_fingers,
             _ => 0.0,
@@ -82,6 +84,8 @@ mod tests {
             clutch_alpha: 0.40625,
             brake: 0.53125,
             brake_alpha: 0.59375,
+            rear: 0.65625,
+            rear_alpha: 0.78125,
             brake_fingers: 2.0,
             clutch_fingers: 1.0,
             wrist: 0.71875,
@@ -118,6 +122,8 @@ mod tests {
             "brake_alpha",
             "brake_fingers",
             "clutch_fingers",
+            "rear",
+            "rear_alpha",
         ]
         .iter()
         .map(|s| (*s).to_owned())
@@ -126,7 +132,8 @@ mod tests {
             param_values(&names, &values),
             vec![
                 90.0, -0.5, 0.0, 0.125, 0.25, 0.75, 0.5, 0.375, 0.625, -0.875, 0.1875, 0.0625, 0.9375, 1.25, 1.0,
-                0.4375, 0.3125, 0.8125, 2.0, 0.28125, 1.0, 2.0, 1.5, 2.5, 0.34375, 0.40625, 0.53125, 0.59375, 2.0, 1.0
+                0.4375, 0.3125, 0.8125, 2.0, 0.28125, 1.0, 2.0, 1.5, 2.5, 0.34375, 0.40625, 0.53125, 0.59375, 2.0, 1.0,
+                0.65625, 0.78125
             ]
         );
         assert!(param_values(&[], &values).is_empty());

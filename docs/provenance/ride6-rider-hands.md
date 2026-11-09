@@ -14,7 +14,7 @@ What the hands work read, and from where. Spec: [ride6-rider-hands](../specs/rid
 | The anim blueprint's `AnimGraphNode_LayeredBoneBlend` nodes (the package's JSON, CUE4Parse `json` mode) | The clutch layer's branch filters `index_01_l`, `middle_01_l` (two fingers); the brake layer's `index_01_r`, `middle_01_r`, `ring_01_r`, `pinky_01_r` | Facts about the user's data asset |
 | The finger clips sampled with this project's own `blackbox-skeleton` (a throwaway reader, not committed) | Which bones move in each clip and by how much (spec section 1) | Measured |
 | The grip mesh of four bikes' chassis (exporter glb, the vertices skinned to `BONE_R_GRIP`) against the bone in `parts.json` | The grip bone's z axis is the grip cylinder's axis, the bone's origin lies on it (spec section 2) | Measured on the CRF 450 R SMT, RC 390, Panigale V4 S, KTM 690 SMC R |
-| The game's own clutch model (`libs/blackbox-vehicle/src/bike/powertrain.rs`) | The clutch lever, as the handler pulls it | This project's code |
+| The game's own clutch model (`libs/blackbox-vehicle/src/bike/{powertrain,clutch_control}.rs`) | The clutch lever, as the handler pulls it (`lever` before linearity and the slipper; the trapezoid of `shift_clutch`: why a change's pull is short) | This project's code |
 
 ## What is a choice or an inference
 

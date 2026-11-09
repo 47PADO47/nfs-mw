@@ -23,7 +23,7 @@ The clips are 0.633 s (20 frames) of full poses whose only moving bones are the 
 middle) or four fingers, and in all three the **same left hand with all four fingers** (index and middle 44 degrees at 0.28 s, ring and little 7 to 18). The blueprint's branch
 filters of the clutch layer name only `index_01_l` and `middle_01_l` (the clutch pulls with two fingers), those of the brake layer all four right-hand fingers [D]. The call `Hands_FingersOverride(0, 0.28, 1, 0, 0.23, 2, 3)`
 gives the windows of the hand-level `Hand_Clutch_Explicit` and `Hand_FrontBrake_Explicit` (0 to 0.28 and 0 to 0.23 s), which are not the
-finger layers' variables and are **not played**. The rear brake lever (a scooter's left hand, `RearFingers_Brake_Alpha`, the same clip) is not played.
+finger layers' variables and are **not played**. The rear brake lever of a scooter (its left hand, `RearFingers_Brake_Alpha`, the same clip) is played since the playtest of section 1a.
 
 **What pulls the clutch.** The bike's own clutch lever: the handler pulls it for a gear change (`ClutchTimingOnGearChange`), for a start
 (the launch clutch) and while the bike stands (`libs/blackbox-vehicle/src/bike/powertrain.rs`, `Bike::clutch_pulled`: the clutch's
@@ -35,6 +35,33 @@ but the blueprint's 2.5 is in seconds of the clip a second and its lever is 0.27
 A gear change's clutch lasts about that, so the first version closed the fingers 0.25 of the way. Fixed (`hands.rs`); the clip is also played to its 0.27 s (it was 0.28).
 The lever itself (the bike's clutch lever mesh) does not move: it is part of the handlebar solid, steered with the fork (a lever bone, `BONE_L_LEVER`, exists in the
 bike's skeleton and is not animated by this project).
+
+## 1a. The fingers at any time, not only at a start in first (a user's playtest)
+
+A user's playtest: "fingers movement works but show only when in first and accelerating, after that the hand remains still". Nothing in the
+signals is gated by the gear, the speed or the state of the bike (`Hands::step` reads the levers and the throttle and nothing else; the graph lays the finger
+layers over the whole tree, the shake and the standstill included; tested at standstill, 8 and 55 m/s, tucked, in a lean, in a wheelie and rolling back:
+`params_tests.rs`). What made it look so is the **lever's shape**, read from the physics' own numbers [measured]:
+
+1. The clutch's lever was read as `1 - engagement`, the engagement after the clutch's **linearity** (`(1 - lever)^linearity`) and the slipper: with a linearity
+   under 1 a half-pulled lever read as hardly pulled, and the slipper's pull (no hand works it) flicked the fingers on every closed throttle. It is now the handler's own lever
+   (`Powertrain::lever`, set in `engagement`, read by `Bike::clutch_pulled`): the pull of a change, of a start and of the idle clutch.
+2. A gear change's pull is **short**: the lever rises over the first 0.125 of the change, holds to 0.2 and falls over the rest (`ClutchControl::shift_clutch`), and a change
+   lasts a tenth of a second or less. The fingers (9.3 lever a second, their layer at 7 a second) closed less than halfway and opened again before the eye caught it; a
+   start's clutch is held for a second, so only that showed. `Pull` (`hands.rs`) holds a pull that reaches `CLUTCH_PULL` = **0.3** at its highest for
+   `CLUTCH_HOLD_S` = **0.28 s** from the moment it began: the length of the blueprint's own clutch window (`Hand_Clutch_Explicit`, 0 to 0.28 s in the call
+   `Hands_FingersOverride(0, 0.28, ..)`, which the blueprint does not play). A pull that lasts longer is followed as it is (a start lets go with the lever, not 0.28 s after
+   it), and a touch under 0.3 is shown as it is. A **choice**: the blueprint's own rule, from `VehicleClutchRemap` and `bIsGoingToChangeGearUp`, is not recovered.
+3. The front brake and the throttle were already any-gear any-speed (`front_brake` is the brake input, the wrist follows the throttle at 4 a second); a throttle held at full
+   stays rolled, which is the hand at rest on a rolled grip, not a hand that stopped following.
+4. A **scooter's rear brake lever** is played: its left hand closes the four fingers of the left hand of the brake clip (`race_clutch_brake_gear_FourFingers`, stepped by the
+   rear brake to 0.28 s) over the clutch layer, weighed at 10 a second like the front lever. The graph's parameters `rear` and `rear_alpha` (the last two, 32 in all); only a scooter's graph
+   has the layer (`BikeType` 3), and the game makes the signal for a scooter only (`params.rs`): on every other bike the rear brake is a foot pedal. The single brake input pulls both levers.
+   A rig imported before this change has no layer and 30 parameters: the new ones read 0 until it is imported again (`ride6-rider-import`).
+
+Tests: `hands.rs` (the pull is held for the window and let go; a long pull is not held on; each lever has its own hand), `params_tests.rs` (any state of the bike; a change at
+speed closes the left fingers and holds them; only a scooter has the rear lever), `powertrain_tests.rs` (the lever is the handler's whatever the linearity),
+`graph_fingers.rs` (the rear layer is the left hand's, over the clutch's, and only with its clip).
 
 ## 2. The throttle wrist
 
@@ -116,8 +143,8 @@ The hand is the same on the clutch side: the left bone's y points outboard, the 
 
 ## 4. What the game does with it
 
-`crates/nfsmw/src/scenes/world/drive/rider/hands.rs` makes the signals from the bike's clutch lever, front brake and throttle: the
-graph's `clutch` and `brake` (the levers, 0 to 1, followed at 2.5 and 3.5 a second) and `clutch_alpha` and `brake_alpha` (the layers' weights); and `wrist`
+`crates/nfsmw/src/scenes/world/drive/rider/hands.rs` makes the signals from the bike's clutch lever (a short pull held, section 1a), front brake, a scooter's rear brake and throttle: the
+graph's `clutch` and `brake` (the levers, 0 to 1, followed at 2.5 and 3.5 a second) and `clutch_alpha` and `brake_alpha` (the layers' weights), `rear` and `rear_alpha` for a scooter; and `wrist`
 (the throttle followed at 4 a second), which `pose::roll_wrist` takes into the right grip's target: the grip bone's frame turns about its own axis by `wrist`
 times the angle of the file's `wrist_throttle` rotation (30 degrees); the file's translation is not used. The graph is
 `mods/ride6-bikes/src/rider/graph_fingers.rs`; the offset is in `attach.json` (`wrist_throttle`, [ride6-rider.md](../formats/ride6-rider.md)), written by
@@ -137,7 +164,7 @@ times the angle of the file's `wrist_throttle` rotation (30 degrees); the file's
 
 ## 6. Not done
 
-The up, in and out wrist poses, the wrist sweep and the clutch compensation, the rear brake lever, the `Idle` clips with the throttle
+The up, in and out wrist poses, the wrist sweep and the clutch compensation, the `Idle` clips with the throttle
 (`race_trottle`), the blipper (`race_Add_Blipper`: a downshift throttle blip on bikes with a blipper, `BikeHasBlipper`), the clutch lever mesh pulled
 with the fingers and a clutch of one finger.
 

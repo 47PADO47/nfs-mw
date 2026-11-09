@@ -212,7 +212,8 @@ The graph's parameters, in order: `lean`, `speed_kmh`, `tuck`, `wheelie`, `stopp
 `standing`, `steer`, `standing_entry`, `drift`, `reverse`, `reverse_start`, `reverse_loop`, `reverse_cycle`, `lean_out` (which of the two lean
 sweeps), `straight` (the upright pose over the sweep), `riding_style`, `stand`, `stand_state`, `stand_leg`, `stop_time`, `start_time`, `clutch`,
 `clutch_alpha`, `brake`, `brake_alpha`, `brake_fingers` (which brake clip: 0 one finger, 1 two, 2 four) and `clutch_fingers` (which clutch clip: 0 the
-clutch clip's index and middle fingers, 1 the four-finger clip's left hand) (the last twelve: the riding style, the standstill and the finger layers); a graph
+clutch clip's index and middle fingers, 1 the four-finger clip's left hand) and, last, `rear` and `rear_alpha` (a scooter's rear brake lever and the weight of its
+layer on the left hand: only the scooter's graph has the layer; [ride6-rider-hands.md](../specs/ride6-rider-hands.md), section 1a) (the last fourteen: the riding style, the standstill and the finger layers); a graph
 that lacks a parameter reads 0 for it (a graph made before the two finger choices has one brake clip and one clutch clip, whatever the setting says; run
 `ride6-rider-import` again), and the game fills each by name. A limb named `left_leg` or `right_leg` in `attach.json` is the one that is let off its peg.
 
