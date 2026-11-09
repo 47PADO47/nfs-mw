@@ -4,6 +4,7 @@
 //! exactly as the same input from a device would.
 
 use blackbox_vehicle::InputState;
+use blackbox_vehicle::air_control::AirAxes;
 
 use super::{CarPose, Drive, DriveInput};
 
@@ -48,6 +49,7 @@ impl DriveInput {
             steer: axis(input.steer, -1.0, 1.0),
             // The rider's weight is not part of `InputState`: a network seat does not shift it.
             weight: 0.0,
+            air: AirAxes::ZERO,
             handbrake: axis(input.handbrake, 0.0, 1.0) >= HANDBRAKE_ON,
             nos: input.nos,
             speedbreaker: false,

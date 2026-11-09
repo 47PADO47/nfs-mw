@@ -13,6 +13,9 @@ const TOUCH: f32 = 0.004;
 /// How far above the contact patch the ground ray starts, and how far it reaches (m).
 const RAY_LIFT: f32 = 0.6;
 const RAY_REACH: f32 = 2.0;
+/// How far the probe of a wheel in the air reaches (m, from 0.6 m over the tyre): far enough to know the road a jump will land on
+/// (`docs/specs/ride6-bike-jumps.md`, section 3). The contact itself is still found within [`RAY_REACH`].
+const AIR_REACH: f32 = 8.0;
 
 /// A wheel's pose in the world.
 #[derive(Clone, Copy, Debug)]
@@ -65,6 +68,9 @@ pub struct WheelState {
     /// How far the tyre's lowest point is over the road when the wheel is in the air (m, along the road's normal); 0 on the ground. A
     /// wheel with no road in reach reads [`NO_ROAD_GAP`].
     pub gap: f32,
+    /// The normal of the road under the tyre while the wheel is in the air (zero before the first probe or with no road in reach): the
+    /// attitude a landing wants (`docs/specs/ride6-bike-jumps.md`).
+    pub below: Vec3,
     /// The load on the tyre (N).
     pub load: f32,
     pub contact: Vec3,
@@ -128,20 +134,21 @@ struct Sample {
 /// The gap of a wheel with no road below it (m): far more than any threshold a rule tests.
 pub const NO_ROAD_GAP: f32 = 100.0;
 
-/// The height (m) of the lowest point of the tyre of a wheel at `pose` over the road below it: 0 when it touches or sinks into it,
-/// [`NO_ROAD_GAP`] when the road is out of reach.
-pub fn air_gap(pose: &Pose, wheel: &WheelSpec, ground: &dyn Ground) -> f32 {
-    probe(pose, wheel, ground).map_or(NO_ROAD_GAP, |sample| sample.gap.max(0.0))
+/// The height (m) of the lowest point of the tyre of a wheel at `pose` over the road below it (0 when it touches or sinks into it,
+/// [`NO_ROAD_GAP`] when the road is out of reach) and the road's normal there ([`Vec3::ZERO`] when the road is out of reach).
+pub fn air_ground(pose: &Pose, wheel: &WheelSpec, ground: &dyn Ground) -> (f32, Vec3) {
+    probe(pose, wheel, ground, AIR_REACH)
+        .map_or((NO_ROAD_GAP, Vec3::ZERO), |sample| (sample.gap.max(0.0), sample.normal))
 }
 
 /// The lowest point of the tyre of a wheel at `pose` and its height over the ground below it.
-fn probe(pose: &Pose, wheel: &WheelSpec, ground: &dyn Ground) -> Option<Sample> {
+fn probe(pose: &Pose, wheel: &WheelSpec, ground: &dyn Ground, reach: f32) -> Option<Sample> {
     let mut normal = Vec3::Y;
     let mut sample = None;
     for _ in 0..2 {
         let point = contact_point(pose.hub, pose.axle, normal, wheel);
         let origin = point + Vec3::Y * RAY_LIFT;
-        let hit = ground.hit(origin, Vec3::NEG_Y, RAY_REACH)?;
+        let hit = ground.hit(origin, Vec3::NEG_Y, reach)?;
         normal = hit.normal;
         let ground_point = origin + Vec3::NEG_Y * hit.distance;
         sample = Some(Sample { point, normal, surface: hit.surface, gap: (point - ground_point).dot(normal) });
@@ -162,7 +169,7 @@ pub fn settle(
     let mut compression = start.clamp(limits.0, limits.1);
     for _ in 0..6 {
         let pose = pose_of(compression);
-        let sample = probe(&pose, wheel, ground)?;
+        let sample = probe(&pose, wheel, ground, RAY_REACH)?;
         let slope = pose.axis.dot(sample.normal).max(0.2);
         let next = (compression - sample.gap / slope).clamp(limits.0, limits.1);
         let settled = (next - compression).abs() < 1e-5;
@@ -172,7 +179,7 @@ pub fn settle(
         }
     }
     let pose = pose_of(compression);
-    let sample = probe(&pose, wheel, ground)?;
+    let sample = probe(&pose, wheel, ground, RAY_REACH)?;
     if sample.gap > TOUCH {
         return None;
     }

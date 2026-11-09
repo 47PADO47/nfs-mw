@@ -1,5 +1,6 @@
 //! What the driver asks of the car this step, from the player or from a script.
 
+use blackbox_vehicle::air_control::AirAxes;
 use blackbox_vehicle::bike::FallKind;
 use blackbox_vehicle::drivetrain::{GEAR_FIRST, GEAR_NEUTRAL, GEAR_REVERSE};
 
@@ -36,6 +37,10 @@ pub struct DriveInput {
     /// The rider's weight, -1 (back) to 1 (forward). Only a bike reads it; a car's physics step never sees it
     /// (`to_vehicle` leaves it out).
     pub weight: f32,
+    /// The air control's stick (`air_control` setting, `docs/specs/air-control.md`): pitch forward is the nose down, roll right the right side
+    /// down, yaw right a spin to the right. Read only for the player's vehicle, with the setting on and no wheel on the ground; the
+    /// network seats do not send it (`from_vehicle` leaves it at rest).
+    pub air: AirAxes,
     pub handbrake: bool,
     pub nos: bool,
     /// The speed breaker button is held.
@@ -90,6 +95,12 @@ impl DriveInput {
             brake: actions.value(Action::Brake).clamp(0.0, 1.0),
             steer: actions.value(Action::Steer).clamp(-1.0, 1.0),
             weight: actions.value(Action::RiderWeight).clamp(-1.0, 1.0),
+            air: AirAxes {
+                pitch: actions.value(Action::AirPitch),
+                roll: actions.value(Action::AirRoll),
+                yaw: actions.value(Action::AirYaw),
+            }
+            .clamped(),
             handbrake: actions.pressed(Action::Handbrake),
             nos: actions.pressed(Action::Nos),
             speedbreaker: actions.pressed(Action::Speedbreaker),

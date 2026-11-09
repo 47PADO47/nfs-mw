@@ -141,6 +141,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         turn_signals: field(&table, origin, "turn_signals", boolean),
         rider_gear: field(&table, origin, "rider_gear", boolean),
         easy_wheelie: field(&table, origin, "easy_wheelie", boolean),
+        air_control: field(&table, origin, "air_control", boolean),
         live_dash: field(&table, origin, "live_dash", boolean),
         rear_view_mirror: field(&table, origin, "rear_view_mirror", boolean),
         discord: field(&table, origin, "discord", boolean),

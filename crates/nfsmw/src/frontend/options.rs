@@ -47,6 +47,8 @@ pub enum Setting {
     TurnSignals,
     RiderGear,
     CopHealthBars,
+    /// Steer a vehicle in the air (`air_control`, `docs/specs/air-control.md`).
+    AirControl,
     RearViewMirror,
     Autosave,
     SmokeQuality,
@@ -406,6 +408,7 @@ impl Setting {
             Setting::TurnSignals => toggle!(s, changed, turn_signals),
             Setting::RiderGear => toggle!(s, changed, rider_gear),
             Setting::CopHealthBars => toggle!(s, changed, cop_health_bars),
+            Setting::AirControl => toggle!(s, changed, air_control),
             Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
             Setting::Discord => toggle!(s, changed, discord),
             Setting::DiscordTimePlayed => toggle!(s, changed, discord_time_played),

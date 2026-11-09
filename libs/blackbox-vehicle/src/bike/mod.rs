@@ -1,15 +1,13 @@
-//! Two-wheeled vehicle dynamics: a rigid body on a fork and a swingarm, two round tyres with the Magic Formula 94, an
-//! engine with a clutch and an automatic gearbox, and a rider who prescribes the lean and steers the front tyre to
-//! the force that lean needs.
+//! Two-wheeled vehicle dynamics: a rigid body on a fork and a swingarm, two round tyres with the Magic Formula 94, an engine with a
+//! clutch and an automatic gearbox, and a rider who prescribes the lean and steers the front tyre to the force that lean needs.
 //!
-//! The model is described in `docs/specs/vehicle-two-wheel.md`. It is a full rigid body in the physics space of the crate
-//! (x right, y up, z forward), so the weight transfer under braking and acceleration, and a slide of either wheel come out of
-//! the forces; only the roll of the bike is prescribed (and realised by a bounded torque), as the rider's controller does.
+//! The model is described in `docs/specs/vehicle-two-wheel.md`. It is a full rigid body in the physics space of the crate (x right,
+//! y up, z forward), so the weight transfer and a slide of either wheel come out of the forces; only the roll of the bike is
+//! prescribed (and realised by a bounded torque), as the rider's controller does.
 //!
 //! ```
 //! use blackbox_vehicle::bike::{Bike, BikeInput, BikeSpec};
 //! use blackbox_vehicle::{FIXED_STEP, FlatGround};
-//!
 //! let ground = FlatGround::new(0.0);
 //! let mut bike = Bike::new(BikeSpec::example());
 //! bike.place_on_ground(&ground, 0.0, 0.0, 2.0, 0.0);
@@ -28,6 +26,7 @@ mod brake_reduction;
 mod brakes;
 mod burnout;
 pub mod choices;
+mod class;
 mod clutch_control;
 mod curve;
 mod drive_input;
@@ -67,9 +66,10 @@ mod wheel_step;
 mod wheelie_steer;
 mod wheelie_throttle;
 
-pub use arcade::ArcadeSteering;
+pub use arcade::{ArcadeAir, ArcadeRough, ArcadeSteering};
 pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
 pub use burnout::{BurnoutSpec, HelpSpec as BurnoutHelpSpec};
+pub use class::TerrainClass;
 pub use clutch_control::{ClutchControl, ForcedDownshift, OverLimit};
 pub use engine_brake::EngineBrakeReduction;
 pub use frame::RestPose;
@@ -373,6 +373,7 @@ impl Bike {
         let rotation = self.body.rotation();
         let forward = rotation * Vec3::Z;
         let speed = self.body.linear_velocity.dot(forward);
+        self.advance_air_and_surface(dt);
         if let Some(interval) = fall_check {
             self.check_fall(interval, speed);
         }

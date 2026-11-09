@@ -37,7 +37,12 @@ Bike steering defaults to **arcade**: a modification made for this game that lea
 holds a full-stick turn at about 1.6 g, so bikes keep to the road's bends ([the spec](specs/ride6-arcade-steering.md)). `reference`
 gives the RIDE 6 behaviour of the bikes' data back. It saves as `bike_steering = "arcade"` or `"reference"` in `config.toml` and in alias
 settings; `NFSMW_BIKE_STEERING` and the console command `set bike_steering reference` override it. It is part of the bike's tyres and
-controller, so it reaches the bike loaded next (pick another bike or restart); there is no menu row.
+controller, so it reaches the bike loaded next (pick another bike or restart); there is no menu row. With `arcade` a bike also jumps and rides
+loose ground better ([jumps](specs/ride6-bike-jumps.md), [rough ground](specs/ride6-bike-rough-ground.md)); `reference` has none of that either.
+
+Air control (Options > Gameplay > Experimental > Air Control, `air_control = true`, `NFSMW_AIR_CONTROL`, console `set air_control on`) is off by
+default. On, the player's car or bike can be steered with no wheel on the ground: the stick or W, S, A, D (or the arrows) pitch and roll, Q and E or the
+right stick spin, and the mouse pitches and spins, like the open-world games of the genre ([the spec](specs/air-control.md)).
 
 Traffic off removes ambient civilians immediately and suppresses their automatic spawns.
 It retains police and race opponents and does not rewrite F8 density. Police off ends

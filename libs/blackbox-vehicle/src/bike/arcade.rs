@@ -28,8 +28,17 @@
 //!    acceleration that the lean does not give, with the circle a full stick turns named at each speed by one table (tight when slow, wide when
 //!    fast), a path that follows the stick at a low speed, and a quicker lean-in there. While `turn` is set it replaces the assist of
 //!    `cornering_assist` and `authority` (levers 4 and 6), which stay for a steering that has none.
+//! 9. `air`: the help of a bike that jumps (`arcade_air.rs`); 10. `rough`: the help of a bike on loose ground (`arcade_rough.rs`).
 
 use super::turn_law::{TurnInput, TurnLaw};
+
+#[path = "arcade_air.rs"]
+mod air;
+#[path = "arcade_rough.rs"]
+mod rough;
+
+pub use air::ArcadeAir;
+pub use rough::ArcadeRough;
 
 /// The values of the arcade steering; see the module's documentation. `REFERENCE` is neutral.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -79,6 +88,12 @@ pub struct ArcadeSteering {
     /// The turn law: the circle of a full stick at each speed, and what shapes the path's response ([`TurnLaw`]). While it is set it replaces the
     /// assist of `cornering_assist`, `assist_speed` and `authority`. `None`: the assist those fields give.
     pub turn: Option<TurnLaw>,
+    /// The help on jumps: levelling in the air, the bars centred, a soft landing and fall tests that forgive it
+    /// (`docs/specs/ride6-bike-jumps.md`). [`ArcadeAir::REFERENCE`]: none.
+    pub air: ArcadeAir,
+    /// The help on loose and rough ground: the lean and the assist follow the surface, a smaller penalty for the offroad bikes, more damping and
+    /// wider fall tests on loose ground (`docs/specs/ride6-bike-rough-ground.md`). [`ArcadeRough::REFERENCE`]: none.
+    pub rough: ArcadeRough,
 }
 
 impl ArcadeSteering {
@@ -102,6 +117,8 @@ impl ArcadeSteering {
         authority_speed: [5.0, 70.0],
         wheelie_steer_drop: None,
         turn: None,
+        air: ArcadeAir::REFERENCE,
+        rough: ArcadeRough::REFERENCE,
     };
 
     /// The reference game's steering ([`ArcadeSteering::REFERENCE`]).
@@ -189,6 +206,8 @@ impl Default for ArcadeSteering {
             authority_speed: [5.0, 70.0],
             wheelie_steer_drop: Some(7.0_f32.to_radians()),
             turn: Some(TurnLaw::GAME),
+            air: ArcadeAir::default(),
+            rough: ArcadeRough::default(),
         }
     }
 }

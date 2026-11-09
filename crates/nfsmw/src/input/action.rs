@@ -131,6 +131,13 @@ pub enum Action {
     HeadLookY,
     /// EA Trax: grab/release the selected song for reordering (Y on the default controller layout).
     JukeboxGrab,
+    /// Driving axis, -1..1: forward is positive, the nose down. With the `air_control` setting on, a vehicle with no wheel on the ground
+    /// pitches (`docs/specs/air-control.md`). The mouse and the keys are bound as a stick; nothing reads it with a wheel on the road.
+    AirPitch,
+    /// Driving axis, -1..1: right is positive, the right side down. The same, rolling.
+    AirRoll,
+    /// Driving axis, -1..1: right is positive. The same, spinning about the vertical.
+    AirYaw,
 }
 
 impl Action {
@@ -204,6 +211,9 @@ impl Action {
             "head_look_x",
             "head_look_y",
             "jukebox_grab",
+            "air_pitch",
+            "air_roll",
+            "air_yaw",
         ];
         NAMES[self.index()]
     }
@@ -215,7 +225,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 68] = [
+    pub const ALL: [Action; 71] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -284,6 +294,9 @@ impl Action {
         Action::HeadLookX,
         Action::HeadLookY,
         Action::JukeboxGrab,
+        Action::AirPitch,
+        Action::AirRoll,
+        Action::AirYaw,
     ];
 
     /// Actions that still work while the UI has the keyboard.

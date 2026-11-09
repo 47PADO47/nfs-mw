@@ -76,6 +76,30 @@ fn rider_gear_is_on_by_default_and_comes_from_every_layer() {
 }
 
 #[test]
+fn air_control_is_off_by_default_and_comes_from_every_layer() {
+    assert!(!Settings::from(Partial::default()).air_control);
+    let cli = Partial { air_control: Some(false), ..Partial::default() };
+    let env = env::read(|n| (n == "NFSMW_AIR_CONTROL").then(|| "on".to_owned()));
+    let file = file::parse(
+        "air_control = false
+",
+        "test",
+    );
+    assert!(!Settings::from(cli.or(env).or(file)).air_control, "the command line wins");
+    assert!(Settings::from(Partial::default().or(env).or(file)).air_control, "the environment over the file");
+    assert!(!Settings::from(Partial::default().or(file)).air_control);
+    assert_eq!(file::parse("air_control = 3", "test").air_control, None);
+    assert!(
+        Settings::from(file::parse(
+            "air_control = true
+",
+            "test"
+        ))
+        .air_control
+    );
+}
+
+#[test]
 fn easy_wheelie_is_on_by_default_and_comes_from_every_layer() {
     assert!(Settings::from(Partial::default()).easy_wheelie);
     let cli = Partial { easy_wheelie: Some(true), ..Partial::default() };

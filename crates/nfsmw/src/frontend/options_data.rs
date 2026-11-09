@@ -64,6 +64,7 @@ impl Setting {
             Setting::TurnSignals => on_off(s.turn_signals),
             Setting::RiderGear => on_off(s.rider_gear),
             Setting::CopHealthBars => on_off(s.cop_health_bars),
+            Setting::AirControl => on_off(s.air_control),
             Setting::RearViewMirror => on_off(s.rear_view_mirror),
             Setting::Discord => on_off(s.discord),
             Setting::DiscordTimePlayed => on_off(s.discord_time_played),

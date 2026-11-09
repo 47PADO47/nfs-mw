@@ -167,19 +167,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.speed_trail_style {
         put("speed_trail_style", Value::String(v.to_string()));
     }
-    if let Some(v) = changes.enhanced_lamps {
-        put("enhanced_lamps", Value::Boolean(v));
-    }
-    if let Some(v) = changes.enhanced_exhaust {
-        put("enhanced_exhaust", Value::Boolean(v));
-    }
-    if let Some(v) = changes.exhaust_flames {
-        put("exhaust_flames", Value::Boolean(v));
-    }
-    if let Some(v) = changes.turn_signals {
-        put("turn_signals", Value::Boolean(v));
-    }
+    changes.enhanced_lamps.into_iter().for_each(|v| put("enhanced_lamps", Value::Boolean(v)));
+    changes.enhanced_exhaust.into_iter().for_each(|v| put("enhanced_exhaust", Value::Boolean(v)));
+    changes.exhaust_flames.into_iter().for_each(|v| put("exhaust_flames", Value::Boolean(v)));
+    changes.turn_signals.into_iter().for_each(|v| put("turn_signals", Value::Boolean(v)));
     changes.rider_gear.into_iter().for_each(|v| put("rider_gear", Value::Boolean(v)));
+    changes.air_control.into_iter().for_each(|v| put("air_control", Value::Boolean(v)));
     if let Some(v) = changes.rear_view_mirror {
         put("rear_view_mirror", Value::Boolean(v));
     }

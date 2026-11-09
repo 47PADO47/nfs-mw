@@ -10,7 +10,7 @@ A page of the options can group its rows under a **section title**: a line of te
 highlighted text has, that is never selected. The first section of a page is the **default section** and has no title, so every
 row that exists today looks and behaves as before. A section with no visible row shows no title. **[ours]**
 
-- Options > Gameplay: the ordinary rows are untitled. Under **Experimental**: Turn Signals and Cop Health Bars. Under **RIDE 6**: the
+- Options > Gameplay: the ordinary rows are untitled. Under **Experimental**: Turn Signals, Cop Health Bars and Air Control. Under **RIDE 6**: the
   rider rows. Then one section for each title the mods declare ([section 6](#6-the-mod-api)), after those.
 - Options > Video: the ordinary rows are untitled. Under **Experimental**: Ray Tracing, Ambient Occlusion, Speed Trails and Speed
   Trail Style.
@@ -85,7 +85,7 @@ The rewrite has no label that says "experimental" for a gameplay row, so the sec
 
 | Page | Section | Rows | Why |
 |---|---|---|---|
-| Gameplay | Experimental | Turn Signals, Cop Health Bars | the rewrite's own additions that are off by default and have no counterpart in the original ([specs/extra-options.md](extra-options.md): the Extra Options mod's `ShowTurnSignals`; [roadmap](../roadmap.md): turn signals still a rough optional setting); the original's own rows (HUD layout, Camera, Rear View Mirror, Game Moment Camera) are not experimental |
+| Gameplay | Experimental | Turn Signals, Cop Health Bars, Air Control | the rewrite's own additions that are off by default and have no counterpart in the original ([specs/extra-options.md](extra-options.md): the Extra Options mod's `ShowTurnSignals`; [roadmap](../roadmap.md): turn signals still a rough optional setting; [air-control.md](air-control.md): steering a vehicle in the air); the original's own rows (HUD layout, Camera, Rear View Mirror, Game Moment Camera) are not experimental |
 | Gameplay | RIDE 6 | Rider Gear, the gear a mod offers (one row per part), Riding Style (road, motard, offroad), Brake Fingers, Clutch Fingers | the rows that only matter on RIDE 6 bikes and riders ([ride6-rider-styles.md](ride6-rider-styles.md), [ride6-rider-gear.md](ride6-rider-gear.md)) |
 | Gameplay | default | everything else, and the options a mod adds without a section (the nitrous and other effect variants included) | |
 | Video | Experimental | Ray Tracing ([vulkan-ray-reflections.md](../vulkan-ray-reflections.md): wgpu's experimental ray queries), Ambient Occlusion ([ambient-occlusion.md](../ambient-occlusion.md): "Experimental ambient occlusion"), Speed Trails and Speed Trail Style ([vehicle-effects.md](../vehicle-effects.md): "Speed Trails are experimental") | the rows the docs call experimental |

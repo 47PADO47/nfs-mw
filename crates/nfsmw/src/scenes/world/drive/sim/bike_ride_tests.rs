@@ -116,7 +116,7 @@ fn the_ground_contacts_of_the_double_are_those_of_the_step_and_not_of_the_last_f
         ride.begin_body(&mut vehicle, FIXED_STEP);
         ride.finish_body(&mut vehicle, FIXED_STEP, &ground);
         met |= !vehicle.body_contacts().is_empty();
-        let step = StepStart { input: InputState::default(), weight: 0.0, delta: FIXED_STEP, terrain: None };
+        let step = StepStart { input: InputState::default(), weight: 0.0, air: None, delta: FIXED_STEP, terrain: None };
         ride.respond(&mut vehicle, &step, &ground);
     }
     assert!(met, "a bike on its side meets the ground");
@@ -222,8 +222,13 @@ fn a_throttle_held_open_with_the_steering_flicked_from_side_to_side_does_not_thr
             // The keys, through the game's input layer, to the input the car takes.
             actions.update_for_test(&Bindings::default(), &flick_keys(step as f32 * FIXED_STEP, half), &[], false);
             let input = DriveInput::from_actions(&actions, WheelOptions::default());
-            let step_start =
-                StepStart { input: input.to_vehicle(), weight: input.weight, delta: FIXED_STEP, terrain: None };
+            let step_start = StepStart {
+                input: input.to_vehicle(),
+                weight: input.weight,
+                air: None,
+                delta: FIXED_STEP,
+                terrain: None,
+            };
             ride.begin_body(&mut vehicle, FIXED_STEP);
             ride.finish_body(&mut vehicle, FIXED_STEP, &ground);
             ride.respond(&mut vehicle, &step_start, &ground);
@@ -261,7 +266,7 @@ fn wheelie_then(
     for step in 0..settle + held {
         let input = if step < settle { before(step) } else { during(step - settle) };
         let step_start =
-            StepStart { input: input.to_vehicle(), weight: input.weight, delta: FIXED_STEP, terrain: None };
+            StepStart { input: input.to_vehicle(), weight: input.weight, air: None, delta: FIXED_STEP, terrain: None };
         ride.begin_body(&mut vehicle, FIXED_STEP);
         ride.finish_body(&mut vehicle, FIXED_STEP, &ground);
         ride.respond(&mut vehicle, &step_start, &ground);

@@ -1,6 +1,6 @@
 //! The arcade steering of the steering audits' runs (`RIDE6_ARCADE`, see `bike_ride_steer.rs`).
 
-use blackbox_vehicle::bike::{ArcadeSteering, TurnLaw};
+use blackbox_vehicle::bike::{ArcadeAir, ArcadeRough, ArcadeSteering, TurnLaw};
 
 /// The arcade steering of the run: `RIDE6_ARCADE=reference` the reference game's, `RIDE6_ARCADE=grip=1.2,rate=3,...` the game's values with
 /// those fields changed (`grip`, `rate`, `floor`, `mirror`, `spring`, `roll`, `assist`, `reach`, `slow` and `fast` for the speed authority's ends,
@@ -18,6 +18,10 @@ pub(super) fn arcade() -> ArcadeSteering {
         return ArcadeSteering { time_scale_speed_floor: 0.65, mirror_stick_curve: true, ..ArcadeSteering::REFERENCE };
     }
     let mut arcade = ArcadeSteering::default();
+    // This game's steering without the help on jumps and on rough ground (`docs/specs/ride6-bike-jumps.md`, `ride6-bike-rough-ground.md`).
+    if text == "air_before" {
+        return ArcadeSteering { air: ArcadeAir::REFERENCE, rough: ArcadeRough::REFERENCE, ..arcade };
+    }
     if text == "previous" {
         return ArcadeSteering {
             lean_rate: 3.0,
@@ -56,6 +60,8 @@ pub(super) fn arcade() -> ArcadeSteering {
             "turn" if v < 0.5 => arcade.turn = None,
             "slowlean" => arcade.turn = arcade.turn.map(|law| TurnLaw { slow_lean_rate: v, ..law }),
             "maxassist" => arcade.turn = arcade.turn.map(|law| TurnLaw { max_assist: v, ..law }),
+            "air" if v < 0.5 => arcade.air = ArcadeAir::REFERENCE,
+            "rough" if v < 0.5 => arcade.rough = ArcadeRough::REFERENCE,
             _ => {}
         }
     }

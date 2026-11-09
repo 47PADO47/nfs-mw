@@ -31,6 +31,7 @@
 //! ```
 
 pub mod aero;
+pub mod air_control;
 pub mod bike;
 pub mod brakes;
 pub mod drivetrain;

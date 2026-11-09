@@ -70,7 +70,9 @@ impl Group {
 /// The named section a row of the page is in, `None` for the default one.
 pub(super) fn group_of(category: Category, setting: Setting) -> Option<Group> {
     match (category, setting) {
-        (Category::Gameplay, Setting::TurnSignals | Setting::CopHealthBars) => Some(Group::Experimental),
+        (Category::Gameplay, Setting::TurnSignals | Setting::CopHealthBars | Setting::AirControl) => {
+            Some(Group::Experimental)
+        }
         (Category::Gameplay, Setting::RiderGear | Setting::Rider(_)) => Some(Group::Ride6),
         (
             Category::Video,

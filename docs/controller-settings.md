@@ -199,6 +199,12 @@ steers with X at the same time), and `abs_level`, a button that goes to the next
 to 1 (J, and the pad's left-stick click). For the weight axis the stick's circular gate is opened to a square, so a stick at
 the rim on a diagonal still reaches the full lever.
 
+`air_pitch`, `air_roll` and `air_yaw` are the air control's three axes ([the spec](specs/air-control.md)): a car or a bike with no wheel on the ground
+and the `air_control` setting on pitches (forward is the nose down), rolls and spins by them; with a wheel on the road they do nothing. They share the
+keys that drive (W and S or the arrows pitch, A and D or the arrows roll, E and Q spin), the pad's left stick (Y pitches, X rolls) and right stick (X spins),
+and the mouse while the cursor is captured or the right button is held (a stick whose deflection is its speed, 700 pixels a second for its end; right spins,
+up pitches the nose down). Rebind them like any action (`bind air_yaw key:Z`); a `[bindings]` table saved by an older build has no entry for them and gets these.
+
 `head_look_x` and `head_look_y` are two more axes of a bike's (a car and the other cameras ignore them): the look of the
 helmet camera, `--camera-mode hood` (right and up positive). The head turns up to 11 degrees to either side and 10 up or down
 and springs back to straight ahead when the control is let go ([the camera spec](specs/ride6-bike-cameras.md), section 6.2).
