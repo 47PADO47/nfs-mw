@@ -34,7 +34,16 @@ fn previous() -> ArcadeSteering {
 
 /// The throttle that holds `speed`.
 fn hold(speed: f32, bike: &Bike) -> f32 {
-    (0.25 + 0.2 * (speed - bike.velocity().length())).clamp(0.0, 1.0)
+    // The base throttle is the one a superbike needs at 10 m/s and more; a slow bike needs none (its idle drive alone speeds it up).
+    (0.25 * ((speed - 6.0) / 4.0).clamp(0.0, 1.0) + 0.2 * (speed - bike.velocity().length())).clamp(0.0, 1.0)
+}
+
+/// What holds `speed` for the measurements of the turn law: the throttle of [`hold`], and both brakes when the bike is over the speed (a slow bike
+/// under its idle drive and the assist's work in a tight circle speeds up, which a throttle cannot take back).
+fn pedals(speed: f32, bike: &Bike) -> BikeInput {
+    let over = bike.velocity().length() - speed;
+    let brake = ((over - 0.1) * 1.0).clamp(0.0, 0.8);
+    BikeInput { throttle: hold(speed, bike), front_brake: brake, rear_brake: brake, ..Default::default() }
 }
 
 /// Ride a held stick for `seconds` at `speed`: whether it fell, the lateral acceleration in g over the last 2 s, and the mean lean.
@@ -110,10 +119,26 @@ fn lean_step_time(spec: &BikeSpec, speed: f32) -> Option<f32> {
     Some(index as f32 * FIXED_STEP)
 }
 
-/// The radius (m) of the circle a held full stick rides at `speed` m/s: the speed over the yaw rate of the last 2 s; `None` for a fall.
+/// The radius (m) of the circle a held full stick rides at `speed` m/s: the mean speed over the mean yaw rate of the last 2 s of 8; `None` for a fall.
 fn radius(spec: &BikeSpec, speed: f32) -> Option<f32> {
-    let (fell, g, _) = steady(spec, speed, 1.0, 8.0);
-    (!fell).then_some(speed * speed / (g * 9.81))
+    let ground = FlatGround::new(0.0);
+    let mut bike = Bike::new(spec.clone());
+    assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, speed));
+    let steps = (8.0 / FIXED_STEP) as usize;
+    let from = steps - (2.0 / FIXED_STEP) as usize;
+    let (mut yaw, mut travel, mut n) = (0.0_f32, 0.0_f32, 0.0_f32);
+    for step in 0..steps {
+        bike.step(FIXED_STEP, &BikeInput { steer: 1.0, ..pedals(speed, &bike) }, &ground);
+        if bike.fallen() {
+            return None;
+        }
+        if step >= from {
+            yaw += bike.body().angular_velocity.y.abs();
+            travel += bike.velocity().length();
+            n += 1.0;
+        }
+    }
+    Some(travel / yaw.max(1e-4))
 }
 
 /// Several bikes: the example, a heavy one and a light one.
@@ -161,7 +186,7 @@ fn slow_lean_in() -> ArcadeSteering {
     ArcadeSteering { turn: Some(law), ..ArcadeSteering::default() }
 }
 
-/// The seconds a full stick, stepped on after a second of straight running at `speed`, takes to bring the yaw rate to 80 percent of its steady
+/// The seconds a full stick, stepped on after a second of straight running at `speed`, takes to bring the curvature of the path to 80 percent of its steady
 /// value (the mean of the last 2 s of 6); `None` for a fall.
 fn yaw_step_time(spec: &BikeSpec, speed: f32) -> Option<f32> {
     let ground = FlatGround::new(0.0);
@@ -172,12 +197,12 @@ fn yaw_step_time(spec: &BikeSpec, speed: f32) -> Option<f32> {
     for step in 0..(total / FIXED_STEP) as usize {
         let t = step as f32 * FIXED_STEP;
         let stick = if t < lead { 0.0 } else { 1.0 };
-        let throttle = hold(speed, &bike);
-        bike.step(FIXED_STEP, &BikeInput { throttle, steer: stick, ..Default::default() }, &ground);
+        bike.step(FIXED_STEP, &BikeInput { steer: stick, ..pedals(speed, &bike) }, &ground);
         if bike.fallen() {
             return None;
         }
-        rates.push(bike.body().angular_velocity.y.abs());
+        // The curvature (yaw rate over speed): the speed of a bike that is given a stick drifts a little, the circle it turns does not.
+        rates.push(bike.body().angular_velocity.y.abs() / bike.velocity().length().max(0.5));
     }
     let last = (2.0 / FIXED_STEP) as usize;
     let steady = rates.iter().rev().take(last).sum::<f32>() / last as f32;

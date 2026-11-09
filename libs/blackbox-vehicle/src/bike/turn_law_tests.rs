@@ -137,3 +137,53 @@ fn the_circles_acceleration_stays_under_what_the_earlier_rounds_turned_at() {
         assert!(g < 1.7, "{kmh} km/h asks {g} g");
     }
 }
+
+#[test]
+fn the_trim_grows_while_the_bike_turns_less_than_the_circle_and_settles_when_it_turns_the_circle() {
+    let law = law();
+    let input = steady(1.0, 1.0);
+    let speed = 15.0;
+    let wanted = law.wanted(&input, speed);
+    let mut trim = 0.0;
+    for _ in 0..60 {
+        trim = law.trim_step(trim, &input, speed, 0.6 * wanted, 1.0, 1.0 / 60.0);
+    }
+    assert!(trim > 1.0, "a turn at 60 percent of the circle grows the trim: {trim}");
+    let grown = trim;
+    for _ in 0..600 {
+        trim = law.trim_step(trim, &input, speed, wanted, 1.0, 1.0 / 60.0);
+    }
+    assert!((trim - grown).abs() < 1e-3, "the circle itself leaves it where it is: {trim} from {grown}");
+    for _ in 0..600 {
+        trim = law.trim_step(trim, &input, speed, 1.3 * wanted, 1.0, 1.0 / 60.0);
+    }
+    assert!(trim < grown - 1.0, "a turn over the circle takes it back: {trim}");
+    let ff = law.acceleration(&input, speed).abs();
+    assert!(trim >= -ff - 1e-4, "never takes more than the assist has: {trim}");
+}
+
+#[test]
+fn the_trim_is_held_by_the_cap_dies_away_with_the_stick_and_the_speed_and_is_not_wound_up_by_a_flip() {
+    let law = law();
+    let input = steady(1.0, 1.0);
+    let cap = law.max_assist * 9.81;
+    let mut trim = 0.0;
+    for _ in 0..6000 {
+        trim = law.trim_step(trim, &input, 15.0, -5.0, 1.0, 1.0 / 60.0);
+    }
+    let total = law.trimmed(&input, 15.0, trim).abs();
+    assert!(total <= cap + 1e-3 && trim + law.acceleration(&input, 15.0).abs() <= cap + 1e-3, "{trim} {total}");
+    for _ in 0..600 {
+        trim = law.trim_step(trim, &TurnInput::default(), 15.0, 0.0, 1.0, 1.0 / 60.0);
+    }
+    assert!(trim.abs() < 1e-2, "no stick: {trim}");
+    assert_eq!(law.trim_step(5.0, &input, 0.0, 0.0, 1.0, 1.0 / 60.0), 0.0, "no assist at a standstill, no trim");
+    // The rate the shortfall counts at is bounded: one step moves the trim by `gain x reach x dt` at most.
+    let step = law.trim_step(0.0, &input, 15.0, -40.0, 1.0, 1.0 / 60.0);
+    assert!(step <= law.trim_gain * law.trim_reach / 60.0 + 1e-5, "{step}");
+    // With a surface that takes the grip away the trim wants less.
+    let loose = law.trim_step(0.0, &input, 15.0, 0.0, 0.3, 1.0 / 60.0);
+    assert!(loose < law.trim_step(0.0, &input, 15.0, 0.0, 1.0, 1.0 / 60.0) + 1e-6);
+    // The trimmed assist keeps the stick's side.
+    assert!(law.trimmed(&steady(-1.0, -1.0), 15.0, 2.0) < 0.0 && law.trimmed(&input, 15.0, 2.0) > 0.0);
+}

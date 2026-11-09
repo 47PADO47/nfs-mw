@@ -139,10 +139,10 @@ impl ArcadeSteering {
     }
 
     /// The side acceleration (m/s^2, positive to the right) of the cornering assist now: the turn law's when `turn` is set (`input` is what it reads),
-    /// otherwise [`ArcadeSteering::cornering_acceleration`] for `lean_share`.
-    pub fn assist_acceleration(&self, lean_share: f32, input: &TurnInput, speed: f32) -> f32 {
+    /// with the `trim` of the bike, otherwise [`ArcadeSteering::cornering_acceleration`] for `lean_share`.
+    pub fn assist_acceleration(&self, lean_share: f32, input: &TurnInput, speed: f32, trim: f32) -> f32 {
         match &self.turn {
-            Some(law) => law.acceleration(input, speed),
+            Some(law) => law.trimmed(input, speed, trim),
             None => self.cornering_acceleration(lean_share, speed),
         }
     }

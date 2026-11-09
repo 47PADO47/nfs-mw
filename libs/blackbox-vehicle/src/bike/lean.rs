@@ -72,6 +72,8 @@ pub struct LeanPlan {
 pub struct Lean {
     stick: SecondOrder,
     target: SecondOrder,
+    /// The turn law's trim (m/s^2): what the assist adds for the circle's acceleration the bike lacks (`turn_law.rs`).
+    pub(super) trim: f32,
 }
 
 /// The lean limit (rad) for a front tyre of friction coefficient `lateral_grip` at this speed and slide.

@@ -59,13 +59,13 @@ is held):
 
 | km/h | radius m | asked | exponent to the next | `v^2 / r` in g |
 |---|---|---|---|---|
-| 6 | 1.8 | (walking pace: the handlebar's own lock turns the bike) | 0.22 | 0.16 |
-| 15 | 2.2 | at most 3 | 1.03 | 0.80 |
-| 30 | 4.5 | at most 6 | 2.36 | 1.57 |
-| 50 | 15 | about 15 | 2.09 | 1.31 |
-| 80 | 40 | about 40 | 2.00 | 1.26 |
-| 120 | 90 | about 90 | 2.26 | 1.26 |
-| 180 | 225 | about 220 or wider | 2.26 (beyond) | 1.13 |
+| 6 | 1.8 | (walking pace: the handlebar's own lock turns the bike) | 0.11 | 0.16 |
+| 15 | 2.0 | at most 3 | 1.14 | 0.89 |
+| 30 | 4.4 | at most 6 | 2.27 | 1.61 |
+| 50 | 14 | about 15 | 2.18 | 1.40 |
+| 80 | 39 | about 40 | 2.01 | 1.29 |
+| 120 | 88 | about 90 | 2.37 | 1.29 |
+| 180 | 230 | about 220 or wider | 2.37 (beyond) | 1.11 |
 
 [C] Why these numbers: the low-speed radii are put under the asked limits (2.2 against 3, 4.5 against 6) so that "clearly tighter" holds
 with a margin and the 20 and 25 km/h in between (3.0 and 3.7 m) are tight too. From 50 km/h up they are the asked ones. The

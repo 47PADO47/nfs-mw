@@ -24,15 +24,27 @@ impl Bike {
 
     /// The side acceleration the cornering assist gives now (m/s^2, positive right): the turn law's, or the older assist's without one.
     fn assist_acceleration(&self, speed: f32) -> f32 {
-        self.spec.steering.arcade.assist_acceleration(self.assist_share(), &self.turn_input(), speed)
+        self.spec.steering.arcade.assist_acceleration(self.assist_share(), &self.turn_input(), speed, self.lean.trim)
+    }
+
+    /// The turn law's trim for this sub-step: the shortfall of the turn the bike makes (the speed times the yaw rate about the road's normal, not the leaned bike's up) from the
+    /// circle the stick asks for, integrated (`TurnLaw::trim_step`). Nothing without a turn law.
+    fn update_turn_trim(&mut self, dt: f32, speed: f32) {
+        let Some(law) = self.spec.steering.arcade.turn else { return };
+        let up = self.wheels[REAR].normal;
+        let measured = self.body.angular_velocity.dot(up) * speed.abs();
+        let scale = self.surface_factor();
+        self.lean.trim = law.trim_step(self.lean.trim, &self.turn_input(), speed, measured, scale, dt);
     }
 
     /// The cornering assist (`ArcadeSteering::cornering_assist`): a side force at the centre of gravity, along the road towards the
     /// lean the rider asks for, with no roll torque. The rear wheel must be on the road, and there is none in a burnout or a fall.
-    pub(super) fn apply_cornering_assist(&mut self, speed: f32) {
+    pub(super) fn apply_cornering_assist(&mut self, dt: f32, speed: f32) {
         if self.fallen || self.burnout || !self.wheels[REAR].on_ground {
+            self.lean.trim = 0.0;
             return;
         }
+        self.update_turn_trim(dt, speed);
         let rotation = self.body.rotation();
         let acceleration = self.cornering_acceleration(speed);
         if acceleration == 0.0 {

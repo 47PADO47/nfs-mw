@@ -330,7 +330,7 @@ impl Bike {
         if !self.fallen {
             self.apply_lean_help(speed, pedals);
             self.apply_stability_help(dt, speed, input);
-            self.apply_cornering_assist(speed);
+            self.apply_cornering_assist(dt, speed);
             self.apply_wheelie_yaw(dt, speed);
             self.apply_burnout_help(dt, input.steer);
             self.apply_pitch_assist(dt, speed);

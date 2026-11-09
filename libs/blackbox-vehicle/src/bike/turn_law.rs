@@ -29,7 +29,7 @@ use super::curve::ramp;
 /// at 30, 1.3 g at 50, 1.26 g at 80 and 120, 1.1 g at 180 km/h: never over the 1.65 g the earlier rounds turned at, so no bike's grip is asked for
 /// more than it gave, and what the lean (0.7 g at the limit of 36 degrees) does not give is the assist's.
 pub const RADIUS: &[(f32, f32)] =
-    &[(6.0, 1.8), (15.0, 2.2), (30.0, 4.5), (50.0, 15.0), (80.0, 40.0), (120.0, 90.0), (180.0, 225.0)];
+    &[(6.0, 1.8), (15.0, 2.0), (30.0, 4.4), (50.0, 14.0), (80.0, 39.0), (120.0, 88.0), (180.0, 230.0)];
 
 /// The numbers of the turn law; see the module's documentation.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -47,6 +47,12 @@ pub struct TurnLaw {
     pub slow_lean_rate: f32,
     /// The speeds (m/s) of the two ends of `slow_lean_rate`.
     pub slow_lean_speed: [f32; 2],
+    /// The rate (1/s) at which the trim (below) follows the shortfall of the turn: the bike's tyres resist a side force at the centre of gravity
+    /// (the heading lags the velocity until they have turned the bike), so the circle comes out wider than the table by a margin that depends on
+    /// the bike and the speed. The trim is an integral term that adds to the assist whatever the turn lacks of the circle's acceleration.
+    pub trim_gain: f32,
+    /// The most (m/s^2) the shortfall counts as in one step of the trim, so a flip of the stick (a shortfall of 2 g for a moment) does not wind it up.
+    pub trim_reach: f32,
 }
 
 /// What the law reads of the bike each step: the stick's and the target lean's share of the lean limit (-1 to 1, positive right) and the
@@ -67,6 +73,8 @@ impl TurnLaw {
         max_assist: 1.7,
         slow_lean_rate: 2.2,
         slow_lean_speed: [4.0, 12.0],
+        trim_gain: 3.0,
+        trim_reach: 4.0,
     };
 
     /// The radius (m) of the circle a full stick turns at `speed` m/s. Infinite for an empty table.
@@ -97,6 +105,39 @@ impl TurnLaw {
     pub fn share(&self, input: &TurnInput, speed: f32) -> f32 {
         let quick = 1.0 - ramp(speed.abs(), self.quick);
         input.target_share + (input.stick_share - input.target_share) * quick
+    }
+
+    /// The acceleration (m/s^2, positive right) of the circle the stick asks for at `speed` m/s: the share of the full stick's.
+    pub fn wanted(&self, input: &TurnInput, speed: f32) -> f32 {
+        self.share(input, speed) * self.full_acceleration(speed)
+    }
+
+    /// The trim's next value (m/s^2, along the stick; added to the assist's magnitude): it follows the shortfall of the measured turn
+    /// (`measured`, the speed times the yaw rate, positive right) from `scale` times the circle's acceleration. `scale` is the surface's share (1
+    /// on a good road), so on loose ground the trim does not make up what the surface takes away. It dies away with no stick or no assist.
+    pub fn trim_step(&self, trim: f32, input: &TurnInput, speed: f32, measured: f32, scale: f32, dt: f32) -> f32 {
+        let wanted = self.wanted(input, speed) * scale;
+        if ramp(speed.abs(), self.fade) <= 0.0 {
+            return 0.0;
+        }
+        if wanted.abs() < 0.2 {
+            return trim * (-dt / 0.25).exp();
+        }
+        let short = ((wanted - measured) * wanted.signum()).clamp(-self.trim_reach, self.trim_reach);
+        let assist = self.acceleration(input, speed).abs();
+        let cap = self.max_assist * 9.81;
+        (trim + self.trim_gain * short * dt).clamp(-assist, (cap - assist).max(0.0))
+    }
+
+    /// The assist with the trim (m/s^2, positive right): the assist's magnitude plus the trim, towards the stick, held to `max_assist`.
+    pub fn trimmed(&self, input: &TurnInput, speed: f32, trim: f32) -> f32 {
+        let wanted = self.wanted(input, speed);
+        let fade = ramp(speed.abs(), self.fade);
+        if wanted == 0.0 || fade <= 0.0 {
+            return 0.0;
+        }
+        let total = (self.acceleration(input, speed).abs() + trim * fade).clamp(0.0, self.max_assist * 9.81);
+        total * wanted.signum()
     }
 
     /// The side acceleration (m/s^2, positive right) the cornering assist gives a bike at `speed` m/s: the circle's acceleration for the share

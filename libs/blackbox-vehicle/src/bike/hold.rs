@@ -9,7 +9,7 @@
 //! - a force cancels the pull of gravity along the road (`m g sin(slope)`), so nothing is left to roll the bike;
 //! - the velocity along the road is damped with the time constant [`DAMPING_TIME`], so a creep of the last step does not stay.
 //!
-//! It lets go at the throttle, when the bike is pushed back by the reverse walk, in a burnout, in a fall, with a wheel off the road, over
+//! It lets go at the throttle, when the bike is pushed back by the reverse walk, in a burnout, in a fall, with both wheels off the road, over
 //! [`LEAVE_SPEED`] along the road (a bike that is really rolling is not held, the brakes are the rider's) and past [`MAX_SLOPE`] (the force fades out
 //! over [`SLOPE_FADE`]: nobody holds a bike on a steep ramp). On a slope under [`MIN_SLOPE`] nothing changes: the bike's own rolling resistance
 //! holds it.
@@ -31,7 +31,7 @@ pub const THROTTLE: f32 = 0.05;
 pub const MIN_SLOPE: f32 = 0.017_453_3;
 /// The steepest slope (rad) the hold keeps in full: 30 degrees, `tan` 0.58, which the rider's feet and a locked tyre (mu 1.2) do hold, and which is
 /// steeper than any road. Past it the force fades out over [`SLOPE_FADE`].
-pub const MAX_SLOPE: f32 = 0.523_6;
+pub const MAX_SLOPE: f32 = std::f32::consts::FRAC_PI_6;
 /// The width (rad, 5 degrees) over which the hold fades out past [`MAX_SLOPE`].
 pub const SLOPE_FADE: f32 = 0.087_3;
 /// The share of each brake lever held at least while the bike is held. Half a lever: enough to lock a wheel that no engine drives, little
@@ -86,8 +86,7 @@ impl Bike {
         let slope = normal.y.clamp(-1.0, 1.0).acos();
         let weight = 1.0 - ramp(slope, [MAX_SLOPE, MAX_SLOPE + SLOPE_FADE]);
         let rider_on = !self.fallen && !self.departure.off && !self.burnout && !self.reverse.pushing();
-        let wheels = self.wheels[FRONT].on_ground && self.wheels[REAR].on_ground;
-        let holding = rider_on && wheels && throttle < THROTTLE && slope >= MIN_SLOPE && weight > 0.0;
+        let holding = rider_on && throttle < THROTTLE && slope >= MIN_SLOPE && weight > 0.0;
         if !holding || along_road.length() >= leave {
             return levers;
         }

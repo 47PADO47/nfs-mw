@@ -49,6 +49,8 @@ fn a_bike_on_a_slope_does_not_roll_back_fast_enough_for_the_reverse_walk() {
     // The rider's reverse walk starts at -1 km/h (-0.28 m/s): a bike held on a slope never gets there.
     let ground = road(15.0);
     let mut bike = parked(&ground);
+    // The bike is placed unpitched on the slope and settles onto its wheels in the first half second; the walk is for the bike that stands.
+    ride(&mut bike, &ground, BikeInput::default(), 0.5);
     let mut slowest = 0.0_f32;
     for _ in 0..(6.0 / FIXED_STEP) as usize {
         bike.step(FIXED_STEP, &BikeInput::default(), &ground);
