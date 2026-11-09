@@ -23,7 +23,7 @@
 //! geometry = "TREES/MW2012/GEOMETRY.BIN"   # the models, in the install's format
 //! textures = "TREES/MW2012/TEXTURES.BIN"   # the textures the models use (added to the world once)
 //!
-//! [fit]                              # optional limits (spread, squeeze, min_height)
+//! [fit]                              # optional limits (spread, squeeze, min_height, clearance, settle)
 //!
 //! [[model]]                          # replace the game's models
 //! targets = ["XT_CEDARM_1B_JG_00", "XT_CEDARM_1A_JG_00"]

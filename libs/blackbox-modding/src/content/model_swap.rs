@@ -23,7 +23,7 @@
 //! height of the solid it replaces and stands its origin on that solid's floor, at the solid's origin. `fit = "row"` is for
 //! solids that are a stretch of trees: copies of the model, scaled to the replaced height but not past one and a half times
 //! their own size, are set where the replaced solid's own geometry is, one for each stretch of it, at the floor of that stretch.
-//! An optional `[fit]` table sets the limits ([`FitLimits`]): `spread`, `squeeze`, `min_height` and `clearance`.
+//! An optional `[fit]` table sets the limits ([`FitLimits`]): `spread`, `squeeze`, `min_height`, `clearance` and `settle`.
 
 use std::collections::HashSet;
 
@@ -89,11 +89,16 @@ pub struct FitLimits {
     /// copy that would reach into one is made smaller, down to the footprint it replaces, or left out. For low growth (bushes, grass,
     /// hedges); a tree's crown may overhang a rail, so it is off by default.
     pub clearance: bool,
+    /// Whether the copies of a stretch of trees (a world-space copy of the game's solid) are **settled** on the real ground and off the road:
+    /// each foot is put on the terrain under it (a crown that hovered over its stretch's lowest point comes down, one that sank comes up), a
+    /// copy on the carriageway is moved off it or left out, and a crown that hangs low over a road is narrowed or left out. For trees; off by
+    /// default (`docs/modding/api-replace.md`, "Settling").
+    pub settle: bool,
 }
 
 impl Default for FitLimits {
     fn default() -> Self {
-        Self { spread: 1.25, squeeze: 0.5, min_height: 0.7, clearance: false }
+        Self { spread: 1.25, squeeze: 0.5, min_height: 0.7, clearance: false, settle: false }
     }
 }
 
@@ -129,6 +134,7 @@ pub(super) struct RawLimits {
     squeeze: Option<f32>,
     min_height: Option<f32>,
     clearance: Option<bool>,
+    settle: Option<bool>,
 }
 
 impl RawLimits {
@@ -147,7 +153,13 @@ impl RawLimits {
         if !(0.0..=1.0).contains(&min_height) {
             return Err(field("fit.min_height", "0 to 1"));
         }
-        Ok(FitLimits { spread, squeeze, min_height, clearance: self.clearance.unwrap_or(defaults.clearance) })
+        Ok(FitLimits {
+            spread,
+            squeeze,
+            min_height,
+            clearance: self.clearance.unwrap_or(defaults.clearance),
+            settle: self.settle.unwrap_or(defaults.settle),
+        })
     }
 }
 
