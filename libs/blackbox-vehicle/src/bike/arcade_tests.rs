@@ -176,8 +176,8 @@ fn the_slower_lean_in_does_not_slow_with_the_speed() {
 /// The speeds of the turning circle table (km/h).
 const KMH: [f32; 5] = [20.0, 40.0, 80.0, 120.0, 200.0];
 
-/// The speeds of the turn law's table (km/h): the ones the playtest named.
-const TABLE_KMH: [f32; 6] = [15.0, 30.0, 50.0, 80.0, 120.0, 180.0];
+/// The speeds of the turn law's table (km/h): the ones the playtest named (round 3: 15 to 180; round 4 added 100 and 150).
+const TABLE_KMH: [f32; 8] = [15.0, 30.0, 50.0, 80.0, 100.0, 120.0, 150.0, 180.0];
 
 /// The steering as the previous round left it, with the lean-in's quickness at a low speed taken off (the turn law's other levers kept).
 fn slow_lean_in() -> ArcadeSteering {
@@ -227,13 +227,15 @@ fn the_turning_circle_follows_the_turn_laws_table_on_three_bikes_and_never_falls
         assert!(radii[1] <= 6.0, "bike {which}: 30 km/h {} m", radii[1]);
         for (index, kmh) in TABLE_KMH.iter().enumerate().skip(2) {
             let wanted = law.radius(kmh / 3.6);
-            let low = match index == TABLE_KMH.len() - 1 {
-                true => 0.9,
-                false => 0.75,
+            // From 80 km/h up the circle is the law's to within 15 percent (the harness of 25 bikes: 0.94 to 1.0 of it); under it the slower
+            // bikes' tyres and the speed the brakes hold make it looser.
+            let (low, high) = match *kmh >= 80.0 {
+                true => (0.85, 1.2),
+                false => (0.75, 1.35),
             };
             let measured = radii[index];
             assert!(
-                measured > low * wanted && measured < 1.35 * wanted,
+                measured > low * wanted && measured < high * wanted,
                 "bike {which}: {kmh} km/h {measured} m for {wanted}"
             );
         }
@@ -321,11 +323,10 @@ fn the_reference_steering_is_neutral_and_the_default_is_not() {
 }
 
 #[test]
-fn the_reference_turns_at_about_one_g_and_the_arcade_at_about_one_and_a_half() {
-    // The arcade bike turns harder than 1.3 g at low and medium speeds and still more than the lean alone (0.75 g) at 144 km/h, where the
-    // speed authority takes part of the assist away.
-    // (The turn law asks 1.27 g at 20 m/s and 1.2 g at 40 m/s, `docs/specs/ride6-bike-turn-radius.md`.)
-    for (speed, least, most) in [(20.0_f32, 1.1, 1.5), (40.0, 1.0, 1.4)] {
+fn the_reference_turns_at_about_one_g_and_the_arcade_at_two_and_more() {
+    // The arcade bike turns harder than the reference's 1.3 g at every speed, and far more than the lean alone (0.75 g) at 144 km/h.
+    // (The turn law asks 1.8 g at 20 m/s and 2.5 g at 40 m/s, `docs/specs/ride6-bike-turn-radius.md`.)
+    for (speed, least, most) in [(20.0_f32, 1.5, 2.1), (40.0, 2.0, 3.0)] {
         let (fell, reference, _) = steady(&bike_with(ArcadeSteering::REFERENCE), speed, 1.0, 8.0);
         assert!(!fell && reference < 1.3, "{speed} m/s: the reference turns at {reference} g");
         let (fell, arcade, lean) = steady(&bike_with(ArcadeSteering::default()), speed, 1.0, 8.0);

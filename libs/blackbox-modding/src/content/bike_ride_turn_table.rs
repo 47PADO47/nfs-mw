@@ -23,6 +23,9 @@ struct Run {
     t80: f32,
     /// The mean speed (m/s) of the measured part: the throttle and the brakes hold it near the asked one, not exactly.
     speed: f32,
+    /// The mean lean (rad) of the measured part, and the lean limit (rad) the controller had there.
+    lean: f32,
+    limit: f32,
 }
 
 /// The heading (rad) of the bike velocity.
@@ -48,7 +51,7 @@ fn run(spec: &BikeSpec, speed: f32) -> Run {
     assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, speed));
     let (lead, total) = (1.0_f32, 10.0_f32);
     let mut rates = Vec::new();
-    let (mut last, mut speeds) = (heading(&bike), Vec::new());
+    let (mut last, mut speeds, mut leans) = (heading(&bike), Vec::new(), Vec::new());
     for step in 0..(total / FIXED_STEP) as usize {
         let t = step as f32 * FIXED_STEP;
         let stick = if t < lead { 0.0 } else { 1.0 };
@@ -59,19 +62,28 @@ fn run(spec: &BikeSpec, speed: f32) -> Run {
             BikeInput { throttle: held_throttle(speed, v), front_brake: brake, rear_brake: brake, steer: stick };
         bike.step(FIXED_STEP, &input, &ground);
         if bike.fallen() {
-            return Run { fell: true, radius: f32::NAN, t80: f32::NAN, speed: f32::NAN };
+            return Run {
+                fell: true,
+                radius: f32::NAN,
+                t80: f32::NAN,
+                speed: f32::NAN,
+                lean: f32::NAN,
+                limit: f32::NAN,
+            };
         }
         let now = heading(&bike);
         rates.push(wrap(now - last).abs() / FIXED_STEP);
         speeds.push(bike.velocity().length());
+        leans.push(bike.lean().abs());
         last = now;
     }
     let tail = (3.0 / FIXED_STEP) as usize;
     let rate = rates.iter().rev().take(tail).sum::<f32>() / tail as f32;
     let mean_speed = speeds.iter().rev().take(tail).sum::<f32>() / tail as f32;
+    let lean = leans.iter().rev().take(tail).sum::<f32>() / tail as f32;
     let from = (lead / FIXED_STEP) as usize;
     let t80 = rates.iter().skip(from).position(|&r| r >= 0.8 * rate).map_or(f32::NAN, |at| at as f32 * FIXED_STEP);
-    Run { fell: false, radius: mean_speed / rate.max(1e-4), t80, speed: mean_speed }
+    Run { fell: false, radius: mean_speed / rate.max(1e-4), t80, speed: mean_speed, lean, limit: bike.lean_limit() }
 }
 
 /// Whether a flip of the stick from side to side every 0.8 s for 6 s keeps the bike up at `speed` m/s.
@@ -119,7 +131,9 @@ fn bike_turn_table() {
         "{} bikes; radius after the lean has built up, seconds to 80 percent of the yaw rate, falls (full stick held)",
         bikes.len()
     );
-    println!("km/h | table m | median radius m | min..max m | median speed km/h | median t80 s | falls (turn / flip)");
+    println!(
+        "km/h | table m | median radius m | min..max m | median speed km/h | median t80 s | median lean deg (limit) | falls (turn / flip)"
+    );
     for &speed in &kmh {
         let ms = speed / 3.6;
         let runs: Vec<Run> = bikes.iter().map(|(_, spec)| run(spec, ms)).collect();
@@ -129,11 +143,13 @@ fn bike_turn_table() {
         let turn_falls = runs.iter().filter(|r| r.fell).count();
         let flip_falls = bikes.iter().filter(|(_, spec)| !flips_without_a_fall(spec, ms)).count();
         println!(
-            "{speed:4.0} | {:7.1} | {:15.1} | {low:.1}..{high:.1} | {:17.1} | {:12.2} | {turn_falls} / {flip_falls}",
+            "{speed:4.0} | {:7.1} | {:15.1} | {low:.1}..{high:.1} | {:17.1} | {:12.2} | {:5.1} ({:.1}) | {turn_falls} / {flip_falls}",
             law.radius(ms),
             median(radii.clone()),
             median(runs.iter().map(|r| r.speed * 3.6).collect()),
             median(runs.iter().map(|r| r.t80).collect()),
+            median(runs.iter().map(|r| r.lean.to_degrees()).collect()),
+            median(runs.iter().map(|r| r.limit.to_degrees()).collect()),
         );
     }
 }

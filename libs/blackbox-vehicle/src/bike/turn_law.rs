@@ -23,13 +23,36 @@ use super::curve::ramp;
 
 /// The circle a full stick turns, against the speed: `(km/h, metres)`, joined by straight lines in `ln(speed)` and `ln(radius)` (a power law
 /// between two points, so the radius never falls with the speed and has no step), and continued past the last point with the exponent of the
-/// last segment. A project's choice: the playtest asked for "less steering radius when slow, more when fast" and gave the circle it wants at 15,
-/// 30, 50, 80, 120 and 180 km/h (3 m or less, 6 m or less, about 15, about 40, about 90 and 220 m or more). Below 6 km/h the radius is that of
-/// 6 km/h (the handlebar's own lock turns the bike there). The lateral acceleration `v^2 / r` that the table asks for is 0.8 g at 15 km/h, 1.6 g
-/// at 30, 1.3 g at 50, 1.26 g at 80 and 120, 1.1 g at 180 km/h: never over the 1.65 g the earlier rounds turned at, so no bike's grip is asked for
-/// more than it gave, and what the lean (0.7 g at the limit of 36 degrees) does not give is the assist's.
-pub const RADIUS: &[(f32, f32)] =
-    &[(6.0, 1.8), (15.0, 1.9), (30.0, 4.4), (50.0, 14.0), (80.0, 40.0), (120.0, 91.0), (180.0, 240.0)];
+/// last segment. A project's choice, in two playtest rounds. Round 3 ("less steering radius when slow, more when fast") gave the circle wanted at 15,
+/// 30, 50, 80, 120 and 180 km/h (3 m or less, 6 m or less, about 15, about 40, about 90 and 220 m or more). Round 4 ("going faster than 100 kph turn
+/// way more") made it about half as wide from 80 km/h up: about 27 m at 80, 30 at 100, 45 at 120, 70 at 150, 100 at 180 and 190 at 250 km/h, the slow
+/// end kept. Below 6 km/h the radius is that of 6 km/h (the handlebar's own lock turns the bike there). The lateral acceleration `v^2 / r` the table
+/// asks for is 0.8 g at 15 km/h, 1.6 g at 30, 1.4 g at 50, 1.9 g at 80, and 2.5 to 2.6 g from 100 km/h up: more than the 1.65 g the earlier rounds
+/// turned at, so the assist is allowed [`MAX_ASSIST_G`] and the lean and fall limits are checked at it (`docs/specs/ride6-bike-turn-radius.md`). What the
+/// lean (0.7 g at the limit of 36 degrees) does not give is the assist's.
+pub const RADIUS: &[(f32, f32)] = &[
+    (6.0, 1.8),
+    (15.0, 1.9),
+    (30.0, 4.4),
+    (50.0, 14.0),
+    (80.0, 27.0),
+    (100.0, 30.0),
+    (120.0, 45.0),
+    (150.0, 70.0),
+    (180.0, 100.0),
+    (250.0, 190.0),
+];
+
+/// The most the turn law's assist gives at speed (g), `TurnLaw::max_assist`. Round 3 held it to 1.7 g, the most that the rounds before it gave. The
+/// circles of round 4 ask for 2.5 g and more above 100 km/h, of which the lean gives 0.7 g, so the assist must give 1.9 g in a steady turn; 2.4 g leaves
+/// 0.5 g for the stick's first instant, for the trim and for the flip of the stick, where `wanted - expect` is more still (the assist is capped there).
+pub const MAX_ASSIST_G: f32 = 2.4;
+/// The most the assist gives at a low speed (g), `TurnLaw::slow_max_assist`: round 3's 1.7 g. The table asks for no more than 1.14 g of assist up to
+/// 80 km/h, and a cap of 2.4 g there made 3 more of the 293 bikes fall in a flip of the stick at 15 km/h (9 against 6), so the cap rises with the speed
+/// from [`MAX_ASSIST_SPEED`] only.
+pub const SLOW_MAX_ASSIST_G: f32 = 1.7;
+/// The speeds (m/s, 72 and 94 km/h) between which the cap goes from [`SLOW_MAX_ASSIST_G`] to [`MAX_ASSIST_G`].
+pub const MAX_ASSIST_SPEED: [f32; 2] = [20.0, 26.0];
 
 /// The numbers of the turn law; see the module's documentation.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -41,8 +64,12 @@ pub struct TurnLaw {
     /// The speeds (m/s) between which the share the assist follows goes from the stick's (at or under the first) to the lean target's (at or
     /// over the second).
     pub quick: [f32; 2],
-    /// The most the assist gives (g).
+    /// The most the assist gives (g) at or over the second of `max_assist_speed`.
     pub max_assist: f32,
+    /// The most the assist gives (g) at or under the first of `max_assist_speed`.
+    pub slow_max_assist: f32,
+    /// The speeds (m/s) between which the most the assist gives goes from `slow_max_assist` to `max_assist`.
+    pub max_assist_speed: [f32; 2],
     /// The factor on the time scale of the lean controller's target filter at or under the first of `slow_lean_speed`; 1 at or over the second.
     pub slow_lean_rate: f32,
     /// The speeds (m/s) of the two ends of `slow_lean_rate`.
@@ -70,7 +97,9 @@ impl TurnLaw {
         radius: RADIUS,
         fade: [0.3, 1.5],
         quick: [4.0, 12.0],
-        max_assist: 1.7,
+        max_assist: MAX_ASSIST_G,
+        slow_max_assist: SLOW_MAX_ASSIST_G,
+        max_assist_speed: MAX_ASSIST_SPEED,
         slow_lean_rate: 2.2,
         slow_lean_speed: [4.0, 12.0],
         trim_gain: 3.0,
@@ -94,6 +123,12 @@ impl TurnLaw {
         let [(s0, r0), (s1, r1)] = [segment[0], segment[1]];
         let exponent = (r1 / r0).ln() / (s1 / s0).ln().max(1e-6);
         r0 * (kmh / s0).powf(exponent)
+    }
+
+    /// The most (m/s^2) the assist gives at `speed` m/s: `slow_max_assist` at a low speed, `max_assist` at a high one.
+    pub fn assist_cap(&self, speed: f32) -> f32 {
+        let along = ramp(speed.abs(), self.max_assist_speed);
+        (self.slow_max_assist + (self.max_assist - self.slow_max_assist) * along) * 9.81
     }
 
     /// The acceleration (m/s^2) of the circle of a full stick at `speed` m/s: `speed^2 / radius`.
@@ -125,7 +160,7 @@ impl TurnLaw {
         }
         let short = ((wanted - measured) * wanted.signum()).clamp(-self.trim_reach, self.trim_reach);
         let assist = self.acceleration(input, speed).abs();
-        let cap = self.max_assist * 9.81;
+        let cap = self.assist_cap(speed);
         (trim + self.trim_gain * short * dt).clamp(-assist, (cap - assist).max(0.0))
     }
 
@@ -136,7 +171,7 @@ impl TurnLaw {
         if wanted == 0.0 || fade <= 0.0 {
             return 0.0;
         }
-        let total = (self.acceleration(input, speed).abs() + trim * fade).clamp(0.0, self.max_assist * 9.81);
+        let total = (self.acceleration(input, speed).abs() + trim * fade).clamp(0.0, self.assist_cap(speed));
         total * wanted.signum()
     }
 
@@ -153,7 +188,7 @@ impl TurnLaw {
         if extra * wanted <= 0.0 {
             return 0.0;
         }
-        let cap = self.max_assist * 9.81;
+        let cap = self.assist_cap(speed);
         extra.clamp(-cap, cap) * fade
     }
 
