@@ -8,8 +8,10 @@
 //! Per bike and per setting: a launch from a standstill with the throttle flat out (the time to 10 degrees of pitch and the highest pitch in
 //! 8 s), the throttle held flat out for 10 s from 20 m/s (the highest pitch: a bike that loops out falls), a throttle tapped for 0.4 s and
 //! released for 0.4 s from 12 m/s (the highest pitch and whether the front wheel comes down between the taps) and a bang-bang throttle
-//! (on below 37 degrees of pitch, off above) from 20 m/s: whether the pitch stays between 25 and 50 degrees for the last 5 s. Each also
-//! says whether the bike fell. The totals count the bikes that lift in 1.5 s, hold, and fall.
+//! (on below 30 degrees of pitch, off above) from a standstill: whether the pitch stays between 8 and 46 degrees from 2 s to 9 s (the assist
+//! only works in the first three gears, so the run starts in first). Each also says whether the bike fell, and by how many degrees the
+//! assist's wheelie went over the cap of its gear (`excess`, 1.5 s after a gear change left out). The totals count the bikes that lift in 3.5 s,
+//! hold, fall, and go over a cap by more than 6 degrees.
 
 use blackbox_vehicle::bike::{Bike, BikeInput, BikeSpec, ThrottleWheelie};
 use blackbox_vehicle::{FIXED_STEP, FlatGround};
@@ -34,6 +36,8 @@ struct Run {
     high: f32,
     ten: Option<f32>,
     last: (f32, f32),
+    /// The most (degrees) the pitch stood over the cap of the gear while the throttle held the lever, 1.5 s after a gear change left out.
+    excess: f32,
     fell: bool,
     /// The speed at the end (m/s), and the gear.
     speed: f32,
@@ -55,7 +59,8 @@ fn steered(
     let mut bike = Bike::new(spec.clone());
     bike.set_throttle_wheelie(config);
     assert!(bike.place_moving(&ground, 0.0, 0.0, 2.0, 0.0, start));
-    let mut run = Run { last: (f32::MAX, f32::MIN), ..Run::default() };
+    let mut run = Run { last: (f32::MAX, f32::MIN), excess: f32::MIN, ..Run::default() };
+    let (mut gear, mut changed) = (0, f32::MIN);
     let steps = (seconds / FIXED_STEP) as usize;
     for step in 0..steps {
         let t = step as f32 * FIXED_STEP;
@@ -72,7 +77,13 @@ fn steered(
             run.ten = Some(t);
         }
         run.speed = bike.forward_speed();
-        if t >= seconds - 5.0 {
+        if bike.gear() != gear {
+            (gear, changed) = (bike.gear(), t);
+        }
+        if let (true, Some(cap)) = (bike.throttle_lever() && t - changed > 1.5, config.cap(bike.gear())) {
+            run.excess = run.excess.max(pitch - cap.to_degrees());
+        }
+        if t >= 2.0 {
             run.last = (run.last.0.min(pitch), run.last.1.max(pitch));
         }
     }
@@ -95,7 +106,7 @@ fn runs(spec: &BikeSpec, config: ThrottleWheelie) -> Bike4 {
         flat: ride(spec, config, 20.0, 10.0, &|_, _| 1.0),
         taps: ride(spec, config, 12.0, 10.0, &|t, _| f32::from((t % 0.8) < 0.4)),
         spam: ride(spec, config, 8.0, 12.0, &|t, _| f32::from((t % 1.1) < 0.7)),
-        blips: ride(spec, config, 20.0, 9.0, &|t, pitch| f32::from(t < 0.6 || pitch < 37.0)),
+        blips: ride(spec, config, 0.0, 9.0, &|t, pitch| f32::from(t < 0.6 || pitch < 30.0)),
         // Flat out at 15 m/s with the stick over to a third for 3 s, back to centre, then the other way: a wheelie that is steered.
         turn: steered(spec, config, (15.0, 10.0), &|_, _| 1.0, &|t| match t {
             t if t < 2.0 => 0.0,
@@ -108,11 +119,19 @@ fn runs(spec: &BikeSpec, config: ThrottleWheelie) -> Bike4 {
 
 impl Bike4 {
     fn lifts(&self) -> bool {
-        self.launch.ten.is_some_and(|t| t < 1.5)
+        self.launch.ten.is_some_and(|t| t < 3.5)
     }
 
     fn holds(&self) -> bool {
-        self.blips.last.0 > 25.0 && self.blips.last.1 < 50.0
+        self.blips.last.0 > 8.0 && self.blips.last.1 < 46.0
+    }
+
+    /// The most the assist's wheelie went over the cap of its gear in any of the runs (degrees; very negative when it never asked).
+    fn excess(&self) -> f32 {
+        [self.launch, self.flat, self.taps, self.spam, self.blips, self.turn]
+            .iter()
+            .map(|run| run.excess)
+            .fold(f32::MIN, f32::max)
     }
 
     fn fell(&self) -> bool {
@@ -122,7 +141,7 @@ impl Bike4 {
     fn line(&self) -> String {
         let ten = self.launch.ten.map_or("-".to_owned(), |t| format!("{t:.1}s"));
         format!(
-            "launch 10deg {ten} max {:.0} then {:.0} km/h at 8 s; flat max {:.0}; taps max {:.0}; spam {:.0}..{:.0} (max {:.0}); turn max {:.0}; blips {:.0}..{:.0} {}{}",
+            "launch 10deg {ten} max {:.0} then {:.0} km/h at 8 s; flat max {:.0}; taps max {:.0}; spam {:.0}..{:.0} (max {:.0}); turn max {:.0}; blips {:.0}..{:.0} {} excess {:.0}{}",
             self.launch.high,
             self.launch.speed * 3.6,
             self.flat.high,
@@ -134,6 +153,7 @@ impl Bike4 {
             self.blips.last.0,
             self.blips.last.1,
             if self.holds() { "HELD" } else { "lost" },
+            self.excess(),
             if self.fell() { " FELL" } else { "" }
         )
     }
@@ -142,7 +162,7 @@ impl Bike4 {
 #[test]
 #[ignore = "needs RIDE6_CARS"]
 fn bike_wheelie_throttle() {
-    let (mut total, mut lifts, mut holds, mut falls) = (0, [0; 2], [0; 2], [0; 2]);
+    let (mut total, mut lifts, mut holds, mut falls, mut over) = (0, [0; 2], [0; 2], [0; 2], 0);
     let (mut flat_loops, mut worst) = ([0; 2], [0.0_f32; 2]);
     for (name, spec) in specs() {
         total += 1;
@@ -152,6 +172,7 @@ fn bike_wheelie_throttle() {
             holds[n] += usize::from(bike.holds());
             falls[n] += usize::from(bike.fell());
             flat_loops[n] += usize::from(bike.flat.high > 60.0);
+            over += usize::from(n == 1 && bike.excess() > 6.0);
             worst[n] = worst[n].max(bike.flat.high).max(bike.launch.high).max(bike.taps.high);
         }
         println!("{name}:\n  reference {}\n  throttle  {}", both[0].line(), both[1].line());

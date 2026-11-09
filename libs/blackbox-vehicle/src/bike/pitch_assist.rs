@@ -40,6 +40,11 @@ pub struct PitchInput {
     pub body_inertia: f32,
     /// The step (s).
     pub dt: f32,
+    /// The highest angle (rad) the wheelie's target may have: the throttle-only wheelie's allowed angle (`wheelie_throttle.rs`); infinite for a rider's own lever.
+    pub reach_limit: f32,
+    /// The most (rad) the lean lowers the wheelie's target while the front wheel is up, and keeps the assist's hold whole in a lean
+    /// (`ArcadeSteering::wheelie_steer_drop`); `None` is the data's assist, which loses its hold as the bike leans.
+    pub steer_drop: Option<f32>,
 }
 
 /// The lever travel the rider asks the assist for, -1 (a wheelie at full) to 1 (a stoppie at full), after the dead zones.
@@ -155,7 +160,16 @@ pub fn torque(spec: &WheelieSpec, input: &PitchInput) -> f32 {
     // The strength of the request is the lever times the pedal; with the pedal released the target is level.
     let strength = (position * pedal).abs().min(1.0);
     let scale = INPUT_FACTOR_RANGE[0] + (INPUT_FACTOR_RANGE[1] - INPUT_FACTOR_RANGE[0]) * strength;
-    let reach = scale * ramp(input.speed.abs(), params.speed_ramp) * params.max_angle;
+    let reach = (scale * ramp(input.speed.abs(), params.speed_ramp) * params.max_angle).min(input.reach_limit);
+    // A wheelie that is up and steered keeps the assist's hold and is only lowered a little by the lean (`wheelie_steer_drop`).
+    let steered = match (wheelie && !input.front_on_ground, input.steer_drop) {
+        (true, Some(drop)) => Some(drop * input.normalised_lean.abs().min(1.0)),
+        _ => None,
+    };
+    let reach = match steered {
+        Some(lowered) => (reach - lowered).max(0.0),
+        None => reach,
+    };
     let target = -position.signum() * reach;
     let current = input.pitch - input.terrain * params.terrain_influence + input.pitch_rate * params.lookahead;
     let aim = match params.filter_timescale > 0.0 {
@@ -163,7 +177,10 @@ pub fn torque(spec: &WheelieSpec, input: &PitchInput) -> f32 {
         false => target,
     };
     let command = track(current, input.pitch_rate, aim, params.acceleration, params.acceleration_time);
-    let lean_help = 1.0 - ramp(input.normalised_lean.abs(), params.lean_help);
+    let lean_help = match steered {
+        Some(_) => 1.0,
+        None => 1.0 - ramp(input.normalised_lean.abs(), params.lean_help),
+    };
     // The height of the grounded wheel above the road is nothing while it carries load.
     let ground_help = 1.0 - ramp(0.0, params.ground_range);
     let help = lean_help * ground_help * factor(&params.help_speed, input.speed.abs());

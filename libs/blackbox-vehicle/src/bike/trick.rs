@@ -30,6 +30,9 @@ pub(super) struct TrickState {
     /// (`wheelie_throttle.rs`), and whether the throttle is holding it.
     pub weight: f32,
     pub throttle_lever: bool,
+    /// The virtual lever's memory (its latch, the gear and the dip), and the ceiling (rad) it gives the pitch assist's target; `None` is none.
+    pub throttle_state: wheelie_throttle::State,
+    pub reach: Option<f32>,
 }
 
 /// The rate (1/s) at which the tuck level rises while the rider tucks and falls when he does not: the constructor defaults of
@@ -276,9 +279,11 @@ impl Bike {
         // The game's wheelie from the throttle alone: a throttle flat out pulls the lever back (`wheelie_throttle.rs`); a bike with no
         // wheelie control has nothing to ask.
         let limit = self.plan.limit.max(0.05);
-        let (weight, throttle_lever) = match assist.is_some() {
-            true => wheelie_throttle::lever(
+        let mut throttle_state = self.trick.throttle_state;
+        let lever = match assist.is_some() {
+            true => wheelie_throttle::update(
                 &self.throttle_wheelie,
+                &mut throttle_state,
                 &wheelie_throttle::Ask {
                     weight: self.weight_input,
                     throttle,
@@ -286,11 +291,16 @@ impl Bike {
                     speed,
                     pitch: pitch_of(self.body.rotation()),
                     lean_share: (lean_of(self.body.rotation()).abs() / limit).min(1.0),
-                    held: self.trick.throttle_lever,
+                    gear: self.powertrain.gear(),
+                    shifting: self.powertrain.shifting(),
+                    front_on_ground: self.wheels[FRONT].on_ground,
+                    dt,
                 },
             ),
-            false => (self.weight_input, false),
+            false => wheelie_throttle::Lever::rider(self.weight_input),
         };
+        let (weight, throttle_lever) = (lever.weight, lever.active);
+        let reach = lever.reach.is_finite().then_some(lever.reach);
         let situation = TuckSituation {
             speed,
             normalised_lean: (lean_of(self.body.rotation()) / max_lean).clamp(-1.0, 1.0),
@@ -310,6 +320,8 @@ impl Bike {
                 tuck_level,
                 weight,
                 throttle_lever,
+                throttle_state,
+                reach,
             };
             return passthrough;
         };
@@ -325,6 +337,8 @@ impl Bike {
             front_brake: brake,
         };
         let mut help = interventions(&assist, &situation);
+        // The throttle-only wheelie cuts the engine when the nose is over the angle it allows (`wheelie_throttle.rs`).
+        help.engine_cut = 1.0 - (1.0 - help.engine_cut) * (1.0 - lever.cut);
         if speed.abs() < super::choices::STANDING_SPEED {
             // The brake help waits for the bike to move; the throttle help does not.
             help.brake_pedal = brake;
@@ -339,6 +353,8 @@ impl Bike {
             tuck_level,
             weight,
             throttle_lever,
+            throttle_state,
+            reach,
         };
         help
     }
@@ -382,6 +398,8 @@ impl Bike {
             inertia: self.spec.chassis.mass * self.spec.chassis.tensor_scale.x,
             body_inertia: self.pivot_inertia(rotation),
             dt,
+            reach_limit: self.trick.reach.unwrap_or(f32::INFINITY),
+            steer_drop: self.spec.steering.arcade.wheelie_steer_drop,
         };
         let torque = pitch_assist::torque(assist, &request);
         self.body.apply_torque(rotation * Vec3::X * -torque);
