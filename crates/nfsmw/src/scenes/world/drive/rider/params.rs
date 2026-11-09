@@ -9,7 +9,7 @@ use glam::Vec3;
 
 use super::attach::Inertia;
 use super::foot_out::{self, FootOut};
-use super::hands::Hands;
+use super::hands::{self, Hands};
 use super::lean_pose::LeanPose;
 use super::reverse::Reverse;
 use super::script::{Constant, Flashback, Interpolate, defuzzify, fuzzy_not, fuzzy_sum, ramp};
@@ -188,6 +188,9 @@ pub struct Values {
     pub clutch_alpha: f32,
     pub brake: f32,
     pub brake_alpha: f32,
+    /// A scooter's rear brake lever (the left hand) and the weight of its layer; 0 on a bike whose rear brake is a pedal.
+    pub rear: f32,
+    pub rear_alpha: f32,
     /// Which finger clips the levers play (`BrakeFingers::graph_index`, `ClutchFingers::graph_index`): the player's choice.
     pub brake_fingers: f32,
     pub clutch_fingers: f32,
@@ -351,7 +354,14 @@ impl Smoothed {
         let pose = self.lean_pose.step(sample.bike_lean, sample.steer, speed, dt);
         let foot_out = self.foot_out.step(sample.bike_lean, dt);
         let stand = self.standstill.step(sample.signed_speed_kmh(), dt);
-        let fingers = self.hands.step(sample.clutch, sample.front_brake, sample.throttle, dt);
+        // The left hand of a scooter works the rear brake lever; on every other bike the rear brake is a pedal.
+        let rear = match self.bike_type == Some(hands::SCOOTER_TYPE) {
+            true => sample.rear_brake,
+            false => 0.0,
+        };
+        let levers =
+            hands::Levers { clutch: sample.clutch, front: sample.front_brake, rear, throttle: sample.throttle };
+        let fingers = self.hands.step(levers, dt);
         // A foot is let off its peg by the old-school style in a lean, by the standstill and by the walk back, whichever lets go.
         let held = |side: usize| stand.pegs[side] * (1.0 - foot_out[side]) * (1.0 - walk.weight);
         let foot_release = [1.0 - held(0), 1.0 - held(1)];
@@ -384,6 +394,8 @@ impl Smoothed {
             clutch_alpha: fingers.clutch_alpha,
             brake: fingers.brake,
             brake_alpha: fingers.brake_alpha,
+            rear: fingers.rear,
+            rear_alpha: fingers.rear_alpha,
             brake_fingers: f32::from(self.brake_fingers.graph_index()),
             clutch_fingers: f32::from(self.clutch_fingers.graph_index()),
             wrist: fingers.wrist,

@@ -333,3 +333,28 @@ fn the_clutch_lever_is_pulled_at_a_standstill_and_let_go_when_the_bike_rolls_on_
     step(&mut rolling, &spec, 0.5, 80.0);
     assert!(rolling.clutch_pulled() < 0.01, "{}", rolling.clutch_pulled());
 }
+
+#[test]
+fn a_gear_change_pulls_the_lever_all_the_way_whatever_the_clutchs_linearity() {
+    // The lever is the handler's, not the clutch's engagement turned round: a linearity that keeps the clutch almost engaged for a
+    // half-pulled lever must not hide the pull from the rider's hand.
+    let mut spec = BikeSpec::example();
+    spec.transmission.clutch_linearity = 0.25;
+    let mut train = Powertrain::new(&spec.engine, &spec.transmission);
+    train.match_speed(&spec.engine, &spec.transmission, 5.0, 0.32);
+    let mut spin = 5.0;
+    let mut peak = 0.0_f32;
+    for _ in 0..1200 {
+        spin += 0.2;
+        let shifting = train.shifting();
+        step(&mut train, &spec, 1.0, spin);
+        if train.gear() > 1 && (shifting || train.shifting()) {
+            peak = peak.max(train.clutch_pulled());
+        }
+    }
+    assert!(peak > 0.9, "the lever went {peak} of the way in a change");
+    let mut cruising = Powertrain::new(&spec.engine, &spec.transmission);
+    cruising.match_speed(&spec.engine, &spec.transmission, 80.0, 0.32);
+    step(&mut cruising, &spec, 0.5, 80.0);
+    assert!(cruising.clutch_pulled() < 0.01, "no change under way: the lever is let go");
+}

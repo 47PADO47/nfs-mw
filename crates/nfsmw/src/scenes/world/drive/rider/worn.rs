@@ -87,3 +87,26 @@ pub(super) fn wear(
     }
     Worn { parts: worn_parts, textures: textures.into_values().collect() }
 }
+
+impl super::RiderRig {
+    /// Frees the meshes and pictures he is drawn with.
+    pub(super) fn drop_parts(&mut self, renderer: &mut dyn RenderBackend) {
+        self.parts.drain(..).for_each(|part| renderer.destroy_mesh(part.handle));
+        self.textures.drain(..).for_each(|texture| renderer.destroy_texture(texture));
+    }
+
+    /// Dresses him in the gear `choice` instead: his meshes and pictures are made again, the animation goes on.
+    pub(super) fn dress_again(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir, choice: Choice) {
+        self.drop_parts(renderer);
+        self.pack.meshes.truncate(self.base_meshes);
+        let catalogue = crate::garage::rider_gear::loaded();
+        let wearing = catalogue.as_deref().map(|catalogue| (catalogue, &choice));
+        let worn = wear(renderer, dir, &self.folder, &mut self.pack, &self.stock, wearing);
+        self.parts = worn.parts;
+        self.textures = worn.textures;
+        let names: Vec<&str> = self.parts.iter().map(|part| self.pack.meshes[part.mesh].name.as_str()).collect();
+        let view = super::view::EyeView::new(self.cameras.as_ref().map(|set| &set.helmet), &self.pack.skeleton, &names);
+        self.view = view;
+        self.gear = choice;
+    }
+}

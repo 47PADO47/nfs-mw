@@ -209,6 +209,9 @@ pub fn read_correction_table(physics: &Path) -> Option<Value> {
 /// `contacts.json` for the bike of `parts` (the parsed `parts.json`); `table` is the correction table, if there is one.
 pub fn contacts_json(parts: &Value, table: Option<&Value>) -> Result<Value> {
     let points = points(&bike_skeleton(parts)?)?;
+    if let Err(error) = super::body_section::add(&mut json, bike_dir) {
+        println!("{}: no body section: {error:#}", bike_dir.display());
+    }
     let vehicle = parts.get("vehicle").and_then(Value::as_str).context("parts.json has no vehicle")?;
     let mut out = points.placement();
     out.insert("version".to_owned(), json!(VERSION));

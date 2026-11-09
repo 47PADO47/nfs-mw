@@ -40,8 +40,10 @@ use super::graph_stand;
 /// which feet (0 both, 1 the left, 2 the right) and `stop_time` and `start_time` the seconds into the stop and start clips. The
 /// last four put the fingers on the levers ([`graph_fingers`]): `clutch` and `brake` are the levers (0 let go, 1 pulled in) and
 /// `clutch_alpha` and `brake_alpha` the weights of the finger layers; `brake_fingers` after them picks the brake clip (0 one finger,
-/// 1 two, 2 four: the player's `brake_fingers` setting) and `clutch_fingers` the clutch clip (0 two fingers, 1 four).
-pub const PARAMS: [&str; 30] = [
+/// 1 two, 2 four: the player's `brake_fingers` setting) and `clutch_fingers` the clutch clip (0 two fingers, 1 four). The last two are
+/// a scooter's rear brake lever, its left hand's: `rear` the lever and `rear_alpha` the weight of its layer ([`graph_fingers`]; the
+/// scooter's graph alone has the layer, and a graph made before them reads 0 for both).
+pub const PARAMS: [&str; 32] = [
     "lean",
     "speed_kmh",
     "tuck",
@@ -72,7 +74,11 @@ pub const PARAMS: [&str; 30] = [
     "brake_alpha",
     "brake_fingers",
     "clutch_fingers",
+    "rear",
+    "rear_alpha",
 ];
+/// The blueprint's `BikeType` of a scooter, whose left hand works a rear brake lever (`graph_fingers::with_rear_lever`).
+const SCOOTER_TYPE: u8 = 3;
 const LEAN: usize = 0;
 const SPEED: usize = 1;
 const TUCK: usize = 2;
@@ -99,6 +105,7 @@ const FINGERS: graph_fingers::Params = graph_fingers::Params {
     brake_fingers: 28,
     clutch_fingers: 29,
 };
+const REAR: graph_fingers::RearParams = graph_fingers::RearParams { lever: 30, alpha: 31 };
 
 /// The seconds the lean clips are swept over: the blueprint evaluates the left clip at `RiderLeanLeft_Explicit = 1 - RiderLeaning`
 /// and the right one at `RiderLeanRight_Explicit = RiderLeaning + 1` seconds (`Rider_Lean_Polish`), so the clip's frame 0 is one
@@ -231,7 +238,11 @@ fn assemble(pack: &Pack, set: &ClipSet, riding: Node) -> Result<Graph> {
         delta: Box::new(shake),
         weight: Value::remap(SPEED, NOISE_RAMP, (0.0, NOISE_ALPHA)),
     };
-    let root = graph_fingers::with_fingers(pack, shaken, FINGERS)?;
+    let fingers = graph_fingers::with_fingers(pack, shaken, FINGERS)?;
+    let root = match set.bike_type == SCOOTER_TYPE {
+        true => graph_fingers::with_rear_lever(pack, fingers, REAR),
+        false => fingers,
+    };
     Ok(Graph { param_names: PARAMS.iter().map(|s| (*s).to_owned()).collect(), root })
 }
 

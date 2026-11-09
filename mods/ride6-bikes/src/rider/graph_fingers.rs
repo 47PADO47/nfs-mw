@@ -45,6 +45,13 @@ pub struct Params {
     pub clutch_fingers: usize,
 }
 
+/// The parameters of a scooter's rear brake lever: the lever (0 let go, 1 pulled in) and the weight of its layer.
+#[derive(Clone, Copy, Debug)]
+pub struct RearParams {
+    pub lever: usize,
+    pub alpha: usize,
+}
+
 /// 1 for every bone below `hand` (its fingers, not the hand itself), 0 for the rest.
 pub fn finger_mask(skeleton: &Skeleton, hand: &str) -> Option<Vec<f32>> {
     let hand = skeleton.find(hand)?;
@@ -101,6 +108,16 @@ pub fn with_fingers(pack: &Pack, base: Node, params: Params) -> Result<Node> {
         Some(fingers) => layer(pack, clutched, fingers, RIGHT_HAND, params.brake_alpha),
         None => clutched,
     })
+}
+
+/// A scooter's rear brake lever, on its left hand (the blueprint's `RearFingers_Brake_Alpha`, the same finger clip as the front
+/// brake's): the left hand of the four-finger brake clip (all four fingers close, as on a brake lever) stepped by the lever, over
+/// everything under it, the clutch fingers included. A pack without that clip or without the left hand has no rear lever.
+pub fn with_rear_lever(pack: &Pack, base: Node, params: RearParams) -> Node {
+    match stepped(pack, BRAKE_CLIPS[2].1, BRAKE_SECONDS, params.lever) {
+        Some(fingers) => layer(pack, base, fingers, LEFT_HAND, params.alpha),
+        None => base,
+    }
 }
 
 #[cfg(test)]
@@ -197,6 +214,44 @@ mod tests {
         // The clutch plays the clutch clip, or the left hand of the four-finger one.
         assert_eq!(at([1.0, 1.0, 0.0, 0.0, 1.0, 1.0])[2], 40.0);
         assert_eq!(at([1.0, 1.0, 0.0, 0.0, 1.0, 1.0])[4], 1.0, "the right hand stays put");
+    }
+
+    #[test]
+    fn a_scooters_rear_brake_lever_closes_the_left_hand_over_the_clutch_fingers_and_leaves_the_right_alone() {
+        let mut pack = pack();
+        pack.clips.push(Clip {
+            name: "riding".into(),
+            length: 1.0,
+            tracks: (0..5)
+                .map(|bone| Track {
+                    bone,
+                    rotation: Channel::None,
+                    translation: Channel::Constant(Vec3::new(1.0, 0.0, 0.0)),
+                    scale: Channel::None,
+                })
+                .collect(),
+            additive: false,
+            root_motion: false,
+            notifies: Vec::new(),
+        });
+        let rear = RearParams { lever: 6, alpha: 7 };
+        let base = Node::Clip { clip: 4, time: TimeMode::Hold };
+        let node = with_rear_lever(&pack, with_fingers(&pack, base, PARAMS).unwrap(), rear);
+        let at = |params: [f32; 8]| {
+            let ctx = EvalContext { skeleton: &pack.skeleton, clips: &pack.clips, params: &params, time: 0.0 };
+            node.evaluate(&ctx).local.iter().map(|t| t.translation.x).collect::<Vec<_>>()
+        };
+        assert_eq!(at([0.0; 8]), vec![1.0; 5], "the lever is let go");
+        // The four-finger clip's left hand is the 40 clip; the right hand does not take it.
+        assert_eq!(at([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0]), vec![1.0, 1.0, 40.0, 1.0, 1.0]);
+        // Over the clutch fingers, which are the 10 clip: the rear lever wins on the left hand.
+        assert_eq!(at([1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0])[2], 40.0);
+        // The weight is the layer's own: no weight, no fingers.
+        assert_eq!(at([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0]), vec![1.0; 5]);
+        // A pack without the four-finger clip has no rear lever.
+        pack.clips.remove(3);
+        let bare = Node::Clip { clip: 3, time: TimeMode::Hold };
+        assert_eq!(with_rear_lever(&pack, bare.clone(), rear), bare);
     }
 
     #[test]

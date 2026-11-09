@@ -170,6 +170,10 @@ pub struct Attach {
     /// bike's `contacts.json`; empty: unknown).
     #[serde(default)]
     pub seat_surface: Vec<[f32; 2]>,
+    /// The cross-section of this bike's body, from its `contacts.json` (`None`: unknown): what the rider's body is kept out of
+    /// (`clearance.rs`).
+    #[serde(default)]
+    pub body_section: Option<super::clearance::Section>,
 }
 
 impl Attach {
