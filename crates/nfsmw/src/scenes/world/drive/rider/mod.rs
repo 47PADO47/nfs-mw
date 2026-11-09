@@ -201,7 +201,11 @@ impl RiderRig {
         let (brake, clutch) = choices::fingers();
         smoothed.set_choices(choices::riding_style(class), brake, clutch);
         let fall = fall::Fall::load(dir, &folder, &pack);
-        resolved.clearance = clearance::Clearance::of_rig(&attach, fall.ragdoll(), &resolved, &pack.skeleton);
+        let mut clearance = clearance::Clearance::of_rig(&attach, fall.ragdoll(), &resolved, &pack.skeleton);
+        if let Some(clearance) = clearance.as_mut() {
+            clearance.rest_on(&pack, &graph, &attach, &resolved, &frame);
+        }
+        resolved.clearance = clearance;
         Ok(Some(Self {
             pack,
             graph,

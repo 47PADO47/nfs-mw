@@ -58,10 +58,14 @@ fn pose_at(
     let skeleton = &rig.pack.skeleton;
     let mut resolved = Resolved::new(attach, skeleton).unwrap();
     resolved.seat = super::seat::Seat::new(attach, &rig.pack);
-    if keep_out {
-        resolved.clearance = Clearance::of_rig(attach, Some(&rig.ragdoll), &resolved, skeleton);
-    }
     let frame = Frame::new(&attach.rider_root_in_bike.transform(), Vec3::ZERO);
+    if keep_out {
+        let mut clearance = Clearance::of_rig(attach, Some(&rig.ragdoll), &resolved, skeleton);
+        if let Some(clearance) = clearance.as_mut() {
+            clearance.rest_on(&rig.pack, &rig.graph, attach, &resolved, &frame);
+        }
+        resolved.clearance = clearance;
+    }
     let fraction = (angle / max_lean_deg).min(1.0);
     let speed: f32 = std::env::var("R6_CLIP_SPEED").ok().and_then(|v| v.parse().ok()).unwrap_or(20.0);
     let sample = RiderSample {
@@ -119,7 +123,13 @@ fn skin_depths(
                 _ => 0,
             };
             let depth = clearance.vertex_depth(frame.to_bike.transform_point3(*position));
-            worst[group] = worst[group].max(depth);
+            if depth > worst[group] {
+                worst[group] = depth;
+                if std::env::var("R6_CLIP_DEBUG").is_ok() {
+                    let p = frame.to_bike.transform_point3(*position);
+                    eprintln!("DEBUG group {group} {name} depth {depth:.3} at {:.3} {:.3} {:.3}", p.x, p.y, p.z);
+                }
+            }
         }
     }
     worst
@@ -136,9 +146,19 @@ fn clearance_probe() {
         let resolved = Resolved::new(&rig.attach, &rig.pack.skeleton).unwrap();
         Clearance::of_rig(&rig.attach, Some(&rig.ragdoll), &resolved, &rig.pack.skeleton)
     };
-    let Some(reference) = reference else { panic!("{car} has no body section or the rider no ragdoll") };
+    let Some(mut reference) = reference else { panic!("{car} has no body section or the rider no ragdoll") };
+    let (upright, upright_frame) = pose_at(&rig, false, (1.0, 0.0, 1.0), max_lean);
+    let raw_upright = skin_depths(&rig, &reference, &upright, &upright_frame);
+    let resolved = Resolved::new(&rig.attach, &rig.pack.skeleton).unwrap();
+    reference.rest_on(&rig.pack, &rig.graph, &rig.attach, &resolved, &upright_frame);
+    println!(
+        "{car}: upright skin depth (cm) torso {:.1} arms {:.1} legs {:.1} (the animation's own fit, not a lean's fault)",
+        raw_upright[0] * 100.0,
+        raw_upright[1] * 100.0,
+        raw_upright[2] * 100.0
+    );
     println!("{car}: tolerance {TOLERANCE_M} m, a vertex deeper than {} m is a clip", TOLERANCE_M + PROBE_SLACK_M);
-    println!("side angle shift | off: capsule torso arms legs | on: capsule torso arms legs   (cm)");
+    println!("side angle shift | off: capsule t a l, skin excess t a l | on: the same   (cm over the upright pose)");
     for side in [-1.0, 1.0] {
         for step in 0..=12 {
             let angle = step as f32 * 5.0;
@@ -146,11 +166,14 @@ fn clearance_probe() {
                 let mut row = String::new();
                 for keep_out in [false, true] {
                     let (component, frame) = pose_at(&rig, keep_out, (side, angle, shift_side), max_lean);
-                    let capsule = reference.deepest(&component, &frame);
-                    let [torso, arms, legs] = skin_depths(&rig, &reference, &component, &frame);
+                    let [ct, ca, cl] = reference.deepest_by_group(&component, &frame);
+                    let skin = skin_depths(&rig, &reference, &component, &frame);
+                    let [torso, arms, legs] = [0, 1, 2].map(|g| (skin[g] - raw_upright[g]).max(0.0));
                     row += &format!(
-                        " | {:5.1} {:5.1} {:5.1} {:5.1}",
-                        capsule * 100.0,
+                        " | {:4.1} {:4.1} {:4.1}  {:4.1} {:4.1} {:4.1}",
+                        ct * 100.0,
+                        ca * 100.0,
+                        cl * 100.0,
                         torso * 100.0,
                         arms * 100.0,
                         legs * 100.0

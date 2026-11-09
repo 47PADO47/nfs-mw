@@ -346,28 +346,52 @@ pub fn animate(
             skeleton.component_transforms(&pose.local, &mut component)?;
         }
     }
+    solve_limbs(skeleton, &mut pose.local, resolved, goals, &mut component)?;
+    // A limb that is still in the bike's body (a straight leg has no knee to swing out) takes the whole body over to its side: the hang-off
+    // the lean asked for is eased by what it cost, and the limbs are solved again from the new hips and shoulders.
+    if let Some(clear) = &resolved.clearance {
+        skeleton.component_transforms(&pose.local, &mut component)?;
+        let over = clear.leftover(&component, goals.frame);
+        if over != Vec3::ZERO {
+            move_bone(skeleton, &mut pose.local, resolved.shift_bone, Body { shift: over, rotation: Quat::IDENTITY })?;
+            skeleton.component_transforms(&pose.local, &mut component)?;
+            solve_limbs(skeleton, &mut pose.local, resolved, goals, &mut component)?;
+        }
+    }
+    skeleton.component_transforms(&pose.local, &mut component)?;
+    Ok(component)
+}
+
+/// Bring each limb's tip to its target (the arms to the grips, the legs to the pegs) from the pose `local`, and swing a knee or an elbow out of
+/// the bike's body. `component` is the pose's component transforms on the way in (the poles are read from it) and is left stale.
+fn solve_limbs(
+    skeleton: &Skeleton,
+    local: &mut [Transform],
+    resolved: &Resolved,
+    goals: &Goals,
+    component: &mut Vec<Transform>,
+) -> Result<(), blackbox_skeleton::Error> {
     for (n, limb) in resolved.limbs.iter().enumerate() {
         let Some(placed) = goals.targets.get(limb.target) else { continue };
         let (position, turn) = tip_goal(limb, placed);
         let pole = component[limb.pole].translation;
         let release = limb.release.map_or(0.0, |side| goals.release[side].clamp(0.0, 1.0));
-        let own = pose.local[limb.chain.tip].rotation;
-        apply_two_bone(skeleton, &mut pose.local, limb.chain, position, pole, 1.0 - release, turn)?;
+        let own = local[limb.chain.tip].rotation;
+        apply_two_bone(skeleton, local, limb.chain, position, pole, 1.0 - release, turn)?;
         if release > 0.0 {
             // The foot's own turn comes back with the leg: the peg's turn at 0, the animation's at 1.
-            let pegged = pose.local[limb.chain.tip].rotation;
-            pose.local[limb.chain.tip].rotation = pegged.slerp(own, release);
+            let pegged = local[limb.chain.tip].rotation;
+            local[limb.chain.tip].rotation = pegged.slerp(own, release);
         }
         // A knee or an elbow inside the bike's body is swung out about the line from hip to foot (shoulder to hand): the same solve with the
         // pole where the joint is to go. A leg let off its peg is the clip's own and is left to it.
         let Some(clear) = resolved.clearance.as_ref().filter(|_| release < CLEARANCE_RELEASE) else { continue };
-        skeleton.component_transforms(&pose.local, &mut component)?;
-        if let Some(pole) = clear.limb_pole((n, limb), &component, goals.frame) {
-            apply_two_bone(skeleton, &mut pose.local, limb.chain, position, pole, 1.0 - release, turn)?;
+        skeleton.component_transforms(local, component)?;
+        if let Some(pole) = clear.limb_pole((n, limb), component, goals.frame) {
+            apply_two_bone(skeleton, local, limb.chain, position, pole, 1.0 - release, turn)?;
         }
     }
-    skeleton.component_transforms(&pose.local, &mut component)?;
-    Ok(component)
+    Ok(())
 }
 
 #[cfg(test)]

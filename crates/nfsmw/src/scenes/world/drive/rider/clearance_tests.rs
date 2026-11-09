@@ -167,7 +167,10 @@ fn a_rider_clear_of_the_bike_is_left_exactly_as_he_is() {
 
 #[test]
 fn a_knee_inside_the_tank_is_swung_out_to_its_own_side_and_the_foot_stays_on_its_peg() {
-    let clearance = clearance(0.13);
+    let mut clearance = clearance(0.13);
+    // The sides of the limbs come from the upright pose, with the legs clear.
+    let upright = legs(Vec3::new(0.1, 0.40, 0.30), Vec3::new(0.6, 0.40, 0.65));
+    clearance.set_baseline(&upright, &frame(), &[THIGH_L, THIGH_R]);
     let foot = Vec3::new(0.1, 0.12, 0.30);
     let pole = Vec3::new(0.6, 0.12, 0.65);
     let before = legs(foot, pole);
@@ -243,4 +246,31 @@ fn only_the_limbs_and_the_torsos_capsules_are_guarded_and_a_damaged_section_guar
     assert!(Clearance::new(Section { nx: 3, ..section(0.13) }, &ragdoll(), &resolved(), &skeleton()).is_none());
     let none = RagdollFile { bodies: Vec::new(), ..ragdoll() };
     assert!(Clearance::new(section(0.13), &none, &resolved(), &skeleton()).is_none());
+}
+
+#[test]
+fn only_what_a_lean_adds_to_the_upright_pose_is_pushed() {
+    let mut clearance = clearance(0.13);
+    let inside = legs(Vec3::new(0.1, 0.12, 0.30), Vec3::new(0.6, 0.12, 0.65));
+    assert!(clearance.deepest(&inside, &frame()) > 0.05);
+    // Taken as the pose the animation fits, the same legs are no fault of the lean: nothing is pushed.
+    clearance.set_baseline(&inside, &frame(), &[THIGH_L, THIGH_R]);
+    assert_eq!(clearance.deepest(&inside, &frame()), 0.0);
+    for (n, limb) in resolved().limbs.iter().enumerate() {
+        assert_eq!(clearance.limb_pole((n, limb), &inside, &frame()), None);
+    }
+    assert_eq!(clearance.leftover(&inside, &frame()), Vec3::ZERO);
+    assert_eq!(clearance.limb_sides, vec![1.0, -1.0], "the sides come from the baseline pose");
+}
+
+#[test]
+fn a_limb_still_inside_takes_the_body_over_to_its_own_side_by_no_more_than_the_bound() {
+    let mut clearance = clearance(0.13);
+    let clear = legs(Vec3::new(0.1, 0.40, 0.30), Vec3::new(0.6, 0.40, 0.65));
+    clearance.set_baseline(&clear, &frame(), &[THIGH_L, THIGH_R]);
+    // A leg straightened inside the tank: the body is moved to the left for the left leg (the first with the deepest excess).
+    let inside = legs(Vec3::new(0.1, 0.12, 0.30), Vec3::new(0.6, 0.12, 0.65));
+    let over = clearance.leftover(&inside, &frame());
+    assert!(over.y > 0.0 && (over.length() - MAX_BODY_PUSH_M).abs() < 1e-5, "{over:?}");
+    assert_eq!(clearance.leftover(&clear, &frame()), Vec3::ZERO, "a clear rider stays where he is");
 }

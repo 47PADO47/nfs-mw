@@ -29,11 +29,15 @@ The pelvis (it sits on the seat on purpose: [render-integration](ride6-rider-ren
 
 **What a rider does about it**, in `pose::animate`, after the body has leaned for the grips and the hands and feet have reached their targets:
 
+0. **Only what a lean adds is pushed**: at load the rider is posed upright and unleaned and the depth of each sample point in that pose is kept as its baseline (`Clearance::rest_on`):
+   the animation was authored to fit the bike like that and the section (a largest half width, not a solid) overstates it by 7 to 17 cm (section 4).
 1. **A knee or an elbow inside the body is swung out** about the line from hip to foot (shoulder to hand): the same two-bone solve is run again with its pole at the joint's place
    moved sideways, outward on the limb's own side, by the deepest depth of any point of the limb divided by the share of the segment the joint carries (a point at the knee moves with it
    entirely, one half way along the thigh by half; a point nearer than `MIN_LEVER` = 0.25 to the hip, the shoulder, the foot or the hand is not chased), at most `MAX_PUSH_M` = 0.12.
    The hand and the foot stay on their grip and peg (the solve reaches the same target). A leg let off its peg by half or more (the old-school foot out) is the clip's own and is left alone.
-2. **A chest on one side of the tank is moved over** (before the limbs are solved, so they follow): the deepest torso point that is beyond `TORSO_OUTER` = half of the section's half width
+2. **A limb still inside after that** (a leg the lean has straightened has no knee to swing) takes the whole body over to its side by its excess, at most `MAX_BODY_PUSH_M` = 0.06: the
+   hang-off is eased by what it cost, and the limbs are solved again from the new hips and shoulders (`Clearance::leftover`).
+3. **A chest on one side of the tank is moved over** (before the limbs are solved, so they follow): the deepest torso point that is beyond `TORSO_OUTER` = half of the section's half width
    from the centre line is moved outward by its depth, at most `MAX_TORSO_PUSH_M` = 0.05, by shifting the body bone (the same one the hang-off moves). A point nearer the centre line is over the
    tank, which a sideways push cannot cure; it is left alone (it is what the lean's `reach` does with the spine).
 
@@ -42,6 +46,7 @@ The pelvis (it sits on the seat on purpose: [render-integration](ride6-rider-ren
 | `TOLERANCE_M` | 0.01 m | the suit's padding and the cell's slack (3 cm cells read as the largest of four) are a centimetre either way; also the check's tolerance below |
 | `MAX_PUSH_M`, `MAX_TORSO_PUSH_M` | 0.12, 0.05 m | bounds for a wrong section, not modelling values; the clips' own knee-out is 19 to 21 cm |
 | `MIN_LEVER` | 0.25 | a push at the knee moves a point a quarter of the way along a segment by a quarter of the push: more is chasing |
+| `MAX_BODY_PUSH_M` | 0.06 m | the hang-off the physics asks for is at most 15 cm; a limb that the knee cannot clear may take a third of that back |
 | `TORSO_OUTER` | 0.5 | a chest point past half of the half width is on a flank, nearer the line it is over the tank |
 | Cell, extent, vertex count | 3 cm; 0.55/0.65/0.70/0.35 m; 2 | the knee is 15 cm across and a flank changes over several centimetres; the extent holds the pegs, the bars and the chest |
 
@@ -54,11 +59,28 @@ A rider is posed as before then. Cost: three samples on about nine capsules and,
 `R6_CLIP_FILES=<mod>/files R6_CLIP_CAR=<ID> [R6_CLIP_GRAPH=graph_race.json] cargo test -p nfsmw clearance_probe -- --ignored --nocapture`. It poses the rider of one bike at 0 to 60 degrees of lean in steps of 5, to
 each side, with the body shifted to the outside and to the inside of the lean by the largest the rig allows, as the game does, with the keeping-out off and on, and prints in centimetres the deepest
 capsule point and the deepest **skin vertex** of the torso and head, the arms and the legs inside the section (the vertices skinned mostly to the pelvis, the hands and the feet excluded: they are
-meant to touch). A clip is a vertex deeper than `TOLERANCE_M` plus 1 cm.
+meant to touch). The skin figures are over the upright pose's own (printed first). Set `R6_CLIP_DEBUG=1` to name the bone of the deepest vertex.
 
 ## 4. Result
 
-Not measured when this page was written (the code was written without a build, by order): the table is to be filled in from the probe on a sport bike, a supermoto, an adventure bike and a scooter.
+Measured with `clearance_probe` on four bikes whose `contacts.json` was written again by the converter (`ride6-bike-import contacts`, scratch folder under `C:6workider-body`):
+0 to 60 degrees of lean in steps of 5, both sides, the body shifted to the outside and to the inside of the lean, each with the keeping-out off and on. The numbers are the
+**largest excess over the upright pose** in the whole sweep, in centimetres: the deepest capsule point (torso, arms, legs) and the deepest skin vertex (torso and head, arms, legs).
+
+| Bike | Torso/arms/legs capsule, off | on | Skin torso/arms/legs, off | on |
+|---|---|---|---|---|
+| Ducati Panigale V4 S (race) | 0 / 8.8 / 13.0 | 0 / 0 / 3.5 | 0.3 / 18.2 / 2.8 | 0.3 / 13.1 / 2.8 |
+| KTM 450 SMR (motard) | 0 / 0 / 5.8 | 0 / 0 / 1.4 | 0.2 / 0 / 1.0 | 0.2 / 0 / 1.0 |
+| Honda Africa Twin (enduro) | 0 / 0 / 9.2 | 0 / 0 / 1.4 | 9.1 / 0 / 3.1 | 9.0 / 0 / 3.1 |
+| Honda X-ADV (scooter) | 0 / 0 / 8.7 | 0 / 0 / 2.1 | 1.4 / 0 / 5.0 | 1.3 / 0 / 6.4 |
+
+**What it shows.** (1) The animation itself puts the upright rider 7 to 17 cm into the section's cells (torso 8.6 to 16.8, legs 7.5 to 11.1): the section is the *largest* half width of
+everything in a cell (the fairing's flank, the frame, the screen) and is not a solid in which a knee cannot be, so an absolute depth means little. The keeping-out therefore works on what
+a lean **adds** to the upright pose (`rest_on`: the baseline per sample point), and so does the table. (2) The capsule that the push works on falls from 6 to 13 cm to 1.4 to 3.5 cm on every bike:
+the outer leg and the arms are cleared by the knee/elbow swing, and a leg already straight by the whole body's move over (`MAX_BODY_PUSH_M` = 0.06). (3) **What is not cured**: skin that the capsules do
+not see. The Panigale's shoulder and upper arm (`upperarm_twist`, on the centre line over the cockpit at 55 to 60 degrees to the outside of a hang-off, 13 cm) and the Africa Twin's chest or head
+(9 cm) are over the tank, the dash or the screen, which a sideways push cannot cure (section 5); the X-ADV's leg skin is 1.4 cm worse (6.4 against 5.0), the body's move over having taken the thigh
+into the floor's flank. The clips' own fit is the larger share of all that is left.
 
 ## 5. Not done
 

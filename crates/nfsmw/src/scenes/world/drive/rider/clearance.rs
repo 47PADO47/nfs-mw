@@ -11,13 +11,15 @@
 //!
 //! Every number below is a choice of this method, not data of the game.
 
-use blackbox_skeleton::{Skeleton, Transform};
+use blackbox_skeleton::{Graph, Pack, Skeleton, Transform};
 use glam::Vec3;
 use serde::Deserialize;
 
 use super::attach::Attach;
 use super::fall_file::RagdollFile;
-use super::pose::{Frame, Resolved};
+use super::graph_params::param_values;
+use super::params::Values;
+use super::pose::{self, Frame, Resolved};
 
 /// How far into the bike's body the rider's skin may be, metres, before it is pushed out: the suit's padding and the section's cell
 /// (3 cm, read as the largest of four) give a centimetre either way. This is also the tolerance of the numeric check
@@ -32,6 +34,8 @@ pub const MIN_LEVER: f32 = 0.25;
 /// on one side of the tank (nearer the centre line it is above it, which a sideways push cannot cure).
 pub const MAX_TORSO_PUSH_M: f32 = 0.05;
 pub const TORSO_OUTER: f32 = 0.5;
+/// The most the whole body is moved over for a limb that swinging its joint could not clear (a straight leg has no knee to swing), metres.
+pub const MAX_BODY_PUSH_M: f32 = 0.06;
 /// The sample points along a capsule's axis, as fractions of its half length from the centre.
 const SAMPLES: [f32; 3] = [-1.0, 0.0, 1.0];
 /// A lateral place nearer than this to the centre line (m) has no side of its own: the limb's side, or the left, is taken.
@@ -100,6 +104,12 @@ struct Guard {
 pub struct Clearance {
     section: Section,
     guards: Vec<Guard>,
+    /// How deep each guard's sample points are in the upright, unleaned pose (`rest_on`), which the animation was authored to fit: only
+    /// what a lean adds to it is pushed out. Zero until set.
+    baseline: Vec<[f32; 3]>,
+    /// Which side of the bike each limb is on (1 left, -1 right), in the order of `Resolved::limbs`, from the upright pose: a leg that a
+    /// lean has taken across the centre line is still the one on its own side. 1 until `rest_on`.
+    limb_sides: Vec<f32>,
 }
 
 /// How deep a capsule point at `p` (the bike's frame) is inside the section, metres: how far it would have to go sideways, outward, for the
@@ -118,6 +128,43 @@ fn turned_off() -> bool {
 }
 
 impl Clearance {
+    /// How much deeper than in the upright pose sample `k` of guard `g` is at `point` (the bike's frame): `(excess, half width)`.
+    fn excess(&self, g: usize, k: usize, point: Vec3) -> (f32, f32) {
+        let (deep, wall) = depth(&self.section, point, self.guards[g].radius);
+        ((deep - self.baseline[g][k]).max(0.0), wall)
+    }
+
+    /// Takes the upright pose `component` (rider space) as the one the animation fits: the depths in it are no fault of a lean.
+    fn set_baseline(&mut self, component: &[Transform], frame: &Frame, roots: &[usize]) {
+        let sides = roots.iter().map(|&root| frame.to_bike.transform_point3(component[root].translation).y);
+        self.limb_sides = sides.map(|y| if y.abs() < SIDELESS_M { 1.0 } else { y.signum() }).collect();
+        let depths: Vec<[f32; 3]> = self
+            .guards
+            .iter()
+            .map(|guard| {
+                let mut out = [0.0; 3];
+                for (k, (_, point)) in Self::points(guard, component, frame).enumerate() {
+                    out[k] = depth(&self.section, point, guard.radius).0;
+                }
+                out
+            })
+            .collect();
+        self.baseline = depths;
+    }
+
+    /// Poses the rider upright and unleaned on his bike and takes that as the baseline ([`Clearance::set_baseline`]).
+    pub fn rest_on(&mut self, pack: &Pack, graph: &Graph, attach: &Attach, resolved: &Resolved, frame: &Frame) {
+        let values = Values { straight: 1.0, ..Values::default() };
+        let params = param_values(&graph.param_names, &values);
+        let targets = pose::rider_targets(attach, frame, None);
+        let goals = pose::Goals { targets: &targets, body: pose::Body::REST, frame, release: [0.0; 2] };
+        let posed = pose::animate(&pack.skeleton, &pack.clips, graph, (&params, 0.0), resolved, &goals);
+        if let Ok(component) = posed {
+            let roots: Vec<usize> = resolved.limbs.iter().map(|limb| limb.chain.root).collect();
+            self.set_baseline(&component, frame, &roots);
+        }
+    }
+
     /// The clearance of the rider whose bike's `attach` has a measured section and whose ragdoll is `ragdoll`; `None` without either,
     /// or with `NFSMW_RIDER_CLEARANCE=0`.
     pub fn of_rig(
@@ -157,7 +204,12 @@ impl Clearance {
                 group,
             });
         }
-        (!guards.is_empty()).then_some(Self { section, guards })
+        (!guards.is_empty()).then(|| Self {
+            section,
+            baseline: vec![[0.0; 3]; guards.len()],
+            guards,
+            limb_sides: vec![1.0; resolved.limbs.len()],
+        })
     }
 
     /// A guard's sample points for the pose `component`: in the rider's space and in the bike's frame.
@@ -184,13 +236,11 @@ impl Clearance {
         frame: &Frame,
     ) -> Option<Vec3> {
         let at = |bone: usize| component[bone].translation;
-        let side = frame.to_bike.transform_point3(at(limb.chain.root)).y;
-        let side = match side.abs() < SIDELESS_M {
-            true => 1.0,
-            false => side.signum(),
-        };
+        let side = self.limb_sides.get(index).copied().unwrap_or(1.0);
         let mut needed = 0.0_f32;
-        for guard in self.guards.iter().filter(|g| matches!(g.group, Group::Limb { limb, .. } if limb == index)) {
+        for (g, guard) in
+            self.guards.iter().enumerate().filter(|(_, g)| matches!(g.group, Group::Limb { limb, .. } if limb == index))
+        {
             let Group::Limb { upper, .. } = guard.group else { continue };
             let (from, to) = match upper {
                 true => (at(limb.chain.root), at(limb.chain.mid)),
@@ -198,9 +248,9 @@ impl Clearance {
             };
             let segment = to - from;
             let length2 = segment.length_squared().max(1e-8);
-            for (rider, point) in Self::points(guard, component, frame) {
-                let (deep, _) = depth(&self.section, point, guard.radius);
-                if deep <= 0.0 || point.y * side < 0.0 {
+            for (k, (rider, point)) in Self::points(guard, component, frame).enumerate() {
+                let (deep, _) = self.excess(g, k, point);
+                if deep <= 0.0 {
                     continue;
                 }
                 let along = ((rider - from).dot(segment) / length2).clamp(0.0, 1.0);
@@ -223,14 +273,37 @@ impl Clearance {
         Some(moved)
     }
 
+    /// How far the whole body is to be moved over, a vector of the rider's space, for the limbs that are still inside the bike's body in the
+    /// pose `component` after their joints were swung out: the deepest excess of any point of any limb, outward on that limb's side, at most
+    /// [`MAX_BODY_PUSH_M`]. Zero when every limb is clear.
+    pub fn leftover(&self, component: &[Transform], frame: &Frame) -> Vec3 {
+        let mut best = (0.0_f32, 0.0_f32);
+        for (g, guard) in self.guards.iter().enumerate() {
+            let Group::Limb { limb, .. } = guard.group else { continue };
+            let side = self.limb_sides.get(limb).copied().unwrap_or(1.0);
+            for (k, (_, point)) in Self::points(guard, component, frame).enumerate() {
+                let (deep, _) = self.excess(g, k, point);
+                if deep > best.0 {
+                    best = (deep, side);
+                }
+            }
+        }
+        match best.0 > 0.0 {
+            true => {
+                frame.to_rider.transform_vector3(Vec3::Y * best.1).normalize_or_zero() * best.0.min(MAX_BODY_PUSH_M)
+            }
+            false => Vec3::ZERO,
+        }
+    }
+
     /// How far the torso is to be moved over, a vector of the rider's space, in the pose `component`: the deepest push of a torso capsule
     /// point that is on one side of the section's centre (beyond [`TORSO_OUTER`] of the half width), outward, at most [`MAX_TORSO_PUSH_M`].
     /// Zero when the chest is clear.
     pub fn torso(&self, component: &[Transform], frame: &Frame) -> Vec3 {
         let mut best = (0.0_f32, 0.0_f32);
-        for guard in self.guards.iter().filter(|g| g.group == Group::Torso) {
-            for (_, point) in Self::points(guard, component, frame) {
-                let (deep, wall) = depth(&self.section, point, guard.radius);
+        for (g, guard) in self.guards.iter().enumerate().filter(|(_, g)| g.group == Group::Torso) {
+            for (k, (_, point)) in Self::points(guard, component, frame).enumerate() {
+                let (deep, wall) = self.excess(g, k, point);
                 if deep > best.0 && point.y.abs() > TORSO_OUTER * wall {
                     best = (deep, point.y.signum());
                 }
@@ -249,9 +322,26 @@ impl Clearance {
     #[cfg(test)]
     pub fn deepest(&self, component: &[Transform], frame: &Frame) -> f32 {
         let mut worst = 0.0_f32;
-        for guard in &self.guards {
-            for (_, point) in Self::points(guard, component, frame) {
-                worst = worst.max(depth(&self.section, point, guard.radius).0);
+        for (g, guard) in self.guards.iter().enumerate() {
+            for (k, (_, point)) in Self::points(guard, component, frame).enumerate() {
+                worst = worst.max(self.excess(g, k, point).0);
+            }
+        }
+        worst
+    }
+
+    /// [`Clearance::deepest`] by group: the torso, the arms (limbs 0 and 1 of the rig) and the legs (2 and 3).
+    #[cfg(test)]
+    pub fn deepest_by_group(&self, component: &[Transform], frame: &Frame) -> [f32; 3] {
+        let mut worst = [0.0_f32; 3];
+        for (g, guard) in self.guards.iter().enumerate() {
+            let at = match guard.group {
+                Group::Torso => 0,
+                Group::Limb { limb, .. } if limb < 2 => 1,
+                Group::Limb { .. } => 2,
+            };
+            for (k, (_, point)) in Self::points(guard, component, frame).enumerate() {
+                worst[at] = worst[at].max(self.excess(g, k, point).0);
             }
         }
         worst
