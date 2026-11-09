@@ -19,11 +19,20 @@ pub struct ActionState {
     typing: bool,
     /// Physical wheel movement in lines, separate from viewer Zoom bindings such as the D-pad.
     menu_scroll: f32,
+    /// How much of the shift up and shift down values (in that order) came from a stick or other analog axis of a pad, as the
+    /// right stick's push is by default: [`ActionState::without_stick_shift`] takes it out again.
+    stick_shift: [f32; 2],
 }
 
 impl Default for ActionState {
     fn default() -> Self {
-        Self { now: [0.0; Action::ALL.len()], before: [0.0; Action::ALL.len()], typing: false, menu_scroll: 0.0 }
+        Self {
+            now: [0.0; Action::ALL.len()],
+            before: [0.0; Action::ALL.len()],
+            typing: false,
+            menu_scroll: 0.0,
+            stick_shift: [0.0; 2],
+        }
     }
 }
 
@@ -107,6 +116,17 @@ impl ActionState {
         self.update(bindings, &snapshot, ui_focus);
     }
 
+    /// This frame without the gear shifts a pad's stick gave (the right stick pushed up or down is the shift by default): a camera
+    /// that looks around with that stick, the bike's helmet camera, takes the push for the look, and the keys, the buttons and
+    /// the paddles still shift.
+    pub fn without_stick_shift(&self) -> Self {
+        let mut out = self.clone();
+        for (action, stick) in [Action::ShiftUp, Action::ShiftDown].into_iter().zip(self.stick_shift) {
+            out.now[action.index()] = (out.now[action.index()] - stick).max(0.0);
+        }
+        out
+    }
+
     /// The action's value: a signed amount for axes, 0 or 1 for buttons.
     pub fn value(&self, action: Action) -> f32 {
         self.now[action.index()]
@@ -138,6 +158,7 @@ impl ActionState {
         self.typing = ui_focus;
         self.menu_scroll = if ui_focus { 0.0 } else { snapshot.scroll };
         self.now = [0.0; Action::ALL.len()];
+        self.stick_shift = [0.0; 2];
         for b in &bindings.0 {
             // Alt+Enter is the fullscreen chord (`app/window/hotkey.rs`): the Enter in it is not the interact press.
             if b.action == Action::Interact && is_alt_enter(b, snapshot) {
@@ -151,7 +172,11 @@ impl ActionState {
                     f32::from(u8::from(snapshot.pad_axes.get(&axis).copied().unwrap_or(0.0) * b.scale >= threshold));
                 continue;
             }
-            self.now[b.action.index()] += b.value(snapshot);
+            let value = b.value(snapshot);
+            self.now[b.action.index()] += value;
+            if matches!(b.source, Source::PadAxis(_)) && matches!(b.action, Action::ShiftUp | Action::ShiftDown) {
+                self.stick_shift[usize::from(b.action == Action::ShiftDown)] += value;
+            }
         }
         for a in Action::ALL {
             if a.is_bounded() {

@@ -1,5 +1,6 @@
 use super::super::Camera;
 use super::super::chase::{ChaseCamera, Followed};
+use super::super::head_look::{LOOK_DOWN_LIMIT_DEG, LOOK_UP_LIMIT_DEG};
 use super::*;
 
 fn view(fov: f32, height: f32, lag: f32) -> View {
@@ -316,8 +317,12 @@ fn the_helmet_camera_looks_down_by_the_data_and_the_players_extra_tilt_and_keeps
 /// A head turned `right` and `up` degrees, as the stick would hold it for long enough.
 fn head(right: f32, up: f32) -> HeadLook {
     let mut look = HeadLook::default();
+    let up_share = match up >= 0.0 {
+        true => up / LOOK_UP_LIMIT_DEG,
+        false => up / LOOK_DOWN_LIMIT_DEG,
+    };
     for _ in 0..600 {
-        look.update([right / 11.0, up / 10.0], 1.0 / 60.0);
+        look.update([right / 11.0, up_share], 1.0 / 60.0);
     }
     look
 }
@@ -331,9 +336,12 @@ fn the_head_turns_the_helmet_view_clockwise_to_the_right_and_up_to_the_top_and_o
     let yaw = right.forward.y.atan2(right.forward.x).to_degrees();
     assert!((yaw + 11.0).abs() < 0.05, "{yaw}");
     assert!((right.forward.z - straight.forward.z).abs() < 1e-3, "the pitch is not touched");
-    let up = lens(Vec3::ZERO, LEVEL, &mount.with_head(head(0.0, 10.0)), 16.0 / 9.0);
-    assert!((up.forward.z.asin().to_degrees() - (-10.0 + 10.0)).abs() < 0.05, "{:?}", up.forward);
+    let up = lens(Vec3::ZERO, LEVEL, &mount.with_head(head(0.0, 25.0)), 16.0 / 9.0);
+    let base = straight.forward.z.asin().to_degrees();
+    assert!((up.forward.z.asin().to_degrees() - (base + 25.0)).abs() < 0.05, "{:?}", up.forward);
     assert!(up.forward.y.abs() < 1e-4);
+    let down = lens(Vec3::ZERO, LEVEL, &mount.with_head(head(0.0, -30.0)), 16.0 / 9.0);
+    assert!((down.forward.z.asin().to_degrees() - (base - 30.0)).abs() < 0.05, "{:?}", down.forward);
     // The head does not move the eye, the field of view or the near plane.
     assert_eq!(right.position, straight.position);
     assert_eq!(right.fov_y_degrees, straight.fov_y_degrees);
@@ -341,7 +349,7 @@ fn the_head_turns_the_helmet_view_clockwise_to_the_right_and_up_to_the_top_and_o
     let (rotation, _) = rolled(40.0);
     assert_eq!(
         mount.place(Vec3::ZERO, rotation, at),
-        mount.with_head(head(11.0, 10.0)).place(Vec3::ZERO, rotation, at)
+        mount.with_head(head(11.0, 25.0)).place(Vec3::ZERO, rotation, at)
     );
 }
 

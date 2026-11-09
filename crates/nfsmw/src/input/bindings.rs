@@ -303,21 +303,25 @@ fn driving() -> Vec<Binding> {
         Binding::new(ShiftUp, Source::PadAxis(GamepadAxis::RightStickY), 1.0),
         Binding::new(ShiftDown, Source::PadAxis(GamepadAxis::RightStickY), -1.0),
         Binding::new(RiderWeight, Source::PadAxis(GamepadAxis::LeftStickY), 1.0),
-        // The right stick's X turns a bike's helmet camera (it springs back); its Y stays the gear shift, and every pad button
-        // is taken, so there is no pad binding for `HeadLookY` (the mouse and the keys pitch the head).
+        // The right stick turns a bike's helmet camera (it springs back): X looks left and right, Y up and down. Its Y is also the
+        // gear shift of the profile: the world takes the push for the look alone while the helmet camera is in use
+        // (`ActionState::without_stick_shift`), the keys, buttons and paddles still shift.
         Binding::new(HeadLookX, Source::PadAxis(GamepadAxis::RightStickX), 1.0),
+        Binding::new(HeadLookY, Source::PadAxis(GamepadAxis::RightStickY), 1.0),
         // The mouse is a stick whose deflection is its speed (`MOUSE_HEAD_LOOK_PIXELS`), under the same gate as the other mouse
         // looks; up is negative motion, hence the negative scale of the pitch.
         Binding::new(HeadLookX, Source::MouseMotion { y: false, gate: Gate::Look }, 1.0 / MOUSE_HEAD_LOOK_PIXELS),
         Binding::new(HeadLookY, Source::MouseMotion { y: true, gate: Gate::Look }, -1.0 / MOUSE_HEAD_LOOK_PIXELS),
         // The keys are a stick pushed to its end while they are held: the numpad's 4 and 6 (and the square brackets, for a
-        // keyboard without a numpad) look left and right, 9 and 3 up and down.
+        // keyboard without a numpad) look left and right, 9 and 3 (and `=` and `-`) up and down.
         Binding::new(HeadLookX, key(KeyCode::Numpad6), 1.0),
         Binding::new(HeadLookX, key(KeyCode::Numpad4), -1.0),
         Binding::new(HeadLookX, key(KeyCode::BracketRight), 1.0),
         Binding::new(HeadLookX, key(KeyCode::BracketLeft), -1.0),
         Binding::new(HeadLookY, key(KeyCode::Numpad9), 1.0),
         Binding::new(HeadLookY, key(KeyCode::Numpad3), -1.0),
+        Binding::new(HeadLookY, key(KeyCode::Equal), 1.0),
+        Binding::new(HeadLookY, key(KeyCode::Minus), -1.0),
         Binding::new(AbsLevel, button(GamepadButton::LeftThumb), 1.0),
         Binding::new(ResetCar, button(GamepadButton::Select), 1.0),
         Binding::new(ToggleCamera, button(GamepadButton::North), 1.0),

@@ -103,6 +103,12 @@ view empty).
   sides (Hor+); a narrower one (16:10, 4:3, a split screen) is widened to keep the same 120 degrees across, up to 110 degrees
   vertical [C]. At speed it widens by up to `HELMET_SPEED_WIDEN_DEG` = 8 degrees along the dynamic field of view's speed curve, scaled
   by the field-of-view intensity and off with "change distance and FOV with speed"; it never narrows.
+- **Wider again (playtest, "make helmet cam fov a little more wider"):** the helmet camera's vertical field of view (a bike's own
+  too, when its data is wider) is multiplied by `HELMET_FOV_SCALE` = **1.11** [C], the middle of the 10 to 12 percent asked for:
+  `HELMET_FOV_DEG` 88 degrees vertical (119.6 horizontal at 16:9) became `HELMET_FOV_WIDE_DEG` = 97.68 (127.6 horizontal). The
+  multiplier is on the helmet camera only (the front and chase cameras read their data as before). A bigger number starts to bend the
+  road's lines at the edges. The speed widening (+8) is on top, and the cap of a narrow picture's floor (`MAX_FOV_DEG`) went from 110
+  to 120 so that 4:3 and a split screen keep their 127.6 across (113 degrees vertical at 4:3). The cockpit tests hold at every aspect.
 - **Look:** along the bike's heading, tilted by the data's `RelativeRotation.Pitch` (-10 degrees on 312 of the 344 bikes; 23 have none,
   and 5, 7, 15, 20, 50 and 60 occur a few times) [D] and `HELMET_VIEW_DOWN_DEG` = 16 degrees further down [C] (`viewer/camera/bike.rs`,
   `Mount::helmet`). The extra is the player's request ("pointed a little more down so I can see more of the bike"), not RIDE 6's:
@@ -198,12 +204,17 @@ most 20 degrees from the heading, the horizon is tipped at most 17 degrees (5 fo
 
 RIDE 6's helmet camera carries a side-view behaviour (`HelmetIgnitionSideViewCameraBehavior`, in the root container, the same for
 every bike): an axis `LookRight` that turns the camera by up to **11 degrees** either way (`YawModifier.OffsetLimits` -11 to 11), an
-axis `LookUp` by up to **10 degrees** (`PitchModifier`), and a `RotatorFilterSpeed` of **4** (5 in one container, the BMW M 1000
+axis `LookUp` by up to **10 degrees** (`PitchModifier`; this port's pitch goes further, see below), and a `RotatorFilterSpeed` of **4** (5 in one container, the BMW M 1000
 RR 2023's) that smooths the camera's turn to where the axis asks [D]. The cockpit camera has 13 and 10, `RotateSpringArm` is off
 everywhere. This port's player reads the two axes from `head_look_x` and `head_look_y` (`input/action.rs`) and the rider's head
 follows them (`viewer/camera/head_look.rs`, `HeadLook`):
 
-- the look aimed at is the axis's share of the limits, linear, 11 degrees of yaw and 10 of pitch at the end of the axis [D];
+- the look aimed at is the axis's share of the limits, linear: 11 degrees of yaw either way [D], and for the pitch (playtest, "let me
+  look a bit up and down too"; RIDE 6's 10 was too little to see anything) **`LOOK_UP_LIMIT_DEG` = 25 degrees up and
+  `LOOK_DOWN_LIMIT_DEG` = 30 down** [C] at the end of the axis, each side linear in the stick (`HeadLook::target`, a pure function
+  of the stick: `[right, up]` degrees). Down has more room because what there is to see (the dash, the hands, the road at the wheel)
+  is below the rest view, which looks about 26 degrees down (the data's 10 and `HELMET_VIEW_DOWN_DEG`): +25 puts it on the horizon,
+  -30 makes 56 degrees below it. The head's pitch is on top of the bike's pitch share (`PitchFactor`), as before;
 - the look moves to it, and back to straight ahead when the axis is let go, by an exponential approach at the filter speed: it
   closes the distance by `1 - exp(-4 dt)` a frame, a time constant of a quarter of a second whatever the frame rate; released,
   it is back within a hundredth of a degree in two seconds, and does not overshoot [C]. The data names the speed and not the
@@ -216,16 +227,19 @@ follows them (`viewer/camera/head_look.rs`, `HeadLook`):
 
 | Device | `head_look_x` (right +) | `head_look_y` (up +) |
 |---|---|---|
-| Pad | right stick X (camera dead zone and sensitivity of the controls settings; 15 percent by default, so a resting stick does nothing) | none, see below |
+| Pad | right stick X (camera dead zone and sensitivity of the controls settings; 15 percent by default, so a resting stick does nothing) | right stick Y (the same dead zone; pushed up looks up) |
 | Mouse | horizontal speed | vertical speed |
-| Keyboard | Numpad 6 / Numpad 4, or `]` / `[` for a keyboard without a numpad | Numpad 9 / Numpad 3 |
+| Keyboard | Numpad 6 / Numpad 4, or `]` / `[` for a keyboard without a numpad | Numpad 9 / Numpad 3, or `=` / `-` for a keyboard without a numpad |
 
-- **The pad's Y is not a look.** The right stick's Y is the gear shift in the driving profile (`ShiftUp`, `ShiftDown`), also under
-  the automatic gearbox, where the shift buttons are sport shifts, so pitching the head with it would shift gears; every other
-  pad button and trigger is bound, and there is no modifier mechanism in the bindings (a binding is one source and a scale). So
-  `head_look_y` has no default pad binding, and the data's pitch is reached with the mouse or the keys. A player who prefers the
-  stick can unbind the shift (`shift_up = []`, `shift_down = []`, or keys only) and bind `head_look_y = ['axis:RightStickY']`
-  in `[bindings]` (the camera dead zone and sensitivity apply to it as to the X axis).
+- **The pad's Y looks, and shifts for every camera but the helmet one.** The right stick's Y is also the gear shift in the driving
+  profile (`ShiftUp`, `ShiftDown`), also under the automatic gearbox (sport shifts), and every other pad button and trigger is
+  bound. Playtest: "in helmet cam let me look a bit up and down too": `head_look_y` is bound to `axis:RightStickY` by default (in
+  the same `[bindings]` place as `head_look_x`, so rebindable; `input/bindings.rs`). While the helmet camera of a bike is the camera in
+  use (`WorldScene::bike_helmet_active`) the world takes the stick's push for the look alone: `ActionState::without_stick_shift`
+  removes from the frame the part of `shift_up`/`shift_down` that came from a pad axis. The keys (E, Q, right shift, right
+  control), the wheel's paddles and any pad button bound to a shift keep shifting; the other cameras, a car and the free camera
+  are as before (the stick shifts, the look is not read). A pad player who needs the stick's shift in the helmet camera binds a
+  button (`shift_up = ['button:...']`) or uses another camera.
 - **The mouse is a stick whose deflection is the speed of the mouse** [C: a modelling choice; the original has no mouse look, and
   RIDE 6's side-view axes are stick axes]. A binding reads the pixels moved in the frame divided by the frame's time, times the
   scale `1/700` (`MOUSE_HEAD_LOOK_PIXELS`, the 700 pixels a second a fully pushed stick turns the free camera by; negative for the
@@ -237,9 +251,9 @@ follows them (`viewer/camera/head_look.rs`, `HeadLook`):
   frame rate: the stick is the speed, the filter integrates it (a 2 pixel nudge is about 0.12 degrees at any rate from 30 to 240
   frames a second); a flick of 300 pixels in a quarter of a second turns it about 7 degrees. It has the same gate as the other
   mouse looks: the cursor captured (a click in the window), or the right button held.
-- **The keys** push the stick to its end while they are held (11 degrees of yaw, 10 of pitch) and release it, so the head returns.
-  The numpad's 8 and 2 are the rider's weight, so the look takes 4 and 6 beside them and 9 and 3; no other driving action is on
-  these keys.
+- **The keys** push the stick to its end while they are held (11 degrees of yaw, 25 up, 30 down) and release it, so the head returns.
+  The numpad's 8 and 2 are the rider's weight, so the look takes 4 and 6 beside them and 9 and 3; the brackets' vertical pair, for a
+  keyboard with no numpad, is `=` (up) and `-` (down); no other driving action is on these keys.
 - In the free camera (`view-world`, F) the two axes are not read, so the mouse look that flies the free camera does not also turn
   the rider's head.
 
@@ -255,8 +269,7 @@ do not, and the physics never sees it (`input/head_look_tests.rs`, `viewer/camer
   lag. Only the helmet camera's two `Lean` slots are used (section 6.1), and their filters are not.
 - The cockpit camera (x -4 cm, z 1.2 m, pitch -20), the gauge camera and the GoPro have no mode of the game to sit in; an extra view of
   a mod could use them.
-- The helmet look's pitch has no default pad binding (section 6.2: the mouse and the keys pitch the head); the mouse and key
-  bindings are this port's choice, the original has none; the front camera has no look (RIDE 6 has
+- The mouse and key bindings of the look are this port's choice, the original has none; the front camera has no look (RIDE 6 has
   no side-view behaviour for it); the cockpit camera's 13 and 10 degrees are for a camera that no mode of the game shows.
 - A bike without a container (16 of 293) has no `[bike.camera]`, and the game derives its cameras from its wheelbase
   (`BikeCamera::derived`: distances and heights as fractions of the wheelbase [C]). The dump and the containers name 47 bikes with another
@@ -322,15 +335,16 @@ choice **[C]**.
   a lean (a bolted camera is carried by the body and a helmet one by the followed roll only; the lean shift goes inward, ahead and down;
   from 0 to 60 degrees of lean on either side the look, turn, roll and place stay within the bounds of section 6.1; the look into the
   bend flips with the side; looking back is not turned).
-- `viewer/camera/head_look_tests.rs`: rest, the limits (11 and 10), half a stick, the spring back within two seconds at every
+- `viewer/camera/head_look_tests.rs`: rest, the limits (11, 25 up and 30 down), `HeadLook::target` (the pure input to yaw and pitch function), half a stick, the spring back within two seconds at every
   frame rate, no overshoot, the quarter-second time constant, a frame of no time and a stick that is not a number. `bike_tests.rs`:
   the helmet camera looks `HELMET_VIEW_DOWN_DEG` further down than the data and keeps its horizon in the top 30 percent; the head
   turns the view clockwise to the right and up to the top, moves nothing else, does nothing at rest, also looking back.
-  `input/head_look_tests.rs`: the right stick's X is the look and its Y still shifts, the camera dead zone, the names.
+  `input/head_look_tests.rs`: the right stick's X and Y are the look, `without_stick_shift` takes the stick's shift away and
+  keeps the keys', the camera dead zone, the names, the keys.
   `drive/script.rs`: `look` and `lookup`.
 - `drive/rider/view.rs`: the eye is the middle of the eye bones, in the model's frame; the head bone is the fallback; none off the bike;
   the helmet and visor are the hidden parts; the visibility (whole, from the helmet, looking back) draws all, all but those, none.
-- `viewer/camera/bike_fov_tests.rs`: the helmet field of view (88 degrees, wider than the data's, kept when a bike's is wider), Hor+ and
+- `viewer/camera/bike_fov_tests.rs`: the helmet field of view (88 times 1.11 = 97.68 degrees, only on the helmet camera, wider than the data's, kept and widened too when a bike's is wider), Hor+ and
   the floor on narrow pictures, the grips and the panel of a sample cockpit inside the picture at 16:9, 21:9, 16:10 and 4:3 and at
   speed (and outside the old 60 degree one), the speed widening curve, the 10 cm near plane; `scenes/world/nitrous_screen_tests.rs`:
   the nudge keeps a camera's own near plane.

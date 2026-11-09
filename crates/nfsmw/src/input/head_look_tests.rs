@@ -1,5 +1,5 @@
 //! The look of a bike's helmet camera: the pad's right stick X, the mouse's speed and the look keys, dead-zoned and scaled as the
-//! other camera looks are. The stick's Y stays the gear shift of the driving profile, so it is not a look.
+//! other camera looks are. The stick's Y is also the gear shift of the driving profile: the helmet camera takes it away.
 
 use bevy_input::gamepad::GamepadAxis;
 use bevy_input::keyboard::KeyCode;
@@ -41,7 +41,7 @@ fn mouse(pixels: (f32, f32), dt: f32) -> Snapshot {
 }
 
 #[test]
-fn the_right_sticks_x_looks_and_its_y_still_shifts_gear() {
+fn the_right_stick_looks_both_ways_and_its_y_is_also_the_gear_shift_the_helmet_camera_takes_away() {
     let pad = |action| {
         sources(action)
             .into_iter()
@@ -49,14 +49,38 @@ fn the_right_sticks_x_looks_and_its_y_still_shifts_gear() {
             .collect::<Vec<_>>()
     };
     assert_eq!(pad(Action::HeadLookX), vec![Source::PadAxis(GamepadAxis::RightStickX)]);
-    assert!(pad(Action::HeadLookY).is_empty(), "the stick's Y is the gear shift on a pad, every button is taken");
+    assert_eq!(pad(Action::HeadLookY), vec![Source::PadAxis(GamepadAxis::RightStickY)]);
     assert!(sources(Action::ShiftUp).contains(&Source::PadAxis(GamepadAxis::RightStickY)));
     assert!(sources(Action::ShiftDown).contains(&Source::PadAxis(GamepadAxis::RightStickY)));
-    // Pushed up or down the stick shifts and does not look; pushed sideways it looks and does not shift.
-    assert_eq!(look_of_stick(0.0, 1.0), (0.0, 0.0, true, false));
-    assert_eq!(look_of_stick(0.0, -1.0), (0.0, 0.0, false, true));
+    // Pushed up or down the stick looks up or down (and, for any other camera, still shifts); sideways it looks and does not shift.
+    assert_eq!(look_of_stick(0.0, 1.0), (0.0, 1.0, true, false));
+    assert_eq!(look_of_stick(0.0, -1.0), (0.0, -1.0, false, true));
     assert_eq!(look_of_stick(1.0, 0.0), (1.0, 0.0, false, false));
     assert_eq!(look_of_stick(-1.0, 0.0), (-1.0, 0.0, false, false));
+}
+
+#[test]
+fn the_helmet_camera_takes_the_sticks_shift_away_and_keeps_the_keys_and_buttons_shifting() {
+    let resolve = |keys: &[KeyCode], y: f32| {
+        let mut state = ActionState::default();
+        let mut snap = Snapshot::default();
+        snap.keys.extend(keys.iter().copied());
+        snap.pad_axes.insert(GamepadAxis::RightStickY, y);
+        state.update(&Bindings::default(), &snap, false);
+        state
+    };
+    let stick_up = resolve(&[], 1.0);
+    assert!(stick_up.pressed(Action::ShiftUp) && stick_up.value(Action::HeadLookY) == 1.0);
+    let helmet = stick_up.without_stick_shift();
+    assert!(!helmet.pressed(Action::ShiftUp) && !helmet.pressed(Action::ShiftDown));
+    assert_eq!(helmet.value(Action::HeadLookY), 1.0, "the look is kept");
+    let stick_down = resolve(&[], -1.0).without_stick_shift();
+    assert!(!stick_down.pressed(Action::ShiftDown) && stick_down.value(Action::HeadLookY) == -1.0);
+    // The keys shift the same frame the stick looks, and a stick at rest changes nothing.
+    let both = resolve(&[KeyCode::KeyE, KeyCode::KeyQ], 1.0).without_stick_shift();
+    assert!(both.pressed(Action::ShiftUp) && both.pressed(Action::ShiftDown), "E and Q still shift");
+    let key_only = resolve(&[KeyCode::KeyE], 0.0);
+    assert_eq!(key_only.without_stick_shift().value(Action::ShiftUp), key_only.value(Action::ShiftUp));
 }
 
 #[test]
@@ -131,6 +155,9 @@ fn the_keys_hold_the_stick_at_its_end_and_a_key_pair_cancels() {
     assert_eq!(keys(&[KeyCode::BracketLeft]), [-1.0, 0.0]);
     assert_eq!(keys(&[KeyCode::Numpad9]), [0.0, 1.0]);
     assert_eq!(keys(&[KeyCode::Numpad3]), [0.0, -1.0]);
+    assert_eq!(keys(&[KeyCode::Equal]), [0.0, 1.0]);
+    assert_eq!(keys(&[KeyCode::Minus]), [0.0, -1.0]);
+    assert_eq!(keys(&[KeyCode::Equal, KeyCode::Minus]), [0.0, 0.0]);
     assert_eq!(keys(&[KeyCode::Numpad4, KeyCode::Numpad6]), [0.0, 0.0]);
     // Both a key and the numpad's twin do not push past the end of the stick.
     assert_eq!(keys(&[KeyCode::Numpad6, KeyCode::BracketRight]), [1.0, 0.0]);
@@ -145,6 +172,8 @@ fn no_look_key_is_a_driving_input_and_the_rider_weight_keys_stay_theirs() {
         KeyCode::Numpad3,
         KeyCode::BracketLeft,
         KeyCode::BracketRight,
+        KeyCode::Equal,
+        KeyCode::Minus,
     ];
     for b in Bindings::default().0.iter().filter(|b| matches!(b.source, Source::Key(k) if look_keys.contains(&k))) {
         assert!(matches!(b.action, Action::HeadLookX | Action::HeadLookY), "{} on a look key", b.action.name());

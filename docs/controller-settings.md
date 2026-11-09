@@ -42,9 +42,9 @@ config (`NFS_XtendedInput.default.ini`), so the remake and the original play ali
 | Handbrake | A |
 | Nitrous | B |
 | Speedbreaker | X |
-| Shift up / down | Right stick up / down (not in the free camera, where it looks) |
+| Shift up / down | Right stick up / down (not in the free camera, where it looks, nor in a bike's helmet camera, where it looks up and down) |
 | Change camera / look back | RB / LB |
-| Look around (bike helmet camera) | Right stick left / right (springs back) |
+| Look around (bike helmet camera) | Right stick left / right and up / down (springs back; 11 degrees to a side, 25 up, 30 down) |
 | Reset car | Back |
 | Engage event | D-pad up (A also does, and skips a cutscene) |
 | World map | D-pad left |
