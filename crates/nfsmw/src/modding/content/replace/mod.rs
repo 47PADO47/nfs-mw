@@ -22,6 +22,10 @@
 
 mod active;
 mod adds;
+#[cfg(test)]
+mod audit;
+#[cfg(test)]
+mod audit_real_tests;
 mod catalog;
 mod clear;
 #[cfg(test)]
