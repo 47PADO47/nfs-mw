@@ -3,10 +3,10 @@
 use crate::app::Host;
 use crate::frontend::logic::{Command, Env, QuitTo};
 
+use super::super::step_budget;
 use super::Frontend;
 use super::flow_loading::LoadingScreen;
 use super::flow_movie;
-use super::step_budget;
 
 impl Frontend {
     /// Carries out what the screens asked for.
