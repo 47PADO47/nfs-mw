@@ -100,6 +100,11 @@ components of that bike, and `perf_engine`, `perf_chassis`, `perf_brakes` under 
 `body`, `spoiler`, `hood`, `roof`, `rims`, `paint`, `tint`, `rimpaint`, `vinyl` (the words the `parts` command and `view-car --part` use,
 `Category::key`) and `engine`, `transmission`, `induction`, `nitrous`, `chassis`, `tires`, `brakes`.
 
+A choice can bring others with it: when a vehicle's offer of a component has a `bundle` ([data model](specs/vehicle-components/data-model.md#offer)),
+`vehicle set perf_brakes 2`, the panel and the performance shortcuts also fit the bundled components (the brake discs of the bike's
+kit 2) and going down takes them off or fits the lower level's; the reply of the command names only the slot that was set, and the
+next `vehicle slots` shows the discs fitted ([the shop](specs/garage-shop-components.md#3-rules-and-the-refusal-verified)).
+
 ### Groups on and off; the Panigale's road equipment
 
 A **group** is the set of slots a vehicle's data lists under one `group` name. A group is **switchable** when every one of its slots is a

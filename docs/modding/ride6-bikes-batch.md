@@ -401,3 +401,24 @@ ride6-bike-import cameras <exporter output, or one bike's folder> <mod folder> -
 ```
 
 The import stamp's conversion number was not changed for this: a mod started with the native library does not convert again for it.
+
+## Placing the shop's optional parts again (the fix of the playtest of 2026-11-09)
+
+The anchors of the aftermarket exhausts, rims and discs in `C:\r6work\bike-parts\catalogue.json` were wrong (silencers on the ground under the
+bike, front discs on the other side, rims leaving a see-through ring against the tyre; [formats/ride6-bike-parts.md](../formats/ride6-bike-parts.md#where-an-option-part-sits-choice-checked-numerically)).
+No mesh needs to be exported again; the anchors are recomputed from the exports that are there, in seconds (the catalogue before is kept as
+`catalogue.before-placement.json`), checked, and the bikes imported again:
+
+```
+python -I tools\ride6-exporter\option_export.py --catalogue C:\r6work\bike-parts --bikes C:\r6work\bikes --place-only
+python -I tools\ride6-exporter\option_check.py --catalogue C:\r6work\bike-parts --bikes C:\r6work\bikes
+ride6-bike-import import-all C:\r6work\bikes <staging mod folder> --physics C:\r6work\physdump-all ^
+    --tyre-tables C:\r6work\physdump-all\resolved\plugin\Physics\Tire --sound-dir C:\r6work\sound-out ^
+    --bike-parts C:\r6work\bike-parts --threads 4
+```
+
+`option_check.py` exits 0 when no option is over its threshold (`THRESHOLDS`). What changes in the mod folder: `files/PARTS/R6/MUFFLER*/` (the twin
+silencers have a second solid, `_G2`), `cars/<id>.toml` (the `matrix` of the aftermarket parts with their scale and their new places, the
+`exhaust.muffler2.*` parts of twins, `accepts` of `perf_brakes` with a `bundle` for the brake kits) and `components/ride6-bikes.toml` (the
+twin exhausts' components show the second can). The import stamp's conversion number is 9, so a mod started with the native library
+converts every bike again by itself. The installed mod is not touched by this work.

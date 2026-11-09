@@ -62,6 +62,17 @@ race teams' table, `BikePhysicDataTable`, gives per-level fractions such as 0, 0
 the 0 to 1 reading). The `AdaptiveMultiplier` formula is an **inference** from the two ranges and the interval the rows carry.
 A component is defined once by its multiplier (`r6:engine.l2.10666`), so bikes with the same number share it.
 
+### A level that comes with its parts
+
+A bike's **brake ladder** level N and the discs of its **brake kit** of level N are one upgrade in the data (both come from the
+`Brakes-Kit-Level-N` row), so the importer writes the link on the ladder's offer: `accepts = [..., { component =
+"r6:brakes.l2.10750", bundle = ["r6:brake_discs.brake701_001"] }]`. Choosing `Brakes level 2` (the shop's performance page, the
+panel, `vehicle set perf_brakes 2`, the Maximum shortcut) fits the discs of kit 2 with it; going down to level 1 swaps them for kit
+1's, to the original equipment takes them off; choosing the discs alone leaves the level. A bike that has the ladder and no kit of that
+level (or no disc slot) brings nothing. The mechanism is the vehicle's offers' `bundle`
+([data model](../specs/vehicle-components/data-model.md#offer), [the shop](../specs/garage-shop-components.md#3-rules-and-the-refusal-verified)),
+not brakes: the engine and chassis ladders have no part in the data and bundle none.
+
 ### In the shop
 
 The shop's screens read the same slots ([specs/garage-shop-components.md](../specs/garage-shop-components.md)): a bike's Parts section lists
@@ -83,6 +94,16 @@ files/PARTS/R6/<STEM>/{GEOMETRY.BIN,TEXTURES.BIN}    one folder per aftermarket 
 components/ride6-bikes.toml      the catalog: every component once
 cars/<id>.toml                   + [[slot]] tables and [parts."<id>"] bindings
 ```
+
+**Where an aftermarket part sits** (the playtest's "custom exhausts get placed under the bike instead of where they should", and "custom
+rims cause a transparent ring between rim and tire"; the rules and the measured numbers are in
+[formats/ride6-bike-parts.md](../formats/ride6-bike-parts.md#where-an-option-part-sits-choice-checked-numerically)): a silencer is
+anchored on the bones of **its header pipes** (it is skinned to bones the chassis does not have), so it sits at the end of the pipes
+where the stock one sits, scaled to them; a twin silencer is one pack solid for each can (`<STEM>` and `<STEM>_G2`, part ids
+`exhaust.muffler.<slug>` and `exhaust.muffler2.<slug>`, both shown by the exhaust's component); the front disc takes the side of the
+bike's stock disc; the rims are scaled to the tyre's bead (an anchor `scale`, so the matrix of the part binding carries it).
+The check `tools/ride6-exporter/option_check.py` flags any option whose box centre is far from the stock part's, a silencer that is
+not at the end of its header, and a rim that leaves a ring of 1.2 cm or more.
 
 A stock part becomes a solid of its own only when the bike has a slot for it (otherwise it stays in the body, bars or wheel
 solid, where it was); the tyre always stays in the wheel solid. An aftermarket part is modelled in its **own frame** (the export

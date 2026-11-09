@@ -89,6 +89,64 @@ and the mirrors: one mesh with a left and a right bone, and the chassis' left an
 exporter in the chassis frame with the linear blend of its four influences, in every level of detail file, and its anchor is the
 identity. Before this, the anchor of the dominant bone placed one side right and the other turned.
 
+## Where an option part sits **[choice, checked numerically]**
+
+The rule above (`master_world(b) * part_world(b)^-1`) is what the game does for every part of the shop too, but the **master
+skeleton is not always the chassis'**. What each kind of option part needs (`tools/ride6-exporter/option_place.py`, run by
+`option_export.py`; `--place-only` redoes only this step in seconds):
+
+| Part | Master skeleton | Why |
+|---|---|---|
+| header pipes (`exmanifold<chassis>_<silencer>`) | the chassis, bone `BONE_CHASSIS` | as the stock header |
+| **silencer** (`muffler<NNN>`) | the **header pipes' own bones**, moved into the chassis frame by the header's anchor | the silencer is skinned to `BONE_MUFFLER_001` and `BONE_MOUNT_001`, bones **the chassis does not have** (the header does: it holds the place where the silencer goes, 20 to 50 cm behind and above the chassis origin, with a rotation and a scale of 0.81 to 1.10 that fit it to the pipes). The first export took the nearest ancestor the chassis has (`VEHICLE_BASE`, the identity) and put every silencer at the origin of its own frame: on the ground under the bike, the bug of the playtest (a KTM 450 SMR's can under the rider's foot, an Aprilia RSV4's behind the swingarm) |
+| front brake disc pair | the chassis, on the bone of the bike's **stock** disc | the mesh is a pair with a left and a right bone (`BONE_FL_BRAKE`, `BONE_FR_BRAKE`) and, like the stock one, takes one bone for both; the pair's own dominant bone (left for every kit) put the disc on the left of a bike whose stock disc is on the right: 66 kits 13 cm off |
+| rims | the chassis, bone `BONE_F_VIS_WHEEL` / `BONE_B_VIS_WHEEL`, **seated on the bike's tyre** (below) | |
+| bar pad | the chassis, bone `BONE_BARPAD` | |
+
+An anchor has the optional key **`scale`** (a number, or one per axis; applied first, then the rotation, then the translation, as
+`Anchor::point` of the importer does and as a 3 by 4 `matrix` carries it, with the normals through the inverse transpose). The
+stock parts have none; the bone of a header's silencer mount can (90 of the 765 exhausts), and a seated rim does.
+
+**Twin silencers** (122 of the 765 exhausts: two cans, bones `BONE_MUFFLER_001` and `_002`, `BONE_MOUNT_001` and `_002`) are two rigid
+pieces, one per number. The catalogue gives the second its own anchor, `muffler_2` (`muffler_3`...), and the importer splits the mesh by
+the bones' numbers (`silencer.rs`: each triangle goes to the group most of its corners belong to) into the pack's solids
+`<STEM>` and `<STEM>_G2`; the exhaust's component shows both. Inside one can the `BONE_MOUNT` vertices (the bracket) move
+with the can rather than with the mount bone: the data skins them rigidly to a bone that differs from the can's bone for 261 of the
+765 pairs by more than a centimetre (a bracket stretched to the frame), which the one transform per can does not reproduce; the can,
+the visible part, is exact.
+
+**Rims seated on the tyre [choice].** The 3 percent diameter and 0.75 to 1.35 width tolerances of the rims that fit leave a ring
+between a rim and the tyre's bead that is seen through from an angle (the user's "transparent ring between rim and tire", the TM SMX
+Competizione with the OZ Cattiva, the BST carbon rims at the rear): the rim's lip ends short of the bead, or its flanges are narrower
+than the bead's edges, and the tyre's inner side is not drawn. The tyre mesh has the bead (its smallest radius, and the axial reach of
+the vertices on it, e.g. 0.2313 m and 0.060 m for the TM's front tyre); each aftermarket rim's anchor gets a **scale** that makes its
+lip reach the bead (radial, both wheel-plane axes, clamped to 0.95 to 1.08) and its flanges the bead's edges (axial, 0.75 to 1.35 times:
+the range of the width test), less 0.5 mm and 1 mm (`option_place.SEAT_*`). Measured with a software rasteriser (`tools/ride6-exporter/rim_ring.py`) on 96 rims of 25 random
+bikes (the share of the 1.2 cm band inside the bead that is open from two oblique views): stock rims 0.144, aftermarket rims as they
+were 0.168, seated 0.073; rims with more than a fifth open: 27 stock, 32 as they were, 11 seated. What stays open is mostly rims that
+are open by design (the BST single-sided rims at the rear, 0.26) and a rim at its clamp.
+
+**The check** (`tools/ride6-exporter/option_check.py`; exit status 1 when it finds a part over a threshold): for every option of every
+bike, the finest mesh moved by its anchor has its bounding box's **centre** compared with the stock part's (the silencers with the
+stock silencer, the headers with the stock header, the exhaust as a whole, the rims, the discs, the pad), and the rims' ends with the
+tyre's bead. Thresholds in metres (`THRESHOLDS`, **[choice]**): exhaust 0.30, silencer 0.25, header 0.10, rim, disc and pad 0.05,
+rim seat 0.012. On the 319 bikes (the 4,673 options of the catalogue, 10,080 measures), before and after the fix:
+
+| Measure (metres) | Options | Before: median, max, over | After: median, max, over |
+|---|---|---|---|
+| silencer's box touches its header's | 765 | 0.051, 0.440, 395 | 0.000, 0.000, 0 |
+| silencer centre to the stock silencer's | 765 | 0.627, 1.062, 18 | 0.082, 0.876, 0 |
+| header centre to the stock header's | 765 | 0.041, 0.380, 0 | 0.041, 0.380, 0 (not moved) |
+| whole exhaust centre to the stock exhaust's | 765 | 0.176, 0.359, 28 | 0.041, 0.271, 0 |
+| front disc centre to the stock disc's | 332 | 0.001, 0.150, 66 | 0.001, 0.005, 0 |
+| rear disc, bar pad (centre to stock) | 332, 132 | 0.001, 0.038, 0 / 0.011, 0.017, 0 | unchanged |
+| front rim, rear rim (centre to stock) | 1,556 each | 0.000, 0.010 / 0.008, 0.040, 0 | 0.000, 0.010 / 0.007, 0.040, 0 (a scale moves a centre by millimetres) |
+| rim lip and flanges to the tyre's bead, front, rear | 1,556 each | 0.000, 0.025, 4 / 0.006, 0.035, 58 | 0.001, 0.006, 0 / 0.001, 0.017, 0 |
+
+The silencers' centres stay up to 0.9 m from the stock silencer's after the fix because an aftermarket system is a different design
+(a long can beside the wheel of a Yamaha MT-09 against its belly box; the high under-seat cans of the Ducati V4s: checked in a side view
+of the exhaust over the bike); what the fix made certain is that every silencer touches its own header pipes' box.
+
 ## Liveries **[data]**
 
 `CH_<id>_Livery-NN` rows: 738 for 319 vehicles (1 livery: 118 vehicles, 2: 53, 3: 140, 4: 2, 5: 6 in the install). The livery's
