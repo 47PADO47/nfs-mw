@@ -51,9 +51,13 @@ fn the_bushes_manifest_is_a_set_of_kind_bushes_that_the_game_accepts() {
     );
     assert_eq!(set.kind_label.as_deref(), Some("nfsmw2012-bushes"));
     assert_eq!(set.geometry.as_deref(), Some("TREES/MW2012/GEOMETRY.BIN"), "the pack of the trees is the bushes' too");
-    assert_eq!(set.limits, FitLimits { spread: 1.5, squeeze: 0.5, min_height: 0.5, clearance: true });
+    assert_eq!(set.limits, FitLimits { spread: 1.5, squeeze: 0.5, min_height: 0.5, clearance: true, settle: false });
     let trees = parse_replace_set("trees-mw2012", &manifest::replace_manifest(&trees_set(true), &BUILT)).unwrap();
     assert!(!trees.limits.clearance, "a tree's crown may overhang a rail");
+    assert!(
+        trees.limits.settle && !set.limits.settle,
+        "the trees settle on the ground and off the road, the bushes do not"
+    );
     let fits: Vec<(String, SwapFit)> = set
         .models
         .iter()

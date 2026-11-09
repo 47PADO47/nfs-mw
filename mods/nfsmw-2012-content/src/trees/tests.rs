@@ -213,6 +213,10 @@ fn a_level_that_is_short_of_the_finest_is_dropped_too() {
 fn the_profile_carries_the_limits_the_game_keeps_a_replacement_to() {
     let limits = parse_model_swap_profile(&manifest::profile_text(&trees_set(false), &[("BUSH", 4)])).unwrap().limits;
     assert_eq!((limits.spread, limits.squeeze, limits.min_height), (1.25, 0.5, 0.7));
+    assert!(
+        limits.settle && !limits.clearance,
+        "the trees settle on the ground and off the road, and may overhang a rail"
+    );
 }
 
 #[test]

@@ -10,17 +10,31 @@ use super::stock::{self, Family};
 /// The limits the game keeps a replacement to (`blackbox_modding::content::FitLimits`, the `[fit]` table): a copy is at most `spread`
 /// times as wide as the footprint it replaces, is squeezed sideways to no less than `squeeze` of its height scale, and is not used
 /// if it would be shorter than `min_height` of the replaced height. `clearance`: a copy keeps clear of the walls, rails, barriers and
-/// buildings next to it (made smaller, down to the footprint it replaces, or left out), see `docs/modding/api-replace.md`.
+/// buildings next to it (made smaller, down to the footprint it replaces, or left out), see `docs/modding/api-replace.md`. `settle`: the
+/// copies of a stretch of trees are put on the real ground under them and off the carriageway, and their crowns are kept clear of the road
+/// below them (`docs/modding/api-replace.md`, "Settling").
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Limits {
     pub spread: f32,
     pub squeeze: f32,
     pub min_height: f32,
     pub clearance: bool,
+    pub settle: bool,
 }
 
-/// The limits of the trees (a crown may overhang a rail: no clearance).
-pub const TREE_LIMITS: Limits = Limits { spread: 1.25, squeeze: 0.5, min_height: 0.7, clearance: false };
+/// The limits of the trees (a crown may overhang a rail: no clearance; the copies settle on the ground and off the road).
+pub const TREE_LIMITS: Limits = Limits { spread: 1.25, squeeze: 0.5, min_height: 0.7, clearance: false, settle: true };
+
+/// The lines of a `[fit]` table for the flags that are on.
+fn flags(limits: &Limits) -> String {
+    let mut text = String::new();
+    for (on, line) in [(limits.clearance, "clearance = true\n"), (limits.settle, "settle = true\n")] {
+        if on {
+            text.push_str(line);
+        }
+    }
+    text
+}
 
 /// What a replacement set is called and holds.
 pub struct Set<'a> {
@@ -61,8 +75,8 @@ pub fn swaps(families: &[&'static Family], built: &[(&str, usize)]) -> Vec<(Stri
 /// the kind's option from it, so the mod needs no code for the option.
 pub fn replace_manifest(set: &Set<'_>, built: &[(&str, usize)]) -> String {
     let Set { kind, kind_label, value, value_label, limits, .. } = set;
-    let Limits { spread, squeeze, min_height, clearance } = limits;
-    let clearance = if *clearance { "clearance = true\n" } else { "" };
+    let Limits { spread, squeeze, min_height, .. } = limits;
+    let flags = flags(limits);
     let mut text = format!(
         "format = 1
 
@@ -81,7 +95,7 @@ textures = \"{FOLDER}/{TEXTURES_FILE}\"
 spread = {spread}
 squeeze = {squeeze}
 min_height = {min_height}
-{clearance}"
+{flags}"
     );
     for (solid, model, fit) in swaps(&set.families, built) {
         text.push_str(&format!("\n[[model]]\ntarget = \"{solid}\"\nmodel = \"{model}\"\nfit = \"{fit}\"\n"));
@@ -91,10 +105,10 @@ min_height = {min_height}
 
 /// The text of the trees' `profile.toml`: a swap for every solid of the families of `set` whose species is in `built`.
 pub fn profile_text(set: &Set<'_>, built: &[(&str, usize)]) -> String {
-    let Limits { spread, squeeze, min_height, clearance } = set.limits;
-    let clearance = if clearance { "clearance = true\n" } else { "" };
+    let Limits { spread, squeeze, min_height, .. } = set.limits;
+    let flags = flags(&set.limits);
     let mut text = format!(
-        "format = 1\ngeometry = \"{FOLDER}/{GEOMETRY_FILE}\"\ntextures = \"{FOLDER}/{TEXTURES_FILE}\"\n\n[fit]\nspread = {spread}\nsqueeze = {squeeze}\nmin_height = {min_height}\n{clearance}"
+        "format = 1\ngeometry = \"{FOLDER}/{GEOMETRY_FILE}\"\ntextures = \"{FOLDER}/{TEXTURES_FILE}\"\n\n[fit]\nspread = {spread}\nsqueeze = {squeeze}\nmin_height = {min_height}\n{flags}"
     );
     for (solid, model, fit) in swaps(&set.families, built) {
         text.push_str(&format!("\n[[swap]]\nsolid = \"{solid}\"\nmodel = \"{model}\"\nfit = \"{fit}\"\n"));
