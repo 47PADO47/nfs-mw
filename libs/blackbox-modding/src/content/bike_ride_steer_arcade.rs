@@ -1,12 +1,18 @@
 //! The arcade steering of the steering audits' runs (`RIDE6_ARCADE`, see `bike_ride_steer.rs`).
 
-use blackbox_vehicle::bike::{ArcadeAir, ArcadeRough, ArcadeSteering, TurnLaw};
+use blackbox_vehicle::bike::{ArcadeAir, ArcadeBrake, ArcadeRough, ArcadeSteering, TurnLaw};
+
+/// The turn law's table of round 3 (`docs/specs/ride6-bike-turn-radius.md`, section 4), before round 4 made the fast turns about half as wide.
+const ROUND3_RADIUS: &[(f32, f32)] =
+    &[(6.0, 1.8), (15.0, 1.9), (30.0, 4.4), (50.0, 14.0), (80.0, 40.0), (120.0, 91.0), (180.0, 240.0)];
 
 /// The arcade steering of the run: `RIDE6_ARCADE=reference` the reference game's, `RIDE6_ARCADE=grip=1.2,rate=3,...` the game's values with
 /// those fields changed (`grip`, `rate`, `floor`, `mirror`, `spring`, `roll`, `assist`, `reach`, `slow` and `fast` for the speed authority's ends,
 /// `drop` for the wheelie's steer drop in degrees, `turn=0` for no turn law, `slowlean` and `maxassist` for the turn law's quicker lean-in
-/// at a low speed and its most assist in g), unset the game's values; `RIDE6_ARCADE=previous` is the game's values of the round before the
-/// slower lean-in and the speed authority (`docs/specs/ride6-arcade-steering.md`, sections 10 and 11), and `RIDE6_ARCADE=round2` the game's of
+/// at a low speed and its most assist in g, `brake=0` for no help on braking, `brakegain`, `brakeg`, `brakegmoto`, `brakegoff`, `brakegscooter` and `hold` for its
+/// most extra g, the aimed g of the kinds and the pitch hold), unset the game's values; `RIDE6_ARCADE=previous` is the game's values of the round before the
+/// slower lean-in and the speed authority (`docs/specs/ride6-arcade-steering.md`, sections 10 and 11), and `RIDE6_ARCADE=round3` the game's of the round before the fast turns were tightened (the
+/// older table, 1.7 g of assist), and `RIDE6_ARCADE=round2` the game's of
 /// the round before the turn law (its authority and lean-in, `docs/specs/ride6-bike-turn-radius.md`).
 pub(super) fn arcade() -> ArcadeSteering {
     let text = std::env::var("RIDE6_ARCADE").unwrap_or_default();
@@ -33,6 +39,10 @@ pub(super) fn arcade() -> ArcadeSteering {
             turn: None,
             ..arcade
         };
+    }
+    if text == "round3" {
+        let law = TurnLaw { radius: ROUND3_RADIUS, max_assist: 1.7, ..TurnLaw::GAME };
+        return ArcadeSteering { turn: Some(law), ..arcade };
     }
     if text == "round2" {
         return ArcadeSteering { turn: None, ..arcade };
@@ -62,6 +72,13 @@ pub(super) fn arcade() -> ArcadeSteering {
             "maxassist" => arcade.turn = arcade.turn.map(|law| TurnLaw { max_assist: v, ..law }),
             "air" if v < 0.5 => arcade.air = ArcadeAir::REFERENCE,
             "rough" if v < 0.5 => arcade.rough = ArcadeRough::REFERENCE,
+            "brake" if v < 0.5 => arcade.brake = ArcadeBrake::REFERENCE,
+            "brakegain" => arcade.brake.gain = v,
+            "brakeg" => arcade.brake.max_decel_g[0] = v,
+            "brakegmoto" => arcade.brake.max_decel_g[1] = v,
+            "brakegoff" => arcade.brake.max_decel_g[2] = v,
+            "brakegscooter" => arcade.brake.scooter_decel_g = v,
+            "hold" => arcade.brake.pitch_hold = v,
             _ => {}
         }
     }

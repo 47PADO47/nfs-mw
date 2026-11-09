@@ -18,6 +18,8 @@ mod bike_reduction;
 #[cfg(test)]
 mod bike_ride_air;
 #[cfg(test)]
+mod bike_ride_brake_table;
+#[cfg(test)]
 mod bike_ride_burnout;
 #[cfg(test)]
 mod bike_ride_flick;
