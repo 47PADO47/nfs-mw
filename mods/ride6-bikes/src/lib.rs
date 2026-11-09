@@ -49,6 +49,7 @@ pub mod rider;
 pub mod rider_ragdoll;
 pub mod shading;
 pub mod shop;
+pub mod silencer;
 pub mod solids;
 pub mod sound;
 pub mod stamp;

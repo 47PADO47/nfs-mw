@@ -80,11 +80,35 @@ fn schemas_other_than_one_are_refused() {
 fn the_anchor_rotates_then_moves() {
     // A quarter turn about z takes x to y.
     let half = std::f32::consts::FRAC_1_SQRT_2;
-    let anchor = Anchor { bone: None, translation: [1.0, 0.0, 0.0], rotation: [0.0, 0.0, half, half] };
+    let anchor = Anchor::rigid(None, [1.0, 0.0, 0.0], [0.0, 0.0, half, half]);
     let p = anchor.point([1.0, 0.0, 0.0]);
     assert!((p[0] - 1.0).abs() < 1e-5 && (p[1] - 1.0).abs() < 1e-5 && p[2].abs() < 1e-5, "{p:?}");
     let d = anchor.direction([0.0, 1.0, 0.0]);
     assert!((d[0] + 1.0).abs() < 1e-5 && d[1].abs() < 1e-5, "{d:?}");
+}
+
+#[test]
+fn the_anchor_scales_first_then_rotates_then_moves() {
+    // Half the size, a quarter turn about z, one metre along x: (2, 0, 0) -> (1, 0, 0) -> (0, 1, 0) -> (1, 1, 0).
+    let half = std::f32::consts::FRAC_1_SQRT_2;
+    let anchor = Anchor { scale: [0.5; 3], ..Anchor::rigid(None, [1.0, 0.0, 0.0], [0.0, 0.0, half, half]) };
+    let p = anchor.point([2.0, 0.0, 0.0]);
+    assert!((p[0] - 1.0).abs() < 1e-5 && (p[1] - 1.0).abs() < 1e-5 && p[2].abs() < 1e-5, "{p:?}");
+    // A direction is turned, and divided by the scale of its axis (the caller normalises it).
+    let d = anchor.direction([1.0, 0.0, 0.0]);
+    assert!(d[0].abs() < 1e-5 && (d[1] - 2.0).abs() < 1e-5, "{d:?}");
+}
+
+#[test]
+fn a_normal_of_a_flattened_part_stays_square_to_its_surface() {
+    // The plane x + z = 0 (normal (1, 0, 1)) squashed to half along z: its points (1, 0, -1) and (0, 1, 0) go to (1, 0, -0.5) and
+    // (0, 1, 0), and the normal of the squashed plane is (1, 0, 2), square to the line between them.
+    let anchor = Anchor { scale: [1.0, 1.0, 0.5], ..Anchor::rigid(None, [0.0; 3], [0.0, 0.0, 0.0, 1.0]) };
+    let (a, b) = (anchor.point([1.0, 0.0, -1.0]), anchor.point([0.0, 1.0, 0.0]));
+    let normal = anchor.direction([1.0, 0.0, 1.0]);
+    let along = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let dot = normal[0] * along[0] + normal[1] * along[1] + normal[2] * along[2];
+    assert!(dot.abs() < 1e-5, "the normal is square to a line of the surface: {dot}");
 }
 
 const LIVERIES: &str = r#"{

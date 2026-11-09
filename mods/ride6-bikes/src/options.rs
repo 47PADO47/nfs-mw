@@ -49,6 +49,9 @@ pub struct Exhaust {
     pub muffler: String,
     pub header_anchor: Anchor,
     pub muffler_anchor: Anchor,
+    /// The anchors of the second, third... silencer of a twin (the catalogue's `muffler_2`, `muffler_3`), in order: the pack
+    /// writes one solid per silencer (`options_pack::silencer_name`).
+    pub muffler_twins: Vec<Anchor>,
 }
 
 /// A pair of rims or of brake discs on one bike.
@@ -122,10 +125,17 @@ fn anchor(value: &Value) -> Option<Anchor> {
         (numbers.len() == n).then_some(numbers)
     };
     let (t, r) = (list("translation", 3)?, list("rotation", 4)?);
+    // The scale is optional: a rigid anchor has none. A list of three numbers is one per axis, a single number is all three.
+    let scale = match (list("scale", 3), value.get("scale").and_then(Value::as_f64)) {
+        (Some(s), _) => [s[0], s[1], s[2]],
+        (None, Some(one)) => [one as f32; 3],
+        (None, None) => [1.0; 3],
+    };
     Some(Anchor {
         bone: value.get("bone").and_then(Value::as_str).map(str::to_owned),
         translation: [t[0], t[1], t[2]],
         rotation: [r[0], r[1], r[2], r[3]],
+        scale,
     })
 }
 
@@ -141,7 +151,13 @@ fn exhaust(value: &Value) -> Option<Exhaust> {
         muffler: text(value, "muffler")?,
         header_anchor: anchor(anchors.get("header")?)?,
         muffler_anchor: anchor(anchors.get("muffler")?)?,
+        muffler_twins: twins(anchors),
     })
+}
+
+/// The anchors `muffler_2`, `muffler_3`... of a twin silencer, in order; the run stops at the first number the catalogue lacks.
+fn twins(anchors: &Value) -> Vec<Anchor> {
+    (2..).map_while(|n| anchor(anchors.get(format!("muffler_{n}"))?)).collect()
 }
 
 fn pair(value: &Value) -> Option<Pair> {

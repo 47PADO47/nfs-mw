@@ -20,6 +20,7 @@ use crate::exports::Exports;
 use crate::front_end::Take;
 use crate::options::Kind;
 use crate::partfile::{Part, PartTable};
+use crate::silencer;
 use crate::solids::{Context as GroupContext, Lists, Placer, part_groups};
 use crate::textures::TexStore;
 
@@ -88,12 +89,35 @@ impl Library {
         Ok(Self { table, exports, tex: dir.join("tex") })
     }
 
-    fn solid(&self, surfaces: &mut Surfaces, part: &Part, letter: char, level: u32) -> Result<SolidSource> {
+    /// The solid of `part` at one level (`letter`, `level` of the export); `group`: the silencer of a twin it holds (`silencer.rs`),
+    /// `None` for the whole mesh. `None` when the level has no triangle of the group.
+    fn solid(
+        &self,
+        surfaces: &mut Surfaces,
+        part: &Part,
+        (letter, level): (char, u32),
+        group: Option<u8>,
+    ) -> Result<Option<SolidSource>> {
         let (mut groups, mut points, mut lists) = (Vec::new(), Vec::new(), Lists::default());
         let glb = self.exports.load(&part.export, level)?;
+        let joints = silencer::joint_groups(&glb);
+        let take = group.map_or(Take::All, |number| Take::Group(number, &joints));
         let mut ctx = GroupContext { table: &self.table, surfaces, car: TEXTURE_PREFIX, lists: &mut lists };
-        groups.extend(part_groups(&mut ctx, &glb, (&Placer { part, to_solid: &to_car }, Take::All), &mut points)?);
-        finish(&format!("{}_{letter}", solid_name(&part.id)), groups, lists)
+        groups.extend(part_groups(&mut ctx, &glb, (&Placer { part, to_solid: &to_car }, take), &mut points)?);
+        if groups.is_empty() {
+            return Ok(None);
+        }
+        let name = silencer::solid_name(&solid_name(&part.id), group.unwrap_or(1));
+        finish(&format!("{name}_{letter}"), groups, lists).map(Some)
+    }
+
+    /// The silencers of a part of `kind`: one for every part but a twin silencer, which is one solid for each of its cans.
+    fn silencers(&self, part: &Part, kind: Kind) -> Result<Vec<Option<u8>>> {
+        if kind != Kind::Muffler {
+            return Ok(vec![None]);
+        }
+        let finest = self.exports.load(&part.export, part_levels(kind)[0].1)?;
+        Ok(silencer::groups(&finest).into_iter().map(Some).collect())
     }
 
     /// Build the pack of the asset `stem` of `kind`: `(GEOMETRY.BIN, TEXTURES.BIN)`.
@@ -105,10 +129,13 @@ impl Library {
         let mut solids = Vec::new();
         for id in &ids {
             let part = self.table.parts.iter().find(|p| &p.id == id).context("a part vanished")?;
-            for &(letter, level) in part_levels(kind) {
-                solids.push(
-                    self.solid(&mut surfaces, part, letter, level).with_context(|| format!("{id} level {letter}"))?,
-                );
+            for group in self.silencers(part, kind).with_context(|| format!("{id}: its silencers"))? {
+                for &(letter, level) in part_levels(kind) {
+                    let made = self
+                        .solid(&mut surfaces, part, (letter, level), group)
+                        .with_context(|| format!("{id} level {letter}"))?;
+                    solids.extend(made);
+                }
             }
         }
         let geometry = write_geometry_pack(&solids).with_context(|| format!("writing the geometry of {stem}"))?;

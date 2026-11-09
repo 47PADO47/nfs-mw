@@ -1,7 +1,7 @@
 use super::*;
 
 fn anchor(translation: [f32; 3]) -> Anchor {
-    Anchor { bone: None, translation, rotation: [0.0, 0.0, 0.0, 1.0] }
+    Anchor::rigid(None, translation, [0.0, 0.0, 0.0, 1.0])
 }
 
 fn mounts() -> Mounts {
@@ -48,6 +48,16 @@ fn the_matrix_of_a_mount_takes_a_solid_to_the_bike() {
     let hub = m.matrix(At::FrontHub, &anchor([0.0; 3]));
     let expected = [1.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0, 0.1, 0.0, 0.0, 1.0, -0.3];
     assert!(hub.iter().zip(expected).all(|(got, want)| (got - want).abs() < 1e-6), "{hub:?}");
+}
+
+#[test]
+fn a_scaled_anchor_scales_the_solid_the_bike_mounts() {
+    // The silencer's bone on the header pipes is 1.08 times: the solid's axes come out 1.08 times long and its origin is where
+    // the anchor puts it (here 0.2 along the export x, which is 0.2 forward in the body frame).
+    let scaled = Anchor { scale: [1.08; 3], ..anchor([0.2, 0.0, 0.0]) };
+    let m = mounts().matrix(At::Body, &scaled);
+    let expected = [1.08, 0.0, 0.0, -0.8, 0.0, 1.08, 0.0, 0.0, 0.0, 0.0, 1.08, 0.5];
+    assert!(m.iter().zip(expected).all(|(got, want)| (got - want).abs() < 1e-6), "{m:?}");
 }
 
 #[test]

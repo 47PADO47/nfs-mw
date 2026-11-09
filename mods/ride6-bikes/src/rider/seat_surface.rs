@@ -163,8 +163,7 @@ mod tests {
 
     #[test]
     fn a_part_is_moved_by_its_anchor_and_gltf_axes_become_the_car_frame() {
-        let anchor =
-            crate::partfile::Anchor { bone: None, translation: [0.1, 0.2, 0.3], rotation: [0.0, 0.0, 0.0, 1.0] };
+        let anchor = crate::partfile::Anchor::rigid(None, [0.1, 0.2, 0.3], [0.0, 0.0, 0.0, 1.0]);
         // glTF (x forward, y up, z right) (1, 2, 3) + (0.1, 0.2, 0.3) = (1.1, 2.2, 3.3) is car (1.1, -3.3, 2.2).
         assert!(car_point(&anchor, [1.0, 2.0, 3.0]).distance(Vec3::new(1.1, -3.3, 2.2)) < 1e-5);
     }

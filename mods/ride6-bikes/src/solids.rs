@@ -189,7 +189,7 @@ mod tests {
             kind: Kind::Rim,
             role: Role::FrontWheel,
             export: "x".into(),
-            anchor: Anchor { bone: None, translation, rotation: [0.0, 0.0, 0.0, 1.0] },
+            anchor: Anchor::rigid(None, translation, [0.0, 0.0, 0.0, 1.0]),
             materials: Default::default(),
         }
     }

@@ -43,6 +43,24 @@ fn the_catalogue_is_read_with_its_anchors() {
 }
 
 #[test]
+fn an_anchor_may_carry_a_scale_and_a_twin_silencer_its_second_anchor() {
+    let text = CATALOGUE
+        .replace(
+            r#""muffler": {"bone": "BONE_MUFFLER_001", "translation": [0, 0, 0.1], "rotation": [0, 0, 0, 1]}}}"#,
+            r#""muffler": {"bone": "BONE_MUFFLER_001", "translation": [0, 0, 0.1], "rotation": [0, 0, 0, 1], "scale": [1.08, 1.08, 1.08]},
+                 "muffler_2": {"bone": "BONE_MUFFLER_002", "translation": [0, 0, -0.1], "rotation": [0, 0, 0, 1], "scale": 0.9}}}"#,
+        );
+    assert_ne!(text, CATALOGUE, "the test's own edit applied");
+    let catalogue = Catalogue::parse(&text).unwrap();
+    let exhaust = &catalogue.bike("Ducati_Panigale-V4-S-2025").unwrap().exhaust[0];
+    assert_eq!(exhaust.muffler_anchor.scale, [1.08, 1.08, 1.08]);
+    assert_eq!(exhaust.muffler_twins.len(), 1);
+    assert_eq!(exhaust.muffler_twins[0].translation, [0.0, 0.0, -0.1]);
+    assert_eq!(exhaust.muffler_twins[0].scale, [0.9; 3], "a single number is the scale of all three axes");
+    assert_eq!(exhaust.header_anchor.scale, [1.0; 3], "an anchor with no scale is rigid");
+}
+
+#[test]
 fn an_upgrade_that_changes_nothing_is_not_one() {
     let catalogue = Catalogue::parse(CATALOGUE).unwrap();
     let upgrade = catalogue.bike("Ducati_Panigale-V4-S-2025").unwrap().upgrade.unwrap();

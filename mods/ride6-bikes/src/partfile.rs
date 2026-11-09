@@ -14,25 +14,36 @@ use serde_json::Value;
 use crate::fallback::{self, Fallback};
 use crate::front_end::Rules;
 
-/// Where a part's frame sits on the chassis: its rigid transform into the chassis frame (glTF axes, metres).
+/// Where a part's frame sits on the chassis: its transform into the chassis frame (glTF axes, metres): the scale of each axis,
+/// then the rotation, then the translation. A stock part is rigid (scale 1); a silencer takes the scale of the bone of its
+/// header pipes that it is fitted to (0.8 to 1.1, `docs/formats/ride6-bike-parts.md`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Anchor {
     pub bone: Option<String>,
     pub translation: [f32; 3],
     /// Unit quaternion x, y, z, w.
     pub rotation: [f32; 4],
+    /// The scale of each axis of the part's frame; 1 for a rigid anchor.
+    pub scale: [f32; 3],
 }
 
 impl Anchor {
+    /// A rigid anchor: no scale.
+    pub fn rigid(bone: Option<String>, translation: [f32; 3], rotation: [f32; 4]) -> Self {
+        Self { bone, translation, rotation, scale: [1.0; 3] }
+    }
+
     /// Move a point of the part's frame into the chassis frame.
     pub fn point(&self, p: [f32; 3]) -> [f32; 3] {
-        let r = rotate(self.rotation, p);
+        let r = rotate(self.rotation, [p[0] * self.scale[0], p[1] * self.scale[1], p[2] * self.scale[2]]);
         [r[0] + self.translation[0], r[1] + self.translation[1], r[2] + self.translation[2]]
     }
 
-    /// Turn a direction of the part's frame into the chassis frame.
+    /// Turn a direction of the part's frame into the chassis frame: a normal of a scaled part is divided by the scale of its axis
+    /// (the inverse transpose), so it stays square to the surface; the caller normalises it. For a rigid anchor, a turn.
     pub fn direction(&self, d: [f32; 3]) -> [f32; 3] {
-        rotate(self.rotation, d)
+        let unscaled = [d[0] / self.scale[0], d[1] / self.scale[1], d[2] / self.scale[2]];
+        rotate(self.rotation, unscaled)
     }
 }
 
@@ -198,11 +209,11 @@ fn read_part(value: &Value) -> Result<Part> {
     let role = role_of(&role_text).with_context(|| format!("part {id}: unknown role {role_text}"))?;
     let export = string(value, "export").with_context(|| format!("part {id} has no export"))?;
     let anchor = value.get("anchor").with_context(|| format!("part {id} has no anchor"))?;
-    let anchor = Anchor {
-        bone: string(anchor, "bone"),
-        translation: floats(anchor.get("translation")).with_context(|| format!("part {id}: bad anchor translation"))?,
-        rotation: floats(anchor.get("rotation")).with_context(|| format!("part {id}: bad anchor rotation"))?,
-    };
+    let anchor = Anchor::rigid(
+        string(anchor, "bone"),
+        floats(anchor.get("translation")).with_context(|| format!("part {id}: bad anchor translation"))?,
+        floats(anchor.get("rotation")).with_context(|| format!("part {id}: bad anchor rotation"))?,
+    );
     let materials = value
         .get("materials")
         .and_then(Value::as_object)
