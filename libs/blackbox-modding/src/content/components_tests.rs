@@ -159,5 +159,6 @@ markers = [{marker}]
     assert!(field(with(r#"{ name = "EXHAUST", position = [nan, 0, 0], direction = [0, 0, 1] }"#)));
     assert!(field(with(r#"{ name = "EXHAUST", position = [0, 0, 0], direction = [0, 0, 0] }"#)));
     assert!(field(with(&vec![good; 9].join(", "))));
-    assert!(tables(&with(r#"{ name = "EXHAUST", position = [0, 0, 0] }"#)).is_err(), "a direction is required");
+    let no_direction = with(r#"{ name = "EXHAUST", position = [0, 0, 0] }"#);
+    assert!(parse_car("fastbike", &no_direction).is_err(), "a direction is required");
 }
