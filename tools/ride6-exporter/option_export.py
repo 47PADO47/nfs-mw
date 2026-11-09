@@ -14,12 +14,18 @@ Reads `upgrades.py`'s `catalogue.json` and writes into the same folder:
 
 A part that is not one rigid transform on a bike (its bones move differently) is left out for that bike. The skeletons of a bike
 come from its `parts.json` in `--bikes` (`export_all.py`), so the bikes must be exported first.
+
+A silencer is anchored on the bones of the **header pipes** it is fitted to, not on the chassis (`option_place.py`; the
+anchor can carry a `scale`, and a twin silencer has an anchor `muffler_2`). `--place-only` recomputes the anchors of an earlier
+run in seconds, without exporting a mesh (the old `catalogue.json` is kept as `catalogue.before-placement.json`);
+`option_check.py` checks the result against the stock parts.
 """
 
 import argparse
 import json
 import os
 import re
+import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -31,6 +37,7 @@ import bake  # noqa: E402
 import bikeparts  # noqa: E402
 import glbtools  # noqa: E402
 import materials as mat  # noqa: E402
+import option_place  # noqa: E402
 from bindings import Tables  # noqa: E402
 from r6lib import Assets, Tool, object_name  # noqa: E402
 
@@ -164,22 +171,76 @@ def write_parts(tool, assets, catalogue, keep, out_dir, max_tex):
     }
 
 
-def anchor_of(glb_dir, stem, bones, strict=True):
+def anchor_of(index, stem, bones, strict=True, bone=None):
     """The anchor of the mesh `stem` on a bike with `bones`. With `strict`, None when it is not one rigid transform; a brake
-    disc pair (a left and a right bone, as the stock front brake) takes the anchor of its dominant bone like the stock part."""
-    path = bikeparts.smallest_glb(glb_dir, stem)
+    disc pair (a left and a right bone, as the stock front brake) takes the anchor of `bone` (the bike's stock disc's) or of
+    its dominant bone like the stock part."""
+    path = index.smallest(stem)
     if not path:
         return None
-    part = glbtools.Glb(path)
+    part = index.glb(path)
+    if bone:
+        return option_place.disc_anchor(part, bones, bone)
     anchor = glbtools.anchor(part, bones)
     if anchor is None or (strict and not bake.is_rigid(part, bones)):
         return None
     return anchor
 
 
+def exhaust_anchors(index, assets, item, bones):
+    """`{header, muffler[, muffler_2, ...]}` of one aftermarket exhaust of a bike: the header on the chassis, the silencer (or
+    each of a twin's) on the header's bones (`option_place`); None when either does not sit on this bike."""
+    header_path = index.smallest(object_name(assets[item["header"]]["meshes"]["body"]))
+    silencer_path = index.smallest(object_name(assets[item["muffler"]]["meshes"]["body"]))
+    if not header_path or not silencer_path:
+        return None
+    header = index.glb(header_path)
+    header_anchor = glbtools.anchor(header, bones)
+    if header_anchor is None or not bake.is_rigid(header, bones):
+        return None
+    groups = option_place.silencer_groups(index.glb(silencer_path), option_place.master_bones(bones, header, header_anchor))
+    if not groups:
+        return None
+    out = {"header": header_anchor, "muffler": groups[min(groups)]}
+    for number in sorted(groups)[1:]:
+        out[f"muffler_{number}"] = groups[number]
+    return out
+
+
+def tyre_seats(bike_glb_dir, parts):
+    """`{side: (bead radius, bead half width)}` of the bike's own tyres (its stock tyre mesh, finest level, in the hub's frame)."""
+    index = option_place.GlbIndex(bike_glb_dir)
+    out = {}
+    for side in ("front", "back"):
+        tyre = next((p for p in parts["parts"] if p["id"] == f"{side}_tyre"), None)
+        path = tyre and index.find(tyre["export"])
+        if path and option_place.is_hub_frame(tyre["anchor"]):
+            out[side] = option_place.tyre_seat(index.glb(path).positions())
+    return out
+
+
+def seat_rim(item, assets, seats, index, tyres):
+    """Add to the anchors of the aftermarket rim `item` the scale that seats it on the bike's tyre (`option_place.rim_seat_scale`);
+    the mesh's own measure is kept in `seats` for the rims every bike shares."""
+    for side, anchor in item["anchors"].items():
+        if side not in tyres or not option_place.is_hub_frame(anchor):
+            continue
+        stem = object_name(assets[item["asset"]]["meshes"][side])
+        if stem not in seats:
+            path = index.find(stem)
+            seats[stem] = index.glb(path).positions() if path else None
+        if seats[stem] is None:
+            continue
+        scale = option_place.rim_seat_scale(seats[stem], *tyres[side])
+        if max(abs(v - 1.0) for v in scale) > 1e-4:
+            anchor["scale"] = scale
+
+
 def place(catalogue, bikes_root, out_dir, only):
     """Add the anchors of each option part to each bike; an option that does not sit on a bike is dropped from it."""
     glb_dir = os.path.join(out_dir, "glb")
+    glb_dir_index = option_place.GlbIndex(glb_dir)
+    seats = {}
     for vehicle, entry in catalogue["bikes"].items():
         path = os.path.join(bikes_root, vehicle, "parts.json")
         if not os.path.exists(path) or not re.search(only, vehicle):
@@ -187,12 +248,16 @@ def place(catalogue, bikes_root, out_dir, only):
                 entry[key] = []
             continue
         with open(path, encoding="utf-8") as f:
-            bones = bike_bones(json.load(f))
+            parts = json.load(f)
+        bones = bike_bones(parts)
+        vehicle_seat = tyre_seats(os.path.join(bikes_root, vehicle, "glb"), parts)
+        stock_disc = next((p["anchor"]["bone"] for p in parts["parts"] if p["id"] == "front_brake"), None)
 
         def anchors(asset, sides, strict=True):
             found = {}
             for side, mesh in sides.items():
-                value = anchor_of(glb_dir, object_name(mesh), bones, strict)
+                bone = stock_disc if (not strict and side == "front") else None
+                value = anchor_of(glb_dir_index, object_name(mesh), bones, strict, bone)
                 if value is None:
                     return None
                 found[side] = value
@@ -203,17 +268,30 @@ def place(catalogue, bikes_root, out_dir, only):
             for item in entry[key]:
                 strict = key != "brakes"
                 item["anchors"] = anchors(item["asset"], catalogue["assets"][item["asset"]]["meshes"], strict)
+                if item["anchors"] and key == "rims":
+                    seat_rim(item, catalogue["assets"], seats, glb_dir_index, vehicle_seat)
                 if item["anchors"]:
                     kept.append(item)
             entry[key] = kept
         kept = []
         for item in entry["exhaust"]:
-            header = anchors(item["header"], catalogue["assets"][item["header"]]["meshes"])
-            silencer = anchors(item["muffler"], catalogue["assets"][item["muffler"]]["meshes"])
-            if header and silencer:
-                item["anchors"] = {"header": header["body"], "muffler": silencer["body"]}
+            found = exhaust_anchors(glb_dir_index, catalogue["assets"], item, bones)
+            if found:
+                item["anchors"] = found
                 kept.append(item)
         entry["exhaust"] = kept
+
+
+def place_again(catalogue, path, args):
+    """`--place-only`: the anchors of the catalogue written by an earlier run, recomputed; the old file is kept beside it."""
+    backup = os.path.join(args.catalogue, "catalogue.before-placement.json")
+    if not os.path.exists(backup):
+        shutil.copyfile(path, backup)
+    place(catalogue, args.bikes, args.catalogue, args.only)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(bikeparts.clean(catalogue), f, indent=1, sort_keys=True)
+    twins = sum(1 for e in catalogue["bikes"].values() for x in e["exhaust"] if "muffler_2" in x["anchors"])
+    print("placed:", {k: sum(len(e[k]) for e in catalogue["bikes"].values()) for k in ("exhaust", "brakes", "rims", "barpad")}, f"({twins} twin silencers)")
 
 
 def main():
@@ -222,10 +300,18 @@ def main():
     parser.add_argument("--bikes", default=r"C:\r6work\bikes")
     parser.add_argument("--only", default="")
     parser.add_argument("--max-tex", type=int, default=2048)
+    parser.add_argument(
+        "--place-only",
+        action="store_true",
+        help="only recompute the anchors of the parts already exported (no mesh is exported: seconds, not 20 minutes)",
+    )
     args = parser.parse_args()
     path = os.path.join(args.catalogue, "catalogue.json")
     with open(path, encoding="utf-8") as f:
         catalogue = json.load(f)
+    if args.place_only:
+        place_again(catalogue, path, args)
+        return
     tool = Tool()
     try:
         assets = Assets(tool)

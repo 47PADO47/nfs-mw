@@ -170,6 +170,26 @@ def _raw_quat(r):
     return [(r[0, 2] + r[2, 0]) / s, (r[1, 2] + r[2, 1]) / s, 0.25 * s, (r[1, 0] - r[0, 1]) / s]
 
 
+SCALE_EPSILON = 1e-4
+
+
+def anchor_dict(m, with_scale=False):
+    """`{translation, rotation[, scale]}` of a 4x4 matrix; the scale (the length of each axis) only when asked and not 1."""
+    out = {"translation": [float(v) for v in m[:3, 3]], "rotation": matrix_quat(m)}
+    scale = [float(np.linalg.norm(m[:3, i])) for i in range(3)]
+    if with_scale and max(abs(s - 1.0) for s in scale) > SCALE_EPSILON:
+        out["scale"] = scale
+    return out
+
+
+def anchor_on_bone(part, chassis_bones, bone, with_scale=False):
+    """The anchor of `part` on the shared `bone`: `{bone, translation, rotation[, scale]}`, `chassis_world(bone) *
+    part_world(bone)^-1`. With `with_scale` a bone with a scale (a header's silencer mount, up to 1.1 times) gives the anchor
+    a `scale`; the stock parts' anchors keep dropping it, as they always did."""
+    m = chassis_bones[bone] @ np.linalg.inv(part.bones()[bone])
+    return {"bone": bone, **anchor_dict(m, with_scale)}
+
+
 def anchor(part, chassis_bones):
     """The anchor of a part glb on the chassis skeleton: `{bone, translation, rotation}` (None when it has no skin).
 
@@ -188,13 +208,7 @@ def anchor(part, chassis_bones):
     if not tally:
         return None
     bone = max(sorted(tally), key=lambda b: tally[b])
-    part_bones = part.bones()
-    m = chassis_bones[bone] @ np.linalg.inv(part_bones[bone])
-    return {
-        "bone": bone,
-        "translation": [float(v) for v in m[:3, 3]],
-        "rotation": matrix_quat(m),
-    }
+    return anchor_on_bone(part, chassis_bones, bone)
 
 
 def shared_bone(part, name, chassis_bones):
