@@ -50,14 +50,36 @@ fn assert_all_in_picture(points: &[Vec3], lens: &Lens, label: &str) {
 #[test]
 fn the_helmet_camera_is_wider_than_rides_own_and_a_bike_with_a_wider_one_keeps_it() {
     let reference = Mount::helmet(&helmet().helmet, false);
-    assert!((reference.fov_y(WIDE) - HELMET_FOV_DEG).abs() < 1e-3, "{}", reference.fov_y(WIDE));
+    assert!((reference.fov_y(WIDE) - HELMET_FOV_WIDE_DEG).abs() < 1e-3, "{}", reference.fov_y(WIDE));
     assert!(reference.fov_y(WIDE) > vertical_fov(91.49284) + 10.0, "RIDE 6's own 60 degrees is the narrow one");
-    assert!((70.0..=95.0).contains(&HELMET_FOV_DEG), "a wide cockpit view and not a fisheye: {HELMET_FOV_DEG}");
+    assert!(
+        (70.0..=100.0).contains(&HELMET_FOV_WIDE_DEG),
+        "a wide cockpit view and not a fisheye: {HELMET_FOV_WIDE_DEG}"
+    );
     let mut wide = helmet();
     wide.helmet.fov = 130.0;
-    assert_eq!(Mount::helmet(&wide.helmet, false).fov, 130.0);
+    let scaled = Mount::helmet(&wide.helmet, false);
+    let expected = vertical_fov(130.0) * HELMET_FOV_SCALE;
+    assert!((scaled.fov_y(WIDE) - expected).abs() < 1e-3, "a bike with a wider field keeps it, widened as well");
+    assert!(scaled.fov > 130.0);
     let front = Mount::front(&helmet().front, false);
     assert_eq!(front.fov_y(WIDE), vertical_fov(front.fov), "the front camera is not widened");
+}
+
+#[test]
+fn the_helmet_view_is_eleven_percent_wider_than_before_and_only_the_helmet_one() {
+    // The old vertical field of view was 88 degrees (119.6 across at 16:9), the new one 97.68 (127.6 across).
+    assert_eq!(HELMET_FOV_DEG, 88.0);
+    assert!((HELMET_FOV_SCALE - 1.11).abs() < 1e-6 && (1.10..=1.12).contains(&HELMET_FOV_SCALE));
+    assert!((HELMET_FOV_WIDE_DEG - 97.68).abs() < 1e-3, "{HELMET_FOV_WIDE_DEG}");
+    assert!((horizontal_fov(HELMET_FOV_DEG) - 119.6).abs() < 0.1);
+    assert!((horizontal_fov(HELMET_FOV_WIDE_DEG) - 127.6).abs() < 0.1);
+    let rig = helmet();
+    let widened = Mount::helmet(&rig.helmet, false).fov_y(WIDE) / HELMET_FOV_DEG;
+    assert!((1.10..=1.12).contains(&widened), "{widened}");
+    // The other mounted camera keeps its data's field of view.
+    let front = Mount::front(&rig.front, false);
+    assert_eq!(front.fov, rig.front.fov);
 }
 
 #[test]
@@ -67,13 +89,14 @@ fn a_wider_screen_shows_more_at_the_sides_and_a_narrower_one_keeps_the_sides_up_
         |aspect: f32| 2.0 * ((mount.fov_y(aspect).to_radians() * 0.5).tan() * aspect).atan().to_degrees();
     assert_eq!(mount.fov_y(21.0 / 9.0), mount.fov_y(WIDE), "the vertical field of view is kept: Hor+");
     assert!(wide_horizontal(21.0 / 9.0) > wide_horizontal(WIDE) + 12.0);
-    let minimum = horizontal_fov(HELMET_FOV_DEG);
+    let minimum = horizontal_fov(HELMET_FOV_WIDE_DEG);
     for aspect in [16.0 / 10.0, 4.0 / 3.0] {
         assert!(wide_horizontal(aspect) >= minimum - 1e-2, "{aspect}: {} against {minimum}", wide_horizontal(aspect));
         assert!(mount.fov_y(aspect) <= MAX_FOV_DEG);
     }
     // A square or portrait picture (a split screen) stops at the widest vertical field of view.
     assert_eq!(mount.fov_y(1.0), MAX_FOV_DEG);
+    assert!(MAX_FOV_DEG >= vertical_fov_for(minimum, 4.0 / 3.0), "4:3 keeps the whole width");
     assert_eq!(mount.fov_y(0.5), MAX_FOV_DEG);
     // A camera with no floor (the front one) keeps its own at every aspect.
     let front = Mount::front(&helmet().front, false);

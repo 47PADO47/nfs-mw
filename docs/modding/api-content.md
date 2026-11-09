@@ -214,6 +214,7 @@ solid = "MYBIKE_KIT00_RACE"    # the solid without its level-of-detail letter (A
 pack = "PARTS/R6/MUF974_001"   # optional: a folder under files/ with its own GEOMETRY.BIN and TEXTURES.BIN, shared by cars; left out: the car's own files
 role = "body"                  # body | steered (a bike's bars) | steered_slid (its fork) | wheel_front | wheel_rear: the frame the solid is modelled in
 matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0]   # optional: three rows of a 3 by 4 matrix, solid to the frame of `role`
+markers = [{ name = "RIGHT_EXHAUST", position = [-0.9, -0.1, 0.4], direction = [-1, 0, 0] }]   # optional: tail pipes (`EXHAUST`, `LEFT_EXHAUST`, `RIGHT_EXHAUST`) of a body part, in the car's frame after `matrix`; the flames start there while the part is fitted and the car's own pipes are not used
 
 [parts."body.2"]               # a base part: drawn with the car whatever its slots hold (a body whose mesh is more than one solid)
 solid = "MYBIKE_KIT00_BODY2"

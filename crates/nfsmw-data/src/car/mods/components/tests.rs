@@ -48,7 +48,7 @@ default = "t:engine.stock"
 "#;
 
 fn binding(solid: &str) -> Binding {
-    Binding { solid: solid.to_owned(), pack: None, role: Role::Body, matrix: None, base: false }
+    Binding { solid: solid.to_owned(), pack: None, role: Role::Body, matrix: None, base: false, markers: Vec::new() }
 }
 
 fn components() -> Components {

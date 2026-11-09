@@ -68,6 +68,16 @@ impl WorldScene {
         } else {
             input
         };
+        // The helmet camera of a bike looks up and down with the right stick too, which also shifts: the stick looks, the keys and
+        // the buttons shift.
+        let helmet_input;
+        let input = match self.bike_helmet_active() {
+            true => {
+                helmet_input = input.without_stick_shift();
+                &helmet_input
+            }
+            false => input,
+        };
         let trace = blackbox_trace::scope("World: update / shading and effects set-up");
         self.update_car_shading(renderer);
         if let Some(traffic) = self.traffic.as_ref() {

@@ -20,6 +20,7 @@ use crate::car::physics::PerformancePackage;
 
 pub mod catalog;
 pub mod keys;
+pub mod markers;
 pub mod parts;
 pub mod select;
 #[cfg(test)]
@@ -52,6 +53,20 @@ pub struct Binding {
     pub matrix: Option<[f32; 12]>,
     /// A part of the car's base vehicle: drawn at the levels of detail its files have and at no other (no nearest level stands in).
     pub base: bool,
+    /// The points the part carries, in the frame of `role` after `matrix`: an exhaust part's tail pipes, where its flame starts
+    /// ([`markers`]). Only the markers of a [`Role::Body`] part count.
+    pub markers: Vec<PartMarker>,
+}
+
+/// A named point of a part: where a tail pipe's flame starts and the way it shoots (`[parts."<id>"]` `markers`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PartMarker {
+    /// `EXHAUST`, `LEFT_EXHAUST` or `RIGHT_EXHAUST` for a tail pipe; another name is ignored.
+    pub name: String,
+    /// Metres, in the car's frame (x forward, y left, z up).
+    pub position: [f32; 3],
+    /// A unit vector: the way the flame shoots.
+    pub direction: [f32; 3],
 }
 
 /// One car's components.

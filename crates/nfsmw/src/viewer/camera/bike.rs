@@ -35,14 +35,26 @@ pub const HELMET_VIEW_DOWN_DEG: f32 = 16.0;
 /// of tilt, 60 degrees down. 88 degrees vertical is 120 horizontal at 16:9 (the user asked for a wider picture that looks lower: 80 and 10 before). A bike whose data field of view is wider keeps it.
 pub const HELMET_FOV_DEG: f32 = 88.0;
 
+/// How much wider the helmet camera's vertical field of view is than [`HELMET_FOV_DEG`] (and than a bike's own, when its data is
+/// wider): a multiplier on the helmet camera only (the front camera and the chase cameras are untouched). The player's request
+/// ("make helmet cam fov a little more wider") was met with 11 percent, the middle of the 10 to 12 asked for: 88 degrees vertical
+/// (119.6 horizontal at 16:9) became 97.7 (127.6 horizontal). A bigger number starts to bend the straight lines of the road and
+/// the bars at the picture's edges (a 98 degree vertical view is already a wide-angle lens).
+pub const HELMET_FOV_SCALE: f32 = 1.11;
+
+/// The vertical field of view of the helmet camera at rest at [`REFERENCE_ASPECT`] for a bike whose data is not wider than
+/// [`HELMET_FOV_DEG`], degrees: [`HELMET_FOV_DEG`] times [`HELMET_FOV_SCALE`].
+pub const HELMET_FOV_WIDE_DEG: f32 = HELMET_FOV_DEG * HELMET_FOV_SCALE;
+
 /// How many degrees of vertical field of view the helmet camera gains at full speed on top of [`HELMET_FOV_DEG`] (scaled by the
 /// speed curve of the dynamic field of view and by the player's field-of-view intensity). Only ever widens, so the instrument
 /// panel stays in the picture at every speed.
 pub const HELMET_SPEED_WIDEN_DEG: f32 = 8.0;
 
 /// The widest vertical field of view a mounted camera has, degrees: the floor that keeps the helmet camera's sides on a narrow
-/// picture (a split screen) stops here.
-const MAX_FOV_DEG: f32 = 110.0;
+/// picture (a split screen) stops here. It was 110 and is 120 now that the helmet camera is [`HELMET_FOV_SCALE`] wider (the
+/// 127.6 degrees across of a 4:3 picture are 113 degrees vertical).
+const MAX_FOV_DEG: f32 = 120.0;
 
 /// The aspect the camera set's fields of view are given at (a 16:9 screen); the vertical field of view of a mounted camera is
 /// fixed from it, so a wider screen shows more at the sides.
@@ -200,13 +212,13 @@ impl Mount {
 
     /// The camera in the helmet; the look-back control turns it to look over the tail. It stays upright over the bike's origin
     /// as the bike leans ([`Mount::place`]), looks [`HELMET_VIEW_DOWN_DEG`] further down than the data has it and sees at least
-    /// [`HELMET_FOV_DEG`] vertically (the instrument panel and the handlebar stay in the picture, also on a narrow one).
+    /// [`HELMET_FOV_WIDE_DEG`] vertically ([`HELMET_FOV_DEG`] times [`HELMET_FOV_SCALE`]) (the instrument panel and the handlebar stay in the picture, also on a narrow one).
     pub fn helmet(helmet: &Helmet, look_back: bool) -> Self {
         Self {
             look_back,
             pitch_deg: helmet.pitch_deg - HELMET_VIEW_DOWN_DEG,
-            fov: helmet.fov.max(horizontal_fov(HELMET_FOV_DEG)),
-            min_horizontal_deg: horizontal_fov(HELMET_FOV_DEG),
+            fov: horizontal_fov(vertical_fov(helmet.fov.max(horizontal_fov(HELMET_FOV_DEG))) * HELMET_FOV_SCALE),
+            min_horizontal_deg: horizontal_fov(HELMET_FOV_WIDE_DEG),
             widen_deg: 0.0,
             near: helmet.near,
             pitch_factor: helmet.pitch_factor,

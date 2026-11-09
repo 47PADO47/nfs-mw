@@ -16,6 +16,7 @@ use blackbox_tpk::write_tpk;
 
 use crate::bake::{Options, Surfaces};
 use crate::build::finish;
+use crate::exhaust::{self, Pipe};
 use crate::exports::Exports;
 use crate::front_end::Take;
 use crate::options::Kind;
@@ -75,6 +76,12 @@ fn to_car([x, y, z]: [f32; 3]) -> [f32; 3] {
     [x, -z, y]
 }
 
+/// The point `p` of a part's solid on the bike by the mount `m`: rows of the 3 by 4 matrix, as the manifest has them.
+pub fn mount(m: [f32; 12], [x, y, z]: [f32; 3]) -> [f32; 3] {
+    let row = |i: usize| m[i * 4] * x + m[i * 4 + 1] * y + m[i * 4 + 2] * z + m[i * 4 + 3];
+    [row(0), row(1), row(2)]
+}
+
 /// The shared part table and exports of the folder the exporter wrote.
 pub struct Library {
     table: PartTable,
@@ -118,6 +125,26 @@ impl Library {
         }
         let finest = self.exports.load(&part.export, part_levels(kind)[0].1)?;
         Ok(silencer::groups(&finest).into_iter().map(Some).collect())
+    }
+
+    /// The outlets of the silencer `group` (1 based, [`silencer::solid_name`]) of the muffler asset `stem` on the bike whose binding of
+    /// the part mounts it by `matrix` (three rows of a 3 by 4 matrix, [`crate::build_pieces::Mounts::matrix`]): the part's vertices
+    /// as its pack has them, moved into the bike's body frame, searched for the outlet the way the stock silencer is
+    /// ([`exhaust::pipes`]). One pipe for a single can, none for a mesh with no surface in the group. The pipe moves with the mount,
+    /// which is the point: the flames of a fitted exhaust start where it ends (`docs/modding/ride6-bike-upgrades.md`).
+    pub fn silencer_pipes(&self, stem: &str, group: u8, matrix: [f32; 12]) -> Result<Vec<Pipe>> {
+        let part =
+            self.table.parts.iter().find(|part| part.id == stem).with_context(|| format!("{stem}: no such part"))?;
+        let glb = self.exports.load(&part.export, part_levels(Kind::Muffler)[0].1)?;
+        let joints = silencer::joint_groups(&glb);
+        let (mut points, mut triangles) = (Vec::new(), Vec::new());
+        for primitive in &glb.primitives {
+            let base = points.len() as u32;
+            points.extend(primitive.positions.iter().map(|&p| mount(matrix, to_car(part.anchor.point(p)))));
+            let own = silencer::triangles(primitive, &joints, group);
+            triangles.extend(own.into_iter().map(|[a, b, c]| [base + a, base + b, base + c]));
+        }
+        Ok(exhaust::pipes(&points, &triangles))
     }
 
     /// Build the pack of the asset `stem` of `kind`: `(GEOMETRY.BIN, TEXTURES.BIN)`.

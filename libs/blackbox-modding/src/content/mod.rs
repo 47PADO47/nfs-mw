@@ -117,8 +117,8 @@ pub use bike::{
 };
 pub use car::{CarManifest, Kind as CarKind, Role, parse as parse_car};
 pub use components::{
-    COMPONENTS_FOLDER, Components, MAX_PARTS as MAX_COMPONENT_PARTS, MAX_SLOTS as MAX_COMPONENT_SLOTS, PartBinding,
-    PartRole, is_component_id, merge_catalog, parse_catalog,
+    COMPONENTS_FOLDER, Components, MAX_PART_MARKERS, MAX_PARTS as MAX_COMPONENT_PARTS,
+    MAX_SLOTS as MAX_COMPONENT_SLOTS, PartBinding, PartMarker, PartRole, is_component_id, merge_catalog, parse_catalog,
 };
 pub use cop::{CopClass, CopWave, DEFAULT_CHANCE, DEFAULT_COUNT, MAX_CHANCE, MAX_COUNT};
 pub use customization::{Customization, Finish, Livery, MAX_PER_KIND, Paint, Part, RimPaint, Tint, Vinyl, VinylColor};

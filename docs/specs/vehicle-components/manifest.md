@@ -90,10 +90,14 @@ role    = "body"                          # how the game poses it: body (default
 markers = [{ name = "RIGHT_EXHAUST", position = [-0.9, -0.12, 0.31], direction = [-1, 0, 0] }]
 ```
 
-- `markers` are the points the part carries (tail pipe markers for flames and sound, lamp points). The game writes them to
-  the car's marker list **when the part is drawn**, so an exhaust swap moves the flame with the muffler. Today a car's body
-  solid carries its `EXHAUST` markers ([car-customization.md](../../modding/car-customization.md#tail-pipes)); a part's markers
-  replace that for parts that declare them.
+- `markers` are the points the part carries. **Built: the tail pipes** (`EXHAUST`, `LEFT_EXHAUST`, `RIGHT_EXHAUST`; the loader takes
+  any plain name, the game uses these three): `position` in metres and `direction` (the way the flame shoots, a unit vector) in the
+  frame of the part's `role` **after** its `matrix` (for a body part, the car's frame), so the manifest says where the pipe is on this
+  car whatever the pack. The game writes them to the car's marker list **when the part is drawn**, so an exhaust swap moves the flame
+  with the muffler (`nfsmw-data` `components/markers.rs`). Today a car's body solid carries its `EXHAUST` markers
+  ([car-customization.md](../../modding/car-customization.md#tail-pipes)); when a drawn body part declares a tail pipe, **those are
+  taken off** and the part's replace them (a twin silencer: one part per can, one marker each); a part with none leaves the body's.
+  Lamp points and the sound's origin are not built.
 - A part whose solid is not in `GEOMETRY.BIN` is **not offered**: the loader removes every offer of a component that shows
   it, logs why, and the slot's default is used if it was the default. (The same rule as a rim whose model is missing today.)
 - `role` is the game's: `steered` and `steered_slid` are the fork and the bars of a bike

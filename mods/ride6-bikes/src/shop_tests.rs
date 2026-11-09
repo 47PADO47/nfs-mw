@@ -41,7 +41,7 @@ fn the_stock_parts_a_plan_binds_are_the_ones_that_become_solids() {
 fn the_plans_of_the_bikes_are_kept_for_the_catalog_file() {
     let catalogue = Catalogue::default();
     let plans = Mutex::new(Vec::new());
-    let shop = Shop { catalogue: &catalogue, plans: &plans };
+    let shop = Shop { catalogue: &catalogue, plans: &plans, library: None };
     shop.keep(plan(&BikeOptions { exhaust: vec![exhaust()], ..BikeOptions::default() }));
     assert_eq!(plans.lock().unwrap().len(), 1);
 }

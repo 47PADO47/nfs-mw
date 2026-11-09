@@ -118,7 +118,8 @@ pub fn run(input: &Input<'_>, out: &Path) -> Result<Report> {
     let report = Mutex::new(Report { skipped: unreadable, ..Report::default() });
     let next = AtomicUsize::new(0);
     let (catalogue, plans) = (read_catalogue(input), Mutex::new(Vec::new()));
-    let shop = catalogue.as_ref().map(|catalogue| Shop { catalogue, plans: &plans });
+    let library = input.bike_parts.and_then(open_library);
+    let shop = catalogue.as_ref().map(|catalogue| Shop { catalogue, plans: &plans, library: library.as_ref() });
     thread::scope(|scope| -> Result<()> {
         for _ in 0..input.threads.max(1) {
             let worker = thread::Builder::new().stack_size(STACK_BYTES).spawn_scoped(scope, || {
@@ -149,6 +150,18 @@ pub fn run(input: &Input<'_>, out: &Path) -> Result<Report> {
         report.shop = Some(write_shop(input, (catalogue, dir), &plans, out));
     }
     Ok(report)
+}
+
+/// The meshes of the optional parts, to find the outlet of each fitted silencer; else the reason goes to the log and the options carry no
+/// pipe (the stock ones stay when one is fitted).
+fn open_library(dir: &Path) -> Option<Library> {
+    match Library::open(dir) {
+        Ok(library) => Some(library),
+        Err(error) => {
+            log::warn!("the shop's silencers carry no flame point: {error:#}");
+            None
+        }
+    }
 }
 
 /// The catalogue of the optional parts, when the run has a folder of them that reads; else the reason goes to the log.

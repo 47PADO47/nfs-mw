@@ -17,7 +17,7 @@ use blackbox_tpk::Texture;
 use game_install::GameDir;
 use glam::{Mat3, Mat4, Vec3, Vec4};
 
-use super::{Binding, Components, Role, select};
+use super::{Binding, Components, Role, markers, select};
 use crate::car::customization::Selection;
 use crate::car::mods::custom::apply::lists;
 use crate::car::physics::PerformancePackage;
@@ -73,6 +73,11 @@ fn place(dir: &GameDir, folder: &str, wanted: &[(&String, &Binding)], lod: usize
             .with_context(|| format!("parsing {path}"))?;
         packs.insert(pack, solids.into_iter().map(|solid| (solid.name_hash, solid)).collect());
     }
+    // An exhaust that says where its pipes are replaces the pipes of the stock one (the markers of the body): the flames, the pops
+    // and the nitrous start where the fitted part ends, not where the stock one did.
+    if wanted.iter().any(|&(_, binding)| markers::sets_pipes(binding)) {
+        markers::strip_pipes(&mut model.solids);
+    }
     let levels: Vec<usize> = lists(model, lod).iter().map(|(level, _)| *level).collect();
     let corners = model.corners;
     let mut added: Vec<u32> = Vec::new();
@@ -80,7 +85,7 @@ fn place(dir: &GameDir, folder: &str, wanted: &[(&String, &Binding)], lod: usize
         let pack = &packs[&binding.pack.as_deref()];
         let mut found: HashMap<usize, u32> = HashMap::new();
         for &level in &levels {
-            if let Some(key) = add_solid(model, pack, id, binding, level) {
+            if let Some(key) = add_solid(&mut model.solids, pack, id, binding, level) {
                 found.insert(level, key);
                 added.push(key);
             }
@@ -106,8 +111,8 @@ fn place(dir: &GameDir, folder: &str, wanted: &[(&String, &Binding)], lod: usize
 
 /// The solid of `binding` at `level` (or the nearest level its pack has), added to the model under the name of the part and
 /// the level, with the binding's matrix applied. The key it was added under.
-fn add_solid(
-    model: &mut CarModel,
+pub(super) fn add_solid(
+    solids: &mut HashMap<u32, Solid>,
     pack: &HashMap<u32, Solid>,
     id: &str,
     binding: &Binding,
@@ -117,7 +122,11 @@ fn add_solid(
     for at in order {
         let Some(solid) = pack.get(&bstring_hash(&format!("{}_{}", binding.solid, letter(at)))) else { continue };
         let key = bstring_hash(&format!("{id}@{}", letter(at)));
-        model.solids.entry(key).or_insert_with(|| mounted(solid, binding.matrix, key));
+        solids.entry(key).or_insert_with(|| {
+            let mut copy = mounted(solid, binding.matrix, key);
+            copy.markers.extend(markers::pipe_markers(binding));
+            copy
+        });
         return Some(key);
     }
     None

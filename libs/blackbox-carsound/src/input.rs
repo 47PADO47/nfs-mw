@@ -85,6 +85,9 @@ pub struct CarInput {
     /// it leans far past `up_dot` 0.8 in every corner and loses both wheels over a crest, and it can never have exactly one wheel
     /// down to clear the tipped state, so the tipped landing (a hard landing for every wheel pair that touches again) is off for it.
     pub two_wheeler: bool,
+    /// The host made a pop of the exhaust this step that the car's sound is to voice (a bike's burnout pop: the flame the host lights
+    /// by itself). A mod car with its own backfire or pop recordings plays one; the engine's controllers never read it.
+    pub exhaust_pop: bool,
 }
 
 impl Default for CarInput {
@@ -105,6 +108,7 @@ impl Default for CarInput {
             pre_race: false,
             pitch_multiplier: 1.0,
             two_wheeler: false,
+            exhaust_pop: false,
         }
     }
 }

@@ -113,6 +113,30 @@ of twenty bikes is stored once. A header pipe is specific to a (chassis, silence
 A part that is not one rigid transform on a bike is left out for it (the front disc pair takes its dominant bone, as the stock
 disc does).
 
+**Where the flames are** (playtest: "after changing panigale v4 exhaust to be at the top flames etc still come from the bottom"): the tail
+pipes of a bike (`EXHAUST`, `LEFT_EXHAUST`, `RIGHT_EXHAUST`) are where the exhaust flames, the pops and the shift flicks start
+([exhaust-flames.md](../exhaust-flames.md#bikes-the-ride-6-mod)), and they were the markers of the **body** solid, written at the
+outlet of the stock silencer: a fitted aftermarket exhaust moved its mesh and left the pipes behind. Now the importer records the outlet
+of each fitted silencer in the binding of its part, `markers = [{ name, position, direction }]` (`options_manifest.rs`,
+`Plan::set_pipes`), found by the stock silencer's own search (`exhaust::pipes`, with the choices of [ride6-bikes.md](ride6-bikes.md#the-exhaust-flames)) on the part's mesh **after the bike's mount**: the vertices as the pack has them (`options_pack.rs`,
+`Library::silencer_pipes`: the part's anchor, the export axes turned to the car's) through the binding's `matrix`, finest level
+of the pack, only the triangles of the can (`silencer.rs`, so a twin's two cans have a pipe each). `position` and `direction` are in the
+car's frame, **after** the `matrix` (the frame the matrix takes the solid to): the matrix is per bike and the pack is shared, so the
+pipe is per bike too, in the manifest and not in the pack. The host (`nfsmw-data` `components/markers.rs`, called by `parts.rs`) does
+two things when a drawn part of the body's frame names a tail pipe: it takes the pipe markers off every solid of the model (the stock
+silencer's, in the body), and writes the part's own on its mounted copy, so `car::exhaust::pipe_frames` finds the fitted pipes for
+the flames; a twin silencer is two parts, so both cans flame. **A part with no `markers` (a bike imported before this, a stock part)
+leaves the body's pipes alone**: the lead's re-import writes them. The exhaust *sound* has no origin to move: the car's sounds are not
+placed in the world (one-shots and loops play flat), so only the flame follows the part; `SOCKET_AUDIO_EX`, the skeleton's audio
+socket, is not used by the game.
+
+Checked numerically (`options_pack_tests.rs`, `flame_points_of_fitted_exhausts_move_with_the_part_on_real_bikes`, ignored: it reads the
+user's export; the numbers are in the build report): for the Panigale V4 S 2025 and three other bikes the pipes of every exhaust option
+are computed from the real meshes and compared with the stock pipes. `nfsmw-data` (`markers_tests.rs`): the stock pipe is replaced by
+the fitted one (a top mount 0.8 m higher than the stock pipe), a part with no markers leaves it, a twin is two pipes, the headlight
+marker stays; `options_manifest_tests.rs`: the pipes follow the matrix, the text is read back by the game's parser;
+`components_tests.rs` (`blackbox-modding`): the `markers` key, its limits.
+
 ```toml
 [[slot]]
 id = "exhaust"
@@ -129,6 +153,7 @@ solid = "MUFFLER974_001"
 pack = "PARTS/R6/MUFFLER974_001"
 role = "body"
 matrix = [1.0, 0.0, 0.0, -0.01, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.04]
+markers = [{ name = "EXHAUST", position = [-0.88, 0.0, 0.31], direction = [-1.0, 0.0, 0.0] }]   # illustrative numbers
 ```
 
 The settings of the mod (`config.toml` or `[mods.ride6-bikes]` of the game's config): `upgrades = true` (the master switch: `false`

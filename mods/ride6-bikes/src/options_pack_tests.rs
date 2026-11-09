@@ -58,3 +58,73 @@ fn the_big_parts_have_fewer_levels_and_every_part_has_a_finest() {
     assert_eq!(part_levels(Kind::Header).len(), 2);
     assert_eq!(part_levels(Kind::Brake).len(), 4);
 }
+
+#[test]
+fn a_point_of_a_part_goes_through_the_rows_of_its_mount() {
+    // Turned a quarter about z, then moved: x' = -y + 1, y' = x + 2, z' = z + 3.
+    let rows = [0.0, -1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0, 1.0, 3.0];
+    assert_eq!(mount(rows, [1.0, 0.0, 0.0]), [1.0, 3.0, 3.0]);
+    assert_eq!(mount(rows, [0.0, 2.0, 1.0]), [-1.0, 2.0, 4.0]);
+    // The rows the importer writes agree with the bike's own mounting of a point.
+    let mounts = crate::build_pieces::Mounts::default();
+    let anchor = crate::partfile::Anchor::rigid(None, [0.1, 0.2, 0.3], [0.0, 0.0, 0.0, 1.0]);
+    let matrix = mounts.matrix(crate::build_pieces::At::Body, &anchor);
+    let solid_point = to_car([0.4, 0.5, 0.6]);
+    let expected = mounts.to(crate::build_pieces::At::Body, anchor.point([0.4, 0.5, 0.6]));
+    let got = mount(matrix, solid_point);
+    assert!((0..3).all(|i| (got[i] - expected[i]).abs() < 1e-5), "{got:?} against {expected:?}");
+}
+
+/// Where the outlets of the silencers of bikes of the user's RIDE 6 export are, stock and fitted, numerically: the emitter of a
+/// fitted exhaust is where its own silencer ends, not at the stock pipe (docs/modding/ride6-bike-upgrades.md, "Where the flames
+/// are"). Run with `cargo test -p ride6-bikes flame_points -- --ignored --nocapture`.
+#[test]
+#[ignore = "needs the user's RIDE 6 export (C:/r6work/bikes and C:/r6work/bike-parts)"]
+fn flame_points_of_fitted_exhausts_move_with_the_part_on_real_bikes() {
+    use crate::build_pieces::{mounts_of, present};
+    use crate::exhaust::stock_pipes;
+    use crate::exports::Exports;
+    use crate::options::Catalogue;
+    use crate::options_manifest::Plan;
+    use std::path::Path;
+
+    let (bikes, parts) = (Path::new("C:/r6work/bikes"), Path::new("C:/r6work/bike-parts"));
+    let catalogue = Catalogue::read(parts).expect("the catalogue");
+    let library = Library::open(parts).expect("the parts");
+    let wanted = ["Ducati_Panigale-V4-S-2025", "BMW_S-1000-RR-2019", "KTM_RC-390-2023", "Yamaha_YZF-R1-2024"];
+    let mut checked = 0;
+    for name in wanted {
+        let dir = bikes.join(name);
+        let Ok(text) = std::fs::read_to_string(dir.join("parts.json")) else {
+            println!("{name}: not exported, skipped");
+            continue;
+        };
+        let table = PartTable::parse(&text).expect("parts.json");
+        let exports = Exports::scan(&dir.join("glb")).expect("glb");
+        let mounts = mounts_of(&table, &exports).expect("the bike's frames");
+        let stock = stock_pipes(&table, &exports, mounts.frame).expect("stock pipes");
+        println!("{name}: stock pipes {:?}", stock.iter().map(|p| (p.side, p.at)).collect::<Vec<_>>());
+        let options = catalogue.bike(&table.vehicle).expect("catalogued");
+        let mut plan = Plan::of(name, options, &present(&table), mounts);
+        plan.set_pipes(|stem, number, matrix| library.silencer_pipes(stem, number, matrix).unwrap_or_default());
+        let mut moved = 0;
+        for part in plan.parts.iter().filter(|part| part.id.starts_with("exhaust.muffler")) {
+            assert!(!part.pipes.is_empty(), "{name}: {} has no outlet", part.id);
+            for pipe in &part.pipes {
+                let nearest = stock
+                    .iter()
+                    .map(|s| (0..3).map(|i| (s.at[i] - pipe.at[i]).powi(2)).sum::<f32>().sqrt())
+                    .fold(f32::MAX, f32::min);
+                println!(
+                    "  {} -> {:?} at {:?} dir {:?} ({nearest:.2} m from the nearest stock pipe)",
+                    part.id, pipe.side, pipe.at, pipe.dir
+                );
+                assert!(pipe.at.iter().all(|c| c.is_finite() && c.abs() < 5.0), "{name}: {:?}", pipe.at);
+                moved += usize::from(nearest > 0.10);
+            }
+        }
+        assert!(moved > 0, "{name}: no option moves the flame point by 10 cm");
+        checked += 1;
+    }
+    assert!(checked > 0, "none of the bikes is in the export");
+}

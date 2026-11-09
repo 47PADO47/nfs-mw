@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 
 use crate::build_pieces::{At, Mounts, Piece, ROAD_HOMOLOGATION, ROAD_MIRRORS};
+use crate::exhaust::Pipe;
 use crate::options::{BikeOptions, Pair, Upgrade};
 use crate::options_pack::{pack_path, solid_name};
 use crate::partfile::Anchor;
@@ -56,6 +57,9 @@ pub struct Part {
     pub pack: Option<String>,
     pub role: &'static str,
     pub matrix: Option<[f32; 12]>,
+    /// The tail pipes the part carries, in the body's frame after `matrix`: where a fitted silencer's flame starts (`markers` of the
+    /// part's table, [`Plan::set_pipes`]). Only the silencers of the exhaust options have them.
+    pub pipes: Vec<Pipe>,
 }
 
 /// What a bike gets: its slots, its part bindings and the components they name.
@@ -112,13 +116,13 @@ impl Bike<'_> {
     /// The binding of a stock piece to the solid of this car.
     fn stock(&self, piece: &Piece) -> Part {
         let solid = format!("{}_KIT00_{}", self.car.to_ascii_uppercase(), piece.tag);
-        Part { id: piece.part.to_owned(), solid, pack: None, role: piece.role, matrix: None }
+        Part { id: piece.part.to_owned(), solid, pack: None, role: piece.role, matrix: None, pipes: Vec::new() }
     }
 
     /// The binding of a part of the catalogue: the solid `solid_id` of the pack of `asset`, mounted by `anchor` in the frame `at`.
     fn fitted(&self, id: String, (asset, solid_id): (&str, &str), role: &'static str, mount: (At, &Anchor)) -> Part {
         let matrix = Some(self.mounts.matrix(mount.0, mount.1));
-        Part { id, solid: solid_name(solid_id), pack: Some(pack_path(asset)), role, matrix }
+        Part { id, solid: solid_name(solid_id), pack: Some(pack_path(asset)), role, matrix, pipes: Vec::new() }
     }
 }
 
@@ -327,6 +331,17 @@ impl Plan {
         plan
     }
 
+    /// Give every silencer of the exhaust options the pipes `find` reports for it: `find(asset stem, silencer number, matrix)` is the
+    /// outlets of that silencer once the bike's mount has put it where it goes. A silencer is the part `exhaust.muffler.<slug>` (the
+    /// first can) or `exhaust.muffler<n>.<slug>` (the n-th of a twin); a part that has no pipe keeps none and the stock ones stay.
+    pub fn set_pipes(&mut self, find: impl Fn(&str, u8, [f32; 12]) -> Vec<Pipe>) {
+        for part in self.parts.iter_mut().filter(|part| is_silencer(&part.id)) {
+            let (Some(pack), Some(matrix)) = (&part.pack, part.matrix) else { continue };
+            let Some(stem) = pack.rsplit('/').next().map(str::to_ascii_lowercase) else { continue };
+            part.pipes = find(&stem, silencer_number(&part.solid), matrix);
+        }
+    }
+
     /// The `[[slot]]` and `[parts]` tables, as manifest text; empty for a bike with no slot.
     pub fn text(&self) -> String {
         let mut t = Toml::new();
@@ -350,9 +365,39 @@ impl Plan {
             if let Some(matrix) = part.matrix {
                 t.nums("matrix", &matrix.map(f64::from));
             }
+            if !part.pipes.is_empty() {
+                t.raw(&format!("markers = [{}]", markers_text(&part.pipes)));
+            }
         }
         t.into_string()
     }
+}
+
+/// Whether the part id is a silencer of an exhaust option (`exhaust.muffler.<slug>`, `exhaust.muffler2.<slug>`), not its header.
+fn is_silencer(id: &str) -> bool {
+    id.strip_prefix("exhaust.muffler")
+        .is_some_and(|rest| rest.starts_with('.') || rest.starts_with(|c: char| c.is_ascii_digit()))
+}
+
+/// The number of the can a solid holds: `_G<n>` at the end of a twin's second, third... can, else the first.
+fn silencer_number(solid: &str) -> u8 {
+    let Some((_, digits)) = solid.rsplit_once("_G") else { return 1 };
+    digits.parse::<u8>().ok().filter(|number| *number >= 1).unwrap_or(1)
+}
+
+/// The `markers` list of a part: one inline table per pipe, the marker the game starts its flame at, its place and its direction
+/// (a unit vector) in the body's frame.
+fn markers_text(pipes: &[Pipe]) -> String {
+    let list = |v: [f32; 3]| format!("[{:?}, {:?}, {:?}]", v[0], v[1], v[2]);
+    let item = |pipe: &Pipe| {
+        format!(
+            "{{ name = \"{}\", position = {}, direction = {} }}",
+            pipe.side.marker_name(),
+            list(pipe.at),
+            list(pipe.dir)
+        )
+    };
+    pipes.iter().map(item).collect::<Vec<_>>().join(", ")
 }
 
 /// The `accepts` list of a slot: a bare id for a component, an inline table for one that brings others (`bundle`).

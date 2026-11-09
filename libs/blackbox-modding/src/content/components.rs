@@ -18,6 +18,10 @@ pub const COMPONENTS_FOLDER: &str = "components";
 pub const MAX_PARTS: usize = 512;
 /// Most slots one car lists.
 pub const MAX_SLOTS: usize = 32;
+/// Most markers one part carries.
+pub const MAX_PART_MARKERS: usize = 8;
+/// Longest marker name, in bytes.
+const MAX_MARKER_NAME_BYTES: usize = 32;
 /// Longest solid or pack name, in bytes. The game appends `_A` to `_D` (the level of detail) to a solid name.
 const MAX_SOLID_BYTES: usize = 56;
 
@@ -51,6 +55,29 @@ pub(super) struct RawPart {
     matrix: Option<Vec<f32>>,
     #[serde(default)]
     base: bool,
+    #[serde(default)]
+    markers: Vec<RawMarker>,
+}
+
+/// One entry of a part's `markers` list as serde reads it.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct RawMarker {
+    name: String,
+    position: [f32; 3],
+    direction: [f32; 3],
+}
+
+/// A named point a part carries (a tail pipe: where its flame starts and the way it shoots).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PartMarker {
+    /// The marker's name, upper case, digits and `_` (`RIGHT_EXHAUST`): which of them the game reads is for the game to say.
+    pub name: String,
+    /// Metres, in the frame of the part's `role` (for a body part, the car's frame: x forward, y left, z up), **after** the part's
+    /// `matrix` like the points of its solid: the marker is written where the pipe's outlet is on this car.
+    pub position: [f32; 3],
+    /// The way the flame shoots, a unit vector in the same frame.
+    pub direction: [f32; 3],
 }
 
 /// Where the solid of one part is and how it sits on the car.
@@ -68,6 +95,9 @@ pub struct PartBinding {
     /// The car is drawn with this part whatever its slots hold (`VehicleDef::parts`): the extra solids of a body whose mesh does not
     /// fit one solid. A part of a component (`show`) leaves this `false`.
     pub base: bool,
+    /// The points the part carries (`markers = [{ name, position, direction }]`): an exhaust part says where its flame starts, so
+    /// the flames follow the part that is fitted. Empty: the part has none.
+    pub markers: Vec<PartMarker>,
 }
 
 /// The slots of a car and the parts it binds.
@@ -119,7 +149,33 @@ fn part(raw: RawPart) -> Result<PartBinding, ContentError> {
             Some(rows)
         }
     };
-    Ok(PartBinding { solid: raw.solid, pack: raw.pack, role: raw.role, matrix, base: raw.base })
+    let markers = markers(raw.markers)?;
+    Ok(PartBinding { solid: raw.solid, pack: raw.pack, role: raw.role, matrix, base: raw.base, markers })
+}
+
+/// The markers of a part: a plain name, finite numbers, a direction that points somewhere (stored as a unit vector).
+fn markers(raw: Vec<RawMarker>) -> Result<Vec<PartMarker>, ContentError> {
+    if raw.len() > MAX_PART_MARKERS {
+        return Err(bad("parts.markers", "at most 8 markers"));
+    }
+    let mut out = Vec::with_capacity(raw.len());
+    for marker in raw {
+        let plain = |byte: u8| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_';
+        if marker.name.is_empty() || marker.name.len() > MAX_MARKER_NAME_BYTES || !marker.name.bytes().all(plain) {
+            return Err(bad("parts.markers", "a name of capitals, digits and _"));
+        }
+        if marker.position.iter().chain(&marker.direction).any(|n| !n.is_finite()) {
+            return Err(bad("parts.markers", "finite numbers"));
+        }
+        let [x, y, z] = marker.direction;
+        let length = (x * x + y * y + z * z).sqrt();
+        if length < 1e-6 {
+            return Err(bad("parts.markers", "a direction that is not zero"));
+        }
+        let direction = [x / length, y / length, z / length];
+        out.push(PartMarker { name: marker.name, position: marker.position, direction });
+    }
+    Ok(out)
 }
 
 /// Check the `[[slot]]` and `[parts]` tables of a car. `None` when the car gives neither. Which components the slots accept,
