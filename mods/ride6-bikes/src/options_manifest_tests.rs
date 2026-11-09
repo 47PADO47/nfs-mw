@@ -9,7 +9,7 @@ use crate::options::{Exhaust, Pad};
 use crate::partfile::Anchor;
 
 fn anchor(x: f32) -> Anchor {
-    Anchor { bone: None, translation: [x, 0.0, 0.0], rotation: [0.0, 0.0, 0.0, 1.0] }
+    Anchor::rigid(None, [x, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
 }
 
 fn pair(id: &str, level: u32, asset: &str) -> Pair {
@@ -24,6 +24,7 @@ fn options() -> BikeOptions {
             muffler: "muffler974_001".to_owned(),
             header_anchor: anchor(0.0),
             muffler_anchor: anchor(0.1),
+            muffler_twins: Vec::new(),
         }],
         rims: vec![pair("RI_OZ_Piega-R_Livery-01", 0, "rim738_001")],
         brakes: vec![pair("", 1, "brake700_001")],
@@ -177,4 +178,54 @@ fn the_text_is_read_back_by_the_game_and_its_slots_fit_the_catalog() {
     // The text of two bikes defines a shared component once.
     let twice = catalog_text([&plan, &plan].into_iter());
     assert_eq!(twice.matches("id = \"r6:exhaust.stock\"").count(), 1);
+}
+
+#[test]
+fn a_twin_silencer_is_one_part_for_each_can_and_the_component_shows_them_all() {
+    let mut twin = options();
+    twin.exhaust[0].muffler_twins = vec![anchor(0.3)];
+    let have: Vec<&Piece> = PIECES.iter().collect();
+    let plan = Plan::of("ktm450", &twin, &have, Mounts::default());
+    let slug = "muf_akrapovic_completo_standard";
+    let first = plan.parts.iter().find(|part| part.id == format!("exhaust.muffler.{slug}")).unwrap();
+    let second = plan.parts.iter().find(|part| part.id == format!("exhaust.muffler2.{slug}")).unwrap();
+    assert_eq!(first.solid, "MUFFLER974_001");
+    assert_eq!(second.solid, "MUFFLER974_001_G2", "the second can is the pack's solid of the second group");
+    assert_eq!(first.pack, second.pack);
+    assert!(second.matrix.is_some_and(|m| (m[3] - 0.3).abs() < 1e-6), "mounted by its own anchor");
+    let component = &plan.components.iter().find(|(id, _)| id == &format!("r6:exhaust.{slug}")).unwrap().1;
+    assert_eq!(component.shows.len(), 3);
+    assert!(component.shows.contains(&format!("exhaust.muffler2.{slug}")));
+}
+
+#[test]
+fn a_brake_level_comes_with_the_discs_of_the_kit_of_the_same_level() {
+    let plan = plan();
+    let ladder = plan.slots.iter().find(|slot| slot.id == "perf_brakes").unwrap();
+    // The bike has a kit of level 1 only: its level 1 brings those discs, its level 2 brings none.
+    assert_eq!(ladder.bundles["r6:brakes.l1.10375"], ["r6:brake_discs.brake700_001"]);
+    assert!(!ladder.bundles.contains_key("r6:brakes.l2.10750"));
+    let other = plan.slots.iter().filter(|slot| slot.id != "perf_brakes");
+    assert!(other.into_iter().all(|slot| slot.bundles.is_empty()), "only the brake ladder is linked");
+    // The manifest says so in the offer, and the game's parser and checker accept it.
+    let text = plan.text();
+    assert!(
+        text.contains(r#"{ component = "r6:brakes.l1.10375", bundle = ["r6:brake_discs.brake700_001"] }"#),
+        "{text}"
+    );
+    let car = parse_car("ktm450", &text).unwrap();
+    let slots = car.components.unwrap().slots;
+    let offer = slots.iter().find(|slot| slot.id == "perf_brakes").unwrap().offer("r6:brakes.l1.10375").unwrap();
+    assert_eq!(offer.bundle, ["r6:brake_discs.brake700_001"]);
+    let catalog = parse_catalog(&catalog_text([&plan].into_iter())).unwrap();
+    let vehicle = VehicleDef { id: "ktm450".to_owned(), parts: BTreeSet::new(), slots };
+    vehicle.check(&catalog).unwrap();
+}
+
+#[test]
+fn a_bike_without_the_disc_slot_has_a_brake_ladder_that_brings_nothing() {
+    let have: Vec<&Piece> = PIECES.iter().filter(|piece| !piece.tag.ends_with("_DISC")).collect();
+    let plan = Plan::of("ktm450", &options(), &have, Mounts::default());
+    let ladder = plan.slots.iter().find(|slot| slot.id == "perf_brakes").unwrap();
+    assert!(ladder.bundles.is_empty());
 }

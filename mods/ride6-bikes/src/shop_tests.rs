@@ -4,7 +4,7 @@ use crate::options::{BikeOptions, Exhaust, Pair};
 use crate::partfile::Anchor;
 
 fn anchor() -> Anchor {
-    Anchor { bone: None, translation: [0.0; 3], rotation: [0.0, 0.0, 0.0, 1.0] }
+    Anchor::rigid(None, [0.0; 3], [0.0, 0.0, 0.0, 1.0])
 }
 
 fn plan(options: &BikeOptions) -> Plan {
@@ -19,6 +19,7 @@ fn exhaust() -> Exhaust {
         muffler: "m".to_owned(),
         header_anchor: anchor(),
         muffler_anchor: anchor(),
+        muffler_twins: Vec::new(),
     }
 }
 

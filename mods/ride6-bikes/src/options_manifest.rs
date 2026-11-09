@@ -11,7 +11,9 @@ use std::collections::BTreeMap;
 use crate::build_pieces::{At, Mounts, Piece, ROAD_HOMOLOGATION, ROAD_MIRRORS};
 use crate::options::{BikeOptions, Pair, Upgrade};
 use crate::options_pack::{pack_path, solid_name};
+use crate::partfile::Anchor;
 use crate::physics::toml_text::{Toml, quote};
+use crate::silencer;
 
 /// Levels of the ladders: the engine kit has three, the brake kit and the chassis two (the icons the game ships for them).
 pub const ENGINE_LEVELS: u32 = 3;
@@ -41,6 +43,9 @@ pub struct Slot {
     pub default: String,
     /// The slot can be emptied (the road equipment's: `vehicle group road off`).
     pub optional: bool,
+    /// The components of other slots a component of this one brings (`bundle` of its offer): the brake ladder's level and the
+    /// disc kit of the same level.
+    pub bundles: BTreeMap<String, Vec<String>>,
 }
 
 /// One part bound to a solid.
@@ -111,13 +116,7 @@ impl Bike<'_> {
     }
 
     /// The binding of a part of the catalogue: the solid `solid_id` of the pack of `asset`, mounted by `anchor` in the frame `at`.
-    fn fitted(
-        &self,
-        id: String,
-        (asset, solid_id): (&str, &str),
-        role: &'static str,
-        mount: (At, &crate::partfile::Anchor),
-    ) -> Part {
+    fn fitted(&self, id: String, (asset, solid_id): (&str, &str), role: &'static str, mount: (At, &Anchor)) -> Part {
         let matrix = Some(self.mounts.matrix(mount.0, mount.1));
         Part { id, solid: solid_name(solid_id), pack: Some(pack_path(asset)), role, matrix }
     }
@@ -143,7 +142,14 @@ impl Plan {
             accepts.push(offer.clone());
             self.add(&offer, component);
         }
-        self.slots.push(Slot { id: slot.0, group: slot.1, accepts, default: id.to_owned(), optional: false });
+        self.slots.push(Slot {
+            id: slot.0,
+            group: slot.1,
+            accepts,
+            default: id.to_owned(),
+            optional: false,
+            bundles: BTreeMap::new(),
+        });
     }
 
     fn exhaust(&mut self, bike: &Bike<'_>, options: &BikeOptions) {
@@ -155,13 +161,21 @@ impl Plan {
         for item in &options.exhaust {
             let slug = slug(&item.id);
             let (header, muffler) = (format!("exhaust.header.{slug}"), format!("exhaust.muffler.{slug}"));
-            offered.push((
-                format!("r6:exhaust.{slug}"),
-                component(display(&item.id), vec![header.clone(), muffler.clone()]),
-            ));
+            // A twin silencer is one part for each can, `exhaust.muffler2.<slug>`, of the solid `<asset>_G2` of the pack.
+            let twins: Vec<(String, u8, &Anchor)> = (2u8..)
+                .zip(&item.muffler_twins)
+                .map(|(number, anchor)| (format!("exhaust.muffler{number}.{slug}"), number, anchor))
+                .collect();
+            let mut shows = vec![header.clone(), muffler.clone()];
+            shows.extend(twins.iter().map(|(id, _, _)| id.clone()));
+            offered.push((format!("r6:exhaust.{slug}"), component(display(&item.id), shows)));
             let anchors = [(header, &item.header, &item.header_anchor), (muffler, &item.muffler, &item.muffler_anchor)];
             for (id, asset, anchor) in anchors {
                 self.parts.push(bike.fitted(id, (asset, asset), "body", (At::Body, anchor)));
+            }
+            for (id, number, anchor) in twins {
+                let solid = silencer::solid_name(&item.muffler, number);
+                self.parts.push(bike.fitted(id, (&item.muffler, &solid), "body", (At::Body, anchor)));
             }
         }
         self.parts.push(bike.stock(stock));
@@ -237,12 +251,26 @@ impl Plan {
             accepts: vec![ROAD_ON.to_owned()],
             default: ROAD_ON.to_owned(),
             optional: true,
+            bundles: BTreeMap::new(),
         };
         self.slots.push(slot);
     }
 
+    /// The disc components of the bike's brake kits by kit level, for the kits whose slot the plan has.
+    fn disc_kits(&self, kits: &[Pair]) -> BTreeMap<u32, String> {
+        let Some(slot) = self.slots.iter().find(|slot| slot.id == Wheels::DISCS.slot) else { return BTreeMap::new() };
+        let mut out = BTreeMap::new();
+        for kit in kits {
+            let id = format!("r6:{}.{}", Wheels::DISCS.slot, slug(&kit.asset));
+            if slot.accepts.contains(&id) {
+                out.entry(kit.level).or_insert(id);
+            }
+        }
+        out
+    }
+
     /// The upgrade ladders of the bike's physics asset: a slot for each number its upgrade tables change.
-    fn upgrades(&mut self, upgrade: Upgrade) {
+    fn upgrades(&mut self, upgrade: Upgrade, kits: &BTreeMap<u32, String>) {
         let ladders: [(&'static str, &str, f64, u32, &[&'static str]); 3] = [
             ("perf_engine", "engine", upgrade.peak_torque, ENGINE_LEVELS, &["bike.engine.peak_torque_nm"]),
             ("perf_chassis", "chassis", upgrade.mass, CHASSIS_LEVELS, &["bike.chassis.mass_kg"]),
@@ -259,6 +287,7 @@ impl Plan {
                 continue;
             }
             let mut offered = Vec::new();
+            let mut bundles = BTreeMap::new();
             for level in 1..=levels {
                 let multiplier = step(full, level, levels);
                 let name = match kind {
@@ -267,12 +296,18 @@ impl Plan {
                     _ => format!("Brake kit level {level}"),
                 };
                 let muls = keys.iter().map(|key| (*key, multiplier)).collect();
-                offered.push((
-                    ladder_id(kind, level, multiplier),
-                    Component { name, tier: level, shows: Vec::new(), muls },
-                ));
+                let id = ladder_id(kind, level, multiplier);
+                // The brake ladder's level N comes with the discs of the bike's brake kit of level N **[choice]**: the data names
+                // both by the same `Brakes-Kit-Level-N` row, and the shop's performance page shows them as one upgrade.
+                if let Some(disc) = kits.get(&level).filter(|_| kind == "brakes") {
+                    bundles.insert(id.clone(), vec![disc.clone()]);
+                }
+                offered.push((id, Component { name, tier: level, shows: Vec::new(), muls }));
             }
             self.slot((slot, "performance"), (&format!("r6:{kind}.stock"), &[]), offered);
+            if let Some(added) = self.slots.last_mut() {
+                added.bundles = bundles;
+            }
         }
     }
 
@@ -285,7 +320,8 @@ impl Plan {
         plan.wheels(&bike, Wheels::DISCS, &options.brakes);
         plan.bar_pad(&bike, options);
         if let Some(upgrade) = options.upgrade {
-            plan.upgrades(upgrade);
+            let kits = plan.disc_kits(&options.brakes);
+            plan.upgrades(upgrade, &kits);
         }
         plan.road(&bike);
         plan
@@ -298,8 +334,7 @@ impl Plan {
             t.table_array("slot");
             t.string("id", slot.id);
             t.string("group", slot.group);
-            let accepts: Vec<&str> = slot.accepts.iter().map(String::as_str).collect();
-            t.strings("accepts", &accepts);
+            t.raw(&format!("accepts = [{}]", accepts_text(slot)));
             t.string("default", &slot.default);
             if slot.optional {
                 t.raw("optional = true");
@@ -318,6 +353,18 @@ impl Plan {
         }
         t.into_string()
     }
+}
+
+/// The `accepts` list of a slot: a bare id for a component, an inline table for one that brings others (`bundle`).
+fn accepts_text(slot: &Slot) -> String {
+    let item = |id: &String| match slot.bundles.get(id) {
+        None => quote(id),
+        Some(bundle) => {
+            let bundled: Vec<String> = bundle.iter().map(|other| quote(other)).collect();
+            format!("{{ component = {}, bundle = [{}] }}", quote(id), bundled.join(", "))
+        }
+    };
+    slot.accepts.iter().map(item).collect::<Vec<_>>().join(", ")
 }
 
 /// What differs between the rim slot and the brake disc slot.
