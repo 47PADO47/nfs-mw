@@ -8,7 +8,6 @@ use blackbox_tpk::{PixelFormat, Texture, TextureSource};
 use super::active::{Active, LoadedSet};
 use super::originals::*;
 use super::textures::TextureSlot;
-use super::*;
 
 /// A texture of `side` by `side` with a hash of its own, so tests that share the process-wide ledger do not meet.
 fn texture(name: &str, hash: u32, side: u32) -> Texture {

@@ -216,6 +216,7 @@ impl Active {
     }
 
     /// What keeping the copies off the objects next to them has done to the sections loaded so far ([`Tally`]).
+    #[cfg(test)]
     pub fn clearance(&self) -> Tally {
         self.cleared.lock().map(|tally| *tally).unwrap_or_default()
     }

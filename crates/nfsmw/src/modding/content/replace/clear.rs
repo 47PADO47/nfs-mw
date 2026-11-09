@@ -40,7 +40,9 @@ const IDENTITY: Matrix = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0,
 
 /// The bounds of the objects that were seen in sections, by the name hash of their solid: a shared section's rail is found by the tiles
 /// that place it, whichever loaded first (a tile that loads before it uses the world box of the instance instead).
-static SEEN: RwLock<Option<HashMap<u32, ([f32; 3], [f32; 3])>>> = RwLock::new(None);
+type Bounds = ([f32; 3], [f32; 3]);
+
+static SEEN: RwLock<Option<HashMap<u32, Bounds>>> = RwLock::new(None);
 
 /// What clearing did, summed over solids.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

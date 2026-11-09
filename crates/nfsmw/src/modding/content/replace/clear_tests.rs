@@ -1,5 +1,7 @@
 //! Keeping copies off the objects next to them, on authored numbers: no game data.
 
+use std::f32::consts::FRAC_1_SQRT_2;
+
 use blackbox_modding::content::{FitLimits, SwapFit};
 
 use super::super::fit::{Frame, Prepared, fit_clear};
@@ -132,8 +134,12 @@ fn only_walls_rails_barriers_and_buildings_are_objects() {
 
 #[test]
 fn the_oriented_box_of_a_known_solid_replaces_the_instance_box_only_when_they_agree() {
-    let turned: Matrix =
-        [[0.7071, 0.7071, 0.0, 0.0], [-0.7071, 0.7071, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [10.0, 10.0, 0.0, 1.0]];
+    let turned: Matrix = [
+        [FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0, 0.0],
+        [-FRAC_1_SQRT_2, FRAC_1_SQRT_2, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [10.0, 10.0, 0.0, 1.0],
+    ];
     // A rail 6 long and 0.4 thick turned 45 degrees: its box is 4.5 square, its oriented plan a thin diagonal.
     let rail = Some(([-3.0, -0.2, 0.0], [3.0, 0.2, 1.0]));
     let wall = wall_of(&turned, rail, [7.5, 7.5, 0.0], [12.5, 12.5, 1.0]);

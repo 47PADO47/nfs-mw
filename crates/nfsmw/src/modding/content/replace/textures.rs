@@ -112,7 +112,7 @@ impl TextureSlot {
 
     /// The picture as it is, without waiting: `None` while nothing has made it yet, `Some(None)` when it could not be made.
     pub fn made(&self) -> Option<Option<Arc<Texture>>> {
-        self.loaded.get().map(Option::clone)
+        self.loaded.get().cloned()
     }
 
     /// The texture that takes the place of `original`: the slot's picture with `original`'s name hash and, under

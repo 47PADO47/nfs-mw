@@ -50,6 +50,7 @@ impl Prepared {
 /// The solid that takes the place of `stock`: copies of `model`, fitted as `how` says in the space `frame` names and held to
 /// `limits`. `None` when the solid keeps its own model: no copy can be fitted into its footprint within the limits. Fails when
 /// the solid has no height or the result cannot be written.
+#[cfg(test)]
 pub fn fit_prepared(
     model: &Prepared,
     stock: &Solid,
