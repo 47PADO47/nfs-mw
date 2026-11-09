@@ -288,3 +288,10 @@ Playtest round 3 ("less steering radius when slow, more when fast") replaced the
 lateral acceleration that the lean does not give, towards a circle that one table names at each speed (2.2 m at 15 km/h, 4.5 at 30, 15 at 50, 40 at 80, 90 at 120, 225 at 180),
 the path follows the stick at a low speed and the lean-in is quicker there. See [ride6-bike-turn-radius.md](ride6-bike-turn-radius.md). Section 11's `authority`
 stays for a steering without a turn law (`turn: None`); `bike_steering = reference` is unchanged.
+
+## 14. Round 4: the fast turns and the brakes
+
+Round 4 ("bikes should brake way more and also going faster than 100 kph turn way more") retuned the turn law's table above 100 km/h (about half the radii,
+2.4 g of assist at speed, see [ride6-bike-turn-radius.md](ride6-bike-turn-radius.md), section 9) and added lever 11, the brake help `ArcadeSteering::brake` (a
+force at the centre of gravity that makes up the deceleration the levers aim for, and a hold against the nose-over; [ride6-bike-braking.md](ride6-bike-braking.md)).
+`ArcadeBrake::REFERENCE` is neutral and is part of `ArcadeSteering::REFERENCE`.

@@ -1,6 +1,6 @@
-# RIDE 6 bikes: the turn radius over the speed, round 3 (this game's own tuning)
+# RIDE 6 bikes: the turn radius over the speed, rounds 3 and 4 (this game's own tuning)
 
-**This is a modification made exclusively for the NFS:MW rewrite. It is not the behaviour of RIDE 6.** It continues
+**This is a modification made exclusively for the NFS:MW rewrite. It is not the behaviour of RIDE 6.** Round 4 (section 9) made the turns above 100 km/h about half as wide; sections 1 to 8 are round 3, whose table and cap are `round3` in the harness. It continues
 [ride6-arcade-steering.md](ride6-arcade-steering.md) (sections 10 and 11: the lean-in slowed and the speed authority) and replaces the
 speed authority's assist with the **turn law**, `blackbox_vehicle::bike::TurnLaw` (`libs/blackbox-vehicle/src/bike/turn_law.rs`), one
 field of `ArcadeSteering` (`turn`). `bike_steering = reference` (`ArcadeSteering::REFERENCE`, `turn: None`) still gives the original
@@ -168,3 +168,71 @@ the new thing is the quick path at a low speed (the stick's share) and the cap o
   yaw-rate servo for the first metres per second (a handlebar steer-angle model: `psi' = v / r(v)` with no lean) is the next step if the harness shows
   walking pace too wide; it was left out because the stability help is already such a servo above 10 km/h and an untested one below could chatter.
 - The assist does not look at the surface (gravel, rain), as before.
+
+## 9. Round 4: the fast turns, about half as wide
+
+Playtest, round 4: "going faster than 100 kph turn way more". Round 3's table (section 3) gave 62 m at 100 km/h, 150 m at 150 and 228 m at 180 (measured,
+`RIDE6_ARCADE=round3`), which is what that round asked for ("more when fast") and what this one takes back. The brief gave the circles wanted: **about 30 m at
+100 km/h, 45 m at 120, 70 m at 150, 100 m at 180, 190 m at 250**, the slow end kept (15 km/h 1.9 m, 30 km/h 4.4 m, 50 km/h 14 m, 80 km/h about 30 m), the curve
+progressive and monotonic with no step, and the lean and fall limits holding with no fall in a full-stick flip from 100 to 250 km/h.
+
+**What changed** (`turn_law.rs`; nothing else of the law or of the lean controller):
+
+| what | round 3 | round 4 [C] | why |
+|---|---|---|---|
+| `RADIUS` at 80 km/h | 40 m | **27 m** | the brief's "about 30"; 27 and not 30 keeps the radius rising to the 100 km/h point (30 m): a flat 30 and 30 would be a step |
+| new point at 100 km/h | (62 m by interpolation) | **30 m** | the brief |
+| 120 km/h | 91 m | **45 m** | the brief |
+| new point at 150 km/h | (155 m) | **70 m** | the brief |
+| 180 km/h | 240 m | **100 m** | the brief |
+| new last point at 250 km/h | (a continued 420 m) | **190 m** | the brief |
+| `max_assist` (`MAX_ASSIST_G`) | 1.7 g | **2.4 g** at 94 km/h and over; 1.7 g (`SLOW_MAX_ASSIST_G`) at 72 km/h and under; a straight rise between (`MAX_ASSIST_SPEED`) | see below |
+
+The slow end is untouched (6 to 50 km/h: the points are the same). The exponent of the radius over the speed is 2.0 to 2.2 between 100 km/h and 250, so the
+**lateral acceleration `v^2 / r` is 2.5 to 2.6 g at every speed from 100 km/h** (1.06 to 1.26 g in round 3), 1.9 g at 80 km/h and 1.4 g at 50:
+a progressive rise, then a plateau. The 80 and 100 km/h points are 27 and 30 m apart for a rise of 0.7 g of acceleration, the one steep stretch (exponent
+0.46); the radius is monotonic and has no step (`the_radius_never_falls_with_the_speed_and_has_no_step`).
+
+**Why the cap is 2.4 g.** The lean at its limit (36 degrees) gives `g tan(lean)` = 0.73 g through the tyres; the assist is the rest of the circle's
+acceleration (section 3), so 1.9 g in a steady turn at 100 km/h and 1.8 g above. The cap leaves 0.5 g for the stick's first instant, for the trim and for a flip of
+the stick, where `wanted - expect` is up to the circle plus the lean on the other side (3.3 g) and is held to the cap. The tyres are not asked for more than
+before: the assist is a force at the centre of gravity, the tyres only carry the lean's 0.73 g. **The cap rises only above 72 km/h**: with 2.4 g at every speed
+9 of the 293 bikes fell in a flip of the stick at 15 km/h against round 3's 6; the table asks for no more than 1.14 g of assist under 80 km/h, so round 3's 1.7 g
+is kept there (6 falls of 293 again, the same as round 3).
+
+**Measured** (`bike_turn_table`, 25 of the 293 bikes, every 12th; a full stick held 10 s after a second of straight running at the speed, the speed held by
+the throttle and both brakes; radius = the mean speed over the mean yaw rate of the last 3 s; the lean is the mean of the same 3 s, the limit the controller's;
+medians, the range over the bikes in brackets; lateral g = mean speed squared over the radius). "Round 3" is `RIDE6_ARCADE=round3`, the older table and 1.7 g
+everywhere. Logs: `C:\r6work\fix3\turn-round3.log`, `turn-new3.log`.
+
+| km/h | table m | **round 3** radius m (range) | round 3 t80 s | **round 4** radius m (range) | round 4 t80 s | lean deg (limit) | lateral g | falls (turn / flip) |
+|---|---|---|---|---|---|---|---|---|
+| 15 | 1.9 | 2.5 (2.4 to 3.0) | 0.72 | **2.5** (2.4 to 3.1) | 0.75 | 29.7 (29.9) | 1.1 | 0 / 0 |
+| 30 | 4.4 | 4.9 (4.7 to 5.0) | 0.42 | **4.9** (4.7 to 5.0) | 0.42 | 33.6 (33.4) | 1.6 | 0 / 0 |
+| 50 | 14 | 14.2 (13.6 to 14.3) | 0.45 | **14.1** (13.6 to 14.2) | 0.45 | 36.1 (35.7) | 1.4 | 0 / 0 |
+| 80 | 27 | 39.7 (37.8 to 40.5) | 0.48 | **26.9** (26.1 to 27.1) | 0.48 | 36.8 (36.4) | 1.9 | 0 / 0 |
+| 100 | 30 | 62.0 (59.2 to 63.4) | 0.55 | **29.9** (29.6 to 30.3) | 0.52 | 36.8 (36.5) | 2.6 | 0 / 0 |
+| 120 | 45 | 88.8 (85.5 to 91.6) | 0.58 | **43.8** (42.0 to 45.3) | 0.55 | 36.8 (36.4) | 2.5 | 0 / 0 |
+| 150 | 70 | 149.5 (140 to 154) | 0.67 | **67.8** (64.4 to 69.5) | 0.57 | 36.7 (36.4) | 2.5 | 0 / 0 |
+| 180 | 100 | 228.5 (207 to 236) | 0.77 | **95.9** (88.8 to 98.7) | 0.58 | 36.6 (36.3) | 2.5 | 0 / 0 |
+| 250 | 190 | 482 (299 to 506) | 0.92 | **176** (118 to 184) | 0.67 | 36.5 (36.2) | 2.6 | 0 / 0 |
+
+(The "table" column is round 4's; round 3's was 40, 62, 91, 155, 240 and 420 m at 80, 100, 120, 150, 180 and 250 km/h. The mean speed of the runs was 19, 32, 50,
+80, 100, 119, 148, 176 and 241 km/h: a bike that is slower than asked turns a little tighter than the table, and at 250 km/h several of the 25 do not reach it,
+which is the range's low end. The path reaches 80 percent of its yaw rate in 0.42 to 0.67 s, a little quicker than round 3 from 100 km/h up.) The lean reaches its
+limit from 50 km/h up: the circle is the lean's 0.73 g plus the assist.
+
+**All 293 bikes** (`RIDE6_EVERY=1`, logs `turn-all3.log`): no fall in a held full stick at 15, 30, 100 and 250 km/h, and no fall in a flip of the stick every
+0.8 s for 6 s at 30, 100 and 250 km/h; at 15 km/h 6 bikes fall in a flip, as in round 3 (not touched).
+
+**Tests.** `turn_law_tests.rs`: the table's numbers at the six asked speeds (within 12 percent);
+`above_100_kmh_the_circle_is_about_half_of_round_3s_or_less_and_the_slow_end_is_kept` (the old table copied in the test: 6 to 50 km/h unchanged, 100 km/h and over
+at most 0.55 of it, 80 km/h under 0.75 of it); `the_progression_is_smooth_and_the_lateral_acceleration_levels_off...` (the exponent between the points is 1.7 to
+2.4 with under 0.35 of change across a point, `v^2 / r` is 2.3 to 2.8 g from 100 to 300 km/h); `the_circles_acceleration_leaves_the_assist_room...` (no point of
+the table asks the assist for all of the cap); `the_most_the_assist_gives_is_round_3s_at_a_low_speed_and_rises_to_2_4_g_above_72_kmh`; and the monotonic and
+passes-through-the-points tests as before. `arcade_tests.rs`: the closed loop of three bikes now at 15, 30, 50, 80, 100, 120, 150 and 180 km/h (within 15 percent
+of the table from 80 km/h: 27.1, 45.4 and 97.5 m measured on the example bike at 80, 120 and 180), and the bands of 1.5 to 2.1 g at 72 km/h and 2.0 to 3.0 g at
+144 km/h in place of round 3's 1.1 to 1.5 g and 1.0 to 1.4 g.
+
+Switch it off: `RIDE6_ARCADE=round3` in the harness; in the library `TurnLaw { radius: <the old table>, max_assist: 1.7, ..TurnLaw::GAME }`;
+`bike_steering = reference` for the original.
