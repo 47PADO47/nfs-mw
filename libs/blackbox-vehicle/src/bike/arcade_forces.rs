@@ -19,7 +19,7 @@ impl Bike {
             return;
         }
         let rotation = self.body.rotation();
-        let acceleration = self.spec.steering.arcade.cornering_acceleration(self.assist_share(), speed);
+        let acceleration = self.cornering_acceleration(speed);
         if acceleration == 0.0 {
             return;
         }
@@ -31,6 +31,7 @@ impl Bike {
 
     /// The side acceleration the cornering assist adds now (m/s^2, positive right), for the stability help's wanted yaw rate.
     pub(super) fn cornering_acceleration(&self, speed: f32) -> f32 {
-        self.spec.steering.arcade.cornering_acceleration(self.assist_share(), speed)
+        // The assist is a force the tyres do not give: on loose ground it is scaled by the grip the bike believes in (`rough.rs`).
+        self.spec.steering.arcade.cornering_acceleration(self.assist_share(), speed) * self.surface_factor()
     }
 }

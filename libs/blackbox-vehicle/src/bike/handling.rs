@@ -138,7 +138,8 @@ impl Bike {
             speed,
             lean: lean_angle,
             lean_rate: -self.body.angular_velocity.dot(forward),
-            lateral_grip: grip,
+            // The tyre's grip times the surface's, as the bike believes it: dirt asks for a shallower lean, not a bike that goes down.
+            lateral_grip: grip * self.surface_factor(),
             terrain_slope: self.terrain_slope(),
             long_g: self.acceleration.dot(forward) / 9.81,
             heading_error,
@@ -169,6 +170,8 @@ impl Bike {
         // With the front wheel up the mid-air steer takes the handlebar from the controller (`wheelie_steer.rs`).
         let weight = self.mid_air_weight();
         let aim = aim + (wheelie_steer::mid_air_angle(stick, steering.max_angle) - aim) * weight;
+        // In the air, with no tyre to work through, the controller would turn the bars to their lock: the arcade help centres them.
+        let aim = aim * (1.0 - self.bars_centred_share());
         let angle = self.steer.step(
             aim,
             steering.response * steering.arcade.handlebar_response.powi(2),
@@ -331,6 +334,8 @@ impl Bike {
             self.apply_wheelie_yaw(dt, speed);
             self.apply_burnout_help(dt, input.steer);
             self.apply_pitch_assist(dt, speed);
+            self.apply_air_attitude();
+            self.apply_landing_assist();
             // The spin momentum of the wheels, turned by the bike's yaw, torques the frame about its length (a yaw to the right
             // rolls it to the left); turned by its roll, it torques the frame about the vertical (a roll to the left yaws it to
             // the left).
@@ -351,11 +356,21 @@ impl Bike {
     }
 }
 
+#[path = "air.rs"]
+mod air;
 #[path = "chassis_state.rs"]
 pub(super) mod chassis_state;
 #[path = "fall.rs"]
 mod fall;
+#[path = "rough.rs"]
+pub(super) mod rough;
 
+#[cfg(test)]
+#[path = "air_tests.rs"]
+mod air_tests;
 #[cfg(test)]
 #[path = "chassis_tests.rs"]
 mod chassis_tests;
+#[cfg(test)]
+#[path = "rough_tests.rs"]
+mod rough_tests;

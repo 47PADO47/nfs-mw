@@ -28,6 +28,7 @@ mod brake_reduction;
 mod brakes;
 mod burnout;
 pub mod choices;
+mod class;
 mod clutch_control;
 mod curve;
 mod drive_input;
@@ -65,9 +66,10 @@ mod wheel_step;
 mod wheelie_steer;
 mod wheelie_throttle;
 
-pub use arcade::ArcadeSteering;
+pub use arcade::{ArcadeAir, ArcadeRough, ArcadeSteering};
 pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
 pub use burnout::{BurnoutSpec, HelpSpec as BurnoutHelpSpec};
+pub use class::TerrainClass;
 pub use clutch_control::{ClutchControl, ForcedDownshift, OverLimit};
 pub use engine_brake::EngineBrakeReduction;
 pub use frame::RestPose;
@@ -367,6 +369,7 @@ impl Bike {
         let rotation = self.body.rotation();
         let forward = rotation * Vec3::Z;
         let speed = self.body.linear_velocity.dot(forward);
+        self.advance_air_and_surface(dt);
         if let Some(interval) = fall_check {
             self.check_fall(interval, speed);
         }

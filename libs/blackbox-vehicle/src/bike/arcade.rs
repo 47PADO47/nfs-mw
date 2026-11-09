@@ -24,6 +24,15 @@
 //! 6. `authority`, `authority_speed`: the cornering assist's factor over the speed, high when the bike is slow (a tighter circle) and low
 //!    when it is fast (a wider one), a smooth curve with no step (`docs/specs/ride6-arcade-steering.md`, section 11).
 //! 7. `wheelie_steer_drop`: a floor under a steered wheelie, so the stick lowers the front wheel only a little (section 12).
+//! 8. `air`: the help of a bike that jumps (`arcade_air.rs`); 9. `rough`: the help of a bike on loose ground (`arcade_rough.rs`).
+
+#[path = "arcade_air.rs"]
+mod air;
+#[path = "arcade_rough.rs"]
+mod rough;
+
+pub use air::ArcadeAir;
+pub use rough::ArcadeRough;
 
 /// The values of the arcade steering; see the module's documentation. `REFERENCE` is neutral.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -70,6 +79,12 @@ pub struct ArcadeSteering {
     /// The most (rad) the stick lowers the front wheel of a wheelie: while the bike leans in a wheelie the pitch assist lifts the nose whenever it is
     /// under the pitch the wheelie had before the lean, less this (the data's assist fades out with the lean). `None`: the data's assist only.
     pub wheelie_steer_drop: Option<f32>,
+    /// The help on jumps: levelling in the air, the bars centred, a soft landing and fall tests that forgive it
+    /// (`docs/specs/ride6-bike-jumps.md`). [`ArcadeAir::REFERENCE`]: none.
+    pub air: ArcadeAir,
+    /// The help on loose and rough ground: the lean and the assist follow the surface, a smaller penalty for the offroad bikes, more damping and
+    /// wider fall tests on loose ground (`docs/specs/ride6-bike-rough-ground.md`). [`ArcadeRough::REFERENCE`]: none.
+    pub rough: ArcadeRough,
 }
 
 impl ArcadeSteering {
@@ -92,6 +107,8 @@ impl ArcadeSteering {
         authority: [1.0, 1.0],
         authority_speed: [5.0, 70.0],
         wheelie_steer_drop: None,
+        air: ArcadeAir::REFERENCE,
+        rough: ArcadeRough::REFERENCE,
     };
 
     /// The reference game's steering ([`ArcadeSteering::REFERENCE`]).
@@ -163,6 +180,8 @@ impl Default for ArcadeSteering {
             authority: [1.5, 0.6],
             authority_speed: [5.0, 70.0],
             wheelie_steer_drop: Some(7.0_f32.to_radians()),
+            air: ArcadeAir::default(),
+            rough: ArcadeRough::default(),
         }
     }
 }

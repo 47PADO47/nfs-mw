@@ -3,6 +3,7 @@
 
 use glam::Vec3;
 
+use super::handling::rough;
 use super::powertrain::Drive;
 use super::thermal;
 use super::tyre::{self, TyreInput};
@@ -83,10 +84,11 @@ impl Bike {
                 super::REAR => (drive.torque, drive.extra_inertia),
                 _ => (0.0, 0.0),
             };
-            let gap = wheel::air_gap(&self.pose(index, free_total - rest), wheel_spec, ground);
+            let (gap, below) = wheel::air_ground(&self.pose(index, free_total - rest), wheel_spec, ground);
             let state = &mut self.wheels[index];
             state.release(free_total - rest, free_speed);
             state.gap = gap;
+            state.below = below;
             state.spin = tyre::spin_in_air(wheel_spec, spin, drive_torque, brake, extra, dt);
             if let Some(thermal) = &wheel_spec.thermal {
                 let work = thermal::Work {
@@ -117,7 +119,7 @@ impl Bike {
             _ => 0.0,
         };
         let coupled = suspension.coupling_force(total, drive_torque, traction0, brake, wheel_spec.radius);
-        let spring = suspension.force(total, approach, dt, mass) + coupled;
+        let spring = suspension.force_scaled(total, approach, dt, mass, self.damping_factor()) + coupled;
         let inertia = wheel_spec.mass * (speed - speed0) / dt;
         let along_axis = spring + weight * axis_up + inertia;
         let mut load =
@@ -125,6 +127,8 @@ impl Bike {
         // The end of the travel is a hard stop that adds no force of its own (`ride6-chassis-round6.md`, "End of travel"): the tyre
         // takes what is left over through its radial stiffness, a rigid tyre nothing.
         load += wheel_spec.tire_stiffness.max(0.0) * overload;
+        // The arcade help of a landing: what the stops and the tyre cannot take is not turned into an impulse (`air.rs`).
+        let load = self.soft_load(load);
         let frame = wheel::ground_frame(contact.normal, contact.heading);
         let camber = geometry::camber(contact.axle, contact.normal);
         // In a burnout the rear tyre's grip and slip correction are the handler's (`burnout.rs`).
@@ -132,11 +136,12 @@ impl Bike {
             super::REAR => self.burnout_factors(),
             _ => (1.0, 1.0),
         };
-        let grip = SurfaceGrip {
-            drive: contact.surface.drive * burnout_grip,
-            lateral: contact.surface.lateral * burnout_grip,
-            ..contact.surface
-        };
+        // The surface's grip, with the arcade help's relief for a bike made for rough ground (`rough.rs`).
+        let (surface, looseness) =
+            rough::feel(&self.spec.steering.arcade.rough, self.spec.terrain_class(), contact.surface);
+        self.chassis.rough.see(index, surface.lateral, looseness);
+        let grip =
+            SurfaceGrip { drive: surface.drive * burnout_grip, lateral: surface.lateral * burnout_grip, ..surface };
         let input = TyreInput {
             load,
             v_long: velocity.dot(frame.forward),
