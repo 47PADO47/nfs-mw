@@ -3,6 +3,9 @@
 
 use glam::Vec3;
 
+mod profile;
+pub use profile::ProfileGround;
+
 /// Grip multipliers of a road surface (the attribute class `simsurface`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SurfaceGrip {
