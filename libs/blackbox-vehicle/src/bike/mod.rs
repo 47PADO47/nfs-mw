@@ -38,6 +38,7 @@ mod frame;
 mod gearbox;
 mod geometry;
 mod handling;
+mod hold;
 mod input_axes;
 mod lean;
 mod magic;
@@ -166,8 +167,9 @@ pub struct Bike {
     departure: release::Departure,
     /// The day and the running state of the fall tests.
     chassis: ChassisState,
-    /// The rider holding the brake with the bike standing, to walk it backwards (`reverse.rs`).
+    /// The rider holding the brake with the bike standing, to walk it backwards (`reverse.rs`), and holding it on a slope (`hold.rs`).
     reverse: ReverseState,
+    hold: hold::HoldState,
     /// Whether the bike is in a burnout (the reference's `IsDoingBurnout`, `burnout.rs`), as of the last sub-step.
     burnout: bool,
     /// The burnout help force's filter, throttle and collision cut (`burnout.rs`).
@@ -246,6 +248,7 @@ impl Bike {
             held: BikeInput::default(),
             departure: release::Departure::default(),
             reverse: ReverseState::default(),
+            hold: hold::HoldState::default(),
             burnout: false,
             burnout_help: burnout::HelpState::default(),
         }
@@ -309,6 +312,7 @@ impl Bike {
         self.block_wait = 0.0;
         self.chassis.reset(&self.spec.fall);
         self.reverse.reset();
+        self.hold = hold::HoldState::default();
         self.burnout = false;
         self.burnout_help = burnout::HelpState::default();
         self.powertrain = Powertrain::new(&self.spec.engine, &self.spec.transmission);
@@ -388,6 +392,7 @@ impl Bike {
         let (front_lever, rear_lever) =
             brakes::joined(&brakes, help.brake, input.rear_brake, speed.abs() > choices::STANDING_SPEED);
         let (front_lever, rear_lever) = self.step_reverse(dt, speed, input).levers(front_lever, rear_lever);
+        let (front_lever, rear_lever) = self.step_hold(dt, throttle, (front_lever, rear_lever));
         let (front_lever, rear_lever) = self.step_burnout(dt, input, speed, (front_lever, rear_lever));
         // A bike braked hard in a lean has no grip left for the lean (the front tyre's force is spent on the brake, the rear wheel is
         // unloaded): the levers give way as the lean nears its limit (`choices::BRAKE_LEAN_RELIEF`).
