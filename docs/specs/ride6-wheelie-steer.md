@@ -179,5 +179,6 @@ Nothing needed fixing from these frames. The front wheel and the handlebar angle
 ## 10. Round 2: the stick lowers the front only a little (the game's addition) [C]
 
 Playtest: "if I'm wheeling and go right/left the bike should be brought down only a little bit, not all the way." The pitch assist of the data fades out with the lean (`PitchParams::lean_help`, 0.2 to 1 of the lean over
-its limit), so a wheelie with the stick over loses its hold. `ArcadeSteering::wheelie_steer_drop` (10 degrees in this game, none in `REFERENCE`) keeps the hold in a wheelie and lowers the target by at most that much at
-the full lean. See [ride6-arcade-steering.md](ride6-arcade-steering.md), section 12 (the change, the limits and the tests).
+its limit), so a wheelie with the stick over loses its assist; the throttle's wheelie of the game then fell to the road at a full stick. `ArcadeSteering::wheelie_steer_drop` (7 degrees in this game, none in `REFERENCE`) puts a floor
+under a steered wheelie: the assist lifts a nose that falls more than that under the pitch the wheelie had before the lean, and never lowers it. About 10 degrees are lost at a full stick, the wheelie stays up. See
+[ride6-arcade-steering.md](ride6-arcade-steering.md), section 12 (the measurements, the limits and the tests).

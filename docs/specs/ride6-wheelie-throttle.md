@@ -130,12 +130,13 @@ moves like this each step:
 | the fall | it comes down at 34 degrees a second (to a dip, to a lower gear's cap, to nothing in a gear without one) | `fall_rate` 0.6 rad/s |
 | the lead | it is never more than 6 degrees above the nose: a nose that lags (a bike that cannot lift, a wheelie just let down) is not run away from, so the rise always starts from the nose | `lead` 0.1 rad |
 | the dip | a gear change (`Powertrain::shifting`, the clutch is out) lowers it by 8 degrees below where it was (or below the cap, if that is lower) for the change **and at least 0.3 s** (the bikes' own change takes 0.06 s, less than the nose needs to answer), then it rises again at the slow rate | `shift_dip` 0.14 rad, `shift_dip_time` 0.3 s |
-| the engine cut | the drive is cut from 3 degrees above the allowed angle, to 70 percent at 12 degrees above | `cut_over` 0.052, 0.21 rad, `cut_most` 0.7 |
+| the engine cut | the drive is cut from 2 degrees above the allowed angle, to 90 percent at 8 degrees above | `cut_over` 0.035, 0.14 rad, `cut_most` 0.9 |
+| the clutch | the gas is cut to 10 percent for the change and the dip after it ("simulate clutch that stops gas"): without it the nose rose through the dip, the target alone did not bring it down | `shift_cut` 0.9 |
 
 Why these numbers: the three caps are the player's. 8 degrees a second is slower than every lift the first version made (10 degrees in 1.3 s was the engine's own pace under the assist) and still reaches the cap of
 first gear in 5 s, which a standing start spends in first and second; 34 degrees a second is the pace of the gentle lowering of the data (7 to 40 degrees a second, section 1); a dip of 8 degrees is the "a little" of
-the player (the nose comes down 3 to 8 degrees in the 0.3 s); the cut is soft (70 percent, over 9 degrees) so that the launch is still quick. The unit test
-`the_lift_is_slower_than_it_was` measures the time to 25 degrees against the first version's behaviour (`unlimited()`: the same assist without the rise, the caps, the dip and the cut) and wants at least 1.3 times it plus 0.2 s.
+the player (measured: the nose comes down 3 to 4.5 degrees in the dip, 30.2 to 27.4 on the supermoto and 36.3 to 31.8 on the superbike); the cut ramps over 6 degrees and the sweep shows a launch still reaches 108 to 131 km/h in 8 s (the first version 80 to 137). The unit test
+`the_lift_is_slower_than_it_was` measures the time to 25 degrees against the first version's behaviour (`unlimited()`: the same assist without the rise, the caps, the dip and the cut) and wants at least 1.3 times it plus 0.2 s: supermoto 2.55 s against 1.53 s, superbike 2.45 s against 1.25 s.
 
 **The latch.** Once the front wheel has been put **down**, the throttle asks for no more wheelies. "Put down" is a wheelie of the throttle that had really gone up (the front wheel off the road and the pitch over 3 degrees)
 and ended by: the front wheel touching the road (also with the gas still down), the nose under 3 degrees with the throttle shut, the rider's lever or the front brake, or a gear beyond the third. The latch
@@ -153,4 +154,17 @@ more than 6 degrees over the cap of the gear (a second and a half after a change
 down at a gear change and up again, and the front put down is not lifted again by the gas. The sweep `bike_wheelie_throttle` over the imported bikes also reports, per bike, how far over the cap of its gear the assist's
 wheelie went; its "hold" column now reads a bang-bang throttle from a standstill (the pitch between 8 and 46 degrees from 2 s to 9 s) because the assist only works in the first three gears.
 
-**Measured** [M]: to be filled in from the build slot: the 293-bike sweep with the assist on (lift in 3.5 s, falls, the highest pitch, bikes over a cap by 6 degrees) and the printed times of the lift test.
+**Measured** [M]. The sweep `bike_wheelie_throttle` over the **293 imported bikes**, the lever never touched (`RIDE6_CARS=<the ride6-bikes mod's cars folder>`; log `C:\r6work\feel-sweep-wt.log`), assist off (reference) and on:
+
+| 293 bikes | assist off (reference) | assist on (round 2) |
+|---|---|---|
+| front wheel up (10 degrees) within 3.5 s of a flat-out launch | **0** | **291** (median 1.5 s, from 1.0 s to 2.7 s; 25 degrees take 2.5 s on the supermoto and the superbike of the unit test, against 1.5 s and 1.3 s before) |
+| a bang-bang throttle from a standstill keeps the nose between 8 and 46 degrees from 2 s to 9 s | 0 | **257** |
+| falls (any of the six rides) | 0 | **0** |
+| highest pitch of any ride | 6 degrees | **42** |
+| bikes whose assisted wheelie went more than 6 degrees over the cap of its gear (1.5 s after a change left out) | | **0** (the largest excess is 5 degrees) |
+| speed after 8 s of flat-out launch | | 108 to 131 km/h on five sampled bikes (Aprilia RS 250 108, Hypermotard 112, Yamaha R1M 121, Honda X-ADV 130, MV Agusta Superveloce 131) |
+
+The unit tests (`wheelie_throttle_sim_tests.rs`) on the supermoto and the superbike: never more than 6 degrees over the cap of the gear; no lever in the fourth gear; the lever's wheelie in the third gear reaches 39.8
+degrees where the assist's reaches 1.9 (the superbike in the third gear from a standing start has hardly any lift: the assist is a ceiling, not a lifter); the nose goes down at the first gear change made in a wheelie by 3 to 4.5
+degrees and up again; the front put down is not lifted again by the gas.
