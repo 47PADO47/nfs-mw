@@ -1,6 +1,7 @@
 //! The worked examples of the three games as synthetic fixtures (no game data, invented names and numbers), and the
 //! rules of the library on small definitions.
 
+mod bundle;
 mod core;
 mod nfs2005;
 mod nfs2012;

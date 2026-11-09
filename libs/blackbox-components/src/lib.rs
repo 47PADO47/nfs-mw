@@ -28,6 +28,7 @@
 //! assert_eq!(resolved.params.apply("grip", 1.0), 1.2);
 //! ```
 
+mod bundle;
 mod check;
 mod codec;
 mod effect;

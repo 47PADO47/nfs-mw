@@ -69,11 +69,24 @@ other mods may accept its components. A duplicate id is an error (a mod cannot r
 ## Offer
 
 ```
-Offer { component, price?, when: [Condition] }
+Offer { component, price?, when: [Condition], bundle: [ComponentId] }
 ```
 
 A slot's entry for a component. `price` overrides the component's for this vehicle (a Ducati's exhaust costs more than a
 KTM's); `when` adds rules for this vehicle only ("only with the long swingarm"). In TOML an offer is a bare id or a table.
+
+`bundle` names components **of other slots of this vehicle** that come with this one: a performance level and the parts that
+belong to it (`brakes level 2` and the discs of the bike's brake kit 2). It is on the offer and not on the component because a
+level component is shared by many vehicles whose parts differ. [`VehicleDef::bundle_changes(from, to)`] says what else changes
+when the player changes a slot, and the game applies it as part of the same edit:
+
+1. the bundle of the component a changed slot **held** is taken away: a bundled component that is still installed goes back to its
+   slot's default (lowering the level removes its parts, or, with the next step, swaps them for the lower level's);
+2. the bundle of the component a changed slot **now holds** is installed in the slots that accept it.
+
+The link is **one way** (choosing a part by itself does not change the level) and **one deep** (the bundle of a bundled component
+is not read, so a mod cannot make a chain or a cycle). A bundle that names a component no other slot of the vehicle accepts is a
+mistake of the definition (`VehicleDef::check`). The rules of the result are still checked as for any pick.
 
 ## Rules (`Condition`)
 

@@ -202,6 +202,9 @@ pub struct Offer {
     pub price: Option<u32>,
     /// Rules that hold for this vehicle only.
     pub when: Vec<Condition>,
+    /// Components of other slots of this vehicle that are fitted with this one (a performance level and the parts that come
+    /// with it): picking this component installs them, and replacing it takes them off again ([`VehicleDef::bundle_changes`]).
+    pub bundle: Vec<ComponentId>,
 }
 
 #[derive(Deserialize)]
@@ -219,13 +222,17 @@ struct OfferFull {
     price: Option<u32>,
     #[serde(default)]
     when: Vec<Condition>,
+    #[serde(default)]
+    bundle: Vec<ComponentId>,
 }
 
 impl From<OfferRepr> for Offer {
     fn from(repr: OfferRepr) -> Self {
         match repr {
-            OfferRepr::Id(component) => Self { component, price: None, when: Vec::new() },
-            OfferRepr::Full(full) => Self { component: full.component, price: full.price, when: full.when },
+            OfferRepr::Id(component) => Self { component, price: None, when: Vec::new(), bundle: Vec::new() },
+            OfferRepr::Full(full) => {
+                Self { component: full.component, price: full.price, when: full.when, bundle: full.bundle }
+            }
         }
     }
 }

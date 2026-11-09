@@ -295,7 +295,7 @@ fn slot_of(component: &str) -> crate::Slot {
     crate::Slot {
         id: "s".into(),
         group: String::new(),
-        accepts: vec![crate::Offer { component: component.into(), price: None, when: vec![] }],
+        accepts: vec![crate::Offer { component: component.into(), price: None, when: vec![], bundle: vec![] }],
         default: None,
         optional: false,
         when: vec![],

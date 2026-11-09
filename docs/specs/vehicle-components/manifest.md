@@ -56,7 +56,7 @@ default = "example:exhaust.stock"
 
 [[slot]]
 id = "chain"
-accepts = ["example:chain.stock", "example:chain.race"]
+accepts = ["example:chain.stock", { component = "example:chain.race", bundle = ["example:chaincolour.paint"] }]
 default = "example:chain.stock"
 
 [[slot]]
@@ -66,6 +66,9 @@ default = "example:chaincolour.factory"
 when = [{ kind = "is", slot = "chain", any_of = ["example:chain.race"] }]
 inputs = [{ kind = "rgb", key = "colour", default = [212, 175, 55] }]
 ```
+
+An offer's `bundle` lists components of other slots that are fitted with it (here the race chain comes painted;
+[data model](data-model.md#offer)): the game installs them when the offer is picked and takes them off when it is replaced.
 
 The slot order in the file is the screen order and the composition order. The bike has no `suspension` slot because it does
 not list one; nothing else is needed to take an option away from one bike.

@@ -72,6 +72,13 @@ impl VehicleDef {
             for effect in &component.effects {
                 check_effect(effect, slot, &at, errors);
             }
+            for bundled in &offer.bundle {
+                let found = self.slots.iter().find(|other| other.id != slot.id && other.offer(bundled).is_some());
+                if found.is_none() {
+                    errors
+                        .push(format!("{at}: its bundle names {bundled}, which no other slot of the vehicle accepts"));
+                }
+            }
         }
     }
 
