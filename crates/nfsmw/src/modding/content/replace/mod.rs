@@ -17,10 +17,14 @@
 //! | `active.rs` | the merged replacements, and what a section gets |
 //! | `textures.rs` | pictures: PNG, DDS and texture packs as textures, and the rules of a replacing texture |
 //! | `fit.rs`, `place.rs` | fitting a model into the solid it replaces: `height`, `row`, `stand`, `exact` |
+//! | `clear.rs` | keeping the copies off the walls, rails, barriers and buildings of the section (`[fit] clearance`) |
 
 mod active;
 mod adds;
 mod catalog;
+mod clear;
+#[cfg(test)]
+mod clear_real_tests;
 mod fit;
 mod load;
 #[cfg(test)]

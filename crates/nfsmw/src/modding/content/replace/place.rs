@@ -63,6 +63,9 @@ pub struct Placement {
     pub up: f32,
     pub yaw: f32,
     pub offset: [f32; 3],
+    /// The scale across at which the copy is exactly as wide as the stretch of geometry it replaces (never more than `across`): how far
+    /// [`clear`](super::clear) may make the copy narrower to keep it off its neighbours. `across` for a copy that is not to be shrunk.
+    pub base: f32,
 }
 
 /// The ground a single copy has to fill.
@@ -78,11 +81,13 @@ struct Target {
 fn tree(model: &Measure, target: &Target, cap: f32, limits: &FitLimits) -> Option<Placement> {
     let up = ((target.top - target.floor) / model.height.max(0.1)).clamp(MIN_SCALE, cap);
     let sideways = limits.spread * target.width / model.width.max(0.01);
+    let base = target.width / model.width.max(0.01);
     let at = |across: f32, up: f32| Placement {
         across,
         up,
         yaw: 0.0,
         offset: [target.centre[0], target.centre[1], target.floor],
+        base: base.min(across),
     };
     if sideways >= limits.squeeze * up {
         return Some(at(sideways.min(up), up));
@@ -126,7 +131,7 @@ pub fn stand(model: &Measure, stock: &Stock, limits: &FitLimits) -> Option<Place
         centre(low, high, 1) - scale * centre(model.low, model.high, 1),
         low[2] - scale * model.low[2],
     ];
-    Some(Placement { across: scale, up: scale, yaw: 0.0, offset })
+    Some(Placement { across: scale, up: scale, yaw: 0.0, offset, base: scale })
 }
 
 /// The model as authored (`fit = "exact"`): no scale, no turn, no move. `None` unless its box stays inside the old box grown by the
@@ -136,7 +141,7 @@ pub fn exact(model: &Measure, stock: &Stock, limits: &FitLimits) -> Option<Place
     let room = |axis: usize| 0.5 * (limits.spread - 1.0) * (high[axis] - low[axis]) + 0.05;
     let inside =
         (0..3).all(|axis| model.low[axis] >= low[axis] - room(axis) && model.high[axis] <= high[axis] + room(axis));
-    inside.then_some(Placement { across: 1.0, up: 1.0, yaw: 0.0, offset: [0.0; 3] })
+    inside.then_some(Placement { across: 1.0, up: 1.0, yaw: 0.0, offset: [0.0; 3], base: 1.0 })
 }
 
 /// A stretch of the old geometry: the vertices that fall in one cell of the plan.

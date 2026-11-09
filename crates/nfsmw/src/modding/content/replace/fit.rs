@@ -15,6 +15,7 @@ use anyhow::{Context, Result, bail};
 use blackbox_modding::content::{FitLimits, SwapFit};
 use blackbox_solid::{GroupSource, PositionMarker, Solid, SolidSource, Vertex, read_solids, write_geometry_pack};
 
+use super::clear::{Neighbours, Tally};
 use super::place::{self, Measure, Placement, Stock};
 
 /// What space the replaced solid's vertices are in.
@@ -56,24 +57,49 @@ pub fn fit_prepared(
     frame: Frame,
     limits: &FitLimits,
 ) -> Result<Option<Solid>> {
+    Ok(fit_clear(model, stock, how, frame, limits, &Neighbours::none())?.0)
+}
+
+/// [`fit_prepared`] that also keeps the copies off the objects of the section (`neighbours`, [`clear`](super::clear)) when `limits` ask
+/// for it and the fit is a `height` or a `row` (a lamp, a sign or a building is itself an object, and `exact` is the author's word), and
+/// says what that did.
+pub fn fit_clear(
+    model: &Prepared,
+    stock: &Solid,
+    how: SwapFit,
+    frame: Frame,
+    limits: &FitLimits,
+    neighbours: &Neighbours,
+) -> Result<(Option<Solid>, Tally)> {
     if stock.bounds_max[2] - stock.bounds_min[2] <= 0.01 {
         bail!("the solid {} has no height", stock.name);
     }
     let seen = Stock { vertices: &stock.vertices, bounds: (stock.bounds_min, stock.bounds_max) };
-    let placements = match (frame, how) {
+    let mut placements: Vec<Placement> = match (frame, how) {
         (Frame::Local, SwapFit::Height) => place::single(&model.measure, &seen, limits).into_iter().collect(),
         (Frame::Local, SwapFit::Stand) => place::stand(&model.measure, &seen, limits).into_iter().collect(),
         (Frame::Local, SwapFit::Exact) => place::exact(&model.measure, &seen, limits).into_iter().collect(),
         // A world-space copy is cut into stretches whatever the fit: it stands where it is, and may be a whole row.
         _ => place::copies(&model.measure, &seen, how, limits),
     };
-    if placements.is_empty() {
-        return Ok(None);
+    let mut tally = Tally::default();
+    if limits.clearance && matches!(how, SwapFit::Height | SwapFit::Row) {
+        let owner = matches!(frame, Frame::Local).then_some(stock.name_hash);
+        tally = neighbours.clear(owner, seen.bounds, &model.measure, &mut placements, limits);
     }
+    if placements.is_empty() {
+        return Ok((None, tally));
+    }
+    let solid = write_fitted(model, stock, frame, &placements)?;
+    Ok((Some(solid), tally))
+}
+
+/// The solid made of copies of `model` at `placements`, with the identity of `stock`.
+fn write_fitted(model: &Prepared, stock: &Solid, frame: Frame, placements: &[Placement]) -> Result<Solid> {
     let mirrored = matches!(frame, Frame::World { mirrored: true });
     let source = &model.source;
     let mut groups = Vec::with_capacity(source.groups.len() * placements.len());
-    for at in &placements {
+    for at in placements {
         for group in &source.groups {
             let vertices = group.vertices.iter().map(|vertex| place_vertex(vertex, at)).collect();
             let mut placed = GroupSource { vertices, bounds: None, ..group.clone() };
@@ -90,11 +116,11 @@ pub fn fit_prepared(
     out.polygon_count = Some(stock.num_polys);
     out.texture_hashes = source.texture_hashes.clone();
     out.light_material_hashes = source.light_material_hashes.clone();
-    out.markers = markers_of(source, stock, &placements);
+    out.markers = markers_of(source, stock, placements);
     let bytes = write_geometry_pack(&[out]).with_context(|| format!("writing the replacement of {}", stock.name))?;
     let mut solids = read_solids(&bytes).with_context(|| format!("reading the replacement of {}", stock.name))?;
     let solid = solids.pop().with_context(|| format!("the replacement of {} holds no solid", stock.name))?;
-    Ok(Some(solid))
+    Ok(solid)
 }
 
 /// The position markers of the replacement (the authored lights of a signal head, `docs/specs/environment-prop-lights.md`): the model's own,
