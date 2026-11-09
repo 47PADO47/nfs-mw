@@ -229,7 +229,7 @@ fn a_gear_change_takes_the_nose_down_a_little_before_it_goes_up_again() {
 fn a_front_wheel_put_down_is_not_lifted_again_by_the_gas_until_first_gear_or_a_stop() {
     let spec = superbike();
     // The gas for 3 s, shut for 3.5 s (the front wheel comes down), then flat out again for 3 s.
-    let (samples, fell) = ride(&spec, ThrottleWheelie::GAME, 0.0, 9.5, &|t| f32::from(t < 3.0 || t >= 6.5));
+    let (samples, fell) = ride(&spec, ThrottleWheelie::GAME, 0.0, 9.5, &|t| f32::from(!(3.0..6.5).contains(&t)));
     assert!(!fell);
     let up = samples.iter().filter(|s| s.time < 3.0).map(|s| s.pitch).fold(0.0, f32::max);
     assert!(up > 10.0_f32.to_radians(), "the first wheelie: {:.1} degrees", up.to_degrees());

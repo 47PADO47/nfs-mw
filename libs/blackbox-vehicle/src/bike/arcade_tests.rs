@@ -112,7 +112,7 @@ fn lean_step_time(spec: &BikeSpec, speed: f32) -> Option<f32> {
 /// The radius (m) of the circle a held full stick rides at `speed` m/s: the speed over the yaw rate of the last 2 s; `None` for a fall.
 fn radius(spec: &BikeSpec, speed: f32) -> Option<f32> {
     let (fell, g, _) = steady(spec, speed, 1.0, 8.0);
-    (!fell).then(|| speed * speed / (g * 9.81))
+    (!fell).then_some(speed * speed / (g * 9.81))
 }
 
 /// Several bikes: the example, a heavy one and a light one.
