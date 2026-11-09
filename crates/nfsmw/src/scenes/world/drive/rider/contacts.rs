@@ -12,6 +12,7 @@ use glam::Vec3;
 use serde::Deserialize;
 
 use super::attach::{Attach, Hubs, Rigid, Target};
+use super::clearance::Section;
 
 /// The only version of the file this reads.
 pub const VERSION: u32 = 1;
@@ -66,6 +67,9 @@ pub struct Contacts {
     /// The seat's top along the centre line (`[x, z]`, x ascending), measured on the bike's mesh by the converter.
     #[serde(default)]
     pub seat_surface: Vec<[f32; 2]>,
+    /// The cross-section of the bike's body, measured on its mesh by the converter (`clearance.rs`).
+    #[serde(default)]
+    pub body_section: Option<Section>,
 }
 
 fn finite(values: &[f32]) -> bool {
@@ -123,6 +127,8 @@ impl Attach {
         self.rider_root_in_bike = contacts.rider_root_in_bike;
         self.hubs = contacts.hubs;
         self.seat_surface.clone_from(&contacts.seat_surface);
+        // A section that is not what it says it is is left out (the rider is then not kept out of the bike's body) and the rest is used.
+        self.body_section = contacts.body_section.clone().filter(Section::is_valid);
         for target in &contacts.targets {
             match self.target_index(&target.name) {
                 Some(at) => self.targets[at] = target.clone(),

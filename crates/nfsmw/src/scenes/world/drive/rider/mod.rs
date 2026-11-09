@@ -14,6 +14,9 @@
 
 mod attach;
 mod choices;
+mod clearance;
+#[cfg(test)]
+mod clearance_probe_tests;
 mod contacts;
 mod demo;
 mod fall;
@@ -198,6 +201,7 @@ impl RiderRig {
         let (brake, clutch) = choices::fingers();
         smoothed.set_choices(choices::riding_style(class), brake, clutch);
         let fall = fall::Fall::load(dir, &folder, &pack);
+        resolved.clearance = clearance::Clearance::of_rig(&attach, fall.ragdoll(), &resolved, &pack.skeleton);
         Ok(Some(Self {
             pack,
             graph,
@@ -222,27 +226,6 @@ impl RiderRig {
             cameras,
             class,
         }))
-    }
-
-    /// Frees the meshes and pictures he is drawn with.
-    fn drop_parts(&mut self, renderer: &mut dyn RenderBackend) {
-        self.parts.drain(..).for_each(|part| renderer.destroy_mesh(part.handle));
-        self.textures.drain(..).for_each(|texture| renderer.destroy_texture(texture));
-    }
-
-    /// Dresses him in the gear `choice` instead: his meshes and pictures are made again, the animation goes on.
-    fn dress_again(&mut self, renderer: &mut dyn RenderBackend, dir: &GameDir, choice: Choice) {
-        self.drop_parts(renderer);
-        self.pack.meshes.truncate(self.base_meshes);
-        let catalogue = rider_gear::loaded();
-        let wearing = catalogue.as_deref().map(|catalogue| (catalogue, &choice));
-        let worn = worn::wear(renderer, dir, &self.folder, &mut self.pack, &self.stock, wearing);
-        self.parts = worn.parts;
-        self.textures = worn.textures;
-        let names: Vec<&str> = self.parts.iter().map(|part| self.pack.meshes[part.mesh].name.as_str()).collect();
-        let view = view::EyeView::new(self.cameras.as_ref().map(|set| &set.helmet), &self.pack.skeleton, &names);
-        self.view = view;
-        self.gear = choice;
     }
 
     /// One physics step of `dt` seconds with the bike in state `sample`.

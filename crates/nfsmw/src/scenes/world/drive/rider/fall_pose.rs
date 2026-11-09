@@ -32,7 +32,10 @@ pub(super) fn blend_back(
     (turn, seat): (Quat, Vec3),
     k: f32,
 ) -> Vec<Transform> {
-    let onto = |b: &Transform| Transform { translation: turn * b.translation + seat, ..Transform::from_rt(turn * b.rotation, Vec3::ZERO) };
+    let onto = |b: &Transform| Transform {
+        translation: turn * b.translation + seat,
+        ..Transform::from_rt(turn * b.rotation, Vec3::ZERO)
+    };
     let mut world: Vec<Transform> = Vec::with_capacity(skeleton.len());
     for (i, bone) in skeleton.bones().iter().enumerate() {
         let (Some(a), Some(b)) = (from.get(i), riding.get(i)) else {

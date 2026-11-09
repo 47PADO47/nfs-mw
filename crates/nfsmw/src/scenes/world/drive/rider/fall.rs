@@ -126,6 +126,11 @@ impl Fall {
         self.file.is_some()
     }
 
+    /// His ragdoll's file: his body as capsules (`clearance.rs` keeps them out of the bike's).
+    pub fn ragdoll(&self) -> Option<&RagdollFile> {
+        self.file.as_ref()
+    }
+
     /// Remember the riding pose of this frame (rider space): the fall begins from the last one.
     pub fn remember(&mut self, component: &[Transform]) {
         self.riding.clear();
