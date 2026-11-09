@@ -28,16 +28,21 @@
 //!    acceleration that the lean does not give, with the circle a full stick turns named at each speed by one table (tight when slow, wide when
 //!    fast), a path that follows the stick at a low speed, and a quicker lean-in there. While `turn` is set it replaces the assist of
 //!    `cornering_assist` and `authority` (levers 4 and 6), which stay for a steering that has none.
-//! 9. `air`: the help of a bike that jumps (`arcade_air.rs`); 10. `rough`: the help of a bike on loose ground (`arcade_rough.rs`).
+//! 9. `air`: the help of a bike that jumps (`arcade_air.rs`); 10. `rough`: the help of a bike on loose ground (`arcade_rough.rs`);
+//!    11. `brake`: the help of a bike that brakes, a force that makes up the deceleration the levers aim for and a hold of the nose
+//!    (`arcade_brake.rs`, `docs/specs/ride6-bike-braking.md`).
 
 use super::turn_law::{TurnInput, TurnLaw};
 
 #[path = "arcade_air.rs"]
 mod air;
+#[path = "arcade_brake.rs"]
+mod brake;
 #[path = "arcade_rough.rs"]
 mod rough;
 
 pub use air::ArcadeAir;
+pub use brake::ArcadeBrake;
 pub use rough::ArcadeRough;
 
 /// The values of the arcade steering; see the module's documentation. `REFERENCE` is neutral.
@@ -94,6 +99,9 @@ pub struct ArcadeSteering {
     /// The help on loose and rough ground: the lean and the assist follow the surface, a smaller penalty for the offroad bikes, more damping and
     /// wider fall tests on loose ground (`docs/specs/ride6-bike-rough-ground.md`). [`ArcadeRough::REFERENCE`]: none.
     pub rough: ArcadeRough,
+    /// The help on braking: a force that makes up the deceleration a full lever aims for, and a hold against the nose-over
+    /// (`docs/specs/ride6-bike-braking.md`). [`ArcadeBrake::REFERENCE`]: none.
+    pub brake: ArcadeBrake,
 }
 
 impl ArcadeSteering {
@@ -119,6 +127,7 @@ impl ArcadeSteering {
         turn: None,
         air: ArcadeAir::REFERENCE,
         rough: ArcadeRough::REFERENCE,
+        brake: ArcadeBrake::REFERENCE,
     };
 
     /// The reference game's steering ([`ArcadeSteering::REFERENCE`]).
@@ -208,6 +217,7 @@ impl Default for ArcadeSteering {
             turn: Some(TurnLaw::GAME),
             air: ArcadeAir::default(),
             rough: ArcadeRough::default(),
+            brake: ArcadeBrake::default(),
         }
     }
 }

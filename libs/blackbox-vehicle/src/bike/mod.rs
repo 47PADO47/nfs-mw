@@ -66,7 +66,7 @@ mod wheel_step;
 mod wheelie_steer;
 mod wheelie_throttle;
 
-pub use arcade::{ArcadeAir, ArcadeRough, ArcadeSteering};
+pub use arcade::{ArcadeAir, ArcadeBrake, ArcadeRough, ArcadeSteering};
 pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
 pub use burnout::{BurnoutSpec, HelpSpec as BurnoutHelpSpec};
 pub use class::TerrainClass;

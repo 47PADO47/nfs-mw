@@ -15,6 +15,10 @@ pub const LONG_TRAVEL: f32 = 0.18;
 /// 0.300 and 0.327 m).
 pub const BIG_FRONT_WHEEL: f32 = 0.32;
 
+/// The rear wheel's outer radius (m) under which a bike counts as a scooter. Over the 293 imported bikes the scooters (the Italjet Dragster 200 and
+/// 700, 0.249 and 0.286 m, and the Honda X-ADV, 0.286 m) have a rear wheel under 0.29 m, and every other bike one of 0.306 m or more: the gap is clean.
+pub const SCOOTER_REAR_WHEEL: f32 = 0.30;
+
 /// A bike's class for the arcade help on jumps and on rough ground.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TerrainClass {
@@ -38,6 +42,11 @@ impl TerrainClass {
 }
 
 impl BikeSpec {
+    /// Whether the bike is a scooter, by its small rear wheel ([`SCOOTER_REAR_WHEEL`]).
+    pub fn is_scooter(&self) -> bool {
+        self.rear.radius < SCOOTER_REAR_WHEEL
+    }
+
     /// The class of the bike from its fork travel and its front wheel.
     pub fn terrain_class(&self) -> TerrainClass {
         if self.front_suspension.max_travel < LONG_TRAVEL {
@@ -71,6 +80,15 @@ mod tests {
         assert_eq!(bike(0.270, 0.349).terrain_class(), TerrainClass::Offroad, "the KTM 890 Adventure R");
         assert_eq!(bike(0.180, 0.349).terrain_class(), TerrainClass::Offroad, "the Tiger 900 Rally Pro");
         assert_eq!(bike(0.200, 0.327).terrain_class(), TerrainClass::Offroad, "the Multistrada V4 Rally");
+    }
+
+    #[test]
+    fn a_small_rear_wheel_makes_a_scooter() {
+        let mut spec = BikeSpec::example();
+        spec.rear.radius = 0.286;
+        assert!(spec.is_scooter());
+        spec.rear.radius = 0.306;
+        assert!(!spec.is_scooter());
     }
 
     #[test]

@@ -331,6 +331,7 @@ impl Bike {
             self.apply_lean_help(speed, pedals);
             self.apply_stability_help(dt, speed, input);
             self.apply_cornering_assist(dt, speed);
+            self.apply_brake_help(speed, input);
             self.apply_wheelie_yaw(dt, speed);
             self.apply_burnout_help(dt, input.steer);
             self.apply_pitch_assist(dt, speed);
@@ -358,6 +359,8 @@ impl Bike {
 
 #[path = "air.rs"]
 mod air;
+#[path = "brake_help.rs"]
+mod brake_help;
 #[path = "chassis_state.rs"]
 pub(super) mod chassis_state;
 #[path = "fall.rs"]
@@ -368,6 +371,9 @@ pub(super) mod rough;
 #[cfg(test)]
 #[path = "air_tests.rs"]
 mod air_tests;
+#[cfg(test)]
+#[path = "brake_help_tests.rs"]
+mod brake_help_tests;
 #[cfg(test)]
 #[path = "chassis_tests.rs"]
 mod chassis_tests;
