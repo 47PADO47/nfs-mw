@@ -19,6 +19,7 @@ mod demo;
 mod fall;
 mod fall_anim;
 mod fall_file;
+mod fall_pose;
 mod fall_space;
 #[cfg(test)]
 mod fit_tests;
@@ -69,7 +70,6 @@ use crate::viewer::camera::rider_follow::Phase;
 
 /// Tell the riders what the player chose (the host pushes it each frame with the other settings).
 pub use self::choices::set as set_choices;
-
 /// The first part number a rider's meshes take in the instance keys of the player's car (the car's own placements come
 /// before it).
 const KEY_BASE: usize = 0x4000;

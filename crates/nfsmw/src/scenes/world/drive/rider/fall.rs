@@ -15,6 +15,7 @@ use glam::{Mat4, Quat, Vec3};
 
 use super::fall_anim::{self, Anim, DRIVE_GAIN, DriveLink};
 use super::fall_file::{self, FallConfig, Falls, RagdollFile};
+use super::fall_pose;
 use super::fall_space::{quat_to_physics, quat_to_render, to_physics, to_render};
 use crate::viewer::camera::rider_follow::Phase;
 
@@ -248,20 +249,8 @@ impl Fall {
                 let (_, turn, seat) = to_world.to_scale_rotation_translation();
                 let k = progress.clamp(0.0, 1.0);
                 let k = k * k * (3.0 - 2.0 * k);
-                let component = from
-                    .iter()
-                    .zip(riding)
-                    .map(|(a, b)| {
-                        let b = Transform::from_rt(turn * b.rotation, turn * b.translation + seat);
-                        Transform {
-                            rotation: a.rotation.slerp(b.rotation, k),
-                            translation: a.translation.lerp(b.translation, k) - seat,
-                            scale: a.scale.lerp(b.scale, k),
-                        }
-                    })
-                    .collect();
                 self.origin = seat;
-                Some(component)
+                Some(fall_pose::blend_back(skeleton, from, riding, (turn, seat), k))
             }
         }
     }
@@ -383,14 +372,22 @@ impl Tumble {
             return posed;
         }
         let mut out: Vec<Transform> = Vec::with_capacity(skeleton.len());
+        // Whether a bone moves with a body (it has one, or hangs on a bone that moves with one): the bones above the first body stay
+        // where the bike left them.
+        let mut moving: Vec<bool> = Vec::with_capacity(skeleton.len());
         for (i, bone) in skeleton.bones().iter().enumerate() {
             let simulated = self.links.iter().position(|l| l.bone == i);
+            let parent_moves = bone.parent.is_some_and(|p| moving[p]);
+            moving.push(simulated.is_some() || parent_moves);
             let transform = match (simulated, bone.parent) {
-                (Some(body), _) => {
+                (Some(body), parent) => {
                     let link = self.links[body];
                     let rotation = quat_to_render(self.ragdoll.orientation(body) * link.axis.inverse());
                     let centre = to_render(self.ragdoll.position(body));
-                    Transform::from_rt(rotation, centre - rotation * link.centre - origin)
+                    let placed = Transform::from_rt(rotation, centre - rotation * link.centre - origin);
+                    // Joined to its parent as drawn: the soft joints stretch in a hard landing, the bones between two bodies (the neck)
+                    // do not, and the skin would tear (`fall_pose.rs`).
+                    fall_pose::hung(placed, parent.filter(|_| parent_moves).map(|p| out[p]), self.local(i))
                 }
                 (None, Some(parent)) => out[parent].compose(self.local(i)),
                 (None, None) => {
@@ -455,3 +452,7 @@ fn launch(release: &RiderRelease, falls: &Falls, bike: Quat) -> (Vec3, Vec3) {
 #[cfg(test)]
 #[path = "fall_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "fall_join_tests.rs"]
+mod join_tests;
