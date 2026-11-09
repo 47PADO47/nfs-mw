@@ -88,7 +88,8 @@ fn a_wider_screen_shows_more_at_the_sides_and_a_narrower_one_keeps_the_sides_up_
     let wide_horizontal =
         |aspect: f32| 2.0 * ((mount.fov_y(aspect).to_radians() * 0.5).tan() * aspect).atan().to_degrees();
     assert_eq!(mount.fov_y(21.0 / 9.0), mount.fov_y(WIDE), "the vertical field of view is kept: Hor+");
-    assert!(wide_horizontal(21.0 / 9.0) > wide_horizontal(WIDE) + 12.0);
+    // Hor+ still shows more at 21:9; the gain shrinks as the vertical view widens (11.6 degrees at 97.7, was 13.4 at 88), so the margin is 10.
+    assert!(wide_horizontal(21.0 / 9.0) > wide_horizontal(WIDE) + 10.0);
     let minimum = horizontal_fov(HELMET_FOV_WIDE_DEG);
     for aspect in [16.0 / 10.0, 4.0 / 3.0] {
         assert!(wide_horizontal(aspect) >= minimum - 1e-2, "{aspect}: {} against {minimum}", wide_horizontal(aspect));
