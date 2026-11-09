@@ -85,6 +85,8 @@ fn name_of(class: TerrainClass) -> &'static str {
 fn bike_jump_sweep() {
     let bikes = bikes();
     let mut table = [[0_usize; 2]; 3];
+    // Falls of the road bikes by landing, drop and speed, to see where the help runs out.
+    let mut by_case = std::collections::BTreeMap::<String, (usize, usize)>::new();
     for (name, spec) in &bikes {
         let class = spec.terrain_class();
         let mut first: Option<String> = None;
@@ -93,13 +95,22 @@ fn bike_jump_sweep() {
                 for kmh in [60.0_f32, 80.0, 100.0, 120.0] {
                     let result = jump(spec, &ground_of(landing, drop), kmh / 3.6);
                     table[class.index()][0] += 1;
+                    let case =
+                        by_case.entry(format!("{} {landing:?} {drop} m {kmh} km/h", name_of(class))).or_default();
+                    case.0 += 1;
                     let Some((t, kind)) = result else { continue };
+                    case.1 += 1;
                     table[class.index()][1] += 1;
                     first.get_or_insert(format!("{landing:?} {drop} m {kmh} km/h {kind} at {t:.1} s"));
                 }
             }
         }
         println!("{name} ({}): {}", name_of(class), first.as_deref().unwrap_or("no fall"));
+    }
+    if std::env::var_os("RIDE6_CASES").is_some() {
+        for (case, (runs, falls)) in &by_case {
+            println!("{case}: {falls}/{runs}");
+        }
     }
     for class in [TerrainClass::Road, TerrainClass::Motard, TerrainClass::Offroad] {
         let [runs, falls] = table[class.index()];
@@ -162,6 +173,45 @@ fn bike_rough_sweep() {
                 corner.1 / n,
                 corner.2 / n
             );
+        }
+    }
+}
+
+#[test]
+#[ignore = "a trace of one jump (RIDE6_CARS, RIDE6_FILTER)"]
+fn bike_jump_trace() {
+    let (_, spec) = bikes().into_iter().next().expect("a bike");
+    let kmh: f32 = std::env::var("RIDE6_KMH").ok().and_then(|v| v.parse().ok()).unwrap_or(120.0);
+    let drop: f32 = std::env::var("RIDE6_DROP").ok().and_then(|v| v.parse().ok()).unwrap_or(1.0);
+    let ground = ground_of(Landing::RampFlat, drop);
+    let speed = kmh / 3.6;
+    let mut bike = Bike::new(spec.clone());
+    let flat = FlatGround::new(0.0);
+    assert!(bike.place_moving(&flat, 0.0, 0.0, 2.0, 0.0, speed));
+    for step in 0..400 {
+        let throttle = held_throttle(speed, bike.velocity().length());
+        bike.step(FIXED_STEP, &BikeInput { throttle, ..Default::default() }, &ground);
+        if bike.position().z > LIP - 6.0 && step % 3 == 0 {
+            let w = bike.body().rotation().transpose() * bike.body().angular_velocity;
+            println!(
+                "{step} z {:.1} y {:.2} pitch {:5.1} lean {:5.1} on {} air {:.2} w {:5.2} {:5.2} {:5.2} bars {:.2} v {:.1} fallen {}",
+                bike.position().z,
+                bike.position().y,
+                bike.pitch().to_degrees(),
+                bike.lean().to_degrees(),
+                bike.wheels_on_ground(),
+                bike.air_time(),
+                w.x,
+                w.y,
+                w.z,
+                bike.steer_angle(),
+                bike.velocity().length(),
+                bike.fallen()
+            );
+        }
+        if bike.fallen() {
+            println!("fell {:?}", bike.fall_kind());
+            break;
         }
     }
 }

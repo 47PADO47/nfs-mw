@@ -33,6 +33,9 @@ pub struct ArcadeAir {
     pub level_delay: [f32; 2],
     /// The share (0 to 1) of the controller's handlebar that is taken away in the air: 1 centres the bars. 0: the controller's.
     pub handlebar_centre: f32,
+    /// How much of the throttle the rider closes (0 to 1) in the air and, while a landing is forgiven, as the nose comes up: a bike that lands with
+    /// the throttle open loops out in a wheelie (measured). 0: the rider's throttle as it is.
+    pub landing_throttle_cut: f32,
     /// The least seconds in the air that make a jump (a shorter hop is not one: it gets no landing help).
     pub min_air_time: f32,
     /// The seconds after a landing in which the fall tests are wider, and the factor on their limits. 1: the data's limits.
@@ -58,6 +61,7 @@ impl ArcadeAir {
         level_damping: 0.0,
         level_delay: [0.1, 0.35],
         handlebar_centre: 0.0,
+        landing_throttle_cut: 0.0,
         min_air_time: 0.25,
         landing_grace: 0.0,
         landing_tolerance: 1.0,
@@ -87,11 +91,12 @@ impl Default for ArcadeAir {
     /// 90 degrees a second is a landing, not a tumble.
     fn default() -> Self {
         Self {
-            level_accel: 7.0,
+            level_accel: 10.0,
             level_gain: 12.0,
             level_damping: 4.5,
-            level_delay: [0.08, 0.25],
+            level_delay: [0.0, 0.1],
             handlebar_centre: 1.0,
+            landing_throttle_cut: 1.0,
             min_air_time: 0.25,
             landing_grace: 0.9,
             landing_tolerance: 1.8,

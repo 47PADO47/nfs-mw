@@ -136,7 +136,7 @@ impl Bike {
         if found.is_some() {
             return found;
         }
-        if pitch_of(rotation).abs() > widen(pick(extra.airborne_pitch, fall.pitch), tolerance, MAX_PITCH) {
+        if pitch_of(rotation).abs() > widen(pick(extra.airborne_pitch, fall.pitch), self.pitch_tolerance(), MAX_PITCH) {
             return Some(FallKind::Generic);
         }
         // A velocity against the heading is a high side when the bike is not leaning far, a low side when it is.

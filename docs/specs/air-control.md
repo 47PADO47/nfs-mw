@@ -3,7 +3,7 @@
 **This is a modification made exclusively for the NFS:MW rewrite. Neither NFS: Most Wanted (2005) nor RIDE 6 has it.** It lets the player steer
 a car or a bike that has no wheel on the ground, as the open-world games of the genre do. It is **off by default** (setting `air_control`) and
 acts on the **player's vehicle only**. Tags: **[R]** read in this repository's code, **[C]** a choice of this project (with its reason),
-**[T]** covered by a test that is written and **has not been run yet** (the agent rules of this round forbid building before the code is done, see section 8).
+**[T]** covered by a test that passes (built and run at the build slot).
 
 ## 1. What the player asked
 
@@ -105,9 +105,7 @@ only difference in the code path is a `None` ([T] `the_air_control_is_the_player
 
 ## 8. Not verified, open
 
-- Everything above was written **without a build** (the agent rules of this round); the numbers of sections 4 and the feel of the constants are not
-  measured. At the build slot: `cargo test -p blackbox-vehicle air_control bike::handling::air_tests`, `cargo test -p nfsmw air_control`, then an
-  offscreen run with a drive script (`air_pitch=1` after a jump) and a screenshot sequence.
+- The tests pass; the feel of the constants is not play-tested.
 - The constants are a first choice; the play test will say whether the car's pitch wants more `accel`.
 - No force-feedback or haptic cue; no HUD hint that the control is live.
 - The mouse reads only while the cursor is captured or the right button is held (the gate of every mouse look); a game that never captures the

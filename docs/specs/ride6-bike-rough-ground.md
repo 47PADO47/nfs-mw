@@ -4,7 +4,7 @@
 `blackbox_vehicle::bike::ArcadeSteering` (the field `rough`, `ArcadeRough`, `libs/blackbox-vehicle/src/bike/arcade_rough.rs`;
 [ride6-arcade-steering.md](ride6-arcade-steering.md)); `ArcadeRough::REFERENCE` is neutral in every field and `bike_steering = reference` gives the
 reference behaviour back exactly. Tags as in [ride6-bike-jumps.md](ride6-bike-jumps.md): **[R]** read in the code, **[D]** data, **[C]** a choice,
-**[T]** covered by a test written and **not run yet**, **[M]** measured (section 6: **none yet**).
+**[T]** covered by a test that passes, **[M]** measured (section 6).
 
 ## 1. What the player reported
 
@@ -42,8 +42,8 @@ The tables are indexed by the class (`TerrainClass`: road, motard, offroad, [rid
    (`cornering_acceleration`). The fall lean limit still follows the tyre's own grip (unscaled, `follow_grip`), so a bike that the surface lets slide is
    not one the fall test calls fallen at the smaller lean: it slides first. That is the progressive breakaway: the tyre saturates, the heading angle
    grows over a second or more, and the next two helps give the rider that second ([T] `the_bike_follows_the_surface_and_turns_wider_on_dirt_than_on_tarmac`).
-2. **Less penalty for the bikes made for it** (`grip_relief` [0, 0.30, 0.60], `rough::feel`). The share of a surface's grip loss that is taken away,
-   lateral and driving: `1 - (1 - grip) x (1 - relief)`. Dirt at 0.65 is 0.65 for a road bike, 0.755 for a motard and 0.86 for an offroad bike; a surface
+2. **Less penalty for the bikes made for it** (`grip_relief` [0.5, 0.75, 0.95], `rough::feel`). The share of a surface's grip loss that is taken away,
+   lateral and driving: `1 - (1 - grip) x (1 - relief)`. Dirt at 0.65 is 0.825 for a road bike, 0.91 for a motard and 0.98 for an offroad bike; a surface
    that gives 1 or more is untouched and a relief of 0 returns the grip bit for bit. The relief is applied before the bike's belief, so an offroad
    bike also leans more and turns harder on dirt ([T] `an_offroad_bike_corners_harder_on_dirt_than_a_road_bike`, `an_offroad_bike_keeps_more_of_a_loose_surface_than_a_road_bike`).
 3. **The suspension damps more on loose ground** (`damping` [1.0, 1.15, 1.40] at looseness 1, `Suspension::force_scaled`): the damper's force and
@@ -59,8 +59,9 @@ The tables are indexed by the class (`TerrainClass`: road, motard, offroad, [rid
 - `loose_range` [0.95, 0.75]: the host's dirt and gravel are the surfaces the audio table marks `secondary` (`surface.rs`); their lateral multipliers
   are in the installed table and **were not read for this spec** (section 8). 0.95 is chosen so that tarmac and the ordinary road surfaces, which sit at or
   above it, are never loose, and 0.75 so that a surface at a quarter under the road's grip counts as wholly loose. [C, assumption]
-- `grip_relief` 0.6 for the offroad class puts an offroad bike on dirt at 0.86 of the road's grip, where a road bike has 0.65 (on a surface at 0.65): about a
-  third more lateral acceleration. A motard gets half of that relief (0.3): its tyres are road tyres, its suspension is long. [C]
+- `grip_relief` [0.5, 0.75, 0.95]: first tried [0, 0.3, 0.6]. [M] That took the offroad bike's dirt corner from 1.04 g (what it did before, when the assist
+  ignored the surface) to 0.89 g, which would feel like a loss; the values were raised until the offroad bike keeps its 1.0 g (0.98 of the grip on 0.65
+  dirt) and the road bike slides earlier (0.86 g, half the penalty). [C]
 - `damping` 1.4 at most: the damper's slow slope is the one that controls a washboard; a much larger factor makes the wheel follow the bumps with a heavier
   rebound than the spring clears before the next bump (a pogoing bike). 1.4 is a first choice, to be tuned against the washboard of section 6. [C]
 - `tolerance` and `lean_hold` follow the landing help's numbers ([ride6-bike-jumps.md](ride6-bike-jumps.md), section 3.4): the same widening, scaled by
@@ -86,19 +87,23 @@ the folder) and three road bikes over a rough strip, a washboard of four 5 cm bu
 0.7 for 6 s on the dirt of the table), at 40 and 80 km/h: the falls, the speed kept (the speed at the end over the speed at the start) and, for the corner,
 the lateral g of the last two seconds. **Before** is `RIDE6_ARCADE=air_before` (the arcade steering as it was), **after** the default.
 
-| bikes, speed | 2 m strip: falls / speed kept | 12 m strip: falls / speed kept | dirt corner: falls / speed kept / g |
+| bikes, speed | 2 m strip: falls / speed kept | 12 m strip: falls / speed kept | dirt corner: falls / speed kept / lateral g |
 |---|---|---|---|
-| offroad x5, 40 km/h, before | **not measured yet** | | |
-| offroad x5, 40 km/h, after | **not measured yet** | | |
-| offroad x5, 80 km/h, before | **not measured yet** | | |
-| offroad x5, 80 km/h, after | **not measured yet** | | |
-| road x3, 40 km/h, before | **not measured yet** | | |
-| road x3, 40 km/h, after | **not measured yet** | | |
-| road x3, 80 km/h, before | **not measured yet** | | |
-| road x3, 80 km/h, after | **not measured yet** | | |
+| offroad x5, 40 km/h, before | 0 / 1.02 | 0 / 1.02 | 0 / 1.02 / 1.04 g |
+| offroad x5, 40 km/h, after | 0 / 1.02 | 0 / 1.02 | 0 / 1.02 / **1.02 g** |
+| offroad x5, 80 km/h, before | 0 / 0.98 | 0 / 0.98 | 0 / 0.98 / 0.89 g |
+| offroad x5, 80 km/h, after | 0 / 0.98 | 0 / 0.98 | 0 / 0.98 / **0.87 g** |
+| road x3, 40 km/h, before | 0 / 1.01 | 0 / 1.01 | 0 / 1.01 / 1.04 g |
+| road x3, 40 km/h, after | 0 / 1.01 | 0 / 1.01 | 0 / 1.01 / 0.86 g |
+| road x3, 80 km/h, before | 0 / 0.99 | 0 / 0.98 | 0 / 0.99 / 0.88 g |
+| road x3, 80 km/h, after | 0 / 0.99 | 0 / 0.99 | 0 / 0.99 / 0.73 g |
 
-The numbers are to be filled at the build slot. What the sweep has to show: no fall of an offroad bike on any of the three at either speed, the speed
-kept over the strips no lower than before, and a dirt corner at a lateral g above the road bikes'.
+[M] `bike_rough_sweep` on the installed bikes (the first five offroad and three road bikes of the folder), release build, dirt of 0.65 lateral and 0.7 driving
+grip. **The harness does not reproduce falls**: no bike fell on the washboards or in the corner (stick 0.7), before or after. Before, the assist ignored the
+surface and every bike cornered at the road's g on dirt, which no tyre can give; the falls of the play test are not seen here. What the numbers show is the
+change of feel: the road bikes now slide wider on dirt (0.86 g at 40 km/h and 0.73 at 80, from 1.04 and 0.88) and the offroad bikes keep their g (1.02 and
+0.87), so on dirt an offroad bike corners 19 percent harder than a road bike at 40 km/h and 19 at 80. The strips (4 and 24 bumps of 5 cm) threw nothing and cost
+no speed with the damper at 1.4.
 
 ## 7. Tests
 
@@ -108,7 +113,7 @@ and of 12 m for each class and the offroad bike's speed, the damping on dirt and
 
 ## 8. Not verified, open
 
-- **Nothing here has been built or run**; the numbers of section 3 are chosen from the data and the code, not measured.
+- The harness has no fall to cure on dirt (section 6): the damper factor and the tolerances are first choices, untested against a fall.
 - The host's surface table gives dirt and gravel their lateral multipliers from the original game's cars; those values are not read here (the tests use
   0.65); the real ones, and a sand and a grass surface, are checked at the build slot with the installed table.
 - The tyre model's post-peak fall-off is the data's; the progressive breakaway of section 3.1 comes from the lean limit and the fall limit, not from a

@@ -130,7 +130,7 @@ mod tests {
         let road = feel(&rough, TerrainClass::Road, grip).0;
         let motard = feel(&rough, TerrainClass::Motard, grip).0;
         let offroad = feel(&rough, TerrainClass::Offroad, grip).0;
-        assert_eq!(road.lateral, 0.6);
+        assert!(road.lateral > 0.6 && road.lateral < motard.lateral, "a road bike loses half of the penalty");
         assert!(motard.lateral > road.lateral && offroad.lateral > motard.lateral);
         assert!(offroad.drive > road.drive);
     }

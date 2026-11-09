@@ -4,8 +4,7 @@
 `blackbox_vehicle::bike::ArcadeSteering` (the field `air`, `ArcadeAir`, `libs/blackbox-vehicle/src/bike/arcade_air.rs`;
 [ride6-arcade-steering.md](ride6-arcade-steering.md)); `ArcadeAir::REFERENCE` is neutral in every field and `bike_steering = reference` gives the
 reference behaviour back exactly. Tags: **[R]** read in this repository's code, **[D]** data (the imported manifests), **[C]** a choice of this project
-with its reason, **[T]** covered by a test that is written and **has not been run yet** (the agent rules of this round forbid building before the code is
-done), **[M]** measured (section 6: **none yet**).
+with its reason, **[T]** covered by a test that passes (built and run at the build slot), **[M]** measured (section 6).
 
 ## 1. What the player reported
 
@@ -39,10 +38,9 @@ Nothing of the reference game levels a bike in the air, centres its bars in a ju
 
 Each strength is multiplied by the bike's class (section 4). `ArcadeAir::default()` is this game's; every field of `REFERENCE` is neutral.
 
-1. **Levelling in the air** (`level_*`, `Bike::apply_air_attitude`). Both wheels off the road for `level_delay` seconds (0.08 to 0.25 s, a ramp: a bike
-   keeps the attitude of its take-off for a moment, a hop over a kerb is not levelled): a torque turns the bike's up towards **the normal of the
+1. **Levelling in the air** (`level_*`, `Bike::apply_air_attitude`). Both wheels off the road for `level_delay` seconds (0 to 0.1 s, a ramp; [M] a delay of 0.08 to 0.25 s let a road bike's nose reach 63 degrees off a 14-degree ramp at 120 km/h, over the fall limit): a torque turns the bike's up towards **the normal of the
    road below it** about its pitch and roll axes (never its yaw: that is the rider's, and the player's air control, [air-control.md](air-control.md)),
-   a spring `level_gain` 12 (rad/s^2 per rad) and a damper `level_damping` 4.5 /s, held to `level_accel` 7 rad/s^2 times the class factor. The road
+   a spring `level_gain` 12 (rad/s^2 per rad) and a damper `level_damping` 4.5 /s, held to `level_accel` 10 rad/s^2 times the class factor. The road
    below is probed by each wheel's ground ray over **8 m** (`wheel::AIR_REACH`; the contact itself is still found within 2 m), so a bike that jumps
    down a hill pitches nose-down to the slope it will meet before it meets it. The spring and damper are a second-order system of 3.5 rad/s and a damping
    ratio of 0.65: a nose-up spin of 2 rad/s is stopped within 0.5 rad (29 degrees, under the 65-degree fall limit) and gone within a second
@@ -57,11 +55,17 @@ Each strength is multiplied by the bike's class (section 4). `ArcadeAir::default
    the rest. And a tyre's load is **bent to a cap** of `load_cap_g` 14 times the bike's weight by `knee + room x tanh((load - knee) / room)` with the
    knee at 0.6 of the cap: untouched below it, never above the cap, no kink ([T] `the_reference_steering_has_no_help_in_the_air_and_no_cap`,
    `the_landing_load_is_held_under_the_cap_and_never_above_what_it_was`). This is the soft bottoming: the stops' leftover is not an impulse.
-4. **The fall tests forgive the landing** (`landing_grace` 0.9 s, `landing_tolerance` 1.8, `Bike::fall_tolerance`): for 0.9 s after the landing of a jump the
+4. **The throttle closes in the air** (`landing_throttle_cut` 1, `Bike::air_throttle_share`): in the air, and for the landing's grace as the nose comes up (0.05 to
+   0.4 rad), the engine gets none of the rider's throttle. [M] Without it a road bike that landed a 1 m ramp at 108 km/h with the throttle open looped out in
+   a wheelie (a pitch rate of 1.3 rad/s on the rear wheel, 81 degrees, fall): this, and the late levelling, were the "implosion" of the road bikes; with it the
+   same jump lands with a 22-degree wheelie that settles in half a second.
+5. **The fall tests forgive the landing** (`landing_grace` 0.9 s, `landing_tolerance` 1.8, `Bike::fall_tolerance`): for 0.9 s after the landing of a jump the
    limits of the lean (ground and air), the pitch, the heading angle and the angular speed are wider by `1 + (1.8 - 1) x class factor`, never past 85
    degrees of lean, 80 of pitch and 86 of heading angle (`air::MAX_*`): a landing that turns a bike at 18 rad/s is a landing, a tumble of 30 rad/s is
    still a fall ([T] `a_spin_on_landing_that_throws_the_reference_bike_is_forgiven_by_the_help`, `a_landing_is_forgiven_for_a_while_and_a_hop_is_not`).
-   The limits never get narrower, and a tolerance of 1 leaves them exactly as they were.
+   The limits never get narrower, and a tolerance of 1 leaves them exactly as they were. In the air the pitch limit alone gets the same widening
+   (`Bike::pitch_tolerance`): a ramp throws a bike nose-up, and the levelling needs the flight to bring it down; the lean is not widened in the air (a bike thrown
+   on its side still falls, `arcade_tests::an_arcade_bike_still_falls_when_it_is_thrown_over_or_tumbles`). A wheel that touches for one step and bounces up does not end the grace.
 
 ### Why these values [C]
 
@@ -116,14 +120,20 @@ Every bike at 60, 80, 100 and 120 km/h over a step down of 1, 2, 3 and 5 m, off 
 (this game's arcade steering as it was: no help on jumps), **after** the default. The same files, with `ProfileGround` (`ground/profile.rs`, a height profile
 along z with a surface per span), are the library's tests.
 
-| class | falls before / jumps | falls after / jumps | note |
-|---|---|---|---|
-| Road | **not measured yet** | **not measured yet** | |
-| Motard | **not measured yet** | **not measured yet** | |
-| Offroad | **not measured yet** | **not measured yet** | |
+| class | falls before / jumps | falls after / jumps |
+|---|---|---|
+| Road (92 bikes) | 2348 / 4416 (53 %) | 9 / 4416 (0.2 %) |
+| Motard (3 bikes) | 15 / 144 | 0 / 144 |
+| Offroad (3 bikes) | 42 / 144 | 0 / 144 |
 
-The numbers are to be filled at the build slot (section 8). What the sweep has to show for the brief to be met: no fall of an offroad or motard bike
-from a drop up to 5 m at 100 km/h on a flat or a sloped landing, and a road bike's falls reduced.
+[M] `bike_jump_sweep`, `RIDE6_EVERY=3` (98 of the 293 installed bikes), release build, 48 jumps a bike (3 landings x 4 drops x 4 speeds). Before the help the road bikes
+fell mostly off the ramps at 100 and 120 km/h (65 to 80 percent of the ramp jumps at 120 km/h), the offroad bikes at 120 km/h and from 3 and 5 m; the step
+downs (1 to 5 m, 60 to 120 km/h) never threw any bike, before or after. After: no motard or offroad bike falls in any of their 144 jumps (drops to 5 m at 100
+and 120 km/h, flat and sloped landings); the 9 road falls are all ramp jumps from 5 m at 100 to 120 km/h (the log is `C:\r6work\air-sweep3.txt`).
+
+Tuning on the way: with the first values (levelling delay 0.08 to 0.25 s, accel 7, no throttle cut, the lean widened in the air) the road bikes still fell 1374 / 4416
+times: the nose passed 63 degrees before the levelling took hold, and the landing looped them out. `RIDE6_CASES=1` prints the falls by case, `bike_jump_trace`
+(`RIDE6_FILTER=<bike>`, `RIDE6_KMH`, `RIDE6_DROP`) a trace of one jump.
 
 ## 7. Tests
 
@@ -132,8 +142,7 @@ landing; the bars; the levelling and the slope; the reference has none of it), `
 
 ## 8. Not verified, open
 
-- **Nothing here has been built or run.** The mechanisms of section 3 are chosen by reading the code; which of the four causes of section 2 dominates a
-  real jump is not measured. At the build slot: run `bike_jump_sweep` with `air=0` first (cause by cause: `RIDE6_ARCADE=air=0`), read `RIDE6_FALLS=1`'s
-  lines for the first falls, then tune the constants of section 3 against the table of section 6 and write the result here.
+- Which cause dominated is now known for the road bikes (the late levelling of a nose-up ramp throw, then the throttle-open landing); the load cap and the
+  landing assist were not isolated (`RIDE6_ARCADE=air=0` switches the whole help); the step downs never threw a bike.
 - The scripted jumps use a vertical-ray `ProfileGround` with a 1 cm step face; a real ramp's collision mesh has edges the wheel ray meets at an angle.
 - An in-scene check offscreen (a bike off a real ramp of the city) is not done.

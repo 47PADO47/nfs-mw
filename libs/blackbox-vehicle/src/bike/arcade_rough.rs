@@ -88,7 +88,7 @@ impl Default for ArcadeRough {
             follow_surface: true,
             surface_rate: 5.0,
             loose_range: [0.95, 0.75],
-            grip_relief: [0.0, 0.30, 0.60],
+            grip_relief: [0.5, 0.75, 0.95],
             damping: [1.0, 1.15, 1.40],
             tolerance: [1.0, 1.30, 1.80],
             lean_hold: [0.0, 0.15, 0.30],
@@ -114,8 +114,8 @@ mod tests {
     #[test]
     fn the_relief_takes_a_share_of_the_penalty_and_leaves_a_good_surface_alone() {
         let game = ArcadeRough::default();
-        assert_eq!(game.relieved(0, 0.6), 0.6, "a road bike gets the surface as it is");
-        assert!((game.relieved(2, 0.6) - 0.84).abs() < 1e-6, "an offroad bike loses 0.4 x 0.4");
+        assert!((game.relieved(0, 0.6) - 0.8).abs() < 1e-6, "a road bike loses half of 0.4");
+        assert!((game.relieved(2, 0.6) - 0.98).abs() < 1e-6, "an offroad bike loses 0.4 x 0.05");
         assert!(game.relieved(1, 0.6) > game.relieved(0, 0.6) && game.relieved(2, 0.6) > game.relieved(1, 0.6));
         assert_eq!(game.relieved(2, 1.0), 1.0);
         assert_eq!(game.relieved(2, 1.2), 1.2);

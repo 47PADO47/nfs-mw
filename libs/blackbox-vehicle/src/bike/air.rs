@@ -91,6 +91,35 @@ impl Bike {
         self.chassis.rough.advance(self.spec.steering.arcade.rough.surface_rate, dt);
     }
 
+    /// The factor on the pitch limit now: [`Bike::fall_tolerance`], and in the air at least the landing's. A ramp throws a bike nose-up at several
+    /// rad/s and the levelling needs the flight to bring it down; the lean and the rest stay as they are in the air (a bike thrown on its side is
+    /// still a fall).
+    pub(in crate::bike) fn pitch_tolerance(&self) -> f32 {
+        let class = self.spec.terrain_class();
+        let flight = match self.chassis.air.air_time > 0.0 {
+            true => self.spec.steering.arcade.air.tolerance(class),
+            false => 1.0,
+        };
+        self.fall_tolerance().max(flight)
+    }
+
+    /// The share of the rider's throttle that reaches the engine (1 in the reference steering): closed in the air, and for the landing's grace
+    /// closed as the nose comes up (0.05 to 0.4 rad), so a bike that lands with the throttle open does not loop out (`ArcadeAir::landing_throttle_cut`).
+    pub(in crate::bike) fn air_throttle_share(&self) -> f32 {
+        let air = &self.spec.steering.arcade.air;
+        let cut = air.landing_throttle_cut.clamp(0.0, 1.0);
+        if cut <= 0.0 {
+            return 1.0;
+        }
+        let state = &self.chassis.air;
+        let closed = match (state.air_time > 0.0, state.grace > 0.0) {
+            (true, _) => 1.0,
+            (false, true) => ramp(pitch_of(self.body.rotation()), [0.05, 0.4]),
+            (false, false) => 0.0,
+        };
+        1.0 - cut * closed
+    }
+
     /// The factor on the fall tests' limits now: the landing's while it is forgiven, the loose ground's, whichever is wider. 1 in the
     /// reference steering.
     pub(in crate::bike) fn fall_tolerance(&self) -> f32 {

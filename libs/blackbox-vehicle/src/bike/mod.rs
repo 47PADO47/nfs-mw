@@ -389,7 +389,7 @@ impl Bike {
         }
         let throttle = match self.fallen {
             true => 0.0,
-            false => help.throttle,
+            false => help.throttle * self.air_throttle_share(),
         };
         let brakes = self.spec.brakes;
         let (front_lever, rear_lever) =
