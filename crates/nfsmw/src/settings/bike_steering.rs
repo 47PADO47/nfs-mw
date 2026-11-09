@@ -1,5 +1,6 @@
 //! The bike steering setting (`bike_steering`): how a bike turns. `arcade` is this game's modification (a quick lean from side to side
-//! at every speed and a steady turn of about 1.6 g, `docs/specs/ride6-arcade-steering.md`), `reference` is the RIDE 6 behaviour the bikes'
+//! at every speed and a turn circle named by one table over the speed, 2.2 m at 15 km/h to 225 m at 180 km/h,
+//! `docs/specs/ride6-arcade-steering.md`, `docs/specs/ride6-bike-turn-radius.md`), `reference` is the RIDE 6 behaviour the bikes'
 //! data describes. Read when a bike is loaded: the arcade steering is part of the bike's tyres and controller
 //! (`blackbox_vehicle::bike::ArcadeSteering`), so a change reaches the bike that is loaded next.
 

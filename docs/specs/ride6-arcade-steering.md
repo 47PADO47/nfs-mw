@@ -76,6 +76,7 @@ Each field of `ArcadeSteering`; the neutral value is `REFERENCE`'s.
 | `cornering_assist` | a side force at the centre of gravity (in g at full lean), towards the lean the rider asks for, no roll torque; comes in over `assist_speed` 2 to 8 m/s | 0 | 1.1 |
 | `stick_reach` | the share of a pad stick's travel that reads as the whole stick (the host's input layer; was `choices::STEER_REACH`) | 1 | 0.9 |
 | `authority`, `authority_speed` | the factor on the cornering assist at the slow and at the fast end of a speed range (a smooth curve over the logarithm of the speed): a tighter circle when slow, a wider one when fast ([section 11](#11-the-turning-circle-over-the-speed-playtest-round-2)) | [1, 1] | [1.5, 0.6] over 5 to 70 m/s |
+| `turn` | the turn law of round 3 ([ride6-bike-turn-radius.md](ride6-bike-turn-radius.md)): the assist as the part of the circle's acceleration the lean does not give, with the circle a full stick turns named by one table over the speed (tight when slow, wide when fast), a path that follows the stick at a low speed and a quicker lean-in there; while set it replaces `cornering_assist`, `assist_speed` and `authority` | none | `TurnLaw::GAME` |
 | `wheelie_steer_drop` | the most the stick lowers the front wheel of a wheelie (the pitch assist keeps its hold in a lean, [section 12](#12-steering-in-a-wheelie-playtest-round-2)) | none (the data's assist) | 7 degrees |
 
 `choices::TIME_SCALE_SPEED_FLOOR` and `choices::STEER_REACH` of rounds 12 and 13 are gone: they are the fields `time_scale_speed_floor` (0.65 then, 1 now)
@@ -280,3 +281,10 @@ made the throttle's wheelie fall (the allowed angle follows the nose down), and 
 
 **Tests**: `wheelie_steer_tests.rs` (the lever's and the throttle's wheelie at stick 1, -1 and 0.5: under 12 degrees lost, the front wheel stays up, and never lower than with the data's assist), `pitch_assist_tests.rs` (the data's assist is 0 at a
 full lean; with the floor a nose under it is lifted and one over it is left alone, also above the target; the data's assist returns with the front wheel on the road).
+
+## 13. Round 3: the turn law
+
+Playtest round 3 ("less steering radius when slow, more when fast") replaced the speed authority of section 11 by the turn law: the assist is the part of the
+lateral acceleration that the lean does not give, towards a circle that one table names at each speed (2.2 m at 15 km/h, 4.5 at 30, 15 at 50, 40 at 80, 90 at 120, 225 at 180),
+the path follows the stick at a low speed and the lean-in is quicker there. See [ride6-bike-turn-radius.md](ride6-bike-turn-radius.md). Section 11's `authority`
+stays for a steering without a turn law (`turn: None`); `bike_steering = reference` is unchanged.
