@@ -66,15 +66,17 @@ Each field of `ArcadeSteering`; the neutral value is `REFERENCE`'s.
 |---|---|---|---|
 | `lateral_grip` | the lateral force of both tyres, peak, stiffness and camber thrust, multiplied once in `Bike::new` (`Mf94::with_lateral_scale`); the lean limit (`atan` of the grip), the fall limit, the lean help's cap and the host's skid threshold read the scaled tyre | 1 | 1 (the lever works, see 3.1; it was not needed) |
 | `lean_limit` | the factor on the lean the stick can ask for | 1 | 0.7 (52 to 36.5 degrees) |
-| `lean_rate` | the factor on the time scale of the target filter | 1 | 3 |
+| `lean_rate` | the factor on the time scale of the target filter | 1 | 1.3 (was 3, [section 10](#10-the-lean-in-slowed-playtest-round-2)) |
 | `time_scale_speed_floor` | the least of the data's speed curve of that time scale (the data slows the lean-in to a third at 330 km/h) | 0 (the data's curve) | 1 (none) |
 | `mirror_stick_curve` | the data's stick curve of the time scale read at the quicker side for both directions (round 13) | false (signed) | true |
-| `roll_spring` | the frequency of the roll spring-damper, damping ratio kept | 1 | 2 |
-| `stick_response`, `handlebar_response` | the frequency of the stick's and the handlebar's filters | 1, 1 | 2, 1.25 |
+| `roll_spring` | the frequency of the roll spring-damper, damping ratio kept | 1 | 1.2 (was 2) |
+| `stick_response`, `handlebar_response` | the frequency of the stick's and the handlebar's filters | 1, 1 | 1.2, 1.07 (were 2, 1.25) |
 | `lean_help`, `lean_help_limit` | the reference's lean help (a side force at the front contact towards the one the controller wants, 0.16 of the gap above 10 km/h, capped at the rest-load peak) closes this many times more of the gap and may give this many times more | 1, 1 | 6.25 (the whole gap), 3 |
 | `fall_angular_speed` | the factor on the fall test's angular speed limit (a quick flip is the rider's motion, not a tumble) | 1 | 3 |
 | `cornering_assist` | a side force at the centre of gravity (in g at full lean), towards the lean the rider asks for, no roll torque; comes in over `assist_speed` 2 to 8 m/s | 0 | 1.1 |
 | `stick_reach` | the share of a pad stick's travel that reads as the whole stick (the host's input layer; was `choices::STEER_REACH`) | 1 | 0.9 |
+| `authority`, `authority_speed` | the factor on the cornering assist at the slow and at the fast end of a speed range (a smooth curve over the logarithm of the speed): a tighter circle when slow, a wider one when fast ([section 11](#11-the-turning-circle-over-the-speed-playtest-round-2)) | [1, 1] | [1.5, 0.6] over 5 to 70 m/s |
+| `wheelie_steer_drop` | the most the stick lowers the front wheel of a wheelie (the pitch assist keeps its hold in a lean, [section 12](#12-steering-in-a-wheelie-playtest-round-2)) | none (the data's assist) | 10 degrees |
 
 `choices::TIME_SCALE_SPEED_FLOOR` and `choices::STEER_REACH` of rounds 12 and 13 are gone: they are the fields `time_scale_speed_floor` (0.65 then, 1 now)
 and `stick_reach` (0.9, unchanged).
@@ -173,3 +175,88 @@ settings and the two runs do not stay on the same path, so the frames show that 
   `set bike_steering reference`; it reaches the bike loaded next. `arcade` is the default.
 - In the library: `spec.steering.arcade = ArcadeSteering::REFERENCE` before `Bike::new`. A game that builds its bikes from a manifest layer
   chooses there; `BikeSpec::example()` carries `REFERENCE`.
+
+## 10. The lean-in slowed (playtest round 2)
+
+Playtest: "make leaning left/right a bit slower, something in the middle between now and original delay but a bit more to the original." [C]
+
+**What was done.** The lean-in of this game is the sum of four filters in series (section 2, item 3): the stick's, the controller's target filter, the roll spring and the handlebar's. Each of
+them is a second-order filter whose frequency is scaled by one lever (`stick_response`, `lean_rate`, `roll_spring`, `handlebar_response`), so the time constant of that stage is the stage's
+reference time over the lever. Moving the time of every stage 67.5 percent of the way from the arcade value to the original (the middle of the "65 to 70 percent" asked) therefore gives each lever
+the harmonic interpolation `1 / lever = 0.325 / arcade + 0.675 / 1`:
+
+| lever | original | before (round 1) | now | how |
+|---|---|---|---|---|
+| `lean_rate` | 1 | 3 | **1.3** | 1 / (0.325/3 + 0.675) = 1.28 |
+| `roll_spring` | 1 | 2 | **1.2** | 1 / (0.325/2 + 0.675) = 1.19 |
+| `stick_response` | 1 | 2 | **1.2** | the same |
+| `handlebar_response` | 1 | 1.25 | **1.07** | 1 / (0.325/1.25 + 0.675) = 1.07 |
+
+Not touched: `lean_limit`, `time_scale_speed_floor` (1: the lean-in is not slowed with the speed, which is the other half of "too much time to lean"), `mirror_stick_curve`, `lean_help` and its
+limit, `fall_angular_speed`, `cornering_assist`: the help closes the gap to the target either way, and a slower target needs no more falling room.
+
+**Measured** [M; the unit test `arcade_tests.rs::the_lean_in_is_two_thirds_of_the_way_from_the_arcade_time_to_the_originals` prints the three times with `--nocapture`]: the step response is the time
+from a stick stepped from 0 to 1 (while riding straight at 60 km/h, held by the throttle) to 90 percent of the steady lean (the lean after 10 s of the held stick), on the example bike with a
+superbike's power, stick to the right. The test asserts that the new time lies between 55 and 80 percent of the way from the old time to the original's.
+
+| 0 to 90 percent of the lean at 60 km/h | time |
+|---|---|
+| before (round 1: 3, 2, 2, 1.25) | to be measured at the build slot |
+| original (`ArcadeSteering::REFERENCE`) | to be measured at the build slot |
+| new (1.3, 1.2, 1.2, 1.07) | to be measured at the build slot; 67.5 percent of the way by design |
+
+The numbers are filled in from the test's output; if the share falls outside 55 to 80 percent the levers above are corrected (the doc and the constants move together). The flip of the stick from
+side to side (`arcade_tests.rs`, the 80 percent flip time at 20, 40 and 60 m/s) is printed as well: slower than before and quicker than the original, and not slowing with the speed.
+The cornering assist follows the *target* lean (section 3.1), so the path turns a little later too; the circle itself is section 11.
+
+## 11. The turning circle over the speed (playtest round 2)
+
+Playtest: "turning should be harder (less radius than now) when going slow and easier when going fast (more radius than now, progressive)." Read as: **at low speed a tighter circle than now, at high speed a
+wider one, with a smooth curve in the speed.** [C]
+
+**The lever.** The cornering assist (section 3.1) supplies most of the lateral acceleration: `a = g tan(lean) + assist x g x (target lean / limit) x fade(speed)`, `g tan(lean)` being 0.7 g at the 36-degree
+limit and the assist 1.1 g at full. A circle is `v^2 / a`, so the speed dependence is moved into the assist: it is multiplied by `ArcadeSteering::authority_factor(speed)`, one named, documented
+pair of fields: `authority = [slow, fast]` and `authority_speed = [v0, v1]`. The factor is `slow` at or under `v0`, `fast` at or over `v1`, and between them
+`slow + (fast - slow) x smoothstep(t)` with `t` the position of `ln(speed)` between `ln(v0)` and `ln(v1)`: a smooth curve (no step, no kink at the ends: the test steps 0.1 m/s from 0 to 90 m/s and
+finds no change over 1.5 percent) that moves where the speed doubles from a little, which is where a rider feels it (40 to 80 km/h changes more than 160 to 200). The assist is a force at the
+centre of gravity, so the lean limit, the fall limit and the tyre's use are untouched: the stick turns a tighter circle slowly **without** leaning further.
+
+**The numbers.** `authority = [1.5, 0.6]` over `[5, 70]` m/s (18 to 252 km/h): 1.5 times the assist at a town pace, 0.6 at a motorway speed and above; the factor passes 1 (the assist as it
+was) at about 18 m/s (65 km/h). Chosen so that a full stick still asks for more than the lean alone at every speed (0.7 g plus 0.6 of the assist is above 1.3 g), so a bend is never impossible, and so that
+the radius change is felt but not extreme: about 15 to 20 percent tighter under 40 km/h and 25 percent wider at 200 km/h.
+
+Predicted from the model of section 3.1 (lean 0.73 g, assist share 0.86 of 1.1 g, the 2 to 8 m/s fade) [P: the unit test `the_turning_circle_is_tighter_when_slow_and_wider_when_fast_progressively`
+prints the measured table for three bikes with `--nocapture`, and the build slot replaces this table with it]:
+
+| speed | factor | lateral g now | new | radius now | new | new / now |
+|---|---|---|---|---|---|---|
+| 20 km/h | 1.50 | 1.29 | 1.57 | 2.4 m | 2.0 m | 0.82 |
+| 40 km/h | 1.30 | 1.68 | 1.97 | 7.5 m | 6.4 m | 0.85 |
+| 80 km/h | 0.96 | 1.68 | 1.64 | 30 m | 31 m | 1.02 |
+| 120 km/h | 0.77 | 1.68 | 1.47 | 67 m | 77 m | 1.15 |
+| 200 km/h | 0.62 | 1.68 | 1.32 | 187 m | 239 m | 1.27 |
+
+The tests (`arcade_tests.rs`, `arcade.rs`): the ratio new/now is under 0.97 at 20 and 40 km/h, over 1.03 at 120 and 200 km/h and never falls with the speed, for the example bike, a heavy one (mass x1.35,
+torque x1.3) and a light one (mass x0.85); the radius grows with the speed in the new, the old and the original steering; the factor is 1 at every speed in `REFERENCE`, never rises with the speed and has no
+step. A low speed is also where the tyres are least loaded, so the lateral grip is not the limit; the harness (`bike_steer_audit` and `bike_steer_sweep`, `RIDE6_ARCADE=previous|slow=1.5,fast=0.6`) is the check for falls on the imported bikes.
+
+**Switching it off.** `bike_steering = reference` gives `authority = [1, 1]` (and everything else of the original) back; `REFERENCE` is exactly neutral (`the_reference_steering_is_neutral...` rides the same
+circle with every field at its neutral value).
+
+## 12. Steering in a wheelie (playtest round 2)
+
+Playtest: "if I'm wheeling and go right/left the bike should be brought down only a little bit, not all the way." [C]
+
+**What lowers the front.** In a wheelie the pitch assist (`pitch_assist.rs`) holds the nose at its target angle, but it is faded out by the lean: `lean_help = 1 - ramp(|lean| / limit, [0.2, 1])` of the data
+(`PitchParams::lean_help`), the one term of the assist that depends on the stick. With the stick over the lean goes to its limit (the wheelie's lean limit is floored at 0.35 rad, section 5 of
+[ride6-wheelie-steer.md](ride6-wheelie-steer.md)), the factor goes to 0, the assist lets go and the front comes down under the auto-rider and the lowering of the rider help: all the way.
+
+**The change** (`ArcadeSteering::wheelie_steer_drop`, `Some(10 degrees)` in this game, `None` in `REFERENCE`): with the front wheel off the road and a wheelie asked for, the assist **keeps its hold** (the lean factor
+is 1) and its target is lowered by `drop x |lean| / limit`: a **small, bounded pitch reduction**, 10 degrees at the most, in proportion to the lean (half a stick, 5 degrees). The wheelie stays up
+(the assist holds the lower angle instead of letting go), and it comes back as the stick returns. It applies to a rider's own lever wheelie as well as the throttle's. Limit: a wheelie that was held above the
+target by the engine (the forced cut starts at 33 degrees, so a held wheelie sits at 36 to 38 against a target of 35) settles to the lowered target, so the total fall can be up to 13 degrees.
+
+**Tests** (`wheelie_steer_tests.rs`): a wheelie of the example bike (12 m/s, lever back) with the stick at 1, -1 and 0.5 for 3 s never loses more than 10 degrees plus 6 degrees of settling (the measured fall
+is printed) and the front wheel stays up all the time; with the drop the lowest pitch is never lower than with the data's assist; `pitch_assist_tests.rs`: with the data's assist the torque is 0 at a full lean, with the
+drop it holds, aims `drop` lower at a full lean and half of it at half, and the data's assist returns with the front wheel on the road. The harness `bike_wheelie_steer` ([ride6-wheelie-steer.md](ride6-wheelie-steer.md))
+reports the pitch with the stick over for the imported bikes.
