@@ -19,7 +19,10 @@ use crate::config::Config;
 /// 8: the road equipment (side mirrors, homologation kit) as solids of their own with an optional slot, group `road`
 /// (`docs/modding/ride6-road-equipment.md`), and the screens of the instrument clusters that have a display stored as 32-bit textures
 /// with a `[bike.dash]` table (`docs/modding/ride6-bike-dash.md`).
-const CONVERSION: u32 = 8;
+/// 9: the shop's optional parts placed where the stock ones are (the silencers on their header pipes' bones, twin silencers as a
+/// solid for each can, the discs on the stock disc's side, the rims seated on the tyre with a scale) and a brake level that comes with
+/// its disc kit (`docs/modding/ride6-bike-upgrades.md`).
+const CONVERSION: u32 = 9;
 /// The name of the stamp file, in the mod's folder.
 pub const FILE: &str = ".import-stamp";
 
