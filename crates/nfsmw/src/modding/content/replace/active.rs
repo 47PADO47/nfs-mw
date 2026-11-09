@@ -220,6 +220,16 @@ impl Active {
         self.cleared.lock().map(|tally| *tally).unwrap_or_default()
     }
 
+    /// The name hashes of the textures the sets replace.
+    pub fn replaced_hashes(&self) -> Vec<u32> {
+        self.textures.keys().copied().collect()
+    }
+
+    /// The slot that replaces the texture with this name hash.
+    pub fn slot(&self, hash: u32) -> Option<Arc<TextureSlot>> {
+        self.textures.get(&hash).cloned()
+    }
+
     /// The textures the sets add to the world. They are not copied into the sections the sets rewrite: the world puts them in the
     /// shared sets once, and every section's solids find them there.
     pub fn textures(&self) -> &[Texture] {
@@ -259,9 +269,9 @@ impl Active {
         }
         for texture in textures {
             let Some(slot) = self.textures.get(&texture.name_hash) else { continue };
-            if let Some(new) = slot.replacement(texture) {
-                *texture = new;
-            }
+            let Some(new) = slot.replacement(texture) else { continue };
+            super::originals::note(texture);
+            *texture = new;
         }
     }
 

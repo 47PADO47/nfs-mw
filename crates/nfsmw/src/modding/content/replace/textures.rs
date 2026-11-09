@@ -105,6 +105,16 @@ impl TextureSlot {
         loaded.as_ref()
     }
 
+    /// Make the picture now if it is not made (on the calling thread), so a later [`made`](Self::made) finds it.
+    pub fn make(&self) {
+        let _ = self.picture();
+    }
+
+    /// The picture as it is, without waiting: `None` while nothing has made it yet, `Some(None)` when it could not be made.
+    pub fn made(&self) -> Option<Option<Arc<Texture>>> {
+        self.loaded.get().map(Option::clone)
+    }
+
     /// The texture that takes the place of `original`: the slot's picture with `original`'s name hash and, under
     /// [`TextureState::Keep`], its draw state. `None` when the picture cannot be had.
     pub fn replacement(&self, original: &Texture) -> Option<Texture> {
