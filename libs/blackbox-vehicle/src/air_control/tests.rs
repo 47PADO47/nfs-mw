@@ -99,10 +99,10 @@ fn the_push_fades_out_towards_the_attitude_limits_and_not_away_from_them() {
     // Nose up at the limit: the opposite.
     assert_eq!(push(&at(1.0, 0.0), -1.0, 0.0).x, 0.0);
     assert!(push(&at(1.0, 0.0), 1.0, 0.0).x > 0.0);
-    // Inside 0.7 of the limit the push is whole; between, it is part.
+    // Inside half the limit the push is whole; between, it is part.
     let whole = push(&at(0.0, 0.0), -1.0, 0.0).x;
-    assert_eq!(push(&at(0.69, 0.0), -1.0, 0.0).x, whole);
-    let part = push(&at(0.85, 0.0), -1.0, 0.0).x;
+    assert_eq!(push(&at(0.49, 0.0), -1.0, 0.0).x, whole);
+    let part = push(&at(0.75, 0.0), -1.0, 0.0).x;
     assert!(part.abs() < whole.abs() && part != 0.0, "{part} {whole}");
     // The same in roll: leaning right at the limit, the stick right adds no roll, the stick left rolls back.
     assert_eq!(push(&at(0.0, 1.0), 0.0, 1.0).z, 0.0);

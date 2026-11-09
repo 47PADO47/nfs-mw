@@ -366,7 +366,7 @@ fn air_control_is_a_switch_the_console_gets_sets_and_toggles() {
     assert_eq!(get(&s, "air_control").unwrap(), "air_control = off");
     assert_eq!(set(&mut s, "air_control", "on").unwrap(), "air_control = on");
     assert!(s.air_control);
-    assert_eq!(set(&mut s, "air-control", "off").unwrap(), "air_control = off");
+    assert_eq!(set(&mut s, "air-control", "off").unwrap(), "air-control = off");
     assert!(!s.air_control);
     assert!(set(&mut s, "air_control", "maybe").is_err());
     assert!(KEYS.contains(&"air_control"));

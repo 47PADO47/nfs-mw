@@ -22,8 +22,8 @@ mod tests;
 
 /// Below this an axis counts as untouched and only the damping acts.
 const DEAD: f32 = 1e-3;
-/// The share of an attitude limit over which the push fades out (it is whole below 0.7 of the limit and gone at it).
-const SOFT_LIMIT_BAND: f32 = 0.3;
+/// The share of an attitude limit over which the push fades out (it is whole below half the limit and gone at it).
+const SOFT_LIMIT_BAND: f32 = 0.5;
 
 /// The three axes of the player's input, each -1 to 1.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

@@ -15,8 +15,8 @@ const BARS_DELAY: f32 = 0.03;
 const BARS_BLEND: f32 = 0.15;
 /// The share of the tyre load cap (`ArcadeAir::load_cap_g`) under which the load is left alone; above it the load bends towards the cap.
 const LOAD_KNEE: f32 = 0.6;
-/// The share of the fall tests' airborne pitch and lean limits at which the player's push is gone (it fades from 0.7 of that).
-const PUSH_LIMIT_SHARE: f32 = 0.85;
+/// The share of the fall tests' airborne pitch and lean limits at which the player's push is gone (it fades from 0.5 of that).
+const PUSH_LIMIT_SHARE: f32 = 0.7;
 /// The most the fall tests' limits are widened to (rad): a landing or a loose road forgives a lot, never a bike on its side.
 pub(in crate::bike) const MAX_LEAN: f32 = 1.48;
 pub(in crate::bike) const MAX_PITCH: f32 = 1.40;
@@ -72,8 +72,11 @@ impl Bike {
         match up {
             true => {
                 state.air_time += dt;
-                state.grace = 0.0;
-                state.touched = NOT_LANDED;
+                // A wheel that touches for one step and bounces up again does not end the grace of a landing: only a new flight does.
+                if state.air_time >= air.min_air_time {
+                    state.grace = 0.0;
+                    state.touched = NOT_LANDED;
+                }
             }
             false => {
                 if state.air_time >= air.min_air_time {

@@ -76,7 +76,7 @@ test). The bounds are per axis and in angular acceleration, so they hold whateve
 ### Attitude limits (bikes) [C]
 
 A bike falls over beyond its airborne lean (70 degrees) and pitch (65 degrees) limits (`FallSpec`, `FallExtra`). The player's push fades out as the
-bike nears **0.85 of them** (whole below 0.7 of that, gone at it), and an axis the player is holding but that has faded to nothing is steered to a
+bike nears **0.7 of them** (whole below half of that, gone at it; 0.85 and a band of 0.3 let the momentum carry a bike past the 65-degree limit and fall, measured), and an axis the player is holding but that has faded to nothing is steered to a
 standstill, so the bike stops at the edge and does not drift on past it ([T] `a_held_stick_stops_short_of_the_fall_limits`,
 `a_body_turning_into_an_attitude_limit_is_braked_and_not_left_to_drift_on`). A car has no limits: landing on the roof is the player's doing.
 
