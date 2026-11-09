@@ -36,7 +36,11 @@ fn the_look_is_a_pure_function_of_the_stick_with_more_room_down_than_up() {
     assert_eq!(HeadLook::target([0.5, -0.5]), [5.5, -15.0]);
     assert_eq!(HeadLook::target([7.0, -7.0]), [11.0, -30.0], "beyond the travel is the end");
     assert_eq!(HeadLook::target([f32::NAN, f32::INFINITY * 0.0]), [0.0, 0.0]);
-    assert_eq!(HeadLook::target([f32::NEG_INFINITY, f32::INFINITY]), [-11.0, 25.0]);
+    assert_eq!(
+        HeadLook::target([f32::NEG_INFINITY, f32::INFINITY]),
+        [0.0, 0.0],
+        "an infinite stick is not a number: at rest"
+    );
     // Monotonic and continuous across the middle.
     let mut last = HeadLook::target([0.0, -1.0])[1];
     for step in 1..=200 {
