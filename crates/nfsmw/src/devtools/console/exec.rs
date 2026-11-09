@@ -228,6 +228,7 @@ pub fn sync_settings(settings: Res<Settings>, mut host: NonSendMut<Host>, mut ap
         host.set_rain(settings.always_rain, settings.rain_amount.amplitude());
     }
     host.set_world_tuning(WorldTuning::from(&*settings));
+    settings.speed_units.make_current();
     crate::garage::rider_gear::set_enabled(settings.rider_gear);
     crate::scenes::world::bike_assist::set_easy_wheelie(settings.easy_wheelie);
     crate::scenes::world::bike_assist::set_live_dash(settings.live_dash);
