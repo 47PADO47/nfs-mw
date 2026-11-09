@@ -45,7 +45,8 @@ fn the_slots_and_the_parts_are_read_in_order() {
             pack: None,
             role: PartRole::Body,
             matrix: None,
-            base: false
+            base: false,
+            markers: Vec::new()
         }
     );
     let race = &found.parts["exhaust.muffler.race"];
@@ -115,4 +116,48 @@ fn a_base_part_is_a_part_the_car_is_drawn_with() {
     let found = tables(&text).unwrap().unwrap();
     assert!(found.parts["body.2"].base);
     assert!(!found.parts["exhaust.muffler.stock"].base, "a part is not a base part unless it says so");
+}
+
+#[test]
+fn a_part_carries_tail_pipe_markers_with_a_unit_direction() {
+    let text = format!(
+        "{BIKE}
+[parts.\"exhaust.muffler2.race\"]
+solid = \"MUF_974_001_G2\"
+markers = [
+  {{ name = \"LEFT_EXHAUST\", position = [-0.9, 0.12, 0.8], direction = [-2, 0, 0] }},
+  {{ name = \"EXHAUST\", position = [0, 0, 0.3], direction = [0, 0, 1] }},
+]
+"
+    );
+    let found = tables(&text).unwrap().unwrap();
+    let markers = &found.parts["exhaust.muffler2.race"].markers;
+    assert_eq!(markers.len(), 2);
+    assert_eq!(
+        markers[0],
+        PartMarker { name: "LEFT_EXHAUST".into(), position: [-0.9, 0.12, 0.8], direction: [-1.0, 0.0, 0.0] }
+    );
+    assert!(found.parts["exhaust.muffler.race"].markers.is_empty(), "a part with no list has none");
+}
+
+#[test]
+fn a_marker_must_be_a_tail_pipe_with_finite_numbers_and_a_direction() {
+    let with = |marker: &str| {
+        format!(
+            "{BIKE}
+[parts.\"x.y\"]
+solid = \"A\"
+markers = [{marker}]
+"
+        )
+    };
+    let good = r#"{ name = "EXHAUST", position = [0, 0, 0], direction = [0, 0, 1] }"#;
+    assert!(tables(&with(good)).is_ok());
+    let field = |text: String| matches!(tables(&text), Err(ContentError::Field { field: "parts.markers", .. }));
+    assert!(field(with(r#"{ name = "head light", position = [0, 0, 0], direction = [0, 0, 1] }"#)));
+    assert!(field(with(r#"{ name = "", position = [0, 0, 0], direction = [0, 0, 1] }"#)));
+    assert!(field(with(r#"{ name = "EXHAUST", position = [nan, 0, 0], direction = [0, 0, 1] }"#)));
+    assert!(field(with(r#"{ name = "EXHAUST", position = [0, 0, 0], direction = [0, 0, 0] }"#)));
+    assert!(field(with(&vec![good; 9].join(", "))));
+    assert!(tables(&with(r#"{ name = "EXHAUST", position = [0, 0, 0] }"#)).is_err(), "a direction is required");
 }

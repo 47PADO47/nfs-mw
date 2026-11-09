@@ -18,7 +18,7 @@ use super::assemble::Placement;
 use crate::shared;
 
 /// The position markers of a tail pipe.
-const PIPE_MARKERS: [&str; 3] = ["EXHAUST", "LEFT_EXHAUST", "RIGHT_EXHAUST"];
+pub(crate) const PIPE_MARKERS: [&str; 3] = ["EXHAUST", "LEFT_EXHAUST", "RIGHT_EXHAUST"];
 
 /// One emitter of a particle group and the texture (by name hash) its particles are drawn with.
 #[derive(Debug, Clone, PartialEq)]

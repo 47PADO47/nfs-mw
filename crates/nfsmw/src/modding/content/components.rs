@@ -9,7 +9,7 @@ use blackbox_components::{Catalog, VehicleDef};
 use blackbox_modding::content::{
     COMPONENTS_FOLDER, Components as Manifest, PartBinding, PartRole, merge_catalog, parse_catalog,
 };
-use nfsmw_data::car::mods::components::{self, Binding, Role, keys};
+use nfsmw_data::car::mods::components::{self, Binding, PartMarker, Role, keys};
 
 use super::cars::manifest_files;
 
@@ -56,7 +56,12 @@ fn binding(part: &PartBinding) -> Binding {
         PartRole::WheelFront => Role::WheelFront,
         PartRole::WheelRear => Role::WheelRear,
     };
-    Binding { solid: part.solid.clone(), pack: part.pack.clone(), role, matrix: part.matrix, base: part.base }
+    let markers = part
+        .markers
+        .iter()
+        .map(|marker| PartMarker { name: marker.name.clone(), position: marker.position, direction: marker.direction })
+        .collect();
+    Binding { solid: part.solid.clone(), pack: part.pack.clone(), role, matrix: part.matrix, base: part.base, markers }
 }
 
 /// Publish the components of the car in `folder`, whose mod is in `owner`. A car whose slots do not fit its mod's catalog is

@@ -241,6 +241,9 @@ The game lights a car's tail pipes at the markers `EXHAUST`, `LEFT_EXHAUST` and 
 flame. A bike pops and blips already (its pops and shift pops are the sound's, [ride6-bikes-sound.md](ride6-bikes-sound.md)), so
 the importer writes the markers, and the game flames at them ([exhaust-flames.md](../exhaust-flames.md#bikes-the-ride-6-mod)).
 
+**An aftermarket exhaust** of the shop has its own pipes, found the same way on its mesh after the bike's mount and written in the binding of
+its part (`markers`, [ride6-bike-upgrades.md](ride6-bike-upgrades.md#what-the-importer-writes)); the body's pipes below are the stock exhaust's.
+
 **Where the data comes from.** RIDE 6 has no outlet socket: the skeleton lists `SOCKET_AUDIO_EX`, a point on the centre plane a
 few centimetres behind the silencer (the KTM's is 83 cm behind the middle of the car frame and 66 cm up) that the sound is
 placed at, and `parts.json` lists the stock silencer as the part `muffler` (the header pipes, `exmanifold`, end in it and are not

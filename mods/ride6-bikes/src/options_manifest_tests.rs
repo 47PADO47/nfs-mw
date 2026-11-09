@@ -229,3 +229,77 @@ fn a_bike_without_the_disc_slot_has_a_brake_ladder_that_brings_nothing() {
     let ladder = plan.slots.iter().find(|slot| slot.id == "perf_brakes").unwrap();
     assert!(ladder.bundles.is_empty());
 }
+
+fn pipe_at(at: [f32; 3]) -> Pipe {
+    Pipe { side: crate::exhaust::Side::Right, at, dir: [-1.0, 0.0, 0.0] }
+}
+
+#[test]
+fn the_silencers_of_the_options_get_the_pipes_the_library_finds_and_nothing_else_does() {
+    let mut twin = options();
+    twin.exhaust[0].muffler_twins = vec![anchor(0.3)];
+    let have: Vec<&Piece> = PIECES.iter().collect();
+    let mut plan = Plan::of("ktm450", &twin, &have, Mounts::default());
+    let asked = std::sync::Mutex::new(Vec::new());
+    // A library that puts each pipe where its mount puts the part's origin: the pipe follows the matrix.
+    plan.set_pipes(|stem, number, matrix| {
+        asked.lock().unwrap().push((stem.to_owned(), number));
+        vec![pipe_at([matrix[3], matrix[7], matrix[11] + 0.5])]
+    });
+    let slug = "muf_akrapovic_completo_standard";
+    let first = part(&plan, &format!("exhaust.muffler.{slug}"));
+    let second = part(&plan, &format!("exhaust.muffler2.{slug}"));
+    assert_eq!(first.pipes.len(), 1);
+    assert_eq!(
+        first.pipes[0].at,
+        [first.matrix.unwrap()[3], first.matrix.unwrap()[7], first.matrix.unwrap()[11] + 0.5]
+    );
+    assert_ne!(first.pipes[0].at, second.pipes[0].at, "each can has its own mount and its own pipe");
+    assert_eq!(*asked.lock().unwrap(), [("muffler974_001".to_owned(), 1), ("muffler974_001".to_owned(), 2)]);
+    assert!(part(&plan, &format!("exhaust.header.{slug}")).pipes.is_empty(), "the header is not an outlet");
+    assert!(part(&plan, "exhaust.stock").pipes.is_empty(), "the stock part keeps the body's own markers");
+    assert!(part(&plan, "rim.front.rim738_001").pipes.is_empty());
+}
+
+#[test]
+fn a_silencer_that_has_no_outlet_leaves_the_stock_pipes() {
+    let mut plan = plan();
+    plan.set_pipes(|_, _, _| Vec::new());
+    assert!(plan.parts.iter().all(|part| part.pipes.is_empty()));
+    assert!(!plan.text().contains("markers"), "no markers written: the game keeps the stock pipes");
+}
+
+#[test]
+fn the_manifest_writes_the_pipes_as_markers_the_game_reads_back() {
+    let mut plan = plan();
+    plan.set_pipes(|_, _, _| vec![pipe_at([0.25, -0.5, 0.75])]);
+    let text = plan.text();
+    assert!(
+        text.contains(
+            r#"markers = [{ name = "RIGHT_EXHAUST", position = [0.25, -0.5, 0.75], direction = [-1.0, 0.0, 0.0] }]"#
+        ),
+        "{text}"
+    );
+    let car = parse_car("ktm450", &text).unwrap();
+    let parts = car.components.unwrap().parts;
+    let muffler = &parts["exhaust.muffler.muf_akrapovic_completo_standard"];
+    assert_eq!(muffler.markers.len(), 1);
+    assert_eq!(muffler.markers[0].name, "RIGHT_EXHAUST");
+    assert_eq!(muffler.markers[0].position, [0.25, -0.5, 0.75]);
+    assert_eq!(muffler.markers[0].direction, [-1.0, 0.0, 0.0]);
+    assert!(parts["exhaust.stock"].markers.is_empty());
+}
+
+#[test]
+fn a_silencer_part_is_told_from_the_header_and_its_number_from_its_solid() {
+    for id in ["exhaust.muffler.x", "exhaust.muffler2.x", "exhaust.muffler3.y_z"] {
+        assert!(is_silencer(id), "{id}");
+    }
+    for id in ["exhaust.header.x", "exhaust.stock", "exhaust.mufflerx.y", "rim.front.x"] {
+        assert!(!is_silencer(id), "{id}");
+    }
+    assert_eq!(silencer_number("MUFFLER974_001"), 1);
+    assert_eq!(silencer_number("MUFFLER974_001_G2"), 2);
+    assert_eq!(silencer_number("MUFFLER974_001_G3"), 3);
+    assert_eq!(silencer_number("MUFFLER_GX"), 1);
+}

@@ -10,6 +10,7 @@ use crate::build_pieces::{PIECES, mounts_of, present};
 use crate::exports::Exports;
 use crate::options::{BikeOptions, Catalogue};
 use crate::options_manifest::Plan;
+use crate::options_pack::Library;
 use crate::partfile::PartTable;
 
 /// The catalogue and the collected plans.
@@ -17,6 +18,9 @@ pub struct Shop<'a> {
     pub catalogue: &'a Catalogue,
     /// The plans of the bikes imported so far (the components of all of them make the catalog file).
     pub plans: &'a Mutex<Vec<Plan>>,
+    /// The parts' meshes, to find where a fitted silencer's outlet is (`Plan::set_pipes`); `None`: the options carry no pipes, and the
+    /// stock ones stay when they are fitted.
+    pub library: Option<&'a Library>,
 }
 
 impl Shop<'_> {
@@ -34,7 +38,18 @@ impl Shop<'_> {
                 return None;
             }
         };
-        let plan = Plan::of(car, options, &present(table), mounts);
+        let mut plan = Plan::of(car, options, &present(table), mounts);
+        if let Some(library) = self.library {
+            plan.set_pipes(|stem, number, matrix| match library.silencer_pipes(stem, number, matrix) {
+                Ok(pipes) => pipes,
+                Err(error) => {
+                    log::warn!(
+                        "{car}: the outlet of the silencer {stem} is not found, it flames at the stock pipes: {error:#}"
+                    );
+                    Vec::new()
+                }
+            });
+        }
         (!plan.slots.is_empty()).then_some(plan)
     }
 
