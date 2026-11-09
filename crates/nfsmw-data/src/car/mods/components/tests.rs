@@ -328,6 +328,17 @@ fn a_mount_moves_the_vertices_normals_tangents_and_boxes_of_a_copy() {
 }
 
 #[test]
+fn a_mount_with_a_scale_keeps_the_normals_square_to_the_surface() {
+    // Half along z: the normal (1, 0, 1) of a surface at 45 degrees leans towards z, (1, 0, 2) normalised, not (1, 0, 0.5).
+    let rows = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0];
+    let mut one = solid();
+    one.vertices[0].normal = [std::f32::consts::FRAC_1_SQRT_2, 0.0, std::f32::consts::FRAC_1_SQRT_2];
+    let moved = mounted(&one, Some(rows), 1);
+    let n = Vec3::from(moved.vertices[0].normal);
+    assert!((n - Vec3::new(1.0, 0.0, 2.0).normalize()).length() < 1e-5, "{n:?}");
+}
+
+#[test]
 fn a_component_in_a_garage_slot_is_a_priced_choice_and_a_ladder_tier_is_not() {
     publish("COMPTESTBIKE4", components());
     assert!(is_choice(choice_hash("COMPTESTBIKE4", "t:exhaust.race")));

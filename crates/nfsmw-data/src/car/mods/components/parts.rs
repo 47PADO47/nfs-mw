@@ -15,7 +15,7 @@ use blackbox_hash::bstring_hash;
 use blackbox_solid::Solid;
 use blackbox_tpk::Texture;
 use game_install::GameDir;
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat3, Mat4, Vec3, Vec4};
 
 use super::{Binding, Components, Role, select};
 use crate::car::customization::Selection;
@@ -214,15 +214,26 @@ fn boxed(m: Mat4, min: [f32; 3], max: [f32; 3]) -> ([f32; 3], [f32; 3]) {
     (low.to_array(), high.to_array())
 }
 
+/// The matrix that carries a normal of a surface moved by `m` (the inverse transpose of its linear part, so a part with a scale,
+/// like a rim seated on its tyre, keeps its normals square to its surface); the linear part itself when it cannot be inverted.
+fn normal_matrix(m: Mat4) -> Mat3 {
+    let linear = Mat3::from_mat4(m);
+    match linear.determinant().abs() < 1e-12 {
+        true => linear,
+        false => linear.inverse().transpose(),
+    }
+}
+
 /// A copy of `solid` named `key` with `matrix` applied to its vertices, normals, tangents and boxes; without a matrix, the copy.
 pub fn mounted(solid: &Solid, matrix: Option<[f32; 12]>, key: u32) -> Solid {
     let mut out = solid.clone();
     out.name_hash = key;
     let Some(rows) = matrix else { return out };
     let m = affine(rows);
+    let normals = normal_matrix(m);
     for vertex in &mut out.vertices {
         vertex.position = m.transform_point3(Vec3::from(vertex.position)).to_array();
-        vertex.normal = m.transform_vector3(Vec3::from(vertex.normal)).normalize_or_zero().to_array();
+        vertex.normal = (normals * Vec3::from(vertex.normal)).normalize_or_zero().to_array();
     }
     for tangent in out.tangents.iter_mut().flatten() {
         let moved = m.transform_vector3(Vec3::new(tangent[0], tangent[1], tangent[2])).normalize_or_zero();
