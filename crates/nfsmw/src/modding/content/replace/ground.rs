@@ -48,7 +48,7 @@ fn triangles_of(solid: &Solid, out: &mut Vec<Triangle>) {
     for group in &solid.groups {
         let first = group.first_index as usize;
         let Some(indices) = solid.indices.get(first..first + group.num_indices as usize) else { continue };
-        for corners in indices.chunks_exact(3) {
+        for corners in indices.as_chunks::<3>().0 {
             let at =
                 |index: u16| solid.vertices.get(group.base_vertex as usize + usize::from(index)).map(|v| v.position);
             let (Some(a), Some(b), Some(c)) = (at(corners[0]), at(corners[1]), at(corners[2])) else { continue };
@@ -102,12 +102,6 @@ impl Terrain {
         let col = ((point[0] - self.origin[0]) / CELL).max(0.0) as usize;
         let row = ((point[1] - self.origin[1]) / CELL).max(0.0) as usize;
         (col.min(self.cols - 1), row.min(self.rows - 1))
-    }
-
-    /// How many triangles the terrain has.
-    #[cfg(test)]
-    pub fn len(&self) -> usize {
-        self.triangles.len()
     }
 
     /// The height of the terrain surface at `at` (x, y) nearest to `near`, among the surfaces from `below` under it to `above` over it.

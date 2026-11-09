@@ -7,6 +7,7 @@
 pub const LOOK_YAW_LIMIT_DEG: f32 = 11.0;
 /// RIDE 6's own most the head tips up or down, degrees: `PitchModifier.OffsetLimits` (-10 to 10) of the same behaviour [D]. Not
 /// used any more: the player asked for more ("let me look a bit up and down too"), see [`LOOK_UP_LIMIT_DEG`].
+#[cfg(test)]
 pub const LOOK_PITCH_DATA_LIMIT_DEG: f32 = 10.0;
 /// The most the head tips up, degrees [C]: a quarter of a turn of a rider's neck looking over the screen of a fairing, enough to
 /// see a bend's exit and the sky above the rest view (which looks about 26 degrees down, so +25 puts the view on the horizon).

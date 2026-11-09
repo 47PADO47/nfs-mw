@@ -230,12 +230,6 @@ impl Active {
         self.cleared.lock().map(|tally| *tally).unwrap_or_default()
     }
 
-    /// What settling the copies on the ground and off the roads has done to the sections loaded so far ([`Settled`]).
-    #[cfg(test)]
-    pub fn settled(&self) -> Settled {
-        self.settled.lock().map(|tally| *tally).unwrap_or_default()
-    }
-
     /// The name hashes of the textures the sets replace.
     pub fn replaced_hashes(&self) -> Vec<u32> {
         self.textures.keys().copied().collect()

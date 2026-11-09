@@ -15,7 +15,9 @@ use anyhow::{Context, Result, bail};
 use blackbox_modding::content::{FitLimits, SwapFit};
 use blackbox_solid::{GroupSource, PositionMarker, Solid, SolidSource, Vertex, read_solids, write_geometry_pack};
 
-use super::clear::{Neighbours, Tally};
+#[cfg(test)]
+use super::clear::Neighbours;
+use super::clear::Tally;
 use super::place::{self, Measure, Placement, Stock};
 use super::settle::{self, Settled, Site};
 
@@ -235,7 +237,10 @@ fn measure(groups: &[GroupSource]) -> Option<Measure> {
         .flat_map(|group| group.vertices.iter())
         .map(|vertex| vertex.position[2])
         .fold(f32::MAX, f32::min);
-    let crown_low = (crown_low < f32::MAX).then_some(crown_low).unwrap_or(low[2]);
+    let crown_low = match crown_low < f32::MAX {
+        true => crown_low,
+        false => low[2],
+    };
     Some(Measure {
         width: (high[0] - low[0]).max(high[1] - low[1]),
         height: high[2],

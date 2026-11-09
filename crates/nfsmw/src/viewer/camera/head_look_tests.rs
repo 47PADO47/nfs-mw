@@ -50,7 +50,7 @@ fn the_look_is_a_pure_function_of_the_stick_with_more_room_down_than_up() {
         last = pitch;
     }
     // The old data limit is inside the new ones.
-    assert!(LOOK_PITCH_DATA_LIMIT_DEG < LOOK_UP_LIMIT_DEG && LOOK_PITCH_DATA_LIMIT_DEG < LOOK_DOWN_LIMIT_DEG);
+    const { assert!(LOOK_PITCH_DATA_LIMIT_DEG < LOOK_UP_LIMIT_DEG && LOOK_PITCH_DATA_LIMIT_DEG < LOOK_DOWN_LIMIT_DEG) };
 }
 
 #[test]
