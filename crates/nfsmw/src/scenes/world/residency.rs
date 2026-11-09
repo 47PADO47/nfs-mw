@@ -19,6 +19,7 @@ mod parts;
 mod ready;
 mod replace;
 mod shadow_support;
+mod shared_textures;
 mod shared_upload;
 pub(super) mod start;
 mod texture_detail;
@@ -74,6 +75,8 @@ pub struct Residency {
     shared_ready: bool,
     /// The shared sets while they go to the GPU over several frames.
     shared_upload: Option<shared_upload::SharedUpload>,
+    /// What the replacements show in place of the shared textures (`residency/shared_textures.rs`).
+    shared_textures: shared_textures::SharedTextures,
     /// Whether the residency has been complete once (`complete`): from then on the world is shown, and uploads use the
     /// smaller budget.
     settled: bool,
@@ -191,6 +194,7 @@ impl Residency {
             shared_placed: Vec::new(),
             shared_ready: false,
             shared_upload: None,
+            shared_textures: Default::default(),
             settled: false,
             tiles,
             arrived: VecDeque::new(),
@@ -261,6 +265,7 @@ impl Residency {
         self.update_traffic_support();
         self.update_mod_wanted(x, y);
         self.sync_replace(renderer);
+        self.advance_shared_textures(renderer);
         self.upload_arrived(renderer);
         self.unload_unwanted(renderer);
         self.request_wanted();

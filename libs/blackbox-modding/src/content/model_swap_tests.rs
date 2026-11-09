@@ -83,7 +83,9 @@ fn the_fit_limits_default_and_are_read_from_the_fit_table() {
     assert_eq!(parse(PROFILE).unwrap().limits, FitLimits::default());
     let tuned = PROFILE.replacen("[[swap]]", "[fit]\nspread = 1.5\nsqueeze = 0.4\nmin_height = 0.6\n\n[[swap]]", 1);
     let limits = parse(&tuned).unwrap().limits;
-    assert_eq!(limits, FitLimits { spread: 1.5, squeeze: 0.4, min_height: 0.6 });
+    assert_eq!(limits, FitLimits { spread: 1.5, squeeze: 0.4, min_height: 0.6, clearance: false });
+    let clear = PROFILE.replacen("[[swap]]", "[fit]\nclearance = true\n\n[[swap]]", 1);
+    assert_eq!(parse(&clear).unwrap().limits, FitLimits { clearance: true, ..FitLimits::default() });
     let partial = PROFILE.replacen("[[swap]]", "[fit]\nspread = 2.0\n\n[[swap]]", 1);
     let limits = parse(&partial).unwrap().limits;
     assert_eq!(limits, FitLimits { spread: 2.0, ..FitLimits::default() }, "a key left out keeps its default");

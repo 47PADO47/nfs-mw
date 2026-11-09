@@ -11,8 +11,9 @@ use super::manifest::{Limits, Set};
 use super::stock::{BCZ, BZ, Family, row, single};
 
 /// The limits of the bushes: a bush may be wider than the cell it stands in (a patch is dense), squeezed sideways far less than a tree,
-/// and a patch whose old cells are too thin for a bush stays as it was.
-pub const BUSH_LIMITS: Limits = Limits { spread: 1.5, squeeze: 0.5, min_height: 0.5 };
+/// and a patch whose old cells are too thin for a bush stays as it was. `clearance`: a bush never grows into the guard rail, barrier, wall or
+/// building beside it (`docs/modding/api-replace.md`, "Clearance").
+pub const BUSH_LIMITS: Limits = Limits { spread: 1.5, squeeze: 0.5, min_height: 0.5, clearance: true };
 /// The message of the mod's catalogue that names the option.
 pub const KIND_LABEL: &str = "nfsmw2012-bushes";
 

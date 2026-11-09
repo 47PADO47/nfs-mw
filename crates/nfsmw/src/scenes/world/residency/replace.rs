@@ -5,7 +5,8 @@
 //! shared sets, and a tile's solids find them there like the textures of the shared library: no tile holds a copy. When the
 //! replacements in effect change (the player chose another value of a kind, in a drive too) the resident tiles are streamed again, so the
 //! new models and textures show within seconds and no drive has to restart. The shared sets and the global textures were rewritten when
-//! they loaded: a replacement of one of **their** textures follows at the next drive.
+//! they loaded: the textures of the shared sets follow at once, by a redirect (`shared_textures.rs`); their models and the global textures
+//! follow at the next start.
 
 use std::sync::Arc;
 
@@ -37,6 +38,7 @@ impl Residency {
         if let Some(active) = &active {
             self.shared.upload_texture_list(renderer, active.textures(), &[]);
         }
+        self.plan_shared_textures(active.as_deref());
         self.refresh_resident();
     }
 

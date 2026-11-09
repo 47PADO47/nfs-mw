@@ -41,7 +41,7 @@ fn write(source: SolidSource) -> Solid {
 
 /// A tree: a trunk quad (effect 0) and a foliage card (effect 6) from 30 percent of the height up, `half_width` to each
 /// side of the origin in x.
-fn tree(name: &str, texture: &str, height: f32, half_width: f32, flags: u16) -> Solid {
+pub(super) fn tree(name: &str, texture: &str, height: f32, half_width: f32, flags: u16) -> Solid {
     let trunk_top = height * 0.4;
     let trunk = GroupSource {
         effect_id: 0,
@@ -67,7 +67,7 @@ fn tree(name: &str, texture: &str, height: f32, half_width: f32, flags: u16) -> 
 }
 
 /// A solid of leaf cards (the way the game's rows of trees are) whose vertices are `points`.
-fn cloud(name: &str, points: &[[f32; 3]]) -> Solid {
+pub(super) fn cloud(name: &str, points: &[[f32; 3]]) -> Solid {
     let vertices: Vec<Vertex> = points.iter().map(|&p| vertex(p, [0.0, 0.0])).collect();
     let indices: Vec<u16> = (0..points.len() as u16 - 2).flat_map(|n| [n, n + 1, n + 2]).collect();
     let leaves = GroupSource { effect_id: 6, flags: 0x4008, ..GroupSource::new(vertices, indices) };

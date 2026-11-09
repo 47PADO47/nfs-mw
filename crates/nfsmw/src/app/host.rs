@@ -76,6 +76,7 @@ pub struct Host {
 
 impl Host {
     pub fn new(mut scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<super::screenshot::Plan>) -> Self {
+        settings.speed_units.make_current();
         scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
         scene.set_smoke_quality(settings.smoke_quality);
         scene.set_rain(settings.always_rain, settings.rain_amount.amplitude());

@@ -14,7 +14,8 @@ use blackbox_solid::Solid;
 use blackbox_tpk::Texture;
 use nfsmw_data::world::SectionData;
 
-use super::fit::{Frame, Prepared, fit_prepared};
+use super::clear::{self, Neighbours, Tally};
+use super::fit::{Frame, Prepared, fit_clear};
 use super::textures::TextureSlot;
 use crate::scenes::culling::is_mirrored;
 
@@ -62,6 +63,9 @@ type Key = (u32, [u32; 6]);
 pub struct Active {
     models: HashMap<u32, Entry>,
     pub(super) fitted: Mutex<HashMap<Key, Arc<Solid>>>,
+    /// Whether a set keeps its copies off the objects next to them (`[fit] clearance`), and what that has done so far.
+    clearance: bool,
+    cleared: Mutex<Tally>,
     textures: HashMap<u32, Arc<TextureSlot>>,
     added: Vec<Texture>,
     objects: Vec<Added>,
@@ -105,6 +109,8 @@ impl Active {
         Self {
             models: HashMap::new(),
             fitted: Mutex::new(HashMap::new()),
+            clearance: false,
+            cleared: Mutex::new(Tally::default()),
             textures: HashMap::new(),
             added: Vec::new(),
             objects: Vec::new(),
@@ -193,6 +199,7 @@ impl Active {
                 if let Some(earlier) = owner.insert(hash, label.to_owned()) {
                     self.conflict("model", hash, label, &earlier);
                 }
+                self.clearance |= set.limits.clearance;
                 self.models.insert(hash, Entry { model: ready.clone(), fit: entry.fit, limits: set.limits });
             }
         }
@@ -206,6 +213,21 @@ impl Active {
     /// How many textures of the game the sets replace.
     pub fn replaced_textures(&self) -> usize {
         self.textures.len()
+    }
+
+    /// What keeping the copies off the objects next to them has done to the sections loaded so far ([`Tally`]).
+    pub fn clearance(&self) -> Tally {
+        self.cleared.lock().map(|tally| *tally).unwrap_or_default()
+    }
+
+    /// The name hashes of the textures the sets replace.
+    pub fn replaced_hashes(&self) -> Vec<u32> {
+        self.textures.keys().copied().collect()
+    }
+
+    /// The slot that replaces the texture with this name hash.
+    pub fn slot(&self, hash: u32) -> Option<Arc<TextureSlot>> {
+        self.textures.get(&hash).cloned()
     }
 
     /// The textures the sets add to the world. They are not copied into the sections the sets rewrite: the world puts them in the
@@ -232,6 +254,9 @@ impl Active {
     /// What a loader thread runs on a section it has parsed: the models and the textures the sets replace.
     pub fn apply(&self, data: &mut SectionData) {
         if !self.models.is_empty() {
+            if self.clearance {
+                clear::note_solids(&data.solids);
+            }
             self.apply_models(data);
         }
         self.replace_textures(&mut data.textures);
@@ -244,9 +269,9 @@ impl Active {
         }
         for texture in textures {
             let Some(slot) = self.textures.get(&texture.name_hash) else { continue };
-            if let Some(new) = slot.replacement(texture) {
-                *texture = new;
-            }
+            let Some(new) = slot.replacement(texture) else { continue };
+            super::originals::note(texture);
+            *texture = new;
         }
     }
 
@@ -255,6 +280,7 @@ impl Active {
     /// its own look (a warning says why).
     fn apply_models(&self, data: &mut SectionData) {
         let mut mirrored: Option<HashSet<u32>> = None;
+        let near = self.neighbours(data);
         for solid in &mut data.solids {
             let Some((entry, world_copy)) = self.entry_for(solid) else { continue };
             let frame = match world_copy {
@@ -264,9 +290,21 @@ impl Active {
                     Frame::World { mirrored: set.contains(&solid.name_hash) }
                 }
             };
-            let Some(replacement) = self.replacement(entry, solid, frame) else { continue };
+            let Some(replacement) = self.replacement(entry, solid, frame, &near) else { continue };
             *solid = replacement;
         }
+    }
+
+    /// The objects of the section that the copies of a set with clearance keep off; none when no set in effect asks for it or the
+    /// section has no solid such a set replaces.
+    fn neighbours(&self, data: &SectionData) -> Neighbours {
+        let clears = |entry: &Entry| entry.limits.clearance;
+        if !self.clearance
+            || !data.solids.iter().any(|solid| self.entry_for(solid).is_some_and(|(entry, _)| clears(entry)))
+        {
+            return Neighbours::none();
+        }
+        Neighbours::of_section(data, |hash| self.models.get(&hash).is_some_and(clears))
     }
 
     /// The entry that replaces `solid`, and whether the solid is a world-space copy of the one the entry is listed under.
@@ -281,9 +319,10 @@ impl Active {
 
     /// The fitted replacement of `stock`. A local solid is cached by its bounds (the game uses one solid in many places with the
     /// same bounds); a world copy is its own, so it is fitted every time and nothing of it is kept.
-    fn replacement(&self, entry: &Entry, stock: &Solid, frame: Frame) -> Option<Solid> {
-        if frame != Frame::Local {
-            return self.fit_now(entry, stock, frame);
+    fn replacement(&self, entry: &Entry, stock: &Solid, frame: Frame, near: &Neighbours) -> Option<Solid> {
+        // A solid that keeps off the objects next to it is fitted to this section's, so it is not shared with the others.
+        if frame != Frame::Local || (entry.limits.clearance && !near.is_empty()) {
+            return self.fit_now(entry, stock, frame, near);
         }
         let bits = |v: [f32; 3]| v.map(f32::to_bits);
         let [a, b, c] = bits(stock.bounds_min);
@@ -292,7 +331,7 @@ impl Active {
         if let Some(found) = self.fitted.lock().ok().and_then(|cache| cache.get(&key).cloned()) {
             return Some((*found).clone());
         }
-        let solid = self.fit_now(entry, stock, frame)?;
+        let solid = self.fit_now(entry, stock, frame, near)?;
         if let Ok(mut cache) = self.fitted.lock() {
             cache.insert(key, Arc::new(solid.clone()));
         }
@@ -301,9 +340,14 @@ impl Active {
 
     /// The replacement of `stock`, or `None` when the solid keeps the game's own model: the model cannot be fitted into its
     /// footprint within the limits (that is the rule, not an error), or the result cannot be made (a warning says why).
-    fn fit_now(&self, entry: &Entry, stock: &Solid, frame: Frame) -> Option<Solid> {
-        match fit_prepared(&entry.model, stock, entry.fit, frame, &entry.limits) {
-            Ok(solid) => solid,
+    fn fit_now(&self, entry: &Entry, stock: &Solid, frame: Frame, near: &Neighbours) -> Option<Solid> {
+        match fit_clear(&entry.model, stock, entry.fit, frame, &entry.limits, near) {
+            Ok((solid, tally)) => {
+                if let Ok(mut total) = self.cleared.lock() {
+                    total.merge(tally);
+                }
+                solid
+            }
             Err(error) => {
                 log::warn!("replacements: {} keeps its own model: {error:#}", stock.name);
                 None

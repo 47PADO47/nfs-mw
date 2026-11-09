@@ -40,7 +40,8 @@ and to add props; the RIDE 6 and Fairhaven mods want to change worlds they gener
 
 - A new family of props or textures is a manifest, no host change (see [api-replace.md](../modding/api-replace.md#adding-a-new-kind)).
 - Replacing collision, physics or sound of a prop is out of scope: only models and textures, and objects through scenery packs.
-- Textures in the shared sets follow a choice at the next drive; tile content follows within seconds.
+- Textures in the shared sets follow a choice by a texture redirect drawn over the one the upload made (pictures made on a worker thread);
+  tile content follows within seconds; the shared sets' models and the global textures follow at the next start.
 - The trees' option text stays the game's catalogue; kinds a mod declares show the mod's label.
 - Rejected: a separate option machinery per kind (what the variants did), and a code-only registry (`content.props().register(..)`):
   both make every mod write code for what is data.

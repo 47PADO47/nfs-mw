@@ -190,8 +190,11 @@ game's textures, so they are not in the repository.
 
 - Setting: `road_textures` (default `true`) in the mod's `config.toml`. The player's choice is the Gameplay option **Road textures**
   (texts: the message ids `nfsmw2012-road-textures` and `nfsmw2012-road-textures-value`, in `lang/en`, `lang/it` and the `pt-BR` language
-  pack). A change of the option made during a drive streams the resident map tiles again; the textures of the shared sets follow at the
-  next drive ([api-replace.md](api-replace.md#textures)).
+  pack). A change of the option made with the world open (the options are in the game's menus) streams the resident map tiles again and
+  draws the new pictures over the textures of the shared sets by a redirect, a few at a time as they are made (see
+  [api-replace.md](api-replace.md#textures)). Before that was built, the asphalt of a player who turned the option on in the menus stayed
+  as it was until the game was restarted. The ignored test `report_where_the_replaced_textures_live` prints how many of the 81 textures
+  are in the shared sections and how many in tiles.
 - A new row is a line of `src/road_textures/table/<group>.rs`: `Entry::new(hash, "NAME", &RECIPE, width, height, alpha, gain)`. A new
   look is a `Recipe` of layers in `table/recipes.rs`; a layer is a crop, a quarter turn, a destination rectangle, a tiling and a blend
   (`layer.rs`). Add the 2012 picture to `table/sources.rs` with its index and what it is.

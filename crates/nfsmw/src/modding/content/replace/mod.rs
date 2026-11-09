@@ -17,14 +17,21 @@
 //! | `active.rs` | the merged replacements, and what a section gets |
 //! | `textures.rs` | pictures: PNG, DDS and texture packs as textures, and the rules of a replacing texture |
 //! | `fit.rs`, `place.rs` | fitting a model into the solid it replaces: `height`, `row`, `stand`, `exact` |
+//! | `clear.rs` | keeping the copies off the walls, rails, barriers and buildings of the section (`[fit] clearance`) |
 
 mod active;
 mod adds;
 mod catalog;
+mod clear;
+#[cfg(test)]
+mod clear_real_tests;
 mod fit;
 mod load;
 #[cfg(test)]
 mod marker_tests;
+mod originals;
+#[cfg(test)]
+mod originals_tests;
 mod place;
 #[cfg(test)]
 mod real_dump_tests;
@@ -32,6 +39,8 @@ mod real_dump_tests;
 mod real_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod texture_real_tests;
 mod textures;
 
 use std::sync::{Arc, RwLock};
@@ -42,6 +51,10 @@ pub use active::Active;
 pub use adds::packs as added_packs;
 pub use catalog::Catalog;
 pub use load::load_set;
+pub use originals::{original, original_hashes};
+#[cfg(test)]
+pub(crate) use originals_tests::{set_replacing, set_replacing_all};
+pub use textures::TextureSlot;
 
 /// The replacements in effect: `None` for the game's own models and textures.
 static ACTIVE: RwLock<Option<Arc<Active>>> = RwLock::new(None);
