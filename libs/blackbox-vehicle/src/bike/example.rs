@@ -332,6 +332,7 @@ impl BikeSpec {
                 damping_ratio: 3.0,
                 max_lean: 70.0_f32.to_radians(),
                 lean: lean(),
+                arcade: super::arcade::ArcadeSteering::REFERENCE,
             },
             fall: FallSpec {
                 lean: 70.0_f32.to_radians(),

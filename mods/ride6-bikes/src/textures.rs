@@ -95,6 +95,12 @@ impl TexStore {
     }
 
     /// The picture with this file stem (lower case), or `None` when the exporter wrote none.
+    /// The text of the `.json` file written beside the picture `stem` (the exporter's layout of a cluster, `<picture>_dash.json`).
+    pub fn json_beside(&self, stem: &str) -> Option<String> {
+        let path = self.files.get(stem)?.with_extension("json");
+        std::fs::read_to_string(path).ok()
+    }
+
     pub fn picture(&mut self, stem: &str) -> Result<Option<Rc<Picture>>> {
         if let Some(done) = self.loaded.get(stem) {
             return Ok(Some(done.clone()));

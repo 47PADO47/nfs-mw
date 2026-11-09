@@ -19,11 +19,19 @@ pub(super) struct TreeKey {
     /// The bits of the viewport scale and shift (`viewport::parameters`).
     scale: u32,
     shift: u32,
+    /// The stock gauges were hidden for a CustomHUD skin (`asi_skin`).
+    stock_hidden: bool,
 }
 
 impl TreeKey {
     pub fn new(package: PackageId, revision: u64, (scale, shift): (f32, f32)) -> Self {
-        Self { package, revision, scale: scale.to_bits(), shift: shift.to_bits() }
+        Self { package, revision, scale: scale.to_bits(), shift: shift.to_bits(), stock_hidden: false }
+    }
+
+    /// The same key for a tree built with the stock gauges hidden (or not), so a skin turning on or off rebuilds it.
+    pub fn hiding(mut self, hidden: bool) -> Self {
+        self.stock_hidden = hidden;
+        self
     }
 }
 
@@ -130,6 +138,15 @@ mod tests {
         assert!(cache.refresh(&frame, FengSource::Hud, wide, |_| {}), "the viewport moved");
         let drag = TreeKey::new(PackageId(2), 1, (1.0, 120.0));
         assert!(cache.refresh(&frame, FengSource::Hud, drag, |_| {}), "the drag package took over");
+    }
+
+    #[test]
+    fn hiding_the_stock_gauges_builds_the_tree_again() {
+        let (mut cache, frame) = (FrameCache::default(), FrameCell::new());
+        assert!(cache.refresh(&frame, FengSource::Hud, key(1), |_| {}));
+        assert!(cache.refresh(&frame, FengSource::Hud, key(1).hiding(true), |_| {}), "a skin turned on");
+        assert!(!cache.refresh(&frame, FengSource::Hud, key(1).hiding(true), |_| {}), "and stays on");
+        assert!(cache.refresh(&frame, FengSource::Hud, key(1), |_| {}), "a skin turned off");
     }
 
     #[test]

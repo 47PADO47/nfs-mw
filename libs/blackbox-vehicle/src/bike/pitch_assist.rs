@@ -4,6 +4,7 @@
 //! Angles are nose-up positive here; the reference works in the opposite sign and its torque follows, so the two are
 //! mirror images and give the same motion.
 
+use super::choices;
 use super::curve::{factor, ramp};
 use super::spec::{PitchParams, WheelieSpec};
 
@@ -14,6 +15,10 @@ pub const FREE_PEDAL: f32 = 0.1;
 /// `MaxAngleFactorInputTuning`: how the strength of the pedal and lever (0 to 1) scales the target angle. The data of no bike
 /// sets it; this is the constructor default, a straight line from 0 to 1.
 pub const INPUT_FACTOR_RANGE: [f32; 2] = [0.0, 1.0];
+
+/// How many times the data's torque the lift towards a steered wheelie's floor may be: a leaned bike has lost most of the engine's lift, and the data's
+/// assist torque (a fraction of the weight's) cannot hold a nose that is falling; measured in `wheelie_steer_tests.rs`.
+pub const STEER_LIFT_GAIN: f32 = 6.0;
 
 /// What the assist is given.
 #[derive(Clone, Copy, Debug)]
@@ -35,8 +40,15 @@ pub struct PitchInput {
     pub rear_on_ground: bool,
     /// The pitch inertia of the bike without the rider (kg m^2): the help torque is scaled by it.
     pub inertia: f32,
+    /// The pitch inertia of the whole body, rider included, about the rear contact (kg m^2): the torque that lowers a wheelie gently is scaled by it.
+    pub body_inertia: f32,
     /// The step (s).
     pub dt: f32,
+    /// The highest angle (rad) the wheelie's target may have: the throttle-only wheelie's allowed angle (`wheelie_throttle.rs`); infinite for a rider's own lever.
+    pub reach_limit: f32,
+    /// The pitch (rad) the nose may not fall under while the front wheel is up and the bike leans (`ArcadeSteering::wheelie_steer_drop`): the assist
+    /// lifts towards it whatever the lean; `None` is the data's assist only, which loses its hold as the bike leans.
+    pub steer_floor: Option<f32>,
 }
 
 /// The lever travel the rider asks the assist for, -1 (a wheelie at full) to 1 (a stoppie at full), after the dead zones.
@@ -46,6 +58,24 @@ pub fn target_position(spec: &WheelieSpec, weight: f32) -> f32 {
         true => ramp(w, [spec.stoppie.deadzone, 1.0]),
         false => -ramp(-w, [spec.wheelie.deadzone, 1.0]),
     }
+}
+
+/// The most the nose may drop (rad/s) when it is at `pitch` (rad, nose up) in a held wheelie: a rate that grows with the height and is held
+/// between a floor and a ceiling (`choices::WHEELIE_LOWER_RATE`, `WHEELIE_LOWER_PER_PITCH`, `WHEELIE_LOWER_TOUCHDOWN_RATE`), so the
+/// front wheel comes down fast from high and touches the road slowly.
+pub fn lowering_rate(pitch: f32) -> f32 {
+    (choices::WHEELIE_LOWER_PER_PITCH * pitch).clamp(choices::WHEELIE_LOWER_TOUCHDOWN_RATE, choices::WHEELIE_LOWER_RATE)
+}
+
+/// The torque (N m, nose up) that holds back a nose that drops faster than [`lowering_rate`]: the excess rate over the response time,
+/// as an angular acceleration of the whole body held to `choices::WHEELIE_LOWER_ACCELERATION`. 0 for a nose that is level or rising.
+pub fn lowering_torque(pitch: f32, pitch_rate: f32, body_inertia: f32) -> f32 {
+    if pitch <= 0.0 || pitch_rate >= 0.0 {
+        return 0.0;
+    }
+    let excess = (-pitch_rate - lowering_rate(pitch)).max(0.0);
+    let acceleration = (excess / choices::WHEELIE_LOWER_RESPONSE).min(choices::WHEELIE_LOWER_ACCELERATION);
+    body_inertia * acceleration
 }
 
 /// The time-optimal bang-bang plan from a state `(x, v)` to rest at `target` with an acceleration of at most `a`: the total
@@ -134,7 +164,7 @@ pub fn torque(spec: &WheelieSpec, input: &PitchInput) -> f32 {
     // The strength of the request is the lever times the pedal; with the pedal released the target is level.
     let strength = (position * pedal).abs().min(1.0);
     let scale = INPUT_FACTOR_RANGE[0] + (INPUT_FACTOR_RANGE[1] - INPUT_FACTOR_RANGE[0]) * strength;
-    let reach = scale * ramp(input.speed.abs(), params.speed_ramp) * params.max_angle;
+    let reach = (scale * ramp(input.speed.abs(), params.speed_ramp) * params.max_angle).min(input.reach_limit);
     let target = -position.signum() * reach;
     let current = input.pitch - input.terrain * params.terrain_influence + input.pitch_rate * params.lookahead;
     let aim = match params.filter_timescale > 0.0 {
@@ -146,7 +176,20 @@ pub fn torque(spec: &WheelieSpec, input: &PitchInput) -> f32 {
     // The height of the grounded wheel above the road is nothing while it carries load.
     let ground_help = 1.0 - ramp(0.0, params.ground_range);
     let help = lean_help * ground_help * factor(&params.help_speed, input.speed.abs());
-    input.inertia * command * help
+    // A wheelie that is let down (the throttle shut, the target lower) is let down gently: the assist's own torque is a fraction of the
+    // body's weight torque, and a front wheel that is dropped hits the road at 100 degrees a second and more.
+    let lowering = match wheelie {
+        true => lowering_torque(input.pitch, input.pitch_rate, input.body_inertia),
+        false => 0.0,
+    };
+    let torque = input.inertia * command * help + lowering;
+    // A wheelie that is up and steered: the lean has faded the assist out, and it still lifts a nose that has fallen under the floor, never lowers it.
+    let floor = match (wheelie && !input.front_on_ground, input.steer_floor) {
+        (true, Some(floor)) if input.pitch < floor => floor,
+        _ => return torque,
+    };
+    let lift = track(current, input.pitch_rate, floor, params.acceleration, params.acceleration_time).max(0.0);
+    torque.max(STEER_LIFT_GAIN * input.inertia * lift * ground_help * factor(&params.help_speed, input.speed.abs()))
 }
 
 #[cfg(test)]

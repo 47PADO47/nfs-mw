@@ -5,7 +5,8 @@ use std::sync::Arc;
 use glam::{Mat4, Quat, Vec3};
 use nfsmw_data::car::mods::bike_camera::{self, BikeCamera};
 
-use super::Drive;
+use super::rig::DashState;
+use super::{Drive, RiderVisibility};
 use crate::input::{Action, ActionState};
 use crate::viewer::camera::head_look::HeadLook;
 
@@ -58,8 +59,24 @@ impl Drive {
         self.rider.look_around([actions.value(Action::HeadLookX), actions.value(Action::HeadLookY)], dt);
     }
 
-    /// Whether the camera is inside the rider's helmet, so his helmet and visor are left out of the picture.
-    pub fn set_first_person(&mut self, on: bool) {
-        self.rider.set_first_person(on);
+    /// Paint the bike's cluster screen with what the bike does now (`rig/dash.rs`), when it has one and the live screen is on. Returns the
+    /// microseconds a repaint took.
+    pub fn feed_dash(&self, renderer: &mut dyn blackbox_gfx::RenderBackend, live: bool) -> Option<u128> {
+        let now = std::time::Instant::now();
+        if !live {
+            self.rig.rest_dash(renderer, now);
+            return None;
+        }
+        let t = &self.telemetry;
+        let rpm_max = if t.max_rpm > 0.0 { t.max_rpm } else { t.red_line };
+        // A bike has no neutral (its gearbox is always in a gear): standing still (under 0.5 m/s), the cluster shows `N` as the baked picture does.
+        let gear = if t.speed_mps.abs() < 0.5 { 0 } else { t.gear };
+        self.rig.feed_dash(renderer, &DashState { speed_kmh: t.speed_mps * 3.6, gear, rpm: t.rpm, rpm_max }, now)
+    }
+
+    /// What the camera shows of the rider (`RiderVisibility`): the helmet and visor are left out of the picture from inside the
+    /// helmet, all of him when it looks back.
+    pub fn set_rider_visibility(&mut self, visibility: RiderVisibility) {
+        self.rider.set_visibility(visibility);
     }
 }

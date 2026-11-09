@@ -221,3 +221,29 @@ line a bike with its yaw rate and the data's, `bike_burnout_trace` with `RIDE6_F
 ## 9. Checked in the game
 
 Offscreen on the final build (`--muted`, close camera): the KTM 450 held at a standstill with `throttle=1,brake=1` spins the rear wheel in a cloud of tyre smoke, stays upright and shows 0 km/h at a high rpm. The smoke is the cars' own rear-tyre effect.
+
+## 10. Exhaust pops during a burnout (the game's addition) [C]
+
+Playtest: "burnouts should produce some small popoff flames (the same one that happen when changing gear) every 3s." [C]
+
+While a bike is in a burnout (the flag of section 2, `Bike::burnout()`, read by the host through `CarSim::bike_burnout`) the exhaust makes one **small pop** at fixed intervals, the same flame a gear change makes:
+`crates/nfsmw/src/scenes/world/exhaust/burnout.rs` asks `ExhaustFlames::pop()` (the trigger of the console's `exhaust-flames pop`), which a bike draws as its shift flame, a quarter larger
+(`trigger::BIKE_BACKFIRE_SCALE_OVER_SHIFT`, "a pop is the shift flame a quarter larger"; the flame's size, length and burst are the existing ones, nothing new is drawn).
+
+| constant | value | why |
+|---|---|---|
+| `BURNOUT_POP_INTERVAL` | 3.0 s | the player's "every 3s" |
+| `BURNOUT_FIRST_POP` | 1.0 s | the first pop comes a second into the burnout, so a burnout of a few seconds gets one (a choice; the rest follow every 3 s from it) |
+
+**The pop is heard** (playtest: "during burnouts when the flame exits the exhaust i dont hear pops"): the pop used to be a flame only. A gear change's
+flame comes with the shift's own recording, a lift-off's backfire flame with the car's `backfire`/`pops` recordings (`audio/car/own_sfx.rs`, the sound decides and the flame follows); the burnout's
+pop is the other way round, the host lights it, so the host tells the sound. `ExhaustFlames::note_burnout` returns whether a pop is due (whatever the `exhaust_flames` setting: a sound
+is not a flame), the drive notes it on its `SoundFeed` (`note_exhaust_pop`), the next tick carries it as `CarInput::exhaust_pop`, and `OwnSfx::exhaust_pop` plays **the bang a lift-off backfire plays**:
+a random variant of the car's `backfire` recordings, else its `pops`, else its down-shift, at `logic::backfire_level(rpm_pct)` (0.5 at idle to 1.0 at the limiter, the lift-off backfire's own level;
+a burnout is on the limiter) times the shared `SHOT_LEVEL`, in the same bank and the same group (`Sfx`) as every other one-shot. No flame is queued by the sound (the host's is already lit, so it does not flame twice);
+a car with none of the three lists stays silent. **Not placed at the exhaust:** a mod car's one-shots are played flat (the car's sound is heard from the camera, as the shift and the lift-off backfire are), so the burnout
+pop is not moved to the pipe either; positioning all of them is a separate change. Tests: `exhaust/burnout.rs` (the due flag whatever the setting), `logic/tests.rs` (the level), `drive/sound.rs` (the note is carried once and cleared).
+
+Out of a burnout the clock stands at zero and the next burnout starts again with its first pop. The pop respects the `exhaust_flames` setting because `pop()` asks nothing while the flames are off (and the
+flames of a car with no flame data stay quiet as before). Tests: `exhaust/burnout.rs` (the pops come at 1, 4, 7 and 10 s of an 11 s burnout; none shorter than the first; a new burnout starts over; the pop sets the
+same `forced` flag as the console's and nothing while the setting is off).

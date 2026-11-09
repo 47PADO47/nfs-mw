@@ -25,6 +25,9 @@ mod settings_input_playtest;
 #[path = "repeat_input_tests.rs"]
 mod repeat_input_tests;
 
+#[path = "section_nav_tests.rs"]
+mod section_nav_tests;
+
 impl Harness {
     /// A click at a point of the screen, as the front end hands it over; false when the screen does not take it.
     pub(in crate::frontend) fn click(&mut self, point: glam::Vec2) -> bool {

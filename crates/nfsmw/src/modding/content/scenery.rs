@@ -6,7 +6,9 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use blackbox_modding::content::{Collision, Orientation, Place, SCENERY_FOLDER, SceneryManifest, parse_scenery};
+use blackbox_modding::content::{
+    Collision, Orientation, Place, SCENERY_FOLDER, SceneryManifest, WORLDS_FOLDER, parse_scenery,
+};
 use blackbox_scenery::build::{self, Placement, yaw_rows};
 use blackbox_solid::Solid;
 use blackbox_streaming::StreamingSection;
@@ -29,9 +31,19 @@ pub struct MapPack {
     pub key: String,
     /// The streaming entry: its number and anchor, and the file as the whole section (offset 0).
     pub section: StreamingSection,
-    /// The pack file on disk.
-    pub path: PathBuf,
+    /// Where the pack's bytes are read from.
+    pub source: PackSource,
     pub manifest: SceneryManifest,
+}
+
+/// Where a pack's section bytes come from.
+#[derive(Debug, Clone)]
+pub enum PackSource {
+    /// A file on disk, read from offset 0 by the pack's own streamer.
+    File(PathBuf),
+    /// A file of the mod's `files/` layer, read **whole through the install** when the pack's area is near, so that a lazy
+    /// file (`GameDir::read`, a mod that makes the bytes when they are asked for) is made then and not when the world opens.
+    Installed { dir: GameDir, file: String },
 }
 
 impl MapPack {
@@ -47,15 +59,33 @@ pub fn packs(dir: &GameDir, mods: &[ModDir], installed: &HashSet<i16>) -> Vec<Ma
     let mut taken = installed.clone();
     let mut out = Vec::new();
     for m in mods {
-        for path in toml_files(&m.dir.join(SCENERY_FOLDER)) {
-            match read_pack(dir, m, &path, &taken) {
-                Ok(pack) => {
-                    log::info!("mod {}: map pack {} at section {}", m.id, pack.key, pack.section.number);
-                    taken.insert(pack.section.number);
-                    out.push(pack);
-                }
-                Err(reason) => log::warn!("mod {}: map pack {} is not added: {reason}", m.id, path.display()),
+        out.extend(folder_packs(dir, m, &m.dir.join(SCENERY_FOLDER), &mut taken));
+    }
+    out
+}
+
+/// The packs of the world `world` of mod `m`: the manifests in its `worlds/<world>/` folder, checked like `scenery/` ones.
+/// `taken` holds the section numbers the install and the other packs have; the world's own are added to it.
+pub fn world_packs(dir: &GameDir, m: &ModDir, world: &str, taken: &mut HashSet<i16>) -> Vec<MapPack> {
+    folder_packs(dir, m, &m.dir.join(WORLDS_FOLDER).join(world), taken)
+}
+
+/// The packs the world patch `patch` of mod `m` brings: the manifests in its `world-patches/<patch>/` folder, checked like `worlds/` ones.
+pub fn patch_packs(dir: &GameDir, m: &ModDir, patch: &str, taken: &mut HashSet<i16>) -> Vec<MapPack> {
+    folder_packs(dir, m, &m.dir.join(blackbox_modding::content::PATCHES_FOLDER).join(patch), taken)
+}
+
+/// The valid packs of one folder of a mod, in file-name order; each one's number is added to `taken`.
+fn folder_packs(dir: &GameDir, m: &ModDir, folder: &Path, taken: &mut HashSet<i16>) -> Vec<MapPack> {
+    let mut out = Vec::new();
+    for path in toml_files(folder) {
+        match read_pack(dir, m, &path, taken) {
+            Ok(pack) => {
+                log::info!("mod {}: map pack {} at section {}", m.id, pack.key, pack.section.number);
+                taken.insert(pack.section.number);
+                out.push(pack);
             }
+            Err(reason) => log::warn!("mod {}: map pack {} is not added: {reason}", m.id, path.display()),
         }
     }
     out
@@ -72,12 +102,19 @@ fn read_pack(dir: &GameDir, m: &ModDir, path: &Path, taken: &HashSet<i16>) -> Re
         return Err(format!("section {number} is already taken by the install or another pack"));
     }
     let file = pack_path(dir, m, &manifest.file)?;
+    if manifest.placed_by_file {
+        // The file places its own objects and may be lazy: it is read when the camera comes near, and any problem with it is
+        // reported then.
+        let section = entry(&manifest, number, 1)?;
+        let source = PackSource::Installed { dir: dir.clone(), file: manifest.file.clone() };
+        return Ok(MapPack { owner: m.id.clone(), key: manifest.key.clone(), section, source, manifest });
+    }
     let size = std::fs::metadata(&file).map_err(|error| error.to_string())?.len();
     let bytes = std::fs::read(&file).map_err(|error| error.to_string())?;
     let data = parse_section(0, &bytes).map_err(|error| format!("the model file does not parse: {error:#}"))?;
     check_models(&manifest, &data)?;
     let section = entry(&manifest, number, size)?;
-    Ok(MapPack { owner: m.id.clone(), key: manifest.key.clone(), section, path: file, manifest })
+    Ok(MapPack { owner: m.id.clone(), key: manifest.key.clone(), section, source: PackSource::File(file), manifest })
 }
 
 /// The bands a mod may take: `K`, `N`, `U` and `W` (no section in the install), and 2700 and up. Inside a band the last two
@@ -135,10 +172,54 @@ fn entry(manifest: &SceneryManifest, number: i16, size: u64) -> Result<Streaming
     })
 }
 
+/// A pack made by the game itself from the objects a replacement set places (`replace/adds.rs`): its file is the set's geometry file
+/// (on disk), its section number is `number` (the caller took a free one) and its anchor covers the objects.
+pub fn synthetic_pack(
+    owner: &str,
+    key: &str,
+    number: i16,
+    file: PathBuf,
+    file_name: &str,
+    anchor: [f32; 4],
+    places: Vec<Place>,
+) -> Result<MapPack, String> {
+    let size = std::fs::metadata(&file).map_err(|error| error.to_string())?.len();
+    let manifest = SceneryManifest {
+        key: key.to_owned(),
+        file: file_name.to_owned(),
+        section: u16::try_from(number).map_err(|_| "the section number does not fit".to_owned())?,
+        anchor,
+        source_game: None,
+        places,
+        placed_by_file: false,
+    };
+    let section = entry(&manifest, number, size)?;
+    Ok(MapPack { owner: owner.to_owned(), key: key.to_owned(), section, source: PackSource::File(file), manifest })
+}
+
+/// The next section number of the free band (2700 and up, last two digits 0 to 39) after `from` that is not in `taken`, and the index
+/// to continue from.
+pub fn next_free_section(mut from: usize, taken: &HashSet<i16>) -> Option<(i16, usize)> {
+    loop {
+        let number = 2700 + (from / 40) * 100 + from % 40;
+        let number = i16::try_from(number).ok()?;
+        from += 1;
+        if !taken.contains(&number) {
+            return Some((number, from));
+        }
+    }
+}
+
 /// Build a loaded pack's placed objects into a scenery section of its number, and keep its static collision only when a
-/// placement asks for it. The collision packs take the pack's number, so each is told apart from the others.
+/// placement asks for it. The collision packs take the pack's number, so each is told apart from the others. A pack whose
+/// file places its own objects keeps the file's scenery and collision, renumbered the same way.
 pub fn assemble(data: &mut SectionData, pack: &MapPack) -> Result<(), String> {
     let number = u32::from(pack.section.number.unsigned_abs());
+    if pack.manifest.placed_by_file {
+        data.scenery.iter_mut().for_each(|section| section.section_number = number);
+        data.collision.iter_mut().for_each(|collision| collision.section = number);
+        return Ok(());
+    }
     let placements = pack.manifest.places.iter().map(|place| placement(data, place)).collect::<Result<Vec<_>, _>>()?;
     let section = build::section(number, &placements).map_err(|error| format!("{error:?}"))?;
     data.scenery.push(section);

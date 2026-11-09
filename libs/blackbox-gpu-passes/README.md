@@ -58,6 +58,7 @@ RGBA8 level of tolerance for floating-point sampling).
 | Soft particles | `SoftParticles` (inside `Effects`) | detailed particles faded against the finished depth | the finished colour image and a sampleable depth view |
 | Filter | `Filter`, `Draw`, `Blend`, `Params` | one fullscreen draw reading `src` and `src2`, writing a target | a fragment shader built with `filter_source` |
 | Radial blur | `RadialBlur` (`RadialBlurSettings`, `RadialBlurIo`) | a fullscreen blur towards a UV centre: `taps` weighted samples per pixel, reach from `inner` to `strength`; nothing drawn at zero strength | the input view, the output view and its format |
+| Colour cube | `ColourCubePass` (`ColourCubeIo`; the grade is `blackbox_gfx::ColourGrade`) | one filtered 3D texture lookup per pixel (two with a second cube), moved a strength's share of the way; the cubes are uploaded once by id and at most 16 stay; the excess above 1 is kept; nothing drawn without a grade | the input view, the output view and its format; `set` before `encode` |
 | FSR 1 | `Fsr1Pass` (`fsr1_passes`) | EASU upscale, then optional RCAS sharpen | a display-referred, anti-aliased input image |
 
 ### A frame, in order
@@ -125,7 +126,7 @@ target, format, blend })`. `Blend::Replace` clears the target, `Blend::Add` load
 
 ## Shaders
 
-`src/shaders/`: `radial_blur.wgsl` (the `fs_radial` stage of the radial blur), `ui.wgsl`, `effects.wgsl` (`EFFECTS_WGSL`, for renderers that build their own effect
+`src/shaders/`: `colour_cube.wgsl` (`COLOUR_CUBE_WGSL`, the cube lookup: a 2D input, two 3D cubes, a sampler and one `vec4`), `radial_blur.wgsl` (the `fs_radial` stage of the radial blur), `ui.wgsl`, `effects.wgsl` (`EFFECTS_WGSL`, for renderers that build their own effect
 pipelines), `soft_particles.wgsl`, `post_common.wgsl` and `fsr1.wgsl` (AMD's MIT notice at the top). Vertex
 layouts: `EFFECT_VERTEX_ATTRIBUTES` for `EffectVertex`; the UI vertex is `blackbox_gfx::UiVertex`.
 

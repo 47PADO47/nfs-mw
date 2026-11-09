@@ -145,3 +145,29 @@ fn a_bad_file_name_is_refused_before_its_contents() {
 fn the_anchor_needs_a_positive_radius() {
     assert_eq!(refused(&with("180.0]", "0.0]")), ContentError::InvalidAnchor);
 }
+
+#[test]
+fn a_pack_whose_file_places_its_own_objects_has_no_place() {
+    let head = PACK.split("[[place]]").next().unwrap();
+    let text = head.replace(
+        "source_game = \"nfsmw\"",
+        "source_game = \"nfsmw\"
+placed = \"file\"",
+    );
+    let pack = parse("monument", &text).unwrap();
+    assert!(pack.placed_by_file && pack.places.is_empty());
+    assert!(!parse("monument", PACK).unwrap().placed_by_file);
+    let both = with(
+        "source_game = \"nfsmw\"",
+        "source_game = \"nfsmw\"
+placed = \"file\"",
+    );
+    assert_eq!(refused(&both), ContentError::PlacedByFile);
+    let other = text.replace(
+        "\"file\"
+",
+        "\"model\"
+",
+    );
+    assert_eq!(refused(&other), ContentError::UnknownPlaced("model".to_owned()));
+}

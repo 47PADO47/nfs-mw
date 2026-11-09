@@ -8,7 +8,12 @@
 
 use std::sync::Arc;
 
-use blackbox_modding::content::{NitrousProfile, SparksProfile, TireSmokeProfile, WindProfile, XenonProfile};
+use blackbox_modding::content::{
+    NitrousProfile, RainSplashProfile, SkidMarksProfile, SkyProfile, SparksProfile, TireSmokeProfile, WetRoadProfile,
+    WindProfile, XenonProfile,
+};
+
+use crate::grading::GradingLook;
 
 /// The profiles of the variants in effect, one field per kind.
 #[derive(Debug, Clone, Default)]
@@ -23,6 +28,16 @@ pub struct EffectVariants {
     pub xenon_sparks: Option<Arc<XenonProfile>>,
     /// The loops of the wind (`WIND/<value>/profile.toml`), played by the car's sound in place of the game's own wind.
     pub wind: Option<Arc<WindProfile>>,
+    /// The pictures of the skid marks (`SKIDMARKS/<value>/profile.toml`), drawn in place of the game's dark strips.
+    pub skid_marks: Option<Arc<SkidMarksProfile>>,
+    /// The splashes where the rain meets the road (`RAINSPLASH/<value>/profile.toml`).
+    pub rain_splash: Option<Arc<RainSplashProfile>>,
+    /// How strongly and how fast the rain wets the road (`WETROAD/<value>/profile.toml`).
+    pub wet_road: Option<Arc<WetRoadProfile>>,
+    /// The colour grading: the cubes of the look the player chose, read from the install (`GRADING/<value>/profile.toml`).
+    pub grading: Option<Arc<GradingLook>>,
+    /// The cloud domes and the moon of the sky (`SKY/<value>/profile.toml`), drawn as the clouds of the procedural sky.
+    pub sky: Option<Arc<SkyProfile>>,
 }
 
 #[cfg(test)]
@@ -34,6 +49,8 @@ mod tests {
         let variants = EffectVariants::default();
         assert!(variants.nitrous.is_none() && variants.tire_smoke.is_none());
         assert!(variants.collision_sparks.is_none() && variants.xenon_sparks.is_none() && variants.wind.is_none());
+        assert!(variants.skid_marks.is_none() && variants.rain_splash.is_none() && variants.wet_road.is_none());
+        assert!(variants.grading.is_none() && variants.sky.is_none());
     }
 
     #[test]

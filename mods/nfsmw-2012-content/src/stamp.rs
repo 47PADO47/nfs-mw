@@ -7,7 +7,7 @@ use std::time::UNIX_EPOCH;
 use crate::config::Config;
 
 /// Bump when the conversion changes what it writes for the same input.
-const CONVERSION: u32 = 21;
+const CONVERSION: u32 = 31;
 /// Bump when the brand logos (`brands.rs`, `logo.rs`) change for the same input.
 const BRANDS: u32 = 1;
 pub const FILE: &str = ".import-stamp";
@@ -15,13 +15,17 @@ pub const FILE: &str = ".import-stamp";
 /// The fingerprint for these settings and the install: the settings, the converter's version, and the names, sizes and
 /// modification times of the source files.
 pub fn of(config: &Config, source: &Path) -> String {
-    let mut parts = vec![format!("conversion {CONVERSION}"), format!("brands {BRANDS}"), format!("{config:?}")];
+    // Settings of features that convert nothing (`music`, streamed from the install) are not part of what the files depend on.
+    let converted = Config { music: true, road_textures: true, ..config.clone() };
+    let mut parts = vec![format!("conversion {CONVERSION}"), format!("brands {BRANDS}"), format!("{converted:?}")];
     let mut sources = vec![
         fingerprint(&source.join("VEHICLES/VEHICLETEX.BNDL")),
         fingerprint(&source.join("SHADERS.BNDL")),
         fingerprint(&source.join("GLOBALEFFECTS.BNDL")),
+        fingerprint(&source.join(chameleon_environment::BUNDLE_PATH)),
         fingerprint(&source.join("VEHICLES/VEHICLELIST.BNDL")),
         fingerprint(&source.join("UI/LANGUAGE/0001.BNDL")),
+        fingerprint(&source.join(crate::grading::BUNDLE)),
     ];
     for entry in fs::read_dir(source.join("GAMELOGIC")).into_iter().flatten().flatten() {
         sources.push(fingerprint(&entry.path()));

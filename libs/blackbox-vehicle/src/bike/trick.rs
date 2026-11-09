@@ -2,12 +2,13 @@
 //! to 5): the throttle and front brake interventions, the auto-rider that moves the rider's weight, the pitch estimate they
 //! share, and the pitch torque that holds the angle. Only a bike has any of it: a four-wheel vehicle has no code path here.
 
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 
 use super::curve::{curve, ramp};
 use super::pitch_assist::{self, FREE_PEDAL, PitchInput, approach};
 use super::spec::{RiderHelpSpec, WheelieSpec};
 use super::trick_spec::AutoTuckSpec;
+use super::wheelie_throttle;
 use super::{Bike, BikeInput, FRONT, REAR, lean_of, pitch_of};
 
 /// Below this the share of the weight shift counts as none (the reference compares with a small constant it does not name).
@@ -25,7 +26,19 @@ pub(super) struct TrickState {
     /// air drag, and the tuck level that follows it at the rate of the input handler and goes to the animation.
     pub tuck: f32,
     pub tuck_level: f32,
+    /// The weight lever the help and the pitch assist work with: the player's own, or the virtual lever the throttle pulls back
+    /// (`wheelie_throttle.rs`), and whether the throttle is holding it.
+    pub weight: f32,
+    pub throttle_lever: bool,
+    /// The virtual lever's memory (its latch, the gear and the dip), and the ceiling (rad) it gives the pitch assist's target; `None` is none.
+    pub throttle_state: wheelie_throttle::State,
+    pub reach: Option<f32>,
+    /// The pitch (rad) the wheelie had before it was steered: followed while the front wheel is up and the lean small, held while it leans, 0 on the road.
+    pub wheelie_ref: f32,
 }
+
+/// The lean (share of its limit) under which a wheelie counts as unsteered: its pitch is the one a steered wheelie is kept near (`wheelie_steer_drop`).
+const STEER_REF_LEAN: f32 = 0.25;
 
 /// The rate (1/s) at which the tuck level rises while the rider tucks and falls when he does not: the constructor defaults of
 /// the input handler (`TuckInRaiseRate`, `TuckInFallRate`, both 2; no bike's data sets them).
@@ -268,10 +281,35 @@ impl Bike {
             None => (None, 1.0, TUCK_LEVEL_RATE, TUCK_LEVEL_RATE),
         };
         let max_lean = self.spec.steering.max_lean.max(f32::EPSILON);
+        // The game's wheelie from the throttle alone: a throttle flat out pulls the lever back (`wheelie_throttle.rs`); a bike with no
+        // wheelie control has nothing to ask.
+        let limit = self.plan.limit.max(0.05);
+        let mut throttle_state = self.trick.throttle_state;
+        let lever = match assist.is_some() {
+            true => wheelie_throttle::update(
+                &self.throttle_wheelie,
+                &mut throttle_state,
+                &wheelie_throttle::Ask {
+                    weight: self.weight_input,
+                    throttle,
+                    front_brake: brake,
+                    speed,
+                    pitch: pitch_of(self.body.rotation()),
+                    lean_share: (lean_of(self.body.rotation()).abs() / limit).min(1.0),
+                    gear: self.powertrain.gear(),
+                    shifting: self.powertrain.shifting(),
+                    front_on_ground: self.wheels[FRONT].on_ground,
+                    dt,
+                },
+            ),
+            false => wheelie_throttle::Lever::rider(self.weight_input),
+        };
+        let (weight, throttle_lever) = (lever.weight, lever.active);
+        let reach = lever.reach.is_finite().then_some(lever.reach);
         let situation = TuckSituation {
             speed,
             normalised_lean: (lean_of(self.body.rotation()) / max_lean).clamp(-1.0, 1.0),
-            weight: self.weight_input,
+            weight,
             throttle,
             front_brake: brake,
         };
@@ -279,7 +317,18 @@ impl Bike {
         let tuck = f32::from(tucked);
         let tuck_level = tuck_level(self.trick.tuck_level, tucked, rise, fall, dt);
         let Some(mut assist) = assist else {
-            self.trick = TrickState { aid: self.weight_input, throttle, front_brake: brake, tuck, tuck_level };
+            self.trick = TrickState {
+                aid: self.weight_input,
+                throttle,
+                front_brake: brake,
+                tuck,
+                tuck_level,
+                weight,
+                throttle_lever,
+                throttle_state,
+                reach,
+                wheelie_ref: self.trick.wheelie_ref,
+            };
             return passthrough;
         };
         // The rider's ABS level shrinks the start of the brake relief range (`SETTINGS_ABS`, `AutoRiderStoppieBrakeControl.X`).
@@ -289,18 +338,31 @@ impl Bike {
             lift: self.help_lift(assist.help.lookahead, rate),
             rate,
             speed,
-            weight: self.weight_input,
+            weight,
             throttle,
             front_brake: brake,
         };
         let mut help = interventions(&assist, &situation);
+        // The throttle-only wheelie cuts the engine when the nose is over the angle it allows (`wheelie_throttle.rs`).
+        help.engine_cut = 1.0 - (1.0 - help.engine_cut) * (1.0 - lever.cut);
         if speed.abs() < super::choices::STANDING_SPEED {
             // The brake help waits for the bike to move; the throttle help does not.
             help.brake_pedal = brake;
             help.brake = brake;
         }
         let aid = rider_position(&assist.help, &situation, self.trick.aid, dt);
-        self.trick = TrickState { aid, throttle: help.throttle, front_brake: help.brake_pedal, tuck, tuck_level };
+        self.trick = TrickState {
+            aid,
+            throttle: help.throttle,
+            front_brake: help.brake_pedal,
+            tuck,
+            tuck_level,
+            weight,
+            throttle_lever,
+            throttle_state,
+            reach,
+            wheelie_ref: self.trick.wheelie_ref,
+        };
         help
     }
 
@@ -314,13 +376,36 @@ impl Bike {
         self.trick.tuck_level
     }
 
+    /// The pitch inertia (kg m^2) of the whole body about the rear contact, the point a wheelie turns on: the body's own plus its mass times
+    /// the squared distance of its centre of gravity from the contact in the plane of the pitch.
+    fn pivot_inertia(&self, rotation: Mat3) -> f32 {
+        let right = rotation * Vec3::X;
+        let arm = self.body.world_cog() - self.wheels[REAR].contact;
+        let in_plane = arm - right * arm.dot(right);
+        self.body.inertia().x + self.body.mass() * in_plane.length_squared()
+    }
+
     /// The pitch torque that holds the angle the rider's weight and pedals ask for, about the bike's right axis.
     pub(super) fn apply_pitch_assist(&mut self, dt: f32, speed: f32) {
         let Some(assist) = &self.spec.wheelie else { return };
         let rotation = self.body.rotation();
         let limit = self.plan.limit.max(0.05);
+        // The pitch the wheelie had before the lean: followed with the front wheel up and the lean small, held while it leans.
+        let lean_share = (lean_of(rotation).abs() / limit).min(1.0);
+        self.trick.wheelie_ref = match (self.wheels[FRONT].on_ground, lean_share < STEER_REF_LEAN) {
+            (true, _) => 0.0,
+            (false, true) => pitch_of(rotation).max(0.0),
+            (false, false) => self.trick.wheelie_ref,
+        };
+        let steer_floor = self
+            .spec
+            .steering
+            .arcade
+            .wheelie_steer_drop
+            .map(|drop| self.trick.wheelie_ref - drop)
+            .filter(|floor| *floor > 0.0);
         let request = PitchInput {
-            weight: self.weight_input,
+            weight: self.trick.weight,
             throttle: self.trick.throttle,
             front_brake: self.trick.front_brake,
             pitch: pitch_of(rotation),
@@ -332,7 +417,10 @@ impl Bike {
             rear_on_ground: self.wheels[REAR].on_ground,
             // The pitch inertia of the bike without the rider.
             inertia: self.spec.chassis.mass * self.spec.chassis.tensor_scale.x,
+            body_inertia: self.pivot_inertia(rotation),
             dt,
+            reach_limit: self.trick.reach.unwrap_or(f32::INFINITY),
+            steer_floor,
         };
         let torque = pitch_assist::torque(assist, &request);
         self.body.apply_torque(rotation * Vec3::X * -torque);

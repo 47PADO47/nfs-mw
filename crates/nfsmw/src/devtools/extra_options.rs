@@ -39,7 +39,7 @@ fn key(name: &str) -> KeyCode {
     }
 }
 #[allow(clippy::too_many_arguments)]
-fn toggle(
+pub(super) fn toggle(
     mut overlay: ResMut<Overlay>,
     mut keys: ResMut<ButtonInput<KeyCode>>,
     mut host: NonSendMut<crate::app::Host>,

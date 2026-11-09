@@ -136,13 +136,47 @@ A bike thrown down at 20 m/s slides several metres on its side (test: more than 
 | Velocity moment | two steps back | the ring of the reference, of 2 entries |
 | Rider's mass leaves the bike | at the release | not read from the binary; the rider is a separate simulated body there |
 | Bike stood up | after 2 s down, once slower than 1.5 m/s | the reference's get-up, walk and raise take longer and are not modelled |
-| Blend back | 0.25 s, smoothstep, in the world | no counterpart; the reference walks the rider to the bike |
+| Blend back | 0.25 s, smoothstep, of the local transforms (the roots in the world) | no counterpart; the reference walks the rider to the bike; local so that no bone changes its length (section 3a) |
 | Pose of the bones with no body | their local transforms from the riding pose, after their parent | physical animation is not modelled |
 
 Not modelled here (the drives and the animations are, in the page above): the earlier version's physical-animation drives and fall animations; the random rotation and the damper offsets of the launch
-velocity (zero in the data); the airbag; the get-up, the walk and the raising of the bike; collision of the rider with the bike, with
-props and with walls (the ragdoll meets the road only); the `FallHighsideEffect` and `FallSteerComponent` of the handler; the
+velocity (zero in the data); the airbag; the get-up, the walk and the raising of the bike; collision of the rider with the bike and with
+props (the ragdoll meets the road and, since round 14, the walls of the world: [ride6-feel-round14.md](ride6-feel-round14.md)); the `FallHighsideEffect` and `FallSteerComponent` of the handler; the
 upside-down, rider-force and collision tests of the chassis page.
+
+## 3a. One piece: the helmet stays on the head (a user's playtest)
+
+A user's playtest: "sometimes (ex: during falls) the helmet gets detached from body". The helmet is a mesh skinned to one bone, `helmet`, a child of
+`head` 1.5 cm from it (`neckRoot` -> `neck_01` -> `head` -> `helmet` on the spine: `spine_03`); the ragdoll has bodies on `spine_03` and on `head`
+and none on the neck bones or the helmet. Two things tore him [measured on the shipped rig, by reading the bones and the ragdoll file]:
+
+1. **A bone with a body took the body's place whatever its parent did.** The joints are soft (16 passes a step), so a hard landing or a
+   scrape at speed stretches the head's joint by centimetres; the neck bones, which have no body, follow `spine_03` rigidly, so the head and
+   the helmet came off the neck while the collar of the suit stayed on it. (The old test allowed the head 6 cm off the spine.) The head's
+   joint is also free to 180 degrees about every axis, which lets the head turn right round on that stretched joint.
+2. **The way back blended each bone's world place on its own.** Two bones that turn through different angles on their way from lying to
+   sitting come out nearer or farther than their length half way (a bone 10 cm from its parent was 3.6 cm from it when the rider turned
+   140 degrees between the poses), so the head sank into the neck and the helmet slid on the head, for the 0.25 s of a reset by hand and for the
+   second or two of a walk back.
+
+Fixed in `rider/fall_pose.rs`: **a bone's place is always its parent's place composed with the bone's own offset**, in every frame of
+the fall; only the turn of a simulated bone is the body's. (a) In the ragdoll pose a bone with a body whose parent also moves with a body
+(its parent has one, or hangs on a bone that has one) is drawn at `parent.compose(local)` with the body's rotation (`hung`): the
+head sits on the neck chain exactly, the helmet on the head, however far the joint stretched. The pelvis, whose parent (the root bone)
+stays where the bike left it, is the free body and is not joined. (b) The way back blends **local** transforms (slerp of the rotation, lerp
+of the offset) down the skeleton and only the roots in the world (`blend_back`): every bone keeps its length at every `k`, and the
+ends are still the lying pose and the riding pose. The get-up plays a clip's local transforms, which are rigid by construction.
+
+| Constant | Value | Why |
+|---|---|---|
+| Distance of a bone from its parent's frame | 0 (always joined) | no tolerance is needed: the offset is the bone's own; the only freedom left is the turn |
+| Test tolerance | 1 mm (position), 0.001 rad (helmet against head) | rounding of the maths and of the files |
+
+A modelling choice: the **physical** head still hangs where its body is (the ragdoll's own contacts and joint are unchanged): only what is drawn is joined,
+so the head may be some centimetres from where its capsule is after a hard landing, which nobody sees and which the skin needs.
+The tests (`rider/fall_join_tests.rs`) record a 79 km/h high side of a rider with a neck and a helmet for 6 s at the physics step and check, every fourth step, that
+no bone under the pelvis is more than a millimetre from its parent's frame and that the helmet has not turned against the head, then do the same on every frame
+of the way back, both for a rider who got up and for a reset by hand, and check `blend_back` against the old per-bone blend.
 
 ## 4. Verified by tests
 

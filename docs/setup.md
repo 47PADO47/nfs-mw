@@ -70,8 +70,9 @@ or `--window-mode`. See [window modes](window-modes.md) for the full list of set
 ## Logs
 
 Every run saves its log to `nfsmw.log` in the per-user log folder: `%LOCALAPPDATA%\nfsmw\data\logs` on Windows,
-`~/.local/share/nfsmw/logs` on Linux. Starting the game clears the logs of the earlier runs, so the folder only
-holds the run in progress. The first line of the log says where the file is. `RUST_LOG` filters the log file as
+`~/.local/share/nfsmw/logs` on Linux. Starting the game keeps the logs of the last three runs as `nfsmw.1.log`
+(the run before this one), `nfsmw.2.log` and `nfsmw.3.log`, and clears the older ones; a run that wrote nothing is
+not kept. The first line of the log says where the file is. `RUST_LOG` filters the log file as
 it filters the console.
 
 ## Troubleshooting

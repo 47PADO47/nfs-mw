@@ -82,6 +82,34 @@ impl Renderer {
         }
     }
 
+    /// Overwrite `region` (`[x, y, width, height]`) of the base level of an RGBA texture; see `RenderBackend::update_texture`. One
+    /// `write_texture` of the region's bytes: nothing is allocated and the bind group is kept.
+    pub fn update_texture(&mut self, handle: TextureHandle, region: [u32; 4], rgba: &[u8]) -> bool {
+        let Some(view) = self.texture_views.get(&handle.raw()) else { return false };
+        let texture = view.texture();
+        let [x, y, width, height] = region;
+        let fits = texture.format() == wgpu::TextureFormat::Rgba8Unorm
+            && width > 0
+            && height > 0
+            && x.checked_add(width).is_some_and(|end| end <= texture.width())
+            && y.checked_add(height).is_some_and(|end| end <= texture.height());
+        if !fits || rgba.len() != (width * height * 4) as usize {
+            return false;
+        }
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(width * 4), rows_per_image: Some(height) },
+            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        );
+        true
+    }
+
     pub fn set_texture_uv_offset(&mut self, handle: TextureHandle, offset: [f32; 2]) {
         let Some(view) = self.texture_views.get(&handle.raw()) else { return };
         if !self.texture_scrolls.contains_key(&handle.raw()) {

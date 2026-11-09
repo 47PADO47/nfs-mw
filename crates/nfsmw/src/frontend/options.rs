@@ -45,7 +45,10 @@ pub enum Setting {
     ExhaustFlames,
     CustomFonts,
     TurnSignals,
+    RiderGear,
     CopHealthBars,
+    /// Steer a vehicle in the air (`air_control`, `docs/specs/air-control.md`).
+    AirControl,
     RearViewMirror,
     Autosave,
     SmokeQuality,
@@ -68,7 +71,11 @@ pub enum Setting {
     Renderer(RendererSetting),
     HudLayout,
     UiStyle,
+    /// The CustomHUD plugin's gauge skin: Auto or Off (`settings/custom_hud_skin.rs`).
+    CustomHudSkin,
     SpeedUnits,
+    /// A rider row: the riding style of a class of bike, the fingers on the levers (`rider_options.rs`).
+    Rider(rider_options::RiderSetting),
     UiTheme,
     ContextMinimap(crate::settings::MinimapContext),
     RenderScale,
@@ -76,6 +83,8 @@ pub enum Setting {
     UpscaleSharpness,
     /// The game's language (`options_language.rs`): its choices are the languages on offer, not a fixed list.
     Language,
+    /// The Free Roam world (`options_world.rs`): the city or a second world a mod provides.
+    World,
     /// A row of the custom race's options (`custom_race/settings.rs`); its value is the session's, not a setting.
     Custom(super::custom_race::settings::Row),
     /// A row a mod added to the Mods page (`bb.menus`), by its handle; its label, value and control come from the bridge.
@@ -88,6 +97,9 @@ pub enum Setting {
     /// An option of the gameplay settings that the options model holds (`bb.settings`), by its position in the model: the
     /// nitrous variant, and the options mods added (`mod_options.rs`).
     GameplayOption(usize),
+    /// Section titles (`options_sections.rs`), never selected or pressed: the game's, a mod's by its place among its titles.
+    Heading,
+    ModHeading(usize),
 }
 
 /// What a row's title shows.
@@ -95,8 +107,8 @@ pub enum Setting {
 pub enum Title {
     /// A key of the language table.
     Label(u32),
-    /// A message of the rewrite's catalogue, for a setting the original has no label for. A Mods row has the empty id:
-    /// its label comes from the mod (`mod_options::shown`).
+    /// A message of the rewrite's catalogue, for a setting the original has no label for. A Mods row's id is empty: its
+    /// label comes from the mod (`mod_options::shown`).
     Key(&'static str),
 }
 
@@ -158,28 +170,29 @@ mod category_rows;
 
 #[path = "autosave_option.rs"]
 pub(super) mod autosave;
-pub use category_rows::rows;
-
-#[path = "hd_options.rs"]
-mod hd_options;
-
-#[path = "hud_options.rs"]
-pub(super) mod hud_options;
-
+#[cfg_attr(not(test), allow(unused_imports))]
+pub use sections::{page, rows};
 #[path = "options_caps.rs"]
 mod caps_rows;
-
+#[path = "hd_options.rs"]
+mod hd_options;
+#[path = "hud_options.rs"]
+pub(super) mod hud_options;
+#[path = "rider_options.rs"]
+pub(super) mod rider_options;
 #[path = "options_steps.rs"]
 mod steps;
-use steps::{cycle, next_scale, nudge};
-
+use steps::{cycle, next_scale, nudge, on_off};
 #[path = "options_data.rs"]
 mod data;
-#[path = "minimap_options.rs"]
-mod map_options;
-
 #[path = "options_language.rs"]
 mod language;
+#[path = "minimap_options.rs"]
+mod map_options;
+#[path = "options_sections.rs"]
+pub mod sections;
+#[path = "options_world.rs"]
+mod world;
 
 /// The original's `COMMON_AUTO` ("Auto"): the automatic transmission, and the Auto value of every row that has one.
 pub(super) const LABEL_AUTO: u32 = 0x8CD5_32A0;
@@ -203,9 +216,6 @@ const METRICS: [ShowMetrics; 3] = [ShowMetrics::Off, ShowMetrics::Basic, ShowMet
 const WINDOW_MODES: [WindowMode; 3] = [WindowMode::Windowed, WindowMode::Borderless, WindowMode::Exclusive];
 /// The most values any row cycles through; `advance` gives up after that many steps.
 const MAX_VALUES: usize = 16;
-fn on_off(on: bool) -> Data {
-    Data::Label(if on { LABEL_ON } else { LABEL_OFF })
-}
 
 fn percent_of(s: &Settings, setting: Setting) -> Option<Percent> {
     Some(match setting {
@@ -284,6 +294,7 @@ impl Setting {
             // A Mods row's value lives in its mod (`mod_options.rs`), not in the settings. The theme choice lives in the
             // bridge too.
             Setting::Mod(_) | Setting::ModManaged(_) | Setting::ModTheme | Setting::GameplayOption(_) => return false,
+            Setting::Heading | Setting::ModHeading(_) => return false,
             Setting::Custom(row) => {
                 super::custom_race::options::step(row, forward);
                 return true;
@@ -295,6 +306,7 @@ impl Setting {
             Setting::Hd(setting) => return setting.step(s, changed, forward),
             Setting::CustomHud(setting) => return setting.step(s, changed, forward),
             Setting::Language => return language::step(s, changed, forward),
+            Setting::World => return world::step(s, changed, forward),
             Setting::HudLayout => {
                 let layouts = [HudLayout::Pc, HudLayout::Classic, HudLayout::Xbox360];
                 let at = layouts.iter().position(|layout| *layout == s.hud_layout).unwrap_or(0);
@@ -306,11 +318,18 @@ impl Setting {
                 s.ui_style = UiStyle::ALL[cycle(at, UiStyle::ALL.len(), forward)];
                 changed.ui_style = Some(s.ui_style);
             }
+            Setting::CustomHudSkin => {
+                let all = crate::settings::CustomHudSkin::ALL;
+                let at = all.iter().position(|choice| *choice == s.custom_hud_skin).unwrap_or(0);
+                s.custom_hud_skin = all[cycle(at, all.len(), forward)];
+                changed.custom_hud_skin = Some(s.custom_hud_skin);
+            }
             Setting::SpeedUnits => {
                 let at = SpeedUnits::ALL.iter().position(|units| *units == s.speed_units).unwrap_or(0);
                 s.speed_units = SpeedUnits::ALL[cycle(at, SpeedUnits::ALL.len(), forward)];
                 changed.speed_units = Some(s.speed_units);
             }
+            Setting::Rider(setting) => return setting.step(s, changed, forward),
             Setting::UiTheme => {
                 let at = UiTheme::ALL.iter().position(|theme| *theme == s.ui_theme).unwrap_or(0);
                 s.ui_theme = UiTheme::ALL[cycle(at, UiTheme::ALL.len(), forward)];
@@ -387,7 +406,9 @@ impl Setting {
                 changed.custom_fonts.enabled = Some(s.custom_fonts.enabled);
             }
             Setting::TurnSignals => toggle!(s, changed, turn_signals),
+            Setting::RiderGear => toggle!(s, changed, rider_gear),
             Setting::CopHealthBars => toggle!(s, changed, cop_health_bars),
+            Setting::AirControl => toggle!(s, changed, air_control),
             Setting::RearViewMirror => toggle!(s, changed, rear_view_mirror),
             Setting::Discord => toggle!(s, changed, discord),
             Setting::DiscordTimePlayed => toggle!(s, changed, discord_time_played),

@@ -23,6 +23,11 @@ impl WorldScene {
         catalog.validate(&selection.parts)?;
         selection.gauges.validate(catalog)?;
         let old = &session.baseline;
+        crate::garage::rider_gear::validate_change(
+            nfsmw_data::car::mods::bike::is_bike(&entry.folder),
+            &old.gear,
+            &selection.gear,
+        )?;
         ensure!(
             selection.color == old.color
                 || selection.color.is_none()

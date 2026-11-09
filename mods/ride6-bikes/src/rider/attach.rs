@@ -9,6 +9,7 @@ use glam::Vec3;
 use serde_json::{Value, json};
 
 use super::contacts;
+use super::convert;
 use super::raw::JsonSkeleton;
 
 /// The bike socket that is the seat: the rider's root bone sits there.
@@ -22,6 +23,10 @@ pub const TARGETS: [(&str, &str, bool); 4] = [
     ("left_foot", "SOCKET_LEFT_FOOT", false),
     ("right_foot", "SOCKET_RIGHT_FOOT", false),
 ];
+
+/// The handlebar bone each grip target is held on: the centre of the grip rubber. The sockets above are where RIDE 6's rider puts his
+/// wrist; the bone is where the grip is, and the game puts the hand's grip on it (`tip_anchor`, `anchor`).
+pub const GRIP_BONES: [(&str, &str); 2] = [("left_grip", "BONE_L_GRIP"), ("right_grip", "BONE_R_GRIP")];
 
 /// The limbs the animation blueprint reaches with inverse kinematics: its control rigs `CtrlRig_HandsIK` and
 /// `CtrlRig_FeetCorrection` solve them with a full-body IK; the runtime uses a two-bone solve on the same bones.
@@ -63,6 +68,14 @@ const SEAT_BONES: [&str; 3] = ["pelvis", "gluteus_Vol_l", "gluteus_Vol_r"];
 /// rule for every bike, so the KTM stays where the original placement has it and the others sit as deep.
 const SEAT_SINK_M: f32 = 0.040;
 
+/// The right hand's wrist when the throttle is fully open, against its grip's own frame: `Hand_R_WristDownRot` of the blueprint
+/// (`FRotator(0, 30, 0)`: 30 degrees of yaw, about the grip's own axis along the handlebar) and `Hand_R_WristDownPos` (`FVector(-0.6,
+/// 5, 0)`, centimetres). The blueprint's `HandsBehaviours_(Leaning,_UpAndDown)` weighs it by `max(Hand_R_AnimWristDown,
+/// VehicleThrottle)` and follows it at `Hand_R_TransformSpeed` (4 a second); `RightGripIKOffsetRotation` and
+/// `RightGripIKOffsetTranslation` carry it to the grip IK target (`docs/specs/ride6-rider-hands.md`). Data.
+const WRIST_THROTTLE_ROTATOR: [f32; 3] = [0.0, 30.0, 0.0];
+const WRIST_THROTTLE_OFFSET_CM: [f32; 3] = [-0.6, 5.0, 0.0];
+
 /// The rider bone the inertia moves: the pelvis carries the legs, the spine and so the arms and head.
 const INERTIA_BONE: &str = "pelvis";
 
@@ -102,6 +115,17 @@ pub fn tip_frame(tip_in_pose: &Transform, seat: &Transform, target: &Transform) 
     target_in_rider.inverse().compose(*tip_in_pose)
 }
 
+/// The right wrist's offset at full throttle in the car frame (a turn about the grip's own axis and a move, metres), as the file
+/// carries it: `rotation` as `x, y, z, w` and `translation`, both against the grip socket's frame.
+pub fn wrist_throttle() -> Value {
+    let [pitch, yaw, roll] = WRIST_THROTTLE_ROTATOR;
+    let turn = convert::rotation(convert::rotator_quat(pitch, yaw, roll));
+    json!({
+        "rotation": turn.to_array(),
+        "translation": convert::position(WRIST_THROTTLE_OFFSET_CM).to_array(),
+    })
+}
+
 /// The attachment data as JSON. All transforms are in the car frame, metres, relative to the bike skeleton's origin (the
 /// mesh origin) at the bike's rest pose; offsets and limb data are in the rider's component space. `reference` is the
 /// rider's authored pose the tip offsets are measured on ([`REFERENCE_CLIP`]).
@@ -124,11 +148,16 @@ pub fn attach_json(rider: &Skeleton, reference: &Pose, bike: &JsonSkeleton) -> R
             true => Transform::IDENTITY,
             false => measured,
         };
-        limbs.push(json!({
+        let mut limb = json!({
             "name": name, "root": root, "mid": mid, "tip": tip, "pole": pole, "target": role,
             "tip_offset": offset.to_array(),
             "tip_frame": contacts::transform_json(&frame),
-        }));
+        });
+        // Where the hand is against the grip bone in the authored pose: the reference bike's grip is where the hand holds it.
+        if let Some(anchor) = points.anchor(role) {
+            limb["tip_anchor"] = contacts::transform_json(&tip_frame(&rider_component[tip_index], &seat, &anchor));
+        }
+        limbs.push(limb);
     }
     for bone in TORSO_LEAN.iter().chain(&TORSO_HEAD).chain(&SEAT_BONES).chain(&[INERTIA_BONE]) {
         rider.find(bone).with_context(|| format!("the rider has no bone {bone}"))?;
@@ -141,6 +170,7 @@ pub fn attach_json(rider: &Skeleton, reference: &Pose, bike: &JsonSkeleton) -> R
         "reference_clip": REFERENCE_CLIP,
         "torso": { "lean": TORSO_LEAN, "head": TORSO_HEAD, "head_share": HEAD_SHARE },
         "seat": { "bones": SEAT_BONES, "sink": SEAT_SINK_M },
+        "wrist_throttle": wrist_throttle(),
         "inertia": {
             "bone": INERTIA_BONE,
             "min": to_bike(INERTIA_RIDING.0),
@@ -246,6 +276,23 @@ mod tests {
         assert!((json["inertia"]["min"][0].as_f64().unwrap() + 0.06).abs() < 1e-6);
         assert!((json["inertia"]["max"][1].as_f64().unwrap() - 0.15).abs() < 1e-6);
         assert!(json["rider_root_in_bike"]["translation"].is_array());
+    }
+
+    #[test]
+    fn the_throttle_rolls_the_right_wrist_about_the_grips_axis() {
+        let rider = rider();
+        let json = attach_json(&rider, &rider.rest_pose(), &bike()).unwrap();
+        let quaternion: Vec<f64> =
+            json["wrist_throttle"]["rotation"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+        let [x, y, z, w]: [f64; 4] = quaternion.try_into().unwrap();
+        // Thirty degrees of yaw is a turn about the grip socket's z axis, and only about it; the file is in the car's right-handed
+        // frame, where Unreal's left-handed positive yaw is a turn the other way.
+        assert!(x.abs() < 1e-6 && y.abs() < 1e-6);
+        let angle = 2.0 * z.atan2(w);
+        assert!((angle.abs().to_degrees() - 30.0).abs() < 1e-3, "{angle}");
+        // Half a centimetre behind the socket, 5 up, in metres and the car frame (y flipped).
+        let t = &json["wrist_throttle"]["translation"];
+        assert!((t[0].as_f64().unwrap() + 0.006).abs() < 1e-6 && (t[1].as_f64().unwrap() + 0.05).abs() < 1e-6);
     }
 
     #[test]

@@ -10,7 +10,8 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use crate::bike_table::BikeTable;
-use crate::build::{Built, Wheel};
+use crate::build::{Built, ExtraSolid, LiveryChoice, Wheel};
+use crate::fallback::Fallback;
 use crate::physics::toml_text::{Toml, quote};
 
 /// The `mod.toml` of the content mod: no library, only `cars/` and `files/`.
@@ -38,6 +39,8 @@ pub struct Tables<'a> {
     pub bike: &'a BikeTable,
     /// The text of the `sound` command's tables, when it has run.
     pub sound: Option<&'a str>,
+    /// The surfaces that wear another model's material: one comment line each, under the manifest's header.
+    pub fallbacks: &'a [Fallback],
 }
 
 /// One wheel's `[wheels.<side>]` table: where the model has the hub, and the tyre's size. A bike's wheel is on the centre
@@ -50,16 +53,123 @@ fn wheel_table(t: &mut Toml, side: &str, wheel: &Wheel) {
     t.num("width_m", f64::from(wheel.width));
 }
 
+/// The body paint a bike with liveries lists (it must have one): a neutral grey, which shows only where a livery is transparent
+/// (none is; the pictures are opaque).
+const PAINT_COLOUR: [u8; 3] = [128, 128, 128];
+
+/// The `[customization]` table of a bike with liveries: the shop lists them with its vinyls, and the bike wears the first (the
+/// stock livery) until the player picks another (`docs/modding/car-customization.md#liveries`).
+fn customization(liveries: &[LiveryChoice]) -> String {
+    let [r, g, b] = PAINT_COLOUR;
+    let mut text = String::from("[customization]\ndefault_paint = 0\n");
+    text.push_str(&format!("paints = [{{ name = \"Stock\", color = [{r}, {g}, {b}] }}]\n"));
+    let list: Vec<String> = liveries
+        .iter()
+        .map(|livery| format!("{{ name = {}, texture = {} }}", quote(&livery.name), quote(&livery.texture)))
+        .collect();
+    text.push_str(&format!("liveries = [{}]\ndefault_livery = 0\n", list.join(", ")));
+    text
+}
+
+/// The `[customization]` table of a bike with one look: its stock paint and nothing else. The game applies the parts of a bike's
+/// components (`docs/modding/ride6-bike-upgrades.md`) through its customization, so a bike with options but no liveries needs one.
+pub fn plain_customization() -> String {
+    let [r, g, b] = PAINT_COLOUR;
+    format!(
+        "[customization]
+default_paint = 0
+paints = [{{ name = \"Stock\", color = [{r}, {g}, {b}] }}]
+
+"
+    )
+}
+
+/// The `[parts."base.<kind>.<n>"]` tables of the solids of the frame, the handlebar group and the fork after the first: base parts,
+/// drawn with the car whatever its components are (`docs/modding/api-content.md#components`). Empty for a car of three solids.
+pub fn base_parts(extra: &[ExtraSolid]) -> String {
+    let mut text = String::new();
+    for (at, part) in extra.iter().enumerate() {
+        if at > 0 {
+            text.push('\n');
+        }
+        let (id, solid, role) = (&part.id, quote(&part.solid), &part.role);
+        text.push_str(&format!("[parts.\"{id}\"]\nsolid = {solid}\nrole = \"{role}\"\nbase = true\n"));
+    }
+    text
+}
+
+/// `manifest` without the tables whose header starts with `prefix` (`[customization`) and `tables` after what is left: the way a
+/// table the importer owns is replaced in a manifest that other tools (the sound tables, the camera tables) have added to.
+pub fn replace_tables(manifest: &str, prefix: &str, tables: &str) -> String {
+    let mut kept = String::new();
+    let mut skipping = false;
+    for line in manifest.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('[') {
+            skipping = trimmed.starts_with(prefix);
+        }
+        if skipping {
+            continue;
+        }
+        kept.push_str(line);
+        kept.push('\n');
+    }
+    let mut out = kept.trim_end_matches('\n').to_owned();
+    out.push('\n');
+    if !tables.is_empty() {
+        out.push('\n');
+        out.push_str(tables.trim_end_matches('\n'));
+        out.push('\n');
+    }
+    out
+}
+
+/// Put the liveries of a bike into its manifest `cars/<car>.toml` in `mod_dir` (replacing its `[customization]` table, or taking it
+/// out for a bike with one look), leaving everything else of the file as it is.
+pub fn apply_liveries(mod_dir: &Path, car: &str, liveries: &[LiveryChoice]) -> Result<()> {
+    let manifest = mod_dir.join("cars").join(format!("{}.toml", car.to_ascii_lowercase()));
+    let text = std::fs::read_to_string(&manifest).with_context(|| format!("reading {}", manifest.display()))?;
+    let table = match liveries.len() >= 2 {
+        true => customization(liveries),
+        false => String::new(),
+    };
+    std::fs::write(&manifest, replace_tables(&text, "[customization", &table))
+        .with_context(|| format!("writing {}", manifest.display()))
+}
+
+/// Put the extra solids of the car into the manifest `cars/<car>.toml` in `mod_dir` (replacing its `[parts."base.<kind>.<n>"]` tables), leaving
+/// everything else of the file as it is.
+pub fn apply_extra_solids(mod_dir: &Path, car: &str, extra: &[ExtraSolid]) -> Result<()> {
+    let manifest = mod_dir.join("cars").join(format!("{}.toml", car.to_ascii_lowercase()));
+    let text = std::fs::read_to_string(&manifest).with_context(|| format!("reading {}", manifest.display()))?;
+    std::fs::write(&manifest, replace_tables(&text, "[parts.\"base.", &base_parts(extra)))
+        .with_context(|| format!("writing {}", manifest.display()))
+}
+
+/// Add `text` (tables the importer writes after the car: the bike's slots and parts) to the end of the manifest `cars/<car>.toml`.
+pub fn append_tables(mod_dir: &Path, car: &str, text: &str) -> Result<()> {
+    let manifest = mod_dir.join("cars").join(format!("{}.toml", car.to_ascii_lowercase()));
+    let current = std::fs::read_to_string(&manifest).with_context(|| format!("reading {}", manifest.display()))?;
+    let joined = format!("{}\n\n{}", current.trim_end_matches('\n'), text.trim_start_matches('\n'));
+    std::fs::write(&manifest, joined).with_context(|| format!("writing {}", manifest.display()))
+}
+
 /// The text of `cars/<id>.toml`.
 pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'_>) -> String {
     let mut text = format!(
         "# {name} of RIDE 6 as a bike of NFS: Most Wanted. Generated by `ride6-bike-import`.\n\
          # [wheels]: the hubs in the body solid's frame (x forward, z up), metres. [bike]: converted from the bike's physics data\n\
-         # (docs/modding/ride6-bikes.md); a bike has no stats table.\n\
-         kind = \"bike\"\nrole = \"player\"\nname = {}\nmanufacturer = {}\n",
+         # (docs/modding/ride6-bikes.md); a bike has no stats table.\n"
+    );
+    for fallback in tables.fallbacks {
+        text.push_str(&fallback.comment());
+        text.push('\n');
+    }
+    text.push_str(&format!(
+        "kind = \"bike\"\nrole = \"player\"\nname = {}\nmanufacturer = {}\n",
         quote(name),
         quote(manufacturer)
-    );
+    ));
     let mut wheels = Toml::new();
     wheel_table(&mut wheels, "front", &built.front);
     wheel_table(&mut wheels, "rear", &built.rear);
@@ -67,6 +177,18 @@ pub fn car_toml(name: &str, manufacturer: &str, built: &Built, tables: &Tables<'
     text.push_str(&wheels.into_string());
     text.push('\n');
     text.push_str(&tables.bike.text);
+    if let Some(dash) = &built.dash {
+        text.push('\n');
+        text.push_str(&dash.table());
+    }
+    if built.liveries.len() >= 2 {
+        text.push('\n');
+        text.push_str(&customization(&built.liveries));
+    }
+    if !built.extra_solids.is_empty() {
+        text.push('\n');
+        text.push_str(&base_parts(&built.extra_solids));
+    }
     if let Some(sound) = tables.sound {
         text.push('\n');
         text.push_str(sound);
@@ -150,20 +272,104 @@ mod tests {
             triangles: 0,
             front_end: Default::default(),
             exhaust: Vec::new(),
+            liveries: Vec::new(),
+            levels: Vec::new(),
+            extra_solids: Vec::new(),
+            dash: None,
         }
     }
 
     #[test]
     fn the_manifest_is_a_bike_with_its_hubs_and_no_stats() {
         let bike = BikeTable { text: "[bike]\ndrag = 0.15\n".to_owned(), notes: vec![] };
-        let tables = Tables { bike: &bike, sound: Some("[engine_sound]\nidle_rpm = 2300.0\n") };
+        let tables = Tables { bike: &bike, sound: Some("[engine_sound]\nidle_rpm = 2300.0\n"), fallbacks: &[] };
         let text = car_toml("KTM \"450\" SMR", "KTM", &built(), &tables);
         assert!(text.contains("\nkind = \"bike\"\n"));
+        assert!(!text.contains("# fallback"), "a bike with no fallback has no such comment");
         assert!(text.contains("name = \"KTM \\\"450\\\" SMR\""));
         assert!(text.contains("[wheels.front]\nx_m = 0.7355\nz_m = 0.288\nradius_m = 0.288\nwidth_m = 0.12\n"));
         assert!(text.contains("[wheels.rear]\nx_m = -0.739\nz_m = 0.312\nradius_m = 0.312\nwidth_m = 0.16\n"));
         assert!(!text.contains("face_m") && !text.contains("[stats]"));
         assert!(text.contains("\n[bike]\ndrag = 0.15\n"));
         assert!(text.ends_with("[engine_sound]\nidle_rpm = 2300.0\n"));
+    }
+
+    #[test]
+    fn a_fallback_is_a_comment_line_under_the_header_before_the_first_key() {
+        let bike = BikeTable { text: "[bike]\ndrag = 0.15\n".to_owned(), notes: vec![] };
+        let fallback = Fallback {
+            part: "mirrors".to_owned(),
+            surface: "mat_glass".to_owned(),
+            material: "mat_glass305_001".to_owned(),
+            picture: "glass305_001_d".to_owned(),
+            source: Some("Kawasaki_Ninja-H2-2019".to_owned()),
+            rule: "family".to_owned(),
+            triangles: 74,
+        };
+        let tables = Tables { bike: &bike, sound: None, fallbacks: std::slice::from_ref(&fallback) };
+        let text = car_toml("Kawasaki Ninja H2R 2019", "Kawasaki", &built(), &tables);
+        let line = text.lines().position(|l| l == fallback.comment()).expect("the comment line");
+        let key = text.lines().position(|l| l == "kind = \"bike\"").expect("the first key");
+        assert!(line < key, "{text}");
+        assert!(text.parse::<toml::Table>().is_ok(), "comments keep it a manifest");
+    }
+
+    #[test]
+    fn a_customization_table_is_replaced_and_the_other_tables_are_kept() {
+        let manifest = "[bike]\ndrag = 0.15\n\n[customization]\ndefault_paint = 0\n\n[engine_sound]\nidle_rpm = 1.0\n";
+        let livery = |n: u32| LiveryChoice { name: format!("Livery {n}"), texture: format!("T{n}") };
+        let table = customization(&[livery(1), livery(2)]);
+        let out = replace_tables(manifest, "[customization", &table);
+        let kept = "[bike]\ndrag = 0.15\n\n[engine_sound]\nidle_rpm = 1.0\n";
+        assert!(out.starts_with(&format!("{kept}\n[customization]\n")), "{out}");
+        assert_eq!(out.matches("[customization]").count(), 1);
+        assert!(out.contains("liveries = ["));
+        assert_eq!(replace_tables(&out, "[customization", ""), kept);
+    }
+
+    #[test]
+    fn a_plain_customization_is_one_stock_paint() {
+        let table = plain_customization();
+        assert!(table.starts_with(
+            "[customization]
+default_paint = 0
+"
+        ));
+        assert!(table.contains("paints = [{ name = \"Stock\", color = [128, 128, 128] }]"));
+        assert!(!table.contains("liveries"));
+    }
+
+    #[test]
+    fn a_bike_with_liveries_lists_them_and_wears_the_first() {
+        let bike = BikeTable { text: "[bike]\ndrag = 0.15\n".to_owned(), notes: vec![] };
+        let tables = Tables { bike: &bike, sound: None, fallbacks: &[] };
+        let livery = |n: u32, texture: &str| LiveryChoice { name: format!("Livery {n}"), texture: texture.to_owned() };
+        let mut two = built();
+        two.liveries = vec![livery(1, "KTM450_SKIN1"), livery(2, "KTM450_LIV2")];
+        let text = car_toml("KTM", "KTM", &two, &tables);
+        assert!(text.contains("\n[customization]\ndefault_paint = 0\n"));
+        let list = "liveries = [{ name = \"Livery 1\", texture = \"KTM450_SKIN1\" }, \
+                    { name = \"Livery 2\", texture = \"KTM450_LIV2\" }]\ndefault_livery = 0\n";
+        assert!(text.contains(list), "{text}");
+        let mut one = built();
+        one.liveries = vec![livery(1, "KTM450_SKIN1")];
+        assert!(!car_toml("KTM", "KTM", &one, &tables).contains("[customization]"), "one look is no choice");
+    }
+
+    #[test]
+    fn the_extra_solids_are_base_parts_and_replace_each_other() {
+        let extra =
+            |id: &str, solid: &str, role: &str| ExtraSolid { id: id.into(), solid: solid.into(), role: role.into() };
+        let parts = [extra("base.body.2", "K_KIT00_BODY2", "body"), extra("base.bars.2", "K_KIT00_BARS2", "steered")];
+        let text = base_parts(&parts);
+        assert!(
+            text.starts_with("[parts.\"base.body.2\"]\nsolid = \"K_KIT00_BODY2\"\nrole = \"body\"\nbase = true\n"),
+            "{text}"
+        );
+        assert!(text.contains("\n[parts.\"base.bars.2\"]\n") && text.contains("role = \"steered\""));
+        let manifest = format!("[bike]\ndrag = 1\n\n{text}\n[parts.\"exhaust.stock\"]\nsolid = \"X\"\n");
+        let out = replace_tables(&manifest, "[parts.\"base.", &base_parts(&parts[..1]));
+        assert_eq!(out.matches("base = true").count(), 1);
+        assert!(out.contains("[parts.\"exhaust.stock\"]"), "the options' parts stay: {out}");
     }
 }

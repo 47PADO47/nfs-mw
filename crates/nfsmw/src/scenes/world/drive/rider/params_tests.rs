@@ -238,3 +238,166 @@ fn the_steering_the_blend_space_reads_follows_the_input_at_6_per_second() {
     assert!((steer(1.0) - 1.0).abs() < 1e-4);
     assert!((run(&RiderSample { steer: 3.0, ..sample() }, 2.0).values().steer - 1.0).abs() < 1e-4, "clamped");
 }
+
+/// A bike type's standstill numbers as `styles.json` gives them, one foot choice three times.
+fn stand() -> Stand {
+    let ik = Some([0.1, 1.0, 1.5, 2.0]);
+    let leg = super::super::style::StandLeg {
+        start_seconds: [0.0, 2.0],
+        stop_seconds: [1.0, 3.0],
+        start_rate: 1.0,
+        stop_rate: 1.0,
+        left_ik: ik,
+        right_ik: ik,
+        ik_rate: [4.0; 2],
+    };
+    Stand { speed_kmh: 6.0, racing_at: 0.85, legs: [leg; 3] }
+}
+
+fn settle(smoothed: &mut Smoothed, sample: &RiderSample, seconds: f32) -> Values {
+    for _ in 0..(seconds * 60.0) as usize {
+        smoothed.step(sample, &inertia(), 1.0 / 60.0);
+    }
+    smoothed.values()
+}
+
+#[test]
+fn the_feet_are_on_the_pegs_while_riding_and_off_them_at_a_standstill() {
+    let mut smoothed = Smoothed::default();
+    smoothed.set_kind(Some(0), Some(stand()));
+    let riding = RiderSample { speed: 20.0, ..sample() };
+    let values = settle(&mut smoothed, &riding, 1.0);
+    assert_eq!((values.stand, values.foot_release), (0.0, [0.0, 0.0]), "{values:?}");
+    let stopped = settle(&mut smoothed, &RiderSample { speed: 0.0, ..sample() }, 5.0);
+    assert_eq!((stopped.stand, stopped.stand_state), (1.0, 1.0), "{stopped:?}");
+    assert!(stopped.foot_release.iter().all(|release| *release > 0.999), "both feet are on the ground: {stopped:?}");
+    // A rider with no standstill numbers keeps his feet on the pegs standing.
+    let mut bare = Smoothed::default();
+    bare.set_kind(Some(0), None);
+    assert_eq!(settle(&mut bare, &RiderSample { speed: 0.0, ..sample() }, 3.0).foot_release, [0.0, 0.0]);
+}
+
+#[test]
+fn the_reverse_walk_takes_the_feet_off_the_pegs_whatever_the_standstill_holds() {
+    let walk = Walk {
+        start_seconds: [0.8, 1.567],
+        start_speed_kmh: -1.0,
+        rate_speed_kmh: [-1.0, -20.0],
+        rate: [1.0, 4.0],
+        loop_seconds: 2.0,
+    };
+    // A standstill that holds the pegs for a long time after the bike stops (the stop clip's off-footboard second is far off), so the
+    // legs are let go by the walk alone.
+    let mut held = stand();
+    for leg in &mut held.legs {
+        leg.left_ik = Some([0.1, 1.0, 99.0, 99.5]);
+        leg.right_ik = Some([0.1, 1.0, 99.0, 99.5]);
+    }
+    let mut smoothed = Smoothed::default();
+    smoothed.set_walk(Some(walk));
+    smoothed.set_kind(Some(0), Some(held));
+    assert_eq!(settle(&mut smoothed, &RiderSample { speed: 20.0, ..sample() }, 1.0).foot_release, [0.0, 0.0]);
+    let backwards = settle(&mut smoothed, &RiderSample { speed: -1.5, ..sample() }, 0.6);
+    assert!(backwards.reverse > 0.99, "{backwards:?}");
+    assert!(backwards.foot_release.iter().all(|release| *release > 0.999), "the walk takes the legs: {backwards:?}");
+}
+
+#[test]
+fn the_riding_style_picks_the_foot_that_goes_down_and_the_old_school_foot_out() {
+    let mut smoothed = Smoothed::default();
+    smoothed.set_kind(Some(2), Some(stand()));
+    for (style, leg) in [(0, 2.0), (1, 1.0), (2, 0.0)] {
+        smoothed.set_riding_style(style);
+        let values = settle(&mut smoothed, &RiderSample { speed: 0.0, ..sample() }, 0.1);
+        assert_eq!((values.riding_style, values.stand_leg), (f32::from(style), leg), "style {style}");
+    }
+    // Old school on a supermoto: a lean takes the inside foot off the peg, at speed; the other styles keep it.
+    let leaning = RiderSample { speed: 20.0, bike_lean: 0.8, ..sample() };
+    smoothed.set_riding_style(0);
+    assert_eq!(settle(&mut smoothed, &leaning, 2.0).foot_release[1], 0.0);
+    smoothed.set_riding_style(2);
+    assert!(settle(&mut smoothed, &leaning, 2.0).foot_release[1] > 0.999);
+}
+
+#[test]
+fn the_levers_and_the_throttle_reach_the_hands() {
+    let rider = RiderSample { clutch: 1.0, front_brake: 1.0, throttle: 1.0, ..sample() };
+    let values = settle(&mut Smoothed::default(), &rider, 2.0);
+    assert_eq!((values.clutch, values.brake, values.clutch_alpha, values.brake_alpha), (1.0, 1.0, 1.0, 1.0));
+    assert!(values.wrist > 0.99);
+    let hands_off = settle(&mut Smoothed::default(), &sample(), 2.0);
+    assert_eq!((hands_off.clutch, hands_off.brake, hands_off.wrist), (0.0, 0.0, 0.0));
+}
+
+#[test]
+fn the_players_finger_choices_reach_the_graph_and_two_fingers_are_the_default() {
+    use crate::settings::{BrakeFingers, ClutchFingers};
+    let mut smoothed = Smoothed::default();
+    let values = settle(&mut smoothed, &sample(), 0.1);
+    assert_eq!(
+        (values.brake_fingers, values.clutch_fingers),
+        (1.0, 0.0),
+        "two on the brake, the clutch clip's two on the clutch"
+    );
+    smoothed.set_choices(0, BrakeFingers::Four, ClutchFingers::Four);
+    let values = settle(&mut smoothed, &sample(), 0.1);
+    assert_eq!((values.brake_fingers, values.clutch_fingers), (2.0, 1.0));
+    smoothed.set_choices(0, BrakeFingers::One, ClutchFingers::Two);
+    assert_eq!((smoothed.values().brake_fingers, smoothed.values().clutch_fingers), (0.0, 0.0));
+}
+
+#[test]
+fn the_fingers_and_the_wrist_follow_the_inputs_at_any_speed_in_any_state_of_the_bike() {
+    // A user's playtest: the fingers showed only in first gear, accelerating. Nothing the hands read depends on the speed, the
+    // wheelie, the lean or the tuck: every state below sets the levers' signals to their inputs.
+    let states = [
+        RiderSample { speed: 0.0, ..sample() },
+        RiderSample { speed: 8.0, ..sample() },
+        RiderSample { speed: 55.0, tuck_level: 1.0, ..sample() },
+        RiderSample { speed: 30.0, bike_lean: 0.8, rider_lean: 0.8, ..sample() },
+        RiderSample { speed: 20.0, front_down: false, elevation: 0.5, ..sample() },
+        RiderSample { speed: -2.0, ..sample() },
+    ];
+    for (n, state) in states.into_iter().enumerate() {
+        let pulled = RiderSample { front_brake: 0.6, throttle: 0.4, ..state };
+        let values = settle(&mut Smoothed::default(), &pulled, 2.0);
+        assert!((values.brake - 0.6).abs() < 1e-5 && values.brake_alpha == 1.0, "state {n}: {values:?}");
+        assert!((values.wrist - 0.4).abs() < 0.01, "state {n}: {values:?}");
+        let clutched = RiderSample { clutch: 1.0, ..state };
+        let values = settle(&mut Smoothed::default(), &clutched, 1.0);
+        assert!(values.clutch == 1.0 && values.clutch_alpha == 1.0, "state {n}: {values:?}");
+    }
+}
+
+#[test]
+fn a_gear_change_at_speed_closes_the_left_fingers_and_holds_them_closed_long_enough_to_be_seen() {
+    let mut smoothed = Smoothed::default();
+    let cruising = RiderSample { speed: 40.0, throttle: 1.0, ..sample() };
+    assert_eq!(settle(&mut smoothed, &cruising, 1.0).clutch, 0.0);
+    // The lever is in for three frames (a change on a fast bike) and out again.
+    let change = RiderSample { clutch: 1.0, ..cruising };
+    let mut peak = 0.0_f32;
+    for _ in 0..3 {
+        smoothed.step(&change, &inertia(), 1.0 / 60.0);
+    }
+    for _ in 0..12 {
+        smoothed.step(&cruising, &inertia(), 1.0 / 60.0);
+        peak = peak.max(smoothed.values().clutch);
+    }
+    assert_eq!(peak, 1.0, "the fingers closed all the way");
+    assert_eq!(smoothed.values().clutch, 1.0, "and were still closed a quarter of a second after the change began");
+    let after = settle(&mut smoothed, &cruising, 1.0);
+    assert_eq!((after.clutch, after.clutch_alpha), (0.0, 0.0), "then let go");
+}
+
+#[test]
+fn only_a_scooters_left_hand_works_a_rear_brake_lever() {
+    let braking = RiderSample { rear_brake: 1.0, front_brake: 1.0, speed: 10.0, ..sample() };
+    for (bike_type, lever) in [(Some(3), 1.0), (Some(0), 0.0), (Some(2), 0.0), (None, 0.0)] {
+        let mut smoothed = Smoothed::default();
+        smoothed.set_kind(bike_type, None);
+        let values = settle(&mut smoothed, &braking, 1.0);
+        assert_eq!((values.rear, values.rear_alpha), (lever, lever), "bike type {bike_type:?}");
+        assert_eq!(values.brake, 1.0, "the front lever is every bike's");
+    }
+}

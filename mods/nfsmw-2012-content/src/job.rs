@@ -14,11 +14,12 @@ use anyhow::{Context, Result};
 
 use crate::config::{self, Config};
 use crate::import::{self, Report};
-use crate::stamp;
+use crate::{lazy, stamp};
 
 const STAGING: &str = ".staging";
-/// The folders the game reads, which a promotion replaces together.
-const CONTENT: [&str; 3] = ["files", "cars", "manufacturers"];
+/// The folders the game reads, which a promotion replaces together (`replace` holds the replacement sets: the trees, the signs, the
+/// road textures and the sky).
+const CONTENT: [&str; 4] = ["files", "cars", "manufacturers", crate::road_textures::REPLACE_FOLDER];
 
 /// A conversion running on its own thread.
 pub struct Job {
@@ -30,10 +31,11 @@ pub struct Job {
 pub enum Start {
     /// No 2012 install is set. `created` says the settings file was missing and has just been written.
     NotConfigured { config: PathBuf, created: bool },
-    /// The content on disk is right for the settings and the installs.
-    UpToDate { cars: usize },
-    /// A conversion was started; `live` says the folder already holds content the game has indexed.
-    Started { job: Job, live: bool },
+    /// The content on disk is right for the settings and the installs. `features` are the settings that turn effect variants on.
+    UpToDate { cars: usize, features: crate::features::Features },
+    /// A conversion was started; `live` says the folder already holds content the game has indexed. `features` are the settings that
+    /// turn effect variants on.
+    Started { job: Job, live: bool, features: crate::features::Features },
 }
 
 /// What a job did, once it is over.
@@ -56,21 +58,40 @@ impl Job {
 
 /// What the mod does at load: promote a finished run left by an earlier start, take the settings the host merged from
 /// `mod_dir/config.toml` and the game's `[mods.nfsmw-2012-content]` table (`supplied`; without it, read `config.toml`
-/// alone), and, unless the content on disk is still right, start converting in the background.
+/// alone), and, unless the content on disk is still right, start converting in the background. The conversion writes every
+/// file; [`start_with`] can have it write lazy files.
 pub fn start(mod_dir: &Path, supplied: Option<&config::Supplied>) -> Result<Start> {
+    start_with(mod_dir, supplied, |_| false)
+}
+
+/// [`start`], where `streaming` says, for the settings of this start, whether the conversion writes lazy files instead of the
+/// cars' heavy files (`lazy.rs`). It is asked once, when a 2012 install is set, and its answer is part of the import stamp, so
+/// a run that wrote files is not taken for one that wrote stubs.
+pub fn start_with(
+    mod_dir: &Path,
+    supplied: Option<&config::Supplied>,
+    streaming: impl FnOnce(&Config) -> bool,
+) -> Result<Start> {
     promote(mod_dir)?;
     let config_path = mod_dir.join(config::FILE_NAME);
     let (config, created) = Config::resolve(supplied, &config_path)?;
+    // The soundtrack is a playlist of the install's own files, kept in line with the settings at every start whatever the
+    // conversion does (`soundtrack.rs`).
+    crate::soundtrack::sync(mod_dir, config.source.as_deref(), config.music);
+    // The road textures are stubs, so they are kept in line with the settings at every start too (`road_textures/`).
+    crate::road_textures::sync(mod_dir, config.source.as_deref(), config.road_textures);
     let Some(source) = config.source.clone() else {
         return Ok(Start::NotConfigured { config: config_path, created });
     };
+    let config = Config { lazy: streaming(&config), ..config };
     let stamp = stamp::of(&config, &source);
     if stamp::is_current(mod_dir, &stamp) {
-        return Ok(Start::UpToDate { cars: count_cars(mod_dir) });
+        return Ok(Start::UpToDate { cars: count_cars(mod_dir), features: config.features() });
     }
     let live = mod_dir.join(CONTENT[0]).is_dir();
+    let features = config.features();
     let job = spawn(config, source, mod_dir.to_owned(), stamp)?;
-    Ok(Start::Started { job, live })
+    Ok(Start::Started { job, live, features })
 }
 
 fn spawn(config: Config, source: PathBuf, mod_dir: PathBuf, stamp: String) -> Result<Job> {
@@ -105,23 +126,42 @@ pub fn promote(mod_dir: &Path) -> Result<bool> {
         return Ok(false);
     }
     if !staging.join(stamp::FILE).is_file() {
-        fs::remove_dir_all(&staging).with_context(|| format!("removing {}", staging.display()))?;
+        remove_staging(&staging);
         return Ok(false);
     }
     stamp::clear(mod_dir);
+    // The recipe of the lazy files belongs to the content it was written with: the old one goes, the new one (if the run was
+    // lazy) takes its place.
+    let recipe = mod_dir.join(lazy::RECIPE_FILE);
+    if recipe.exists() {
+        fs::remove_file(&recipe).with_context(|| format!("removing {}", recipe.display()))?;
+    }
+    let staged_recipe = staging.join(lazy::RECIPE_FILE);
+    if staged_recipe.exists() {
+        fs::rename(&staged_recipe, &recipe).context("moving the recipe of the lazy files into place")?;
+    }
     for part in CONTENT {
-        let live = mod_dir.join(part);
-        if live.exists() {
-            fs::remove_dir_all(&live).with_context(|| format!("clearing {}", live.display()))?;
-        }
-        let staged = staging.join(part);
+        let (live, staged) = (mod_dir.join(part), staging.join(part));
         if staged.exists() {
-            fs::rename(&staged, &live).with_context(|| format!("moving {} into place", staged.display()))?;
+            crate::swap::replace_dir(&live, &staged).with_context(|| format!("replacing {}", live.display()))?;
+            continue;
+        }
+        if live.exists() {
+            crate::swap::replace_dir(&live, &staged).with_context(|| format!("clearing {}", live.display()))?;
         }
     }
     fs::rename(staging.join(stamp::FILE), mod_dir.join(stamp::FILE)).context("moving the import stamp into place")?;
-    fs::remove_dir_all(&staging).with_context(|| format!("removing {}", staging.display()))?;
+    remove_staging(&staging);
     Ok(true)
+}
+
+/// Delete the staging folder. Best effort: Windows refuses to delete a folder another process has open (a file indexer or a virus
+/// scanner looking at what was just written), and an empty leftover is harmless (the next start finds nothing to promote and
+/// tries again), whereas failing here would throw away a finished promotion.
+fn remove_staging(staging: &Path) {
+    if let Err(error) = fs::remove_dir_all(staging) {
+        log::debug!("the staging folder {} stays for now: {error}", staging.display());
+    }
 }
 
 fn count_cars(mod_dir: &Path) -> usize {
@@ -150,13 +190,29 @@ mod tests {
     }
 
     #[test]
+    fn the_replacement_sets_of_a_finished_run_are_promoted_and_the_old_ones_go() {
+        let dir = temp("promote-sets");
+        fs::create_dir_all(dir.join("replace")).unwrap();
+        fs::write(dir.join("replace/old.toml"), "old").unwrap();
+        staged(&dir, true);
+        fs::create_dir_all(dir.join(".staging/replace")).unwrap();
+        fs::write(dir.join(".staging/replace/sky-mw2012.toml"), "new").unwrap();
+        assert!(promote(&dir).unwrap());
+        assert!(dir.join("replace/sky-mw2012.toml").is_file() && !dir.join("replace/old.toml").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn a_finished_run_replaces_the_content_and_keeps_the_rest() {
         let dir = temp("promote");
         fs::create_dir_all(dir.join("cars")).unwrap();
         fs::write(dir.join("cars/old.toml"), "old").unwrap();
         fs::write(dir.join("mod.toml"), "keep").unwrap();
         staged(&dir, true);
+        fs::create_dir_all(dir.join(".staging/replace")).unwrap();
+        fs::write(dir.join(".staging/replace/set.toml"), "set").unwrap();
         assert!(promote(&dir).unwrap());
+        assert!(dir.join("replace/set.toml").is_file(), "the replacement sets are promoted with the content");
         assert!(dir.join("cars/x.toml").is_file() && !dir.join("cars/old.toml").exists());
         assert!(dir.join("files/CARS/X").is_dir());
         assert_eq!(fs::read_to_string(dir.join(stamp::FILE)).unwrap(), "stamp");
@@ -164,6 +220,44 @@ mod tests {
         assert!(dir.join("mod.toml").is_file());
         assert!(!promote(&dir).unwrap(), "nothing is left to promote");
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_lazy_run_brings_its_recipe_and_a_later_run_without_one_takes_it_away() {
+        let dir = temp("recipe");
+        fs::write(dir.join(lazy::RECIPE_FILE), "old recipe").unwrap();
+        staged(&dir, true);
+        fs::write(dir.join(".staging").join(lazy::RECIPE_FILE), "new recipe").unwrap();
+        assert!(promote(&dir).unwrap());
+        assert_eq!(fs::read_to_string(dir.join(lazy::RECIPE_FILE)).unwrap(), "new recipe");
+        staged(&dir, true);
+        assert!(promote(&dir).unwrap());
+        assert!(!dir.join(lazy::RECIPE_FILE).exists(), "content that writes every file has no recipe");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_decision_to_stream_is_asked_with_the_settings_and_changes_what_up_to_date_means() {
+        let dir = temp("streaming");
+        let source = temp("streaming-source");
+        let supplied = config::Supplied {
+            text: format!("source = '{}'\n", source.to_string_lossy().replace('\\', "/")),
+            has_file: false,
+            has_main_section: true,
+        };
+        // Pretend a run for the settings without streaming finished: the stamp is the eager one.
+        let eager = Config::parse(&supplied.text).unwrap();
+        stamp::save(&dir, &stamp::of(&eager, &source)).unwrap();
+        assert!(matches!(start_with(&dir, Some(&supplied), |_| false).unwrap(), Start::UpToDate { .. }));
+        let asked = std::cell::Cell::new(false);
+        let started = start_with(&dir, Some(&supplied), |config| {
+            asked.set(config.source.is_some());
+            true
+        });
+        assert!(asked.get(), "the decision sees the settings, install included");
+        assert!(!matches!(started, Ok(Start::UpToDate { .. })), "stubs are not what the eager run wrote");
+        fs::remove_dir_all(&dir).unwrap();
+        fs::remove_dir_all(&source).unwrap();
     }
 
     #[test]

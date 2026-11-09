@@ -69,6 +69,9 @@ impl WorldScene {
             })
             .transpose()?;
         self.garage.pricing = handle.map(|_| crate::garage::pricing::Pricing::load(&self.dir)).transpose()?;
+        // The rider's gear is the profile's, not the car's: what the player wears now is what the cart is measured against.
+        crate::garage::rider_gear::reload();
+        self.garage.applied.gear = crate::garage::rider_gear::kept();
         self.career.garage = Some(ShopSession { baseline: self.garage.applied.clone(), handle, yaw: 2.4 });
         self.garage.reset_draft();
         self.garage.shop = handle.is_some();
@@ -85,7 +88,12 @@ impl WorldScene {
     ) -> Result<()> {
         let session = self.career.garage.as_ref().context("No garage session is open")?;
         ensure!(selection.car == session.baseline.car, "This shop customizes the current car");
+        let shop = session.handle.is_some();
         self.apply_garage_selection(renderer, selection.clone())?;
+        // The rider on the bike in the shop wears what the cart holds (his gear is not the car's, so the scene does not read it).
+        if shop {
+            crate::garage::rider_gear::set_preview(Some(selection.gear.clone()));
+        }
         self.update_garage_backdrop(renderer, &selection)?;
         self.refresh_garage_quote(&selection);
         Ok(())
@@ -95,6 +103,7 @@ impl WorldScene {
         let Some(session) = self.career.garage.as_ref().cloned() else { return Ok(()) };
         // Keep the session alive through restoration, so rollback cannot cool or save the car.
         self.apply_garage_selection(renderer, session.baseline)?;
+        crate::garage::rider_gear::set_preview(None);
         self.career.garage = None;
         self.garage.shop = false;
         self.garage.lock_car = false;

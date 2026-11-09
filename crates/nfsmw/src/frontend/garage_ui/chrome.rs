@@ -24,8 +24,12 @@ pub(super) fn restore(cx: &mut Cx) {
 pub(super) fn refresh(cx: &mut Cx, page: Page, model: &Model) {
     cx.hide(0xd058_2feb, true);
     cx.hide(0xcffb_7033, true);
-    let title = page.title();
-    let title_key = page.title_label(model);
+    let component = page.component_title(model);
+    let title = component.clone().unwrap_or_else(|| page.title());
+    let title_key = match component {
+        Some(_) => None,
+        None => page.title_label(model),
+    };
     match title_key {
         Some(key) => {
             cx.label_group(ids::TITLE_GROUP, key);

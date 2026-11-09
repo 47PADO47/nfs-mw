@@ -1,0 +1,20 @@
+# Example: replace one street lamp and one road texture of the 2005 city with a model and a picture the mod makes itself.
+# Choose "Street lamps: Slim lamps" and "Road textures: Checker asphalt" in the gameplay options (mods/example-replace/README.md).
+
+[mod]
+id = "example.replace"
+name = "Example: replacement sets"
+version = "0.1.0"
+authors = ["nfs-mw contributors"]
+license = "MIT OR Apache-2.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["nfsmw"]
+
+[library]
+windows = "example_replace.dll"
+linux = "libexample_replace.so"
+macos = "libexample_replace.dylib"

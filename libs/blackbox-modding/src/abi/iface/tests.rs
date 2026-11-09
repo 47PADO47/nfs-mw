@@ -30,6 +30,18 @@ fn ids_and_versions_are_locked() {
 }
 
 #[test]
+fn content_table() {
+    assert_eq!(IFACE_CONTENT, "bb.content");
+    assert_eq!(IFACE_CONTENT_VERSION, (1, 2));
+    assert_eq!(size_of::<BbContent>(), 48);
+    assert_eq!(offset_of!(BbContent, ctx), 8);
+    assert_eq!(offset_of!(BbContent, rescan), 16);
+    assert_eq!(offset_of!(BbContent, provide_lazy_files), 24, "1.1 appended it after rescan");
+    assert_eq!(offset_of!(BbContent, capabilities), 32, "1.2 appended these two");
+    assert_eq!(offset_of!(BbContent, report), 40);
+}
+
+#[test]
 fn ui_table_and_prim() {
     assert_eq!(size_of::<BbUiPrim>(), 96);
     assert_eq!(offset_of!(BbUiPrim, kind), 4);
@@ -204,7 +216,9 @@ fn settings_table_and_option() {
     assert_eq!(IFACE_SETTINGS_VERSION, (1, 0));
     assert_eq!(size_of::<BbSettingValue>(), 32);
     assert_eq!(offset_of!(BbSettingValue, label), 16);
-    assert_eq!(size_of::<BbSettingOption>(), 72);
+    assert_eq!(size_of::<BbSettingOption>(), 88);
+    assert_eq!(offset_of!(BbSettingOption, section), 72);
+    assert_eq!(BB_SETTING_OPTION_V0_SIZE as usize, offset_of!(BbSettingOption, section));
     assert_eq!(offset_of!(BbSettingOption, menu), 8);
     assert_eq!(offset_of!(BbSettingOption, id), 16);
     assert_eq!(offset_of!(BbSettingOption, label), 32);

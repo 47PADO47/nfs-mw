@@ -73,10 +73,63 @@ role = \"player\"
 # mod's folder. false gives the cars no recordings: they play the game's built-in engine and have no other car sounds.
 own_engine_sound = true
 
+# Offer the 2012 game's soundtrack (43 songs, read from your 2012 install while they play: nothing is converted or copied) as the
+# gameplay option \"2012 soundtrack\", which is off until you turn it on. false adds neither the songs nor the option. Changing it
+# never converts the cars again (mods/nfsmw-2012-content/README.md, \"The soundtrack\").
+music = true
+
+# Pose each car's driver for the steering and the look back (seven steering poses and one reverse pose of the figure, in the car's
+# files: about 1.7 MB a car, 110 MB over 67 cars, and nothing on disk with stream_cars). false keeps the driver seated and still
+# (mods/nfsmw-2012-content/README.md, \"The driver's poses\").
+driver_poses = true
+
+# Make the cars' heavy files (GEOMETRY.BIN, TEXTURES.BIN, the engine and effect recordings) when the game opens a car instead of
+# writing them: the mod's folder then holds small stubs and a recipe, and each car is converted from your 2012 install the first
+# time the game needs it (a moment, then kept in memory). false writes every file, which takes the disk space and the first start's
+# time. Needs a game with bb.content 1.1; the gameplay option \"Stream 2012 cars\" switches it too. A change converts again at the
+# next start (mods/nfsmw-2012-content/README.md, \"Streamed cars\").
+stream_cars = true
+
 # Add the 2012 game's eleven traffic cars (Audi A3, Dodge Ram 1500, GMC Topkick, ...) to the roads, among the game's own
 # traffic. They are cars of their own (ids ending in _TR) that nobody drives. false adds none. The cars, exclude and
 # max_texture_size keys apply to them (the name of each has \"traffic\" in it).
 traffic = true
+
+# Add the 2012 game's trees as a value of the gameplay setting \"Trees\": the models and textures of its trees (broadleaf, poplar,
+# spruce, autumn and bare trees, bushes) replace those of the 2005 game's tree scenery while the setting says so. false adds
+# neither the trees nor the value. They are converted from your 2012 install into the mod's folder
+# (mods/nfsmw-2012-content/README.md, \"Trees\"); the max_texture_size key applies to their textures.
+trees = true
+
+# Offer the 2012 game's road, ground and sign textures (asphalt, sidewalks, grass, concrete, road paint, the STOP and speed limit
+# signs, the storm grate and the round cover) as a value of the gameplay setting \"Road textures\". Nothing is converted or
+# written: the pictures are made from your 2012 install when the game first loads a map tile that uses them
+# (mods/nfsmw-2012-content/README.md, \"Road textures\"). false adds neither the textures nor the value.
+road_textures = true
+# Add the 2012 game's road signs (stop, speed limit 45 and 55, do not enter, tow zone) and traffic light models (the mast arm and
+# the three-lens signal head) as values of the gameplay settings \"Road signs\" and \"Traffic light models\": they replace the
+# 2005 game's solids of the same signs and lights while the settings say so. false adds neither the models nor the values. They are
+# converted from your 2012 install into the mod's folder (mods/nfsmw-2012-content/README.md, \"Road signs and traffic lights\");
+# the max_texture_size key applies to their textures.
+signs = true
+# Add the 2012 game's bushes and hedges as a value of the gameplay setting \"Bushes\": the shrubs, hedges and bush patches of the 2005 world's
+# scenery (about 480 solids) are drawn with the 2012 game's shrub models while the setting says so. They come from the same
+# conversion as the trees (same pictures, a few hundred KB more), so they need `trees = true`. false adds no Bushes setting and
+# leaves the three bush families of the old Trees value (round bushes) in it as they were.
+bushes = true
+# Add the 2012 game's effects as values of the gameplay settings \"Skid marks variant\", \"Rain splash variant\" and
+# \"Wet road variant\", and a replacement set for the lens drops (the kind \"Rain drops\"): the tyre marks, the water splash and
+# the drop shapes are converted from your 2012 install into the mod's folder, a few KiB of it, read by ranges
+# (mods/nfsmw-2012-content/README.md, \"Skid marks and rain\"). false adds neither the files nor the value.
+skid_marks = true
+rain_splash = true
+rain_drops = true
+wet_road = true
+# Add the 2012 game's sky (cloud domes for the hours and the weather, the moon) as a value of the gameplay setting \"Sky\", read from
+# your 2012 install into the mod's folder (about 5.5 MB; README, \"Sky\"). false adds neither. sky_size is the widest a dome picture
+# is written, 256 to 2048: 2048 keeps the install's pictures, 1024 halves them and the disk they take.
+sky = true
+sky_size = 2048
 
 # Each car drives with the stats of its own 2012 data (mass, engine torque, gearbox, tyres, brakes). These optional
 # multipliers change them before they are written to the car: power scales the torque at every engine speed, mass the
@@ -169,8 +222,38 @@ pub struct Config {
     pub role: Role,
     /// Whether each car gets the recordings of its 2012 bundle (engine loops, shifts, turbo, backfire, pops).
     pub own_engine_sound: bool,
+    /// Whether the 2012 game's songs are offered to the custom music player (`soundtrack.rs`). Not part of the conversion's
+    /// fingerprint: the songs are streamed from the install, so changing it converts nothing.
+    pub music: bool,
+    /// Whether each car's driver is posed for the steering and the look back (`driver_poses.rs`).
+    pub driver_poses: bool,
+    /// Whether the cars' heavy files are made when the game opens them instead of being written (`lazy.rs`).
+    pub stream_cars: bool,
+    /// Whether this conversion writes lazy files: `stream_cars`, a host that can make them and the gameplay option on. Decided at
+    /// every start (`lazy::decide`) and never read from a file; it is part of the import stamp.
+    #[serde(skip)]
+    pub lazy: bool,
     /// Whether the 2012 game's traffic cars are added as traffic cars (`traffic.rs`).
     pub traffic: bool,
+    /// Whether the 2012 game's trees are converted and offered as a trees variant (`trees.rs`).
+    pub trees: bool,
+    /// Whether the 2012 game's road, ground and sign textures are offered as a replacement of the 2005 world's (`road_textures/`). Not part
+    /// of the conversion's fingerprint: the set is only stubs, written at every start.
+    pub road_textures: bool,
+    /// Whether the 2012 game's road signs and traffic light models are converted and offered as variants (`signs.rs`).
+    pub signs: bool,
+    /// Whether the 2012 game's bushes and hedges are offered as their own variant (`trees/bushes.rs`); needs `trees`.
+    pub bushes: bool,
+    /// Whether the 2012 game's skid marks, rain splash, lens drops and wet road look are converted and offered (`marks_assets.rs`,
+    /// `rain_assets.rs`).
+    pub skid_marks: bool,
+    pub rain_splash: bool,
+    pub rain_drops: bool,
+    pub wet_road: bool,
+    /// Whether the 2012 game's sky is converted and offered as a sky variant (`sky.rs`).
+    pub sky: bool,
+    /// The widest a sky dome picture is written (256 to 2048): wider ones are halved.
+    pub sky_size: u32,
     /// Multipliers on the stats imported from each car's 2012 data (`[performance]`).
     pub performance: Performance,
     /// Cars that differ from it: `[car.<id or part of the name>]`.
@@ -188,7 +271,21 @@ impl Default for Config {
             max_texture_size: 1024,
             role: Role::Player,
             own_engine_sound: true,
+            music: true,
+            driver_poses: true,
+            stream_cars: true,
+            lazy: false,
             traffic: true,
+            trees: true,
+            road_textures: true,
+            signs: true,
+            bushes: true,
+            skid_marks: true,
+            rain_splash: true,
+            rain_drops: true,
+            wet_road: true,
+            sky: true,
+            sky_size: 2048,
             performance: Performance::default(),
             car: BTreeMap::new(),
             police: Police::default(),
@@ -243,6 +340,9 @@ impl Config {
     }
 
     pub fn check(&self) -> Result<()> {
+        if !self.sky_size.is_power_of_two() || !(256..=2048).contains(&self.sky_size) {
+            bail!("sky_size {} must be a power of two from 256 to 2048", self.sky_size);
+        }
         if !self.max_texture_size.is_power_of_two() || !(16..=4096).contains(&self.max_texture_size) {
             bail!("max_texture_size {} must be a power of two from 16 to 4096", self.max_texture_size);
         }
@@ -269,108 +369,4 @@ impl Config {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_default_settings_file_parses_to_the_defaults() {
-        assert_eq!(Config::parse(DEFAULT_CONFIG).unwrap(), Config::default());
-    }
-
-    #[test]
-    fn defaults_want_everything() {
-        let config = Config::default();
-        assert!(config.wants("POR911CARR12", "Porsche 911 Carrera S 2012"));
-    }
-
-    #[test]
-    fn selection_and_exclusion_match_ids_and_name_fragments() {
-        let config: Config = toml::from_str("cars = ['porsche', 'LAM']\nexclude = ['GT2']").unwrap();
-        assert!(config.wants("POR911CARR12", "Porsche 911 Carrera S 2012"));
-        assert!(config.wants("LAMGALLARDO", "Lamborghini Gallardo 2011"));
-        assert!(!config.wants("POR911GT208", "Porsche 911 GT2 2008"));
-        assert!(!config.wants("BMW1M12", "BMW 1M 2012"));
-    }
-
-    fn supplied(text: &str, has_file: bool, has_main_section: bool) -> Supplied {
-        Supplied { text: text.to_owned(), has_file, has_main_section }
-    }
-
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("nfsmw-2012-config-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    #[test]
-    fn the_hosts_merged_text_is_the_settings() {
-        let dir = scratch("merged");
-        let path = dir.join(FILE_NAME);
-        let (config, created) =
-            Config::resolve(Some(&supplied("role = 'cop'\nmax_texture_size = 512\n", false, true)), &path).unwrap();
-        assert_eq!((config.role, config.max_texture_size, created), (Role::Cop, 512, false));
-        assert!(!path.exists(), "a table in the main config and no file: no template is written");
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn with_no_settings_anywhere_the_template_is_written_and_means_the_defaults() {
-        let dir = scratch("template");
-        let path = dir.join(FILE_NAME);
-        let (config, created) = Config::resolve(Some(&supplied("", false, false)), &path).unwrap();
-        assert_eq!((config, created), (Config::default(), true));
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), DEFAULT_CONFIG);
-        let (_, again) = Config::resolve(Some(&supplied("", true, false)), &path).unwrap();
-        assert!(!again, "once the file exists nothing is written");
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn a_host_without_the_interface_gets_the_file_alone() {
-        let dir = scratch("legacy");
-        let path = dir.join(FILE_NAME);
-        let (config, created) = Config::resolve(None, &path).unwrap();
-        assert_eq!((config, created), (Config::default(), true));
-        std::fs::write(&path, "role = 'both'\n").unwrap();
-        let (config, created) = Config::resolve(None, &path).unwrap();
-        assert_eq!((config.role, created), (Role::Both, false));
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn an_unknown_key_in_either_source_is_an_error() {
-        let dir = scratch("typo");
-        let path = dir.join(FILE_NAME);
-        let error = Config::resolve(Some(&supplied("typo = 1\n", false, true)), &path).unwrap_err();
-        assert!(format!("{error:#}").contains("typo"), "{error:#}");
-        std::fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn a_change_in_either_source_changes_the_import_stamp() {
-        use blackbox_modding::host::config::effective;
-        let nowhere = Path::new("definitely/not/here");
-        let stamp = |file: &str, main: &str| {
-            let merged = effective(Some(file), Some(main)).unwrap();
-            crate::stamp::of(&Config::parse(&merged.text).unwrap(), nowhere)
-        };
-        let base = stamp("role = 'player'\n", "max_texture_size = 1024\n");
-        assert_ne!(base, stamp("role = 'cop'\n", "max_texture_size = 1024\n"), "the file changed");
-        assert_ne!(base, stamp("role = 'player'\n", "max_texture_size = 512\n"), "the main config changed");
-        assert_eq!(base, stamp("role = 'player'\n", "max_texture_size = 1024\n"), "nothing changed");
-        assert_eq!(
-            base,
-            stamp("role = 'player'\nmax_texture_size = 1024\n", "role = 'player'\n"),
-            "the same effective settings from other sources are the same stamp"
-        );
-    }
-
-    #[test]
-    fn bad_settings_are_refused() {
-        assert!(toml::from_str::<Config>("cars = 'some'").is_err());
-        assert!(toml::from_str::<Config>("typo = 1").is_err());
-        let config: Config = toml::from_str("max_texture_size = 1000").unwrap();
-        assert!(config.check().is_err());
-    }
-}
+mod tests;

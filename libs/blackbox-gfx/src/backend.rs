@@ -94,6 +94,9 @@ pub trait RenderBackend {
     }
     fn destroy_sky_material(&mut self, _handle: crate::SkyMaterialHandle) {}
     fn set_sky_state(&mut self, _state: crate::SkyState) {}
+    /// The pictures of a panoramic sky (`SkyState::panorama` says how they are drawn), or `None` to go back to the procedural
+    /// clouds. The renderer keeps the handles' textures: the caller destroys them after setting `None`.
+    fn set_sky_panorama(&mut self, _panorama: Option<crate::SkyPanorama>) {}
     fn set_sun_glare(&mut self, _glare: Option<crate::SunGlare>) {}
 
     /// Unsupported backends return `None`, requesting the caller's legacy fallback.
@@ -115,6 +118,16 @@ pub trait RenderBackend {
 
     /// Draw `to` wherever `from` is used, or stop redirecting `from` when `to` is `None`.
     fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>);
+
+    /// Overwrite `region` (`[x, y, width, height]` in texels) of the base level of a texture made with
+    /// [`create_texture`](Self::create_texture) in [`PixelFormat::Rgba8`](crate::PixelFormat::Rgba8) with `rgba` (`width * height * 4`
+    /// bytes, rows top to bottom), for a texture that changes while it is drawn (an instrument screen). The texture keeps its other
+    /// levels, so it is made with one. Returns whether the texels were written: `false` means the backend cannot update a texture in
+    /// place (the default), the handle is not an RGBA texture, the region is outside it or `rgba` is the wrong size, and the caller
+    /// keeps the picture the texture was made with.
+    fn update_texture(&mut self, _handle: TextureHandle, _region: [u32; 4], _rgba: &[u8]) -> bool {
+        false
+    }
 
     /// Set the authored diffuse UV translation, in texture repeats.
     fn set_texture_uv_offset(&mut self, _texture: TextureHandle, _offset: [f32; 2]) {}
@@ -152,6 +165,11 @@ pub trait RenderBackend {
     /// multiply the graded colour by its brightness. With no profile set this does nothing; setting a profile again
     /// resets the look.
     fn set_colour_look(&mut self, _look: crate::ColourLook) {}
+    /// Grade the finished scene through a 3D look-up table (`docs/specs/colour-grading.md`), from the next frame on, until
+    /// replaced; `None` (or a neutral grade) draws nothing and costs nothing. Meant to be called every frame with the grade
+    /// in force: the cubes are shared, and a backend uploads one it has not seen once (by [`ColourCube::id`]). A backend
+    /// without the pass ignores it; `Capabilities::colour_cube` says whether it draws it.
+    fn set_colour_grade(&mut self, _grade: Option<&crate::ColourGrade>) {}
     /// Install a scene mask for the vignette; `None` releases it.
     /// The mask's green times its blue adds the vignette; red and alpha are ignored.
     /// Texels with zero green preserve the source; the UI follows.

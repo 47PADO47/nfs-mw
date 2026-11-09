@@ -54,6 +54,10 @@ pub enum Page {
     Plate,
     /// The design behind the glyphs of a mod car's licence plate (`plate_design.rs`).
     PlateDesign,
+    /// One part of the rider's gear on a bike (`gear_page.rs`).
+    Rider {
+        part: crate::garage::rider_gear::Part,
+    },
     DecalZones {
         backroom: bool,
     },
@@ -138,6 +142,7 @@ impl Page {
             | Self::Leave
             | Self::Plate
             | Self::PlateDesign
+            | Self::Rider { .. }
             | Self::Checkout { .. }
             | Self::MaxPerformance
             | Self::InsufficientFunds => "Dialog.fng",
@@ -193,6 +198,7 @@ impl Page {
             Self::Numbers => "Numbers".into(),
             Self::Plate => "License Plate".into(),
             Self::PlateDesign => "Plate Design".into(),
+            Self::Rider { part } => part.label().into(),
             Self::Tuning => "Performance Tuning".into(),
             Self::Cart { .. } => "Shopping Cart".into(),
             Self::Checkout { .. } => "Checkout".into(),
@@ -203,6 +209,16 @@ impl Page {
             Self::TuningError => "Attention".into(),
             Self::InsufficientFunds => "Attention".into(),
             Self::Showcase => "Showcase".into(),
+        }
+    }
+
+    /// The title of a page that lists the choices of one of a vehicle's component slots: the slot's own name (`Exhaust`, `Brake
+    /// discs`), not the original category's (`Spoilers`, `Body Kits`). `None` for every other page and every car of the original game.
+    pub(super) fn component_title(self, model: &Model) -> Option<String> {
+        let Self::Choices { row, .. } = self else { return None };
+        match row {
+            Row::Part(_) | Row::Performance(_) | Row::Slot(_) => crate::garage::menu_slots::label(model, row),
+            _ => None,
         }
     }
 
@@ -284,7 +300,7 @@ impl Page {
             Self::Vinyls { group: 6, .. } => "customize_customizeparts_1032",
             Self::Vinyls { group: 7, .. } => "customize_customizeparts_1033",
             Self::RimBrands { .. } => "customize_customizegenerictop_259",
-            Self::Rims { .. } => "customize_rims",
+            Self::Rims { .. } | Self::Choices { row: Row::Part(Part::Wheels), .. } => "customize_rims",
             Self::Paint { color: 0, .. } => "customize_paint_769",
             Self::Paint { color: 1, .. } => "customize_paint_771",
             Self::Paint { .. } => "customize_paint_770",

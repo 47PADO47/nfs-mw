@@ -102,3 +102,13 @@ the fields that matter are in the field tables of the three pages above; in gene
 | Engine | rpm, N m; torque curve normalised to `PeakTorque` |
 | Speeds in tuning ranges | km/h unless stated otherwise in the field table |
 | Angles | degrees (lean and pitch limits in the controllers), except where a table says normalised |
+
+## Fields the assets leave empty **[data]**
+
+Two of the 293 bikes' assets have a field that the package itself leaves empty, so no resolver can fill it (found in the raw
+packages with the exporter's `jsonmany`, not in the dump): `Indian_ChallengerRR_2022` and its two variants run the Bagger **rain**
+tyres (`TireData/Bagger/FrontTyre_Rain`, `BackTyre_Rain`) whose `TireSections` is three null references (their grip table is set, and
+the folder `TireSections/Baggers` holds `Hard`, `Intermediate` and `Soft` strips only), and `Italjet_Dragster200CC_2022` and its `RM`
+have `Skeleton.RakeTrailOverride = []` where the class default is one row (24 degrees, 10.2 cm; the list is replaced, not merged).
+The importer takes such a field from the nearest model as a named choice and writes it into the manifest
+([the rules](../modding/ride6-bikes-batch.md#refused-bikes-the-fields-the-data-leaves-empty)).

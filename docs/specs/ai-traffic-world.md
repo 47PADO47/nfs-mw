@@ -211,8 +211,11 @@ approach with no matched prop shows no light (the synthetic posts were removed).
   over the road, `mast_arm`), `XO_TrafficLightCableB` (a cable across the road, `mast_arm`) or `SGN_Trafficlights_Pole`
   (pole). Arrow and cross signs (`XS_TrafficSignal*`, `SGN_Signal_*`) are lane-control signs over the lanes and are not
   candidates. **Open question:** whether they should be; they are left as scenery until the data says otherwise.
-- **Lamp head.** A per-model offset in model axes (`lamp_left` along y, `lamp_up` above the origin), placed with the
-  instance transform. Values: poles 4.5 m, the arm of B 7.5 m at 1.7 m along the arm, the cable 6.0 m. **[unverified]**:
+- **Lamp head.** A per-model offset in model axes (`lamp_left` along y, `lamp_up` above the origin, `lamp_ahead` in front of it), placed
+  with the instance transform. Values: poles 4.5 m, the arm of B 7.5 m at 1.7 m along the arm, the cable 6.0 m; **the heads `XO_TrafficLightC`
+  and `D`**, which hang below their origin (their solids reach down to -2.4 and -1.75 m, with one red flare marker at -0.73 and -0.59), are
+  lit at 1.15 m and 0.86 m below it, 0.3 m in front, and the lit lamp moves up for red and down for green by the lens pitch (0.42 and 0.35 m),
+  amber in the middle (`docs/formats/chameleon-signs.md`). `signals force red|amber|green|off` shows every lit lamp in one colour. **[unverified]**:
   the arm's extent (about 3.5 m from the pole) is from the `nfsmw-data` shapes test; the heights are estimates. Calibrate
   them on a screenshot of a junction.
 - **Facing.** The model's +X axis turned by the instance rotation (`signal_props::facing`). Scenery models are x

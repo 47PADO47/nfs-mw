@@ -102,6 +102,45 @@ impl Grid {
         Ok(grid)
     }
 
+    /// An empty grid for a world whose packs come and go (`docs/specs/second-world.md`): `rows` by `cols` cells of `edge`
+    /// metres from `min` (x and z). Fill it with [`Grid::add`] and empty it of a pack with [`Grid::remove_section`].
+    pub fn empty(min: [f32; 2], edge: f32, rows: u32, cols: u32) -> Self {
+        let cells = (rows as usize * cols as usize).min(1 << 20);
+        Self { min: [min[0], 0.0, min[1]], edge, rows, cols, nodes: vec![None; cells] }
+    }
+
+    /// Lists `reference` in every cell the xz box `low`-`high` touches. A box outside the grid is listed in the cells nearest
+    /// to it (the cells clamp, as a query's do).
+    pub fn add(&mut self, reference: InstanceRef, low: [f32; 2], high: [f32; 2]) {
+        let (r0, c0) = self.cell_of(low[0], low[1]);
+        let (r1, c1) = self.cell_of(high[0], high[1]);
+        for row in r0..=r1 {
+            for col in c0..=c1 {
+                let at = self.node_index(row, col);
+                let Some(slot) = self.nodes.get_mut(at) else { continue };
+                let node = slot.get_or_insert_with(|| GridNode { index: at as u16, ..GridNode::default() });
+                if !node.instances.contains(&reference) {
+                    node.instances.push(reference);
+                }
+            }
+        }
+    }
+
+    /// Takes every reference to the instances of `section` out of the grid; a cell left empty is dropped.
+    pub fn remove_section(&mut self, section: u32) {
+        for slot in &mut self.nodes {
+            let Some(node) = slot else { continue };
+            node.instances.retain(|reference| reference.section() != section);
+            if node.instances.is_empty()
+                && node.triggers.is_empty()
+                && node.objects.is_empty()
+                && node.road_segments.is_empty()
+            {
+                *slot = None;
+            }
+        }
+    }
+
     /// Parses a `0x3B800` chunk.
     pub fn from_chunk(chunk: &Chunk<'_>) -> Result<Self> {
         Self::parse(chunk.aligned_payload(PACK_ALIGN))

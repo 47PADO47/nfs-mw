@@ -249,8 +249,38 @@ fn manifest_text(table: &BikeTable) -> String {
         triangles: 0,
         front_end: Default::default(),
         exhaust: Vec::new(),
+        liveries: Vec::new(),
+        levels: Vec::new(),
+        extra_solids: Vec::new(),
+        dash: None,
     };
-    car_toml("Synth Bike", "Synth", &built, &Tables { bike: table, sound: None })
+    car_toml("Synth Bike", "Synth", &built, &Tables { bike: table, sound: None, fallbacks: &[] })
+}
+
+#[test]
+fn a_bike_with_a_live_screen_reads_back_with_its_window_and_colours() {
+    let screen = crate::dash::Screen::new(
+        "SYNTH_GAUGE1_D",
+        crate::dash::Window { x: 10, y: 20, width: 100, height: 50 },
+        (256, 256),
+        (256, 256),
+        1.0,
+    );
+    let text = format!(
+        "{}
+{}",
+        manifest_text(&table()),
+        screen.table()
+    );
+    let manifest = parse_car("synthbike", &text).unwrap_or_else(|error| {
+        panic!(
+            "{error}
+{text}"
+        )
+    });
+    let dash = manifest.bike.expect("a bike").dash.expect("the live screen");
+    assert_eq!((dash.texture.as_str(), dash.window), ("SYNTH_GAUGE1_D", [10, 20, 100, 50]));
+    assert_eq!(dash.colors.lit, screen.colors[1]);
 }
 
 #[test]

@@ -57,6 +57,26 @@ impl Category {
         }
     }
 
+    /// The word the `parts` and `vehicle` console commands and `view-car --part` call the category by.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Body => "body",
+            Self::Spoiler => "spoiler",
+            Self::Hood => "hood",
+            Self::Roof => "roof",
+            Self::Wheels => "rims",
+            Self::Paint => "paint",
+            Self::WindowTint => "tint",
+            Self::RimPaint => "rimpaint",
+            Self::Vinyl => "vinyl",
+        }
+    }
+
+    /// The category a [`Category::key`] names.
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|category| category.key() == key)
+    }
+
     pub fn slot(self) -> usize {
         match self {
             Self::Body => slot::BODY,
@@ -89,6 +109,13 @@ pub struct Selection {
     /// own (the one the player kept, else the manifest's default), and the empty id is the plain plate. Kept beside the save
     /// like `plate`, and not a part either.
     pub plate_design: Option<String>,
+    /// The components picked in the slots of a mod car's own components (ADR 0014) that the model categories above have no place
+    /// for: the slot id to the component id, the empty id meaning the slot is emptied on purpose. A slot the garage has a category
+    /// for (`mods::components::select::category_of` and `performance_of`) never appears here. Bought in the shop and set by the
+    /// developer tools (`vehicle set`); kept with the car in `my-cars.toml` and the career's garage extension (`garage/presets`),
+    /// since the original save holds hashes only. Its components' number modifiers reach the physics
+    /// (`PhysicsData::car_with_customization`).
+    pub slots: std::collections::BTreeMap<String, String>,
 }
 
 impl Selection {
@@ -100,6 +127,7 @@ impl Selection {
             && self.decals.iter().flatten().all(Option::is_none)
             && self.plate.is_none()
             && self.plate_design.is_none()
+            && self.slots.is_empty()
     }
 }
 

@@ -108,7 +108,7 @@ still), **Off**, and **Starting** (cranking, with the time left).
 | Rule | Value | Status |
 |---|---|---|
 | Stands still | speed below `still_speed` = 0.5 m/s either way, and the throttle below `restart_throttle` | [unconfirmed] |
-| Idle time before the engine stops | `idle_seconds` = 5.0 s | [unconfirmed] ("a few seconds") |
+| Idle time before the engine stops | `idle_seconds` = 5.0 s by default; the player picks 5, 10, 20, 30 or 60 s with the setting **engine auto-stop delay** (`EngineMachine::set_idle_seconds`, [ride6-bike-standstill-hold.md](../specs/ride6-bike-standstill-hold.md), section 5) | [unconfirmed] ("a few seconds") |
 | The brake pedal | does not count: a car held on the brake still stops | [unconfirmed] |
 | Restart input | the throttle at or above `restart_throttle` = 0.1 | [unconfirmed] |
 | Restart by reverse | a **fresh** brake press (at or above `restart_brake` = 0.1, after a step below it) with no throttle and a speed below `reverse_speed` = 2.5 m/s starts it like the throttle; 2.5 is where the game's own brake-to-reverse takes over. A pedal held since the stop does not, or a car held at a light would restart at once | [unconfirmed] |

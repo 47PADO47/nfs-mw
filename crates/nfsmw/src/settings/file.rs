@@ -8,6 +8,7 @@ use std::str::FromStr;
 
 use toml::{Table, Value};
 
+use super::BikeClass;
 use super::custom_fonts;
 use super::fe_shadows;
 use super::hd_content;
@@ -138,6 +139,10 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         backfire_style: table.get("backfire_style").and_then(super::backfire_style::parse),
         tail_trail_style: table.get("tail_trail_style").and_then(super::tail_trail_style::parse),
         turn_signals: field(&table, origin, "turn_signals", boolean),
+        rider_gear: field(&table, origin, "rider_gear", boolean),
+        easy_wheelie: field(&table, origin, "easy_wheelie", boolean),
+        air_control: field(&table, origin, "air_control", boolean),
+        live_dash: field(&table, origin, "live_dash", boolean),
         rear_view_mirror: field(&table, origin, "rear_view_mirror", boolean),
         discord: field(&table, origin, "discord", boolean),
         discord_time_played: field(&table, origin, "discord_time_played", boolean),
@@ -155,8 +160,20 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         ui_style: field(&table, origin, "ui_style", |v| UiStyle::from_str(text_of(v)?)).or_else(|| {
             field(&table, origin, "radio_hud", |v| RadioHudStyle::from_str(text_of(v)?).map(UiStyle::from))
         }),
+        custom_hud_skin: field(&table, origin, "custom_hud_skin", |v| super::CustomHudSkin::from_str(text_of(v)?)),
         speed_units: field(&table, origin, "speed_units", |v| SpeedUnits::from_str(text_of(v)?)),
+        riding_style_road: riding_style(&table, origin, BikeClass::Road),
+        riding_style_motard: riding_style(&table, origin, BikeClass::Motard),
+        riding_style_offroad: riding_style(&table, origin, BikeClass::Offroad),
+        brake_fingers: field(&table, origin, "brake_fingers", |v| {
+            super::BrakeFingers::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))
+        }),
+        clutch_fingers: field(&table, origin, "clutch_fingers", |v| {
+            super::ClutchFingers::from_str(&v.as_str().map(str::to_owned).unwrap_or_else(|| v.to_string()))
+        }),
+        bike_steering: field(&table, origin, "bike_steering", |v| super::BikeSteering::from_str(text_of(v)?)),
         language: field(&table, origin, "language", |v| super::LanguageTag::from_str(text_of(v)?)),
+        world: field(&table, origin, "world", |v| super::world_id::WorldId::from_str(text_of(v)?)),
         post_tonemap: field(&table, origin, "post_tonemap", |v| PostTonemap::from_str(text_of(v)?)),
         post_bloom: field(&table, origin, "post_bloom", |v| PostBloom::from_str(text_of(v)?)),
         visual_treatment: field(&table, origin, "visual_treatment", |v| super::VisualTreatment::from_str(text_of(v)?)),
@@ -210,6 +227,7 @@ pub fn parse(text: &str, origin: &str) -> Partial {
         h_shifter: field(&table, origin, "h_shifter", boolean),
         motion_blur: field(&table, origin, "motion_blur", boolean),
         motion_blur_strength: field(&table, origin, "motion_blur_strength", number),
+        grading_strength: field(&table, origin, "grading_strength", number),
         hd_content: hd_content::read(&table),
         custom_fonts: custom_fonts::read(&table),
         fe_shadows: fe_shadows::read(&table, origin),
@@ -221,6 +239,12 @@ pub fn parse(text: &str, origin: &str) -> Partial {
 /// Read `key` through `convert`; a value of the wrong kind is reported and ignored.
 fn field<T>(table: &Table, origin: &str, key: &str, convert: impl Fn(&Value) -> Result<T, String>) -> Option<T> {
     convert(table.get(key)?).map_err(|e| log::warn!("{origin}: ignoring `{key}`: {e}")).ok()
+}
+
+/// The riding style of a class of bike: its own key, else the single `riding_style` key this setting was before there were three.
+fn riding_style(table: &Table, origin: &str, class: BikeClass) -> Option<super::RidingStyle> {
+    let parse = |v: &Value| super::RidingStyle::from_str(text_of(v)?);
+    field(table, origin, class.key(), parse).or_else(|| field(table, origin, "riding_style", parse))
 }
 
 fn boolean(v: &Value) -> Result<bool, String> {

@@ -13,6 +13,25 @@ use super::{Bike, rider};
 /// How many steps before the fall was noticed the rider's velocity is taken from.
 pub const VELOCITY_FRAMES: usize = 2;
 
+/// What the spin of the bike may add to the speed of the rider's place at the release: this share of the bike's own speed, and this many
+/// m/s beyond it. A hard collision spins the frame at tens of rad/s for a step, and the spin times the arm to the rider (1 m) would be
+/// launched with him: the rider was seen thrown into the sky from a wall hit. A modelling choice (the reference takes the buffered
+/// velocity of the vehicle as it is; it has no such spikes because its collision test fires on a static wall never).
+const SPIN_SHARE: f32 = 0.25;
+const SPIN_EXTRA: f32 = 3.0;
+/// The fastest the rider may leave (m/s) and the fastest he may turn (rad/s): a bike's top speed is 90 m/s, and a body turning faster than
+/// this at the release is a collision's spike.
+pub const MAX_RELEASE_SPEED: f32 = 100.0;
+pub const MAX_RELEASE_SPIN: f32 = 40.0;
+
+/// The velocity of the rider's place at the release, from the bike's velocity `velocity` and angular velocity `spin` of the buffered step
+/// and the arm `arm` from its centre of gravity to him: what the turn of the frame adds is held to [`SPIN_SHARE`] of the speed and
+/// [`SPIN_EXTRA`], and the whole to [`MAX_RELEASE_SPEED`].
+pub fn release_velocity(velocity: Vec3, spin: Vec3, arm: Vec3) -> Vec3 {
+    let swing = spin.cross(arm).clamp_length_max(velocity.length() * SPIN_SHARE + SPIN_EXTRA);
+    (velocity + swing).clamp_length_max(MAX_RELEASE_SPEED)
+}
+
 /// How the bike was lost; the kinds of the fall tests (`ride6-chassis-round6.md`, section 3).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum FallKind {
@@ -87,8 +106,8 @@ impl Bike {
         let release = RiderRelease {
             kind,
             position: place,
-            velocity: velocity + spin.cross(arm),
-            angular_velocity: spin,
+            velocity: release_velocity(velocity, spin, arm),
+            angular_velocity: spin.clamp_length_max(MAX_RELEASE_SPIN),
             orientation: self.body.orientation,
         };
         self.departure = Departure { off: true, kind, pending: Some(release), ..self.departure };

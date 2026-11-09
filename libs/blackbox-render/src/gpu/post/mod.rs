@@ -12,6 +12,7 @@
 //! other passes ([`PostChain::set_temporal`]) and skipped for a frame that has no temporal data.
 
 mod bloom;
+mod colour_cube;
 pub(in crate::gpu) mod display;
 #[cfg(test)]
 mod display_tests;
@@ -105,6 +106,14 @@ pub(super) trait PostPass {
     /// The per-frame change of the scene's colour profile (see `RenderBackend::set_colour_look`).
     fn set_look(&mut self, _look: &blackbox_gfx::ColourLook) {}
     fn set_display(&mut self, _mapping: Option<display::Mapping>) {}
+    /// The grade of the colour cube pass (see `RenderBackend::set_colour_grade`); only that pass reads it.
+    fn set_colour_grade(
+        &mut self,
+        _device: &wgpu::Device,
+        _queue: &wgpu::Queue,
+        _grade: Option<&blackbox_gfx::ColourGrade>,
+    ) {
+    }
 
     /// The exposure, when this is the tone-mapping pass: a pass before it may run it as part of its last draw
     /// (see [`fusion`]).
@@ -181,6 +190,8 @@ pub(super) struct PostChain {
     /// it off to compare against the separate passes.
     fuse: bool,
     profile: Option<treatment::Profile>,
+    /// What the colour cube pass last drew with (`colour_cube::GradeKey`); none while it grades nothing.
+    grade_key: Option<colour_cube::GradeKey>,
     /// The per-frame change of the scene profile (`set_look`); none with each new profile.
     look: blackbox_gfx::ColourLook,
     /// Used by the effect passes built when the settings or the profile change.
@@ -205,6 +216,7 @@ impl PostChain {
             settings: crate::PostSettings::default(),
             fuse: true,
             profile: None,
+            grade_key: None,
             look: blackbox_gfx::ColourLook::default(),
             cache: cache.cloned(),
         }

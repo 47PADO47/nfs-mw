@@ -13,6 +13,14 @@ saved with the other settings (`[mod_values.nfsmw] option_<kind>_variant = "<val
 | Collision sparks (Original PC spark style) | `collision_spark_variant` | `SPARKS/<ID>/` | `blackbox_modding::content::spark_variant` | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) |
 | Restored sparks (Restored spark style; sparks only, no contrail or streaks) | `xenon_spark_variant` | `XENON/<ID>/` | `blackbox_modding::content::xenon_variant` | [effect-variants-sparks-xenon.md](effect-variants-sparks-xenon.md) |
 | Wind (looping recordings played with the car's speed) | `wind_variant` | `WIND/<ID>/` | `blackbox_modding::content::wind_fx` | below |
+| Trees (models and textures of the world's trees, swapped in as sections load; now one kind of the [replacement sets](api-replace.md)) | `trees_variant` | `TREES/<ID>/` or `replace/<set>.toml` | `blackbox_modding::content::model_swap` (old form), `replace` (new) | [below](#profile-format-of-the-trees) |
+| Road signs (the stop, speed limit 45 and 55, do not enter and tow zone signs) | `road_signs_variant` | `replace/signs-<id>.toml` (a replacement set) | [`api-replace.md`](api-replace.md) (no code in the game) | [chameleon-signs.md](../formats/chameleon-signs.md) |
+| Traffic light models (the mast arm and the signal head) | `traffic_lights_variant` | `replace/lights-<id>.toml` (a replacement set) | [`api-replace.md`](api-replace.md) | [chameleon-signs.md](../formats/chameleon-signs.md) |
+| Skid marks (pictures on the strips the tyres leave) | `skid_marks_variant` | `SKIDMARKS/<ID>/` | `blackbox_modding::content::skid_marks` | [effect-variants-marks-rain.md](effect-variants-marks-rain.md#profile-format-of-the-skid-marks) |
+| Rain splash (splashes where the rain meets the road) | `rain_splash_variant` | `RAINSPLASH/<ID>/` | `blackbox_modding::content::rain_splash` | [effect-variants-marks-rain.md](effect-variants-marks-rain.md#profile-format-of-the-rain-splash) |
+| Wet road (how strongly and how fast the rain wets the road) | `wet_road_variant` | `WETROAD/<ID>/` | `blackbox_modding::content::wet_road` | [effect-variants-marks-rain.md](effect-variants-marks-rain.md#profile-format-of-the-wet-road) |
+| Rain drops (the lens drops) | `rain_drops_variant` | a replacement set of kind `rain_drops`, no profile | [api-replace.md](api-replace.md) | [effect-variants-marks-rain.md](effect-variants-marks-rain.md#the-rain-drops-a-replacement-set) |
+| Color grading (3D look-up tables of the finished picture, by hour and weather) | `grading_variant` | `GRADING/<ID>/` | `blackbox_modding::content::grading` | [below](#profile-format-of-the-grading) |
 
 ## How a variant works
 
@@ -90,6 +98,143 @@ the loops left out (two that swell in the air, two muted) are in
 [chameleon-sound-graph.md](../formats/chameleon-sound-graph.md#the-sound-of-speed). Loudness against the game's own wind was not
 heard, so `volume` is the data's alone. In a co-op session each car's voice plays its own copy of the loops.
 
+## Profile format of the trees
+
+The trees are not an effect but a set of models of the world, so this kind has no per-frame look: its profile names two packs
+the mod ships and says which solid of the game each model replaces. The game applies it to every section of the world its loader
+threads parse while the variant is chosen.
+
+```toml
+format = 1
+geometry = "TREES/MW2012/GEOMETRY.BIN"   # the models: solids in the install's format (a GeometryPack, as a car's GEOMETRY.BIN)
+textures = "TREES/MW2012/TEXTURES.BIN"   # the textures they use (a texture pack, as a car's TEXTURES.BIN)
+
+[fit]                                    # optional, every key optional: the limits a replacement keeps (below)
+spread = 1.25                            # at most this much wider than the footprint it replaces (1 to 4)
+squeeze = 0.5                            # squeezed sideways to no less than this share of its height scale (0.1 to 1)
+min_height = 0.7                         # not used if it would be shorter than this share of the replaced height (0 to 1)
+settle = true                            # optional: copies of a stretch of trees stand on the real ground and off the road (api-replace.md, "Settling")
+
+[[swap]]                                 # one per replaced solid, 1 to 4096
+solid = "XT_CEDARM_1B_JG_00"             # the game's solid, by name as the game spells it (the hash is case-sensitive)
+model = "MW12_CONIFER_TALL_L0"           # the solid of `geometry` that takes its place
+fit = "height"                           # "height" (default) or "row"
+```
+
+- **The pack files** are the formats of the cars' files ([models.md](../formats/models.md), [textures.md](../formats/textures.md)): write
+  them with `blackbox_solid::write_geometry_pack` and `blackbox_tpk::write_tpk`. A model's vertices are 36 bytes (position, normal,
+  colour, uv); its groups name their effect: **effect 6** (the tree shader) for leaf cards, **effect 0** (the world shader) for bark.
+  The texture of a leaf card is a punch-through texture (`AlphaUsageType` 1, blend 0): the engine draws it cut out and from both sides.
+- **A model's origin is its base**: z is up, the foot of the trunk is at the origin, and the model's height is how far it reaches above it
+  (roots may reach below). **Every level of a model must stand on the ground** (its lowest point near the origin): a level that is a crown
+  alone hovers over the ground wherever the game draws it, so a mod leaves such levels out (the 2012 mod does, see
+  [chameleon-vegetation.md](../formats/chameleon-vegetation.md#the-levels-that-stand)). Texture names are the mod's own (the 2012 mod's are
+  `MW12_T<id>`), so they cannot clash with the game's.
+- **A replacement keeps the identity of the solid it replaces**: its name (so the hash the scenery refers to it by), its flags (the
+  sway bit among them), its pivot matrix and the polygon count and density its header carries (the scenery's choice of level of detail
+  reads them). Only the geometry changes.
+- **The rule: a replacement never grows beyond the footprint it replaces** (`model_swap/place.rs`, the limits are the `[fit]` table).
+  The game measures the replaced solid from its own vertices, so the mod never reads the 2005 install:
+  - *Height of a copy.* It is scaled evenly to the height of the geometry it replaces (a quarter to four times for a `height` swap, up to
+    one and a half times for a `row`), its foot on that geometry's **floor** (the lowest vertex of its stretch). A solid modelled around its
+    own origin (the scenery places it with a matrix) stands its tree on the origin, which is the ground, even when the old solid is only a
+    crown that begins above it (a far level): the tree reaches the old top from the ground. For a world-space copy the floor is the
+    only ground there is: a 2005 tree line is a crown without trunks, and its crowns' floor is where its trees stand (measured at a wall
+    top, where the old crowns began exactly at the wall's top, so the trunks of a replacement start there and do not pierce the wall).
+  - *Width of a copy.* It may be `spread` times as wide as the geometry it replaces (the wider side of the box that holds its
+    vertices in x and y: the whole solid for a single tree, the cell for the copies of a row). A model that is wider than that for its height (a broadleaf crown on a thin cypress) is **squeezed sideways**, down
+    to `squeeze` of its height scale; if even that is too wide, the copy is made smaller until its squeezed width fits. A copy that would
+    end up shorter than `min_height` of what the height asked for is **not used**: a solid with no copy keeps the game's own model, and
+    so does a solid when more than a third of its stretches cannot be fitted. The refusal is a rule, not an error: nothing is logged.
+  - *One copy for each stretch of the old geometry.* **`fit = "height"`** on a solid modelled around its own origin (the scenery places it with a
+    matrix) is one copy at that origin. Every other solid (**`fit = "row"`** of either kind, and every world-space copy of either fit) is
+    cut into the cells of a grid as wide as one copy (the model's width at the scale it needs, a fifth less for a row so that crowns overlap;
+    a solid no longer than one and a half cells is one cell); each cell with three vertices or more gets a copy, **at the middle of its
+    vertices, on the floor of its vertices**, as thick as they are. At most 32 copies and 60,000 vertices to a solid (the cells grow until
+    they fit; a solid that cannot be brought under the limit keeps its own model). Each copy is turned by the golden angle more than the
+    one before. So a line of trees that climbs a slope or bends round a road keeps its shape and every copy stands on its own floor: it
+    neither floats over a lower floor nor sinks into a higher one (the older rule put at most eight copies on a straight line on the
+    lowest floor of the solid, which hung the crowns of a row that climbed 50 metres in the air and carried them past the old footprint by up to 45 m).
+  - *Settled on the ground.* With `[fit] settle = true` (the trees' sets) the copies of a world-space stretch are then put on the terrain under
+    them instead of on the lowest old vertex of their cell, kept off the carriageways and their crowns kept clear of the road below
+    ([api-replace.md](api-replace.md#settling)): a 2005 tree line is crowns that hang metres above the ground, and a tree stood on that floor had a
+    trunk ending in the air.
+- **What is swapped.** A section is rewritten right after it is parsed (`Streamer::set_rewrite`), before its textures are decoded: each
+  solid whose name hash a swap lists is replaced (a swap whose model or texture is missing from the packs is left out, with a warning). The
+  shared sets (`X0`: the library of the scenery, which the scenery places with a matrix) are rewritten like the tiles. Solids the profile does
+  not list keep the game's look.
+- **World-space copies.** The game's scenery has no instance of most of its trees: it holds a copy of the solid for each place, with the
+  instance's matrix baked into its vertices and the name `<NAME>_DEINST<n>_<tile>` (910 of the 1,004 tree solids,
+  [chameleon-vegetation.md](../formats/chameleon-vegetation.md#how-the-2005-game-draws-its-trees-verified)). A swap listed under `<NAME>`
+  therefore reaches every copy of it too, and a copy may be a whole hillside of trees (a far level merges many), so it is fitted cell by cell as above. The copy keeps its
+  name, flags, pivot, polygon count and density; if the instance it was made from is a mirror image (`docs/specs/backface-culling.md`) the
+  replacement is wound the same way. A copy is fitted where it loads (the fit of a solid with a matrix is cached by its name and bounds, a copy's is not kept).
+- **Textures once.** The textures of the models are **not** copied into the sections that are rewritten. The world uploads them once, into
+  the shared sets (`residency/trees.rs`: they join the global textures that are uploaded before the shared models), and the solids of every
+  tile find them there as they find the shared library's textures. On disk they are in `TEXTURES.BIN` once; in memory the pack holds the
+  compressed pictures once and the GPU one copy of each.
+- **When.** The pack is read when the choice, or its profile, changes (`Bridge::publish_trees`, once a frame at most). A choice made before a
+  drive is in every section. A choice made **during** a drive takes effect at once: the residency notices that the pack in effect is another,
+  uploads its textures into the shared sets and asks the streamer for every resident map tile again; each comes back rewritten with the new
+  models, replaces the tile it was made from (the old tile's GPU resources are released, its collision and props are as they were) and shows
+  within a few seconds, as the zone's tiles load. Not refreshed: the shared library `X0` (84 trees, loaded once for the drive: they follow the
+  choice at the next drive), the map packs of mods, and everything in a multiplayer session (lockstep), where a tile that is uploaded again
+  is not the same moment on every machine. A pack that is missing or does not parse leaves the game's trees (a warning says why).
+
+The 2012 mod's value, **NFS Most Wanted 2012**, is the 2012 game's trees converted from the player's own install: eleven species, up to four
+levels of detail each (the ones that stand on the ground), 81 swaps (they reach the world-space copies too). What the conversion reads, writes and takes:
+[chameleon-vegetation.md](../formats/chameleon-vegetation.md#what-the-conversion-costs). What the 2012 files hold, the species, and which
+solids they replace: [chameleon-vegetation.md](../formats/chameleon-vegetation.md). The mod's setting `trees = false` leaves them out.
+
+### The bushes set
+
+The 2012 mod declares a second set through the replacement API ([api-replace.md](api-replace.md)): `replace/bushes-mw2012.toml`, kind
+`bushes`, so the game offers a second option, **Bushes** (`bushes_variant`, Original / NFS Most Wanted 2012), next to Trees. It
+names the **same two pack files** as the trees set (`TREES/MW2012/GEOMETRY.BIN` and `TEXTURES.BIN`: the bush models are solids of the
+trees pack and their textures are in the trees' texture pack, so nothing is converted or stored twice, and the world adds a texture
+of the same name once even when both options are chosen), and lists the 2005 bush patches, hedges and grasses (58 solid names, 832 solids
+of the world, `fit = "row"` for the patches, hedges and grasses and `height` for the single bushes) with its own `[fit]` limits: spread 1.5, squeeze 0.5 and min_height 0.5, looser than
+the trees' because a bush is small and a patch is dense. What the families and models are, and why: [chameleon-vegetation.md](../formats/chameleon-vegetation.md#the-bushes).
+The mod's setting `bushes` (default on, needs `trees`) turns the set off; the three round-bush families the Trees value always had
+then stay in the Trees set as before, and with it on they belong to the Bushes set (the two sets never list one solid twice). The
+labels are message ids of the mod's catalogue (`nfsmw2012-bushes` = "Bushes"), the value label is the proper name of the game. The older
+`TREES/MW2012/profile.toml` is still written for the trees set only.
+
+## Profile format of the grading
+
+The colour grading is a look of the finished picture: the host looks every pixel up in a 3D table (a *cube*) and the profile says which
+cube is in force at which hour of the day and in which weather. Its option, `grading_variant`, has the game's own value `original`
+shown as **Off**, and its row is on the **Video** page (with a strength row) instead of Gameplay, while the renderer has the pass.
+The renderer, the lookup and the selection are in [../specs/colour-grading.md](../specs/colour-grading.md).
+
+```toml
+format = 1
+
+[[cube]]                              # 1 to 32 cubes
+name = "noon"                         # a-z 0-9 _ -, 1 to 32 bytes: what the keys call it
+file = "GRADING/MW2012/C04E220.LUT"   # a .lut or an Adobe .cube of 2 to 64 entries a side, in the mod's files/
+
+[[set]]                               # one or two sets: "clear" is the fallback for every weather, "rain" the wet look
+weather = "clear"
+[[set.key]]                           # 1 to 64 keys; the hours rise (0 up to 24); the day wraps from the last key to the first
+hour = 12.0
+cube = "noon"
+```
+
+- **Cube files.** `.LUT` is the compact form: the bytes `B B L U T`, the version 1, the edge as a 16-bit little endian number, then
+  `edge`^3 entries of red, green, blue bytes, red varying fastest (12,296 bytes for a cube of 16). `.cube` is the Adobe / DaVinci text
+  format (`LUT_3D_SIZE n`, then `n`^3 lines of three numbers from 0 to 1, red fastest; `TITLE` and comments are skipped; the domain must be 0 to 1; a 1D table is
+  refused). A cube that does not read refuses the whole profile (a warning names the file); the picture then stays as the game draws it.
+- **Hours.** The game blends the cube of the last key at or before the clock's hour with the next key's by the share of the time
+  between them. Between two weathers it blends the four cubes by how wet it is (rain falling, or the wet the road keeps). A profile with one set looks the same in every weather.
+- **Refusals** (with the reason in the log): another `format`, an unknown key, a name that is not plain or is used twice, a file that is
+  not a `.lut` or `.cube` path, a key that names no cube, hours that do not rise inside 0 to 24, the same weather twice, no cube or no set.
+
+The 2012 mod's value, **NFS Most Wanted 2012**, is the cubes of `HAWAII/ENVIRONMENT.BNDL`: the dry cube of every key of its first
+timeline (six cubes: night, before dawn, dawn, morning, noon, evening) as the clear set, and the cube of each key's wet keyframe (five
+more) as the rain set. 11 cubes, 135 KB, read by ranges from the install. What the data holds, which cube is which and what is a reading:
+[chameleon-environment-grading.md](../formats/chameleon-environment-grading.md).
+
 ## The spark kinds
 
 The collision sparks (`SPARKS/<ID>/`) and the restored sparks (`XENON/<ID>/`) are two kinds with one page,
@@ -110,6 +255,9 @@ Restored (Experimental).
 | Handing the profiles to the scene | `crate::effect_variants::EffectVariants` (one field per kind, the nitrous's too), made by `Bridge::effect_variants()` and given every frame to `Scene::set_effect_variants` (one trait method for every kind: a new kind adds no method to `Scene`, `Pausable` or the viewer) |
 | Drawing | the scene: for the tire smoke `WorldScene::scene_set_effect_variants` (`scene_effects.rs`) gives the profile to `TireEffects` (`scenes/world/effects/profile.rs`), which loads its pictures from `maintain_tire_smoke` and draws them with the game's particle system (`blackbox-particles`; `exhaust::variant::{emitter_spec, spawn_intensity, upload_png}` are shared by the effects that draw particles) |
 | Drawing the spark kinds | `WorldScene::scene_set_effect_variants` gives the collision sparks to `ImpactEffects::set_variant` (`scenes/world/impact_effects/variant*.rs`: its own small particle system with a streak quad and an overbright colour, loaded from `ImpactEffects::maintain`, played for vehicle contacts the install accepts) and the restored sparks to `VehicleEffects::set_spark_variant` (`scenes/world/vehicle_effects/sparks/variant.rs`: the restoration's line sparks with the profile's numbers). Each acts in its own spark style; the contrail and the speed streaks have no variant |
+| The skid marks, the rain splash and the wet road | `WorldScene::scene_set_effect_variants` gives the marks to `TireEffects::set_marks_variant` (`effects/marks_variant.rs`: textured strips cut at every repeat of the picture, loaded from `TireEffects::load_variant`; `Marks` keeps the road kind, the weather, the slide kind, the distance along the track and the life of every mark), the splash to `RainSplash::set_wanted` (`effects/rain_splash.rs`, stepped in `update.rs` next to the rain, drawn in `upload_effects`) and the wet road to `WetRoad::set_profile` (`wet_reflections/state.rs`). [effect-variants-marks-rain.md](effect-variants-marks-rain.md) |
+| The colour grading | `Bridge::grading_profile` (the same `variant_profile`) and `Bridge::grading_look` (`backends/grading.rs`: the cubes the profile names, read once per profile into a `GradingLook`), handed to the scene as `EffectVariants::grading`; `WorldScene::feed_grading` (`scenes/world/grading_feed.rs`) picks the grade every frame (`grading::Selector`) and gives it to `RenderBackend::set_colour_grade`. The rows are on the Video page (`frontend/mod_options.rs`, `video_rows`) |
+| The trees | not an effect: `Bridge::trees_profile` (the same `variant_profile`), `Bridge::publish_trees` (`backends/trees.rs`) reads the pack the profile names (`content::model_swap::Pack`) and makes it the pack in effect; the world's loader threads call `model_swap::rewrite` on every section (`residency/start.rs` sets it with `Streamer::set_rewrite` before the first request) |
 | The mod's side | `mods/nfsmw-2012-content/src/effect_variants.rs` (`Kind`, `ALL`, `add_all`) adds the values; `tire_smoke.rs` and `spark_assets*.rs` convert the files |
 
 ### Adding a kind: checklist

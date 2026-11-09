@@ -13,6 +13,8 @@ use crate::{BlendMode, Renderer};
 mod cloud_shadow;
 #[path = "enhanced_tests.rs"]
 mod enhanced;
+#[path = "panorama_tests.rs"]
+mod panorama;
 
 fn frame() -> FrameParams {
     FrameParams {

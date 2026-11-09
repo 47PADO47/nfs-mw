@@ -209,6 +209,8 @@ touching the dynamics.
 | Brake at the grid | both levers 1 | `Integration` | holds a bike, which cannot hold itself, until GO |
 | Reported `traction`, `locked` | see the table | `BikeRide::wheel_state` | the library's fields have no counterpart in the tyre model |
 | Wheels counted twice | 2 per wheel | `wheels_down` | keeps the four-wheel checks meaningful |
+| Ground contacts of the double | cleared at the start of every step (`Vehicle::clear_body_contacts`); filled only while the bike lies | `BikeRide::begin_body`, `finish_body` | the last contact of a fall is not read as a new impact in every later step (`ride6-feel-round12.md`, section 1.2) |
+| Sound input | `CarInput::two_wheeler`, `up_dot` 1 under the rider | `drive/sound.rs`, `CarSim::up_dot` | a leaned bike is not a car on its side (section 1.3) |
 
 ## Verified by tests
 
@@ -218,5 +220,5 @@ face. `crates/nfsmw-data`: the registry, the derived stats, the wheel setup with
 steering about the axis, travel along it, the rear wheel). `crates/nfsmw` (`sim/bike_ride_tests.rs`, `sim/bike_tests.rs`): the
 double's mass, inertia and shared centre of gravity, the contact round trip, the input mapping, the stand-up, and a `CarSim` bike
 standing, accelerating, turning, braking, falling and being saved and restored on a flat road; `sim/bike_fall_tests.rs`: the rider handed
-over once at the fall, the double lighter without him, the bike sliding on its side and stood up with him again. Not tested: a drive in the real
+over once at the fall, the double lighter without him, the bike sliding on its side and stood up with him again. `sim/bike_sound_tests.rs`: no contact, scrape or landing for a bike at 60 to 90 m/s on a rough road, nor after a fall and the get-up. Not tested: a drive in the real
 game with a real bike, collisions with walls and traffic, the garage.

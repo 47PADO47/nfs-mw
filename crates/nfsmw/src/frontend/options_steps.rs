@@ -1,11 +1,16 @@
 //! The stepping helpers the option rows share: the volume nudge, the render-scale presets and the wrap-around cycle.
-use super::{Data, LABEL_OFF, message};
+use super::{Data, LABEL_OFF, LABEL_ON, message};
 use crate::settings::{Percent, RenderScale};
 
 /// Render scales (percent) the row cycles through: FSR 1's quality modes and a few supersampling steps.
 const RENDER_SCALES: [u16; 9] = [50, 59, 67, 77, 85, 100, 125, 150, 200];
 /// A slider press moves the volume by this many percent.
 const VOLUME_STEP: u8 = 10;
+
+/// The original's On or Off.
+pub(super) fn on_off(on: bool) -> Data {
+    Data::Label(if on { LABEL_ON } else { LABEL_OFF })
+}
 
 pub(super) fn nudge(p: Percent, forward: bool) -> Percent {
     let v = if forward { p.0.saturating_add(VOLUME_STEP).min(100) } else { p.0.saturating_sub(VOLUME_STEP) };

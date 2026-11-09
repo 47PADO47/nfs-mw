@@ -6,7 +6,9 @@
 //!
 //! The game plays every layer as a loop at once and mixes them by the engine's speed: a layer is loudest when the engine
 //! turns at the layer's own `rpm` and fades out towards its neighbours, and each layer is sped up or slowed down in
-//! proportion to the engine's rpm over its own. The files are 16-bit PCM WAV, mono or stereo, in the mod's `files/`
+//! proportion to the engine's rpm over its own. A layer may be marked `load = "off"`: the layers under load and the layers
+//! off load are two sets, each mixed by engine speed, that the throttle crossfades (an engine with no `load = "off"`
+//! layer plays its layers whatever the throttle). The files are 16-bit PCM WAV, mono or stereo, in the mod's `files/`
 //! folder under the install's paths (`SOUND/...`).
 
 use serde::Deserialize;
@@ -15,14 +17,15 @@ use super::ContentError;
 use super::engine_curves::{self, Curve, LayerKind, Pitch, RawCurve, RawPitch};
 
 /// Most layers a car may have.
-pub const MAX_LAYERS: usize = 24;
+pub const MAX_LAYERS: usize = 48;
 /// Most files one list of `[car_sound]` may name.
 pub const MAX_EFFECT_FILES: usize = 16;
 
 /// One layer of the engine: a looping recording, or a granular engine recording (`kind = "ginsu"`).
 ///
-/// A layer without `gain` curves is mixed by engine speed: it is loudest at `rpm`, the speed it was recorded at. A layer
-/// with `gain` curves plays by them (docs/modding/car-sound.md, "Curves") and its `rpm` is 0.
+/// A layer without `gain` curves is mixed by engine speed: it is loudest at `rpm`, the speed it was recorded at, among the
+/// layers of its own set (under load, or off load when `off_load`). A layer with `gain` curves plays by them
+/// (docs/modding/car-sound.md, "Curves") and its `rpm` is 0.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layer {
     /// The file, a path of the install's layout (`SOUND/MODENGINE/MYCAR/IDLE.WAV`, or `.GIN` for a Ginsu layer).
@@ -42,6 +45,8 @@ pub struct Layer {
     pub span: Option<(f32, f32)>,
     /// A fixed level the curves are scaled by.
     pub volume: f32,
+    /// A layer of the set that plays with the throttle closed (`load = "off"`); the others play under load.
+    pub off_load: bool,
 }
 
 impl Layer {
@@ -56,6 +61,7 @@ impl Layer {
             rate: None,
             span: None,
             volume: 1.0,
+            off_load: false,
         }
     }
 }
@@ -96,6 +102,19 @@ struct RawLayer {
     span: Option<[f32; 2]>,
     #[serde(default)]
     volume: Option<f32>,
+    #[serde(default)]
+    load: Load,
+}
+
+/// Which throttle a layer sounds at (`load`).
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum Load {
+    /// Under load: the default.
+    #[default]
+    On,
+    /// With the throttle closed.
+    Off,
 }
 
 const RPM_RANGE: std::ops::RangeInclusive<f32> = 100.0..=20_000.0;
@@ -111,16 +130,22 @@ pub(super) fn check(raw: Option<Raw>) -> Result<Option<EngineSound>, ContentErro
         return Err(field("engine_sound.redline_rpm", "the redline is above the idle"));
     }
     if raw.layers.is_empty() || raw.layers.len() > MAX_LAYERS {
-        return Err(field("engine_sound.layers", "a car has 1 to 24 layers"));
+        return Err(field("engine_sound.layers", "a car has 1 to 48 layers"));
     }
     let mut layers = Vec::with_capacity(raw.layers.len());
     for layer in raw.layers {
         layers.push(check_layer(layer)?);
     }
     layers.sort_by(|a, b| a.rpm.total_cmp(&b.rpm));
-    let mixed = || layers.iter().filter(|layer| layer.gain.is_empty());
-    if mixed().zip(mixed().skip(1)).any(|(a, b)| a.rpm == b.rpm) {
-        return Err(field("engine_sound.layers.rpm", "two layers have the same rpm"));
+    for off_load in [false, true] {
+        let mixed = || layers.iter().filter(|layer| layer.gain.is_empty() && layer.off_load == off_load);
+        if mixed().zip(mixed().skip(1)).any(|(a, b)| a.rpm == b.rpm) {
+            return Err(field("engine_sound.layers.rpm", "two layers of one set have the same rpm"));
+        }
+    }
+    if layers.iter().any(|layer| layer.off_load) && !layers.iter().any(|layer| layer.gain.is_empty() && !layer.off_load)
+    {
+        return Err(field("engine_sound.layers.load", "a layer off load needs layers under load"));
     }
     Ok(Some(EngineSound { idle_rpm: raw.idle_rpm, redline_rpm: raw.redline_rpm, layers }))
 }
@@ -171,7 +196,11 @@ fn check_layer(layer: RawLayer) -> Result<Layer, ContentError> {
         }
         Some(raw) => engine_curves::check_curves(vec![raw])?.into_iter().next(),
     };
-    Ok(Layer { file: layer.file, rpm, kind: layer.kind, gain, pitch, rate, span, volume })
+    let off_load = layer.load == Load::Off;
+    if off_load && (!gain.is_empty() || layer.kind != LayerKind::Loop) {
+        return Err(field("engine_sound.layers.load", "only a looping layer mixed by rpm can be off load"));
+    }
+    Ok(Layer { file: layer.file, rpm, kind: layer.kind, gain, pitch, rate, span, volume, off_load })
 }
 
 /// A relative path of the install's layout that names a `.WAV` file: letters, digits, `_`, `-`, `.` and `/`, no `..`.
@@ -186,8 +215,13 @@ pub(super) fn is_sound_path(path: &str) -> bool {
     is_path(path, ".wav")
 }
 
+/// A relative path of the install's layout that names a `.BIN` file (a model or texture pack), under the same rules as a sound path.
+pub(super) fn is_pack_path(path: &str) -> bool {
+    is_path(path, ".bin")
+}
+
 /// A relative path of the install's layout that ends in `extension` (lower case, with the dot).
-fn is_path(path: &str, extension: &str) -> bool {
+pub(super) fn is_path(path: &str, extension: &str) -> bool {
     let safe = path.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/'));
     let parts_ok = path.split('/').all(|part| !part.is_empty() && part != "." && part != "..");
     safe && parts_ok && path.len() <= 96 && path.to_ascii_lowercase().ends_with(extension)

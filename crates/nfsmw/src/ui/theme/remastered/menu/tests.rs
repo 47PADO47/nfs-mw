@@ -201,8 +201,13 @@ fn the_title_is_bigger_and_bold_in_the_accent_colour() {
 
 fn settings(selected: usize) -> MenuList {
     use crate::ui::theme::MenuValue;
-    let row =
-        |label: &str, value: MenuValue, enabled: bool| MenuEntry { label: label.into(), enabled, value, icon: None };
+    let row = |label: &str, value: MenuValue, enabled: bool| MenuEntry {
+        label: label.into(),
+        enabled,
+        value,
+        icon: None,
+        flags: crate::ui::theme::EntryFlags::ROW,
+    };
     MenuList {
         entries: vec![
             row("Window Mode", MenuValue::Choice { text: "Borderless".into(), arrows: true }, true),
@@ -356,6 +361,7 @@ fn a_key_row_shows_two_key_caps_and_lights_the_focused_one() {
         enabled: true,
         value: MenuValue::Keys { primary: "W".into(), secondary: "---".into(), focus },
         icon: None,
+        flags: crate::ui::theme::EntryFlags::ROW,
     };
     let cell = MenuListCell::new();
     let bars = |focus| {
@@ -440,4 +446,30 @@ fn a_palette_with_icons_shows_the_pictures_beside_the_text_and_one_without_shows
         off_career.world.w_axis.x < career.world.w_axis.x,
         "the text makes room for the picture only when it is shown"
     );
+}
+
+#[test]
+fn a_title_entry_is_centred_in_the_selected_colour_and_takes_no_bar() {
+    let cell = MenuListCell::new();
+    let entries = vec![entry("Career", true), MenuEntry::title("Experimental"), entry("Quick Race", true)];
+    cell.set(ElementId::MainMenu.slot(), MenuList { entries, ..list(MenuStyle::Main, 0) });
+    let nodes = built(ElementId::MainMenu, &cell);
+    let title = text_at(&nodes, "EXPERIMENTAL");
+    assert!((title.world.w_axis.y - row_y(1)).abs() < 1e-3, "it sits on its row");
+    assert_eq!(title.colour, text_at(&nodes, "CAREER").colour, "in the colour the selected entry has");
+    assert_ne!(title.colour, text_at(&nodes, "QUICK RACE").colour, "and not the colour of an ordinary entry");
+    assert!(
+        title.world.w_axis.x > text_at(&nodes, "QUICK RACE").world.w_axis.x + 30.0,
+        "centred, not in the label column"
+    );
+    let strips = |row: usize| {
+        nodes
+            .iter()
+            .filter(|n| {
+                matches!(n.kind, NodeKind::Image { texture: 0, .. }) && (n.world.w_axis.y - row_y(row)).abs() < 0.5
+            })
+            .count()
+    };
+    assert_eq!(strips(1), 0, "a title has no bar (the bar and the bolt belong to the selected row)");
+    assert!(strips(0) > 20, "the selected row keeps its bar");
 }

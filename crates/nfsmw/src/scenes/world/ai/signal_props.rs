@@ -33,16 +33,33 @@ pub struct SignalModel {
     pub mast_arm: bool,
     pub lamp_left: f32,
     pub lamp_up: f32,
+    /// How far in front of the origin along the model's facing axis the lamp is (metres); the lens of a head is on its front.
+    pub lamp_ahead: f32,
+    /// The distance between the lenses of a head, metres: red on top, amber at `lamp_up`, green below. 0 for a model that is
+    /// not a three-lens head (the lit lamp then stays at `lamp_up` whatever its state).
+    pub lens_pitch: f32,
 }
 
 /// A lamp post with its head on top.
-const POLE: SignalModel = SignalModel { mast_arm: false, lamp_left: 0.0, lamp_up: 4.5 };
+const POLE: SignalModel =
+    SignalModel { mast_arm: false, lamp_left: 0.0, lamp_up: 4.5, lamp_ahead: 0.0, lens_pitch: 0.0 };
 /// `XO_TrafficLightB`: a pole with an arm. The data (`nfsmw-data` shapes, `pole_of_arm`) has the arm from the pole at
 /// the origin to about 3.5 m along the model's negative y axis, and the whole model 8.7 m tall. The head hangs
 /// under the middle of the arm.
-const ARM: SignalModel = SignalModel { mast_arm: true, lamp_left: -1.7, lamp_up: 7.5 };
+const ARM: SignalModel =
+    SignalModel { mast_arm: true, lamp_left: -1.7, lamp_up: 7.5, lamp_ahead: 0.0, lens_pitch: 0.0 };
 /// `XO_TrafficLightCableB`: a cable strung across the road, the heads hang from it.
-const CABLE: SignalModel = SignalModel { mast_arm: true, lamp_left: 0.0, lamp_up: 6.0 };
+const CABLE: SignalModel =
+    SignalModel { mast_arm: true, lamp_left: 0.0, lamp_up: 6.0, lamp_ahead: 0.0, lens_pitch: 0.0 };
+
+/// `XO_TrafficLightC` and `D`: the signal heads, hung from the arm or the cable with their origin at the hanging point and the three
+/// lenses below it, facing the model's +x. The 2005 solids' own flare marker (the red lens, 0.22 m in front) is at -0.73 m on `C` and
+/// -0.51 m on `D` **[verified]**; the lenses are taken to be evenly spaced about the middle of the head, which gives the pitch. The
+/// 2012 head of the traffic lights variant (`mods/nfsmw-2012-content`, `signs/table.rs`) is hung with the same numbers.
+pub const HEAD_C: SignalModel =
+    SignalModel { mast_arm: false, lamp_left: 0.0, lamp_up: -1.15, lamp_ahead: 0.3, lens_pitch: 0.42 };
+pub const HEAD_D: SignalModel =
+    SignalModel { mast_arm: false, lamp_left: 0.0, lamp_up: -0.86, lamp_ahead: 0.3, lens_pitch: 0.35 };
 
 /// The signal model of a scenery object, by its name (ASCII case does not matter), or `None` for anything that is
 /// not a stop light. Arrow and cross signs (`XS_TrafficSignal*`, `SGN_Signal_*`) are lane-control signs over the
@@ -55,7 +72,9 @@ pub fn signal_model(name: &str) -> Option<SignalModel> {
     if let Some(variant) = name.strip_prefix("xo_trafficlight") {
         return match variant.chars().next()? {
             'b' => Some(ARM),
-            'a' | 'c' | 'd' => Some(POLE),
+            'a' => Some(POLE),
+            'c' => Some(HEAD_C),
+            'd' => Some(HEAD_D),
             _ => None,
         };
     }
@@ -78,6 +97,8 @@ pub struct SignalHead {
     pub position: Vec3,
     pub forward: Vec3,
     pub mast_arm: bool,
+    /// The distance between the lenses (`SignalModel::lens_pitch`); the lit lamp moves up for red and down for green.
+    pub lens_pitch: f32,
 }
 
 /// The signal head of a scenery object from its name and its placement (`transform`, model to render space), or
@@ -85,9 +106,10 @@ pub struct SignalHead {
 pub fn signal_head(name: &str, transform: Mat4) -> Option<SignalHead> {
     let model = signal_model(name)?;
     Some(SignalHead {
-        position: transform.transform_point3(Vec3::new(0.0, model.lamp_left, model.lamp_up)),
+        position: transform.transform_point3(Vec3::new(model.lamp_ahead, model.lamp_left, model.lamp_up)),
         forward: facing(transform),
         mast_arm: model.mast_arm,
+        lens_pitch: model.lens_pitch,
     })
 }
 
@@ -115,6 +137,7 @@ pub struct Lamp {
     pub position: Vec3,
     pub forward: Vec3,
     pub prop: Option<u32>,
+    pub lens_pitch: f32,
 }
 
 /// The matches of the signalled approaches to the placed traffic lights. Rebuilt when the scenery changes.
@@ -169,7 +192,7 @@ impl TrafficWorld {
             .map(|index| {
                 index.map(|i| {
                     let (head, prop) = found[i];
-                    Lamp { position: head.position, forward: head.forward, prop }
+                    Lamp { position: head.position, forward: head.forward, prop, lens_pitch: head.lens_pitch }
                 })
             })
             .collect();
@@ -208,8 +231,8 @@ mod tests {
     #[test]
     fn only_the_stop_light_models_are_matched_by_name() {
         assert_eq!(signal_model("XO_TrafficLightA"), Some(POLE));
-        assert_eq!(signal_model("xo_trafficlightc_1a_LL"), Some(POLE));
-        assert_eq!(signal_model("XO_TrafficLightD"), Some(POLE));
+        assert_eq!(signal_model("xo_trafficlightc_1a_LL"), Some(HEAD_C));
+        assert_eq!(signal_model("XO_TrafficLightD"), Some(HEAD_D));
         assert_eq!(signal_model("XO_TrafficLightB_03"), Some(ARM));
         assert_eq!(signal_model("XO_TrafficLightCableB"), Some(CABLE));
         assert_eq!(signal_model("SGN_Trafficlights_Pole"), Some(POLE));
@@ -246,6 +269,19 @@ mod tests {
         assert!(signal_head("XS_StopSignB", Mat4::IDENTITY).is_none());
     }
 
+    #[test]
+    fn a_signal_head_is_lit_below_its_origin_in_front_of_it_with_a_pitch_between_its_lenses() {
+        // The heads hang from their origin (the 2005 solids reach down to -2.4 and -1.75 m): the lamp is on the head, not 4.5 m above it.
+        let head = signal_head("XO_TrafficLightD_1B_00", Mat4::IDENTITY).expect("a traffic light");
+        assert_eq!(head.position, Vec3::new(HEAD_D.lamp_ahead, 0.0, HEAD_D.lamp_up));
+        assert!(head.position.z < 0.0 && head.position.x > 0.0);
+        assert_eq!(head.lens_pitch, 0.35);
+        let big = signal_head("XO_TrafficLightC_1B_00", Mat4::IDENTITY).expect("a traffic light");
+        assert!(big.lens_pitch > head.lens_pitch, "the big head has the wider lenses");
+        let pole = signal_head("SGN_Trafficlights_Pole", Mat4::IDENTITY).expect("a traffic light");
+        assert_eq!(pole.lens_pitch, 0.0, "a pole has no lenses to choose between");
+    }
+
     /// An approach that drives along physics +z through the origin, with its stop point at the origin.
     fn approach() -> Approach {
         Approach {
@@ -268,6 +304,7 @@ mod tests {
             position: space::to_render(physics.to_array()),
             forward: space::to_render(facing.to_array()),
             mast_arm: false,
+            lens_pitch: 0.0,
         }
     }
 

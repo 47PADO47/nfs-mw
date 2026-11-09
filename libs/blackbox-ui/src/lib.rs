@@ -40,6 +40,7 @@ mod context;
 mod draw;
 mod geom;
 mod input;
+pub mod menu;
 pub mod notify;
 mod skin;
 mod slot;

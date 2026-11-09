@@ -23,7 +23,7 @@ pub fn show(ctx: &egui::Context, open: &mut bool, state: &mut State, settings: &
                 }
             });
             ui.separator();
-            egui::ScrollArea::vertical().show(ui, |ui| {
+            crate::devtools::pad_nav::scrolled(egui::ScrollArea::vertical(), ui, |ui| {
                 if !state.local_allowed {
                     ui.weak("Extra options require a local single-player driving world.");
                 }

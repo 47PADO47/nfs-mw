@@ -89,7 +89,7 @@ the identity: grey (index 8,8,8) reads 128, 147, 157 in its stored byte order, a
 other (pure red 37, 34, 223). The overdrive cube (`0x78A0`) **is** the identity, and so is the default state's cube
 (`0x78F1`) along the grey diagonal (an earlier reading called it a grade; only the diagonal was looked at again).
 
-**The byte order of an entry is blue, green, red [unconfirmed]**, which makes the nitrous grade a warm shift of the greys.
+**The byte order of an entry is blue, green, red [unconfirmed]** (the entries are ordered, and the evidence is weighed, in [chameleon-environment-grading.md](chameleon-environment-grading.md)), which makes the nitrous grade a warm shift of the greys.
 The evidence: the identity cube's pure red reads `0, 0, 255`, and the other grade cubes then look right: the heat cube
 (`0x789D`, grey 138, 183, 202) is orange and the cooldown cube (`0x7898`, grey 154, 138, 116) is blue. The grey diagonal of
 the nitrous cube (red, green, blue, 0 to 255, at positions 2, 4, 6, 8, 10, 12, 14 of 15): (27, 27, 32), (65, 64, 69), (114,

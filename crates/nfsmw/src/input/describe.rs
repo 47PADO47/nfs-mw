@@ -26,8 +26,20 @@ const SECTIONS: [(Section, &str); 4] = [
     (Section::General, "Anywhere"),
 ];
 
-/// Keys that are not actions (they are handled by the window itself).
-const FIXED_KEYS: [(&str, &str); 1] = [("Alt+Enter", "toggle fullscreen")];
+/// Keys that are not actions (the window and the developer tools handle them, `docs/devtools-vehicle.md`).
+const FIXED_KEYS: [(&str, &str); 8] = [
+    ("Alt+Enter", "toggle fullscreen"),
+    (
+        "F11",
+        "developer tools: the vehicle panel (parts, appearance, performance, tuning, setups and the rider's gear of the vehicle on show)",
+    ),
+    ("Pad left stick click + right stick click", "developer tools: open or close the devtools menu (closes any panel)"),
+    ("Devtools panels, Pad D-pad / left stick", "move the focus; left and right change a slider or a stepper"),
+    ("Devtools panels, Pad A", "press the focused button"),
+    ("Devtools panels, Pad B", "close the popup or leave the text field, else close the panel (back to the menu)"),
+    ("Devtools panels, Pad LB / RB", "the previous / next widget"),
+    ("Devtools panels", "the game does not read the pad while one is up"),
+];
 
 fn section(action: Action) -> Section {
     use Action::*;
@@ -35,9 +47,8 @@ fn section(action: Action) -> Section {
         Throttle | Brake | Steer | Handbrake | ShiftUp | ShiftDown | GearReverse | GearNeutral | Gear1 | Gear2
         | Gear3 | Gear4 | Gear5 | Gear6 | Gear7 | Clutch | Nos | Speedbreaker | ResetCar | ToggleCamera
         | CycleCamera | ToggleHeadlights | LookBack | Garage | Interact | DismissNotification | MapMode | MapExpand
-        | MapZoomIn | MapZoomOut | MapOrientation | ToggleHud | RiderWeight | AbsLevel | HeadLookX | HeadLookY => {
-            Section::Driving
-        }
+        | MapZoomIn | MapZoomOut | MapOrientation | ToggleHud | RiderWeight | AbsLevel | HeadLookX | HeadLookY
+        | AirPitch | AirRoll | AirYaw => Section::Driving,
         MoveForward | MoveRight | MoveUp | LookX | LookY | OrbitX | OrbitY | Zoom | Boost => Section::FreeCamera,
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuButton1 | MenuButton2
         | MenuButton3 | JukeboxGrab | MenuZoomIn | MenuZoomOut | MenuTriggerLeft | MenuTriggerRight | MenuQuit
@@ -61,7 +72,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         Boost => ("Fly fast", ""),
         Cancel => ("Back out (release mouse, pause, quit)", ""),
         Console => ("Developer console", ""),
-        Garage => ("Garage overlay", ""),
+        Garage => ("Garage overlay (choose the car; its setup is on the F11 vehicle panel)", ""),
         Throttle => ("Accelerate", ""),
         Brake => ("Brake, then reverse (bikes: with the throttle open at a standstill, a burnout)", ""),
         Steer => ("Steer right", "Steer left"),
@@ -116,6 +127,9 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         AbsLevel => ("ABS level, next lower (bikes: 1, 0.75, 0.5, 0.25, 0, then 1)", ""),
         HeadLookX => ("Look right (bike helmet camera)", "Look left (bike helmet camera)"),
         HeadLookY => ("Look up (bike helmet camera)", "Look down (bike helmet camera)"),
+        AirPitch => ("Air control: nose down (the air_control setting)", "Air control: nose up"),
+        AirRoll => ("Air control: roll right", "Air control: roll left"),
+        AirYaw => ("Air control: spin right", "Air control: spin left"),
         RadioNext => ("Radio: next song", ""),
         RadioPrevious => ("Radio: previous song", ""),
     }
@@ -312,6 +326,14 @@ mod tests {
         }
         assert!(row(&text, "Shift up (manual transmission)").contains("Pad button 7"));
         assert!(text.contains("Alt+Enter"));
+    }
+
+    #[test]
+    fn the_devtools_keys_and_the_pad_chord_are_listed() {
+        let text = Bindings::default().describe();
+        assert!(text.contains("F11"));
+        assert!(text.contains("Pad left stick click + right stick click"));
+        assert!(text.contains("Devtools panels, Pad B"));
     }
 
     #[test]

@@ -6,6 +6,7 @@
 ## Values several rows share
 
 options-off = Off
+options-auto = Auto
 options-low = Low
 options-medium = Medium
 options-high = High
@@ -22,6 +23,13 @@ options-remastered = Remastered
 # A row whose setting the running renderer cannot do.
 options-unavailable = Unavailable
 
+## Section titles
+# The title of a group of rows on an option page, centred between the rows (`frontend/options_sections.rs`). The first group of a
+# page has no title. Experimental rows are the rewrite's own additions that are off by default or still being tuned.
+options-section-experimental = Experimental
+# The rider rows of the Gameplay page (the gear, the riding styles, the fingers on the levers): RIDE 6's bikes and riders.
+options-section-ride6 = RIDE 6
+
 ## Audio
 
 # The speech volume row: the police dispatch's radio lines (the setting `speech_volume`).
@@ -32,6 +40,8 @@ options-police-dispatch-volume = Police Dispatch
 options-hud-layout = HUD Layout
 options-hud-layout-centered = Centered
 options-hud-style = HUD style
+# The third-party CustomHUD plugin's gauge skin (`custom_hud_skin`): drawn when the install has the plugin.
+options-custom-hud-skin = CustomHUD skin
 options-hud-theme = HUD theme
 options-nitrous-variant = Nitrous variant
 options-nitrous-variant-original = Original
@@ -46,13 +56,32 @@ options-xenon-spark-variant-original = Original
 # The wind of the speed: the game's own is the 2005 wind module; a mod may add loops that play with the car's speed.
 options-wind-variant = Wind variant
 options-wind-variant-original = Original
+# The trees of the world: the game's own are the models of the 2005 game; a mod may replace their models and textures.
+options-trees-variant = Trees
+options-trees-variant-original = Original
+# The colour grading of the finished picture: the game has none of its own, so the one value is Off; a mod adds looks. This row is on the
+# Video page.
+options-grading-variant = Color Grading
+options-grading-variant-original = Off
 options-speed-units = Speed units
 options-speed-units-metric = Metric (km/h)
 options-speed-units-imperial = Imperial (mph)
 options-minimap-fixed = Fixed
 options-minimap-rotating = Rotating
 options-turn-signals = Turn Signals
+options-rider-gear = Rider Gear
+# One riding style per class of bike (RIDE 6's riding style page pictures road, motard and off-road bikes), and the fingers on the levers.
+options-riding-style-road = Riding Style: Road
+options-riding-style-motard = Riding Style: Motard
+options-riding-style-offroad = Riding Style: Offroad
+options-brake-fingers = Brake Fingers
+options-clutch-fingers = Clutch Fingers
+options-riding-style-balanced = Balanced
+options-riding-style-shoulders-out = Shoulders Out
+options-riding-style-old-school = Old School
 options-cop-health-bars = Cop Health Bars
+# Steer a car or a bike while it is in the air (stick or keys to pitch and roll, Q and E or the other stick to spin, the mouse); off by default.
+options-air-control = Air Control
 # The kinds of moment the Game Moment Camera plays (the row itself is the game's own label).
 options-game-moment-breakers = Moments: Pursuit Breakers
 options-game-moment-pursuit = Moments: Pursuit Start
@@ -105,3 +134,15 @@ options-game-music-volume = Game Music Volume
 
 options-autosave = Autosave
 options-autosave-save-failed = Could not save the Autosave setting. Your previous setting is still active.
+
+# The Free Roam world row of the Gameplay options (docs/specs/second-world.md).
+options-world = Free Roam World
+options-world-city = Rockport
+# The marks the tyres leave, the splashes of the rain on the road and how the rain wets the road: the game's own look is
+# "Original"; a mod may add values.
+options-skid-marks-variant = Skid marks variant
+options-skid-marks-variant-original = Original
+options-rain-splash-variant = Rain splash variant
+options-rain-splash-variant-original = Original
+options-wet-road-variant = Wet road variant
+options-wet-road-variant-original = Original

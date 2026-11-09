@@ -45,6 +45,8 @@ options-upscale-ultra-performance = Ultra Performance
 options-anti-aliasing = Anti-Aliasing
 options-motion-blur = Motion Blur (High Speed)
 options-motion-blur-strength = Motion Blur Strength
+# The colour grading a mod offers (a Video row, shown only while a mod offers one): how far it goes from the plain colour.
+options-grading-strength = Color Grading Strength
 options-tonemap = SDR Tone Mapping
 options-bloom = Bloom
 

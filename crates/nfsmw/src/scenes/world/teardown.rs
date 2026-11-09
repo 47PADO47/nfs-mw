@@ -19,6 +19,7 @@ impl WorldScene {
         renderer.set_projected_reflection_scene(None);
         renderer.set_ray_reflection_instances(&[]);
         self.wet_road.instances.clear();
+        self.panorama.release(renderer);
         self.residency.release(renderer);
         self.nis.release_gpu(renderer);
         for player in self.players.take_all() {
@@ -41,6 +42,7 @@ impl WorldScene {
         self.object_fx.release(renderer);
         self.car_damage_fx.release(renderer);
         self.impact_fx.release(renderer);
+        self.rain_splash.release(renderer);
         #[cfg(feature = "multiplayer")]
         if let Some(mode) = self.net_client.as_mut() {
             mode.release(renderer);

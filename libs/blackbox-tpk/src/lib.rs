@@ -19,10 +19,12 @@
 //! from [`TextureSource`]s, and the result reads back to the same textures.
 
 mod anim;
+mod dds;
 mod decode;
 mod encode;
 mod error;
 mod format;
+mod gain;
 mod info;
 pub mod layout;
 mod reader;
@@ -34,10 +36,12 @@ mod writer;
 mod tests;
 
 pub use anim::{TextureAnim, read_texture_anims};
+pub use dds::{DdsError, read_dds};
 pub use decode::{decode_mip_rgba8, decode_rgba8, decode_rgba8_cutout, mip_level_size};
 pub use encode::{Level, encode_level, full_mip_count, halve, mip_chain};
 pub use error::{Error, Result};
 pub use format::{AlphaUsage, PixelFormat};
+pub use gain::{scale_colour_block, scale_dxt_colour};
 pub use reader::{read_texture_packs, read_texture_packs_filtered, read_texture_packs_ranged};
 pub use scroll::{TextureScroll, read_texture_scrolls};
 pub use texture::{Texture, TexturePack};

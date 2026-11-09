@@ -36,6 +36,7 @@ pub fn native() -> Capabilities {
         tonemaps: TonemapSet::all(),
         bloom: true,
         scene_treatment: true,
+        colour_cube: true,
         radial_blur: true,
         frame_generation: false,
         local_reflections: true,

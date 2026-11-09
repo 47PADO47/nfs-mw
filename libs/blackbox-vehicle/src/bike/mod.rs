@@ -1,15 +1,13 @@
-//! Two-wheeled vehicle dynamics: a rigid body on a fork and a swingarm, two round tyres with the Magic Formula 94, an
-//! engine with a clutch and an automatic gearbox, and a rider who prescribes the lean and steers the front tyre to
-//! the force that lean needs.
+//! Two-wheeled vehicle dynamics: a rigid body on a fork and a swingarm, two round tyres with the Magic Formula 94, an engine with a
+//! clutch and an automatic gearbox, and a rider who prescribes the lean and steers the front tyre to the force that lean needs.
 //!
-//! The model is described in `docs/specs/vehicle-two-wheel.md`. It is a full rigid body in the physics space of the crate
-//! (x right, y up, z forward), so the weight transfer under braking and acceleration, and a slide of either wheel come out of
-//! the forces; only the roll of the bike is prescribed (and realised by a bounded torque), as the rider's controller does.
+//! The model is described in `docs/specs/vehicle-two-wheel.md`. It is a full rigid body in the physics space of the crate (x right,
+//! y up, z forward), so the weight transfer and a slide of either wheel come out of the forces; only the roll of the bike is
+//! prescribed (and realised by a bounded torque), as the rider's controller does.
 //!
 //! ```
 //! use blackbox_vehicle::bike::{Bike, BikeInput, BikeSpec};
 //! use blackbox_vehicle::{FIXED_STEP, FlatGround};
-//!
 //! let ground = FlatGround::new(0.0);
 //! let mut bike = Bike::new(BikeSpec::example());
 //! bike.place_on_ground(&ground, 0.0, 0.0, 2.0, 0.0);
@@ -22,10 +20,13 @@
 //! ```
 
 mod abs_level;
+pub mod arcade;
+mod arcade_forces;
 mod brake_reduction;
 mod brakes;
 mod burnout;
 pub mod choices;
+mod class;
 mod clutch_control;
 mod curve;
 mod drive_input;
@@ -36,6 +37,7 @@ mod frame;
 mod gearbox;
 mod geometry;
 mod handling;
+mod hold;
 mod input_axes;
 mod lean;
 mod magic;
@@ -57,13 +59,17 @@ mod suspension;
 mod thermal;
 mod trick;
 mod trick_spec;
+mod turn_law;
 mod tyre;
 mod wheel;
 mod wheel_step;
 mod wheelie_steer;
+mod wheelie_throttle;
 
+pub use arcade::{ArcadeAir, ArcadeBrake, ArcadeRough, ArcadeSteering};
 pub use brake_reduction::{BrakeReduction, RangeMap, WheelReduction};
 pub use burnout::{BurnoutSpec, HelpSpec as BurnoutHelpSpec};
+pub use class::TerrainClass;
 pub use clutch_control::{ClutchControl, ForcedDownshift, OverLimit};
 pub use engine_brake::EngineBrakeReduction;
 pub use frame::RestPose;
@@ -81,8 +87,10 @@ pub use spec::{
     RiderHelpSpec, StabilitySpec, SteeringSpec, SuspensionSpec, TcsSpec, TerrainLimit, TransmissionSpec, TyreSection,
     TyreThermal, WheelSpec, WheelieSpec,
 };
+pub use turn_law::{TurnInput, TurnLaw};
 pub use tyre::{TyreInput, TyreOutput};
 pub use wheel::WheelState;
+pub use wheelie_throttle::ThrottleWheelie;
 
 use glam::{Quat, Vec3};
 
@@ -131,6 +139,8 @@ pub struct Bike {
     plan: LeanPlan,
     weight: RiderWeight,
     weight_input: f32,
+    /// The game's wheelie from the throttle alone (`wheelie_throttle.rs`); off (the reference's behaviour) until the host switches it on.
+    throttle_wheelie: ThrottleWheelie,
     /// What the rider help keeps from step to step (`trick.rs`).
     trick: TrickState,
     abs_level: f32,
@@ -159,8 +169,9 @@ pub struct Bike {
     departure: release::Departure,
     /// The day and the running state of the fall tests.
     chassis: ChassisState,
-    /// The rider holding the brake with the bike standing, to walk it backwards (`reverse.rs`).
+    /// The rider holding the brake with the bike standing, to walk it backwards (`reverse.rs`), and holding it on a slope (`hold.rs`).
     reverse: ReverseState,
+    hold: hold::HoldState,
     /// Whether the bike is in a burnout (the reference's `IsDoingBurnout`, `burnout.rs`), as of the last sub-step.
     burnout: bool,
     /// The burnout help force's filter, throttle and collision cut (`burnout.rs`).
@@ -168,7 +179,14 @@ pub struct Bike {
 }
 
 impl Bike {
-    pub fn new(spec: BikeSpec) -> Self {
+    pub fn new(mut spec: BikeSpec) -> Self {
+        // The bike is lighter in play than in the data (`choices::BIKE_MASS_SCALE`, the rider's mass is not scaled).
+        spec.chassis.mass *= choices::BIKE_MASS_SCALE;
+        // The arcade steering's grip is in the tyres themselves, so everything that reads them (the force, the lean and fall limits, the
+        // lean help's cap) agrees (`arcade.rs`).
+        let grip = spec.steering.arcade.lateral_grip;
+        spec.front.tyre = spec.front.tyre.with_lateral_scale(grip);
+        spec.rear.tyre = spec.rear.tyre.with_lateral_scale(grip);
         let chassis = &spec.chassis;
         let geometry = Geometry::new(chassis, &spec.front, &spec.rear);
         let mass = spec.total_mass();
@@ -213,6 +231,7 @@ impl Bike {
             plan: LeanPlan::default(),
             weight: RiderWeight::new(),
             weight_input: 0.0,
+            throttle_wheelie: ThrottleWheelie::REFERENCE,
             trick: TrickState::default(),
             slipstream: 0.0,
             rider_body: RiderBody::default(),
@@ -231,6 +250,7 @@ impl Bike {
             held: BikeInput::default(),
             departure: release::Departure::default(),
             reverse: ReverseState::default(),
+            hold: hold::HoldState::default(),
             burnout: false,
             burnout_help: burnout::HelpState::default(),
         }
@@ -294,6 +314,7 @@ impl Bike {
         self.block_wait = 0.0;
         self.chassis.reset(&self.spec.fall);
         self.reverse.reset();
+        self.hold = hold::HoldState::default();
         self.burnout = false;
         self.burnout_help = burnout::HelpState::default();
         self.powertrain = Powertrain::new(&self.spec.engine, &self.spec.transmission);
@@ -352,6 +373,7 @@ impl Bike {
         let rotation = self.body.rotation();
         let forward = rotation * Vec3::Z;
         let speed = self.body.linear_velocity.dot(forward);
+        self.advance_air_and_surface(dt);
         if let Some(interval) = fall_check {
             self.check_fall(interval, speed);
         }
@@ -367,12 +389,13 @@ impl Bike {
         }
         let throttle = match self.fallen {
             true => 0.0,
-            false => help.throttle,
+            false => help.throttle * self.air_throttle_share(),
         };
         let brakes = self.spec.brakes;
         let (front_lever, rear_lever) =
             brakes::joined(&brakes, help.brake, input.rear_brake, speed.abs() > choices::STANDING_SPEED);
         let (front_lever, rear_lever) = self.step_reverse(dt, speed, input).levers(front_lever, rear_lever);
+        let (front_lever, rear_lever) = self.step_hold(dt, throttle, (front_lever, rear_lever));
         let (front_lever, rear_lever) = self.step_burnout(dt, input, speed, (front_lever, rear_lever));
         // A bike braked hard in a lean has no grip left for the lean (the front tyre's force is spent on the brake, the rear wheel is
         // unloaded): the levers give way as the lean nears its limit (`choices::BRAKE_LEAN_RELIEF`).
@@ -450,6 +473,8 @@ impl Bike {
 }
 
 #[cfg(test)]
+mod arcade_tests;
+#[cfg(test)]
 mod feel_tests;
 #[cfg(test)]
 mod release_tests;
@@ -467,3 +492,9 @@ mod tests;
 mod tests_behaviour;
 #[cfg(test)]
 mod tests_tricks;
+#[cfg(test)]
+mod turn_tests;
+#[cfg(test)]
+mod wheelie_hold_tests;
+#[cfg(test)]
+mod wheelie_throttle_sim_tests;

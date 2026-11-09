@@ -5,8 +5,17 @@ struct Globals {
     fog_color: vec4<f32>, fog_range: vec4<f32>, scatter_rayleigh: vec4<f32>,
     scatter_mie: vec4<f32>, to_sun: vec4<f32>, surface_ambient: vec4<f32>, surface_diffuse: vec4<f32>,
 };
-struct Material { intensity: vec4<f32>, options: vec4<f32>, appearance: vec4<f32>, celestial: vec4<f32>, moon: vec4<f32> };
+// `pano.x` is 1 when the clouds come from the panorama (docs/modding/sky-variants.md): two domes, blended by `pano.y`, each turned
+// by `pano.z` and `pano.w` turns and lit by `tint_a.rgb` and `tint_b.rgb`; the alpha of the tints is the cover gain.
+// `moon_pic.x` is 1 when the moon is a picture of half the width `moon_pic.y` radians, `moon_pic.z` bright.
+struct Material {
+    intensity: vec4<f32>, options: vec4<f32>, appearance: vec4<f32>, celestial: vec4<f32>, moon: vec4<f32>,
+    pano: vec4<f32>, tint_a: vec4<f32>, tint_b: vec4<f32>, moon_pic: vec4<f32>,
+};
 @group(0) @binding(0) var<uniform> globals: Globals;
+@group(1) @binding(0) var pano_a: texture_2d<f32>;
+@group(1) @binding(1) var pano_b: texture_2d<f32>;
+@group(1) @binding(8) var moon_picture: texture_2d<f32>;
 @group(1) @binding(3) var<uniform> material: Material;
 @group(1) @binding(4) var cloud_noise: texture_3d<f32>;
 @group(1) @binding(5) var cloud_sampler: sampler;
@@ -167,6 +176,40 @@ fn clouds(ray: vec3<f32>, sun: vec3<f32>, coverage: f32, pixel: vec2<f32>) -> ve
     return vec4(radiance * visibility, mix(1.0, transmittance, visibility));
 }
 
+// One dome: the full width is the circle, the top row the zenith, the bottom row the horizon. `turns` turns it about Z.
+fn dome_sample(dome: texture_2d<f32>, ray: vec3<f32>, turns: f32) -> vec4<f32> {
+    let rows = f32(textureDimensions(dome).y);
+    let u = atan2(ray.y, ray.x) / 6.2831853 + 0.5 + turns;
+    let v = clamp(1.0 - asin(clamp(ray.z, 0.0, 1.0)) / 1.5707963, 0.5 / rows, 1.0 - 0.5 / rows);
+    return textureSampleLevel(dome, cloud_sampler, vec2(u, v), 0.0);
+}
+
+// The clouds of the panorama as the cache stores them: linear radiance and the transmittance of the sky behind.
+fn panorama_clouds(ray: vec3<f32>) -> vec4<f32> {
+    if ray.z < 0.015 { return vec4(0.0, 0.0, 0.0, 1.0); }
+    let a = dome_sample(pano_a, ray, material.pano.z);
+    let b = dome_sample(pano_b, ray, material.pano.w);
+    let cover_a = clamp(a.a * material.tint_a.a, 0.0, 1.0);
+    let cover_b = clamp(b.a * material.tint_b.a, 0.0, 1.0);
+    let light_a = sky_linear(a.rgb) * material.tint_a.rgb * cover_a;
+    let light_b = sky_linear(b.rgb) * material.tint_b.rgb * cover_b;
+    let fade = smoothstep(0.015, 0.05, ray.z);
+    let t = material.pano.y;
+    return vec4(mix(light_a, light_b, t) * fade, 1.0 - mix(cover_a, cover_b, t) * fade);
+}
+
+// The moon as its picture: a square of half-width `moon_pic.y` radians facing the eye, the disc in its middle.
+fn moon_picture_colour(ray: vec3<f32>, moon: vec3<f32>) -> vec3<f32> {
+    if dot(ray, moon) <= 0.0 { return vec3(0.0); }
+    let up = select(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), abs(moon.z) > 0.99);
+    let right = normalize(cross(up, moon));
+    let above = cross(moon, right);
+    let q = vec2(dot(ray, right), dot(ray, above)) / material.moon_pic.y;
+    if abs(q.x) > 1.0 || abs(q.y) > 1.0 { return vec3(0.0); }
+    let pixel = textureSampleLevel(moon_picture, cloud_sampler, vec2(q.x * 0.5 + 0.5, 0.5 - q.y * 0.5), 0.0);
+    return sky_linear(pixel.rgb) * pixel.a * material.moon_pic.z * smoothstep(-0.02, 0.04, ray.z);
+}
+
 @fragment fn fs_main(in: Output) -> @location(0) vec4<f32> {
     let ray = normalize(in.direction);
     let sun = sun_direction();
@@ -187,7 +230,9 @@ fn clouds(ray: vec3<f32>, sun: vec3<f32>, coverage: f32, pixel: vec2<f32>) -> ve
         let cell = floor(ray * 700.0);
         let random = fract(sin(dot(cell, vec3(12.9898, 78.233, 39.425))) * 43758.5453);
         let star = smoothstep(0.9985, 0.9998, random) * (1.0 - smoothstep(0.15, 0.5, length(fract(ray*700.0)-vec3(0.5))));
-        celestial = (vec3(0.65,0.72,0.9)*moon_disk*0.7 + vec3(0.35,0.42,0.6)*star) * material.moon.w * cloud.a * smoothstep(0.0, 0.08, ray.z);
+        var moon_colour = vec3(0.65,0.72,0.9)*moon_disk*0.7;
+        if material.moon_pic.x > 0.5 { moon_colour = moon_picture_colour(ray, moon) * 0.9; }
+        celestial = (moon_colour + vec3(0.35,0.42,0.6)*star) * material.moon.w * cloud.a * smoothstep(0.0, 0.08, ray.z);
     }
     let colour = sky_output((background * cloud.a + cloud.rgb) * brightness, solar_disk(ray, sun) * cloud.a * brightness + celestial);
     return vec4(colour, 1.0);
@@ -205,5 +250,6 @@ fn clouds(ray: vec3<f32>, sun: vec3<f32>, coverage: f32, pixel: vec2<f32>) -> ve
     let azimuth = (uv.x-0.5)*6.2831853;
     let elevation = uv.y*1.5707963;
     let ray = vec3(cos(azimuth)*cos(elevation), sin(azimuth)*cos(elevation), sin(elevation));
+    if material.pano.x > 0.5 { return panorama_clouds(ray); }
     return clouds(ray, sun_direction(), material.options.w, pixel.xy);
 }

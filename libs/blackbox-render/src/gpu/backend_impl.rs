@@ -63,6 +63,10 @@ impl RenderBackend for Renderer {
         self.touch_scene();
         Renderer::set_sky_state(self, state);
     }
+    fn set_sky_panorama(&mut self, panorama: Option<blackbox_gfx::SkyPanorama>) {
+        self.touch_scene();
+        Renderer::set_sky_panorama(self, panorama);
+    }
     fn set_scene_reuse(&mut self, mode: blackbox_gfx::SceneReuse) {
         self.request_scene_reuse(mode);
     }
@@ -126,6 +130,13 @@ impl RenderBackend for Renderer {
     fn set_colour_treatment(&mut self, profile: Option<&blackbox_gfx::ColourTreatment>, gain: Option<&RgbaImage>) {
         self.touch_scene();
         self.set_scene_treatment(profile, gain);
+    }
+    fn set_colour_grade(&mut self, grade: Option<&blackbox_gfx::ColourGrade>) {
+        let Some(flipped) = self.post.set_colour_grade(&self.device, &self.queue, grade) else { return };
+        self.touch_scene();
+        if flipped {
+            self.refresh_targets();
+        }
     }
     fn set_colour_look(&mut self, look: blackbox_gfx::ColourLook) {
         if self.post.set_look(look) {
@@ -280,6 +291,10 @@ impl RenderBackend for Renderer {
     fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>) {
         self.touch_scene();
         Renderer::redirect_texture(self, from, to);
+    }
+
+    fn update_texture(&mut self, handle: TextureHandle, region: [u32; 4], rgba: &[u8]) -> bool {
+        Renderer::update_texture(self, handle, region, rgba)
     }
 
     fn set_texture_uv_offset(&mut self, texture: TextureHandle, offset: [f32; 2]) {

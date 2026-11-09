@@ -22,6 +22,7 @@ pub mod error;
 pub mod experiments;
 pub mod focus;
 pub mod frame;
+pub mod grading;
 pub use experiments::{ExperimentStats, LightingDebug, RenderExperiments};
 pub mod handles;
 pub mod material;
@@ -58,6 +59,7 @@ pub use focus::{FocusFilter, ScreenGrade};
 pub use frame::{
     Fog, FrameParams, FrameStatus, Instance, InstanceKey, Projection, Scattering, SceneReuse, ShadowFlags, SurfaceLight,
 };
+pub use grading::{CUBE_SIZE_RANGE, ColourCube, ColourGrade};
 pub use handles::{
     CaptureId, GlossyMaterialHandle, MeshHandle, NormalMaterialHandle, SkyMaterialHandle, TextureHandle, UiTextureId,
     WindowMaterialHandle,
@@ -78,7 +80,7 @@ pub use settings::{
 };
 pub use settings::{ShadowQuality, TextureFiltering};
 pub use shadow::ShadowProjection;
-pub use sky::{SkyLayerKind, SkyMaterialDesc, SkyState, SunGlare, SunGlareLayer};
+pub use sky::{SkyLayerKind, SkyMaterialDesc, SkyPanorama, SkyPanoramaState, SkyState, SunGlare, SunGlareLayer};
 pub use stats::{BackendInfo, FramePerformance, RenderStats, WorkloadActivity};
 pub use texture::{PixelFormat, TextureDesc};
 pub use treatment::{ColourLook, ColourTreatment, ColourTreatmentOverride};

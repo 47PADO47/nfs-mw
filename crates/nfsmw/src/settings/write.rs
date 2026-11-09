@@ -167,18 +167,12 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.speed_trail_style {
         put("speed_trail_style", Value::String(v.to_string()));
     }
-    if let Some(v) = changes.enhanced_lamps {
-        put("enhanced_lamps", Value::Boolean(v));
-    }
-    if let Some(v) = changes.enhanced_exhaust {
-        put("enhanced_exhaust", Value::Boolean(v));
-    }
-    if let Some(v) = changes.exhaust_flames {
-        put("exhaust_flames", Value::Boolean(v));
-    }
-    if let Some(v) = changes.turn_signals {
-        put("turn_signals", Value::Boolean(v));
-    }
+    changes.enhanced_lamps.into_iter().for_each(|v| put("enhanced_lamps", Value::Boolean(v)));
+    changes.enhanced_exhaust.into_iter().for_each(|v| put("enhanced_exhaust", Value::Boolean(v)));
+    changes.exhaust_flames.into_iter().for_each(|v| put("exhaust_flames", Value::Boolean(v)));
+    changes.turn_signals.into_iter().for_each(|v| put("turn_signals", Value::Boolean(v)));
+    changes.rider_gear.into_iter().for_each(|v| put("rider_gear", Value::Boolean(v)));
+    changes.air_control.into_iter().for_each(|v| put("air_control", Value::Boolean(v)));
     if let Some(v) = changes.rear_view_mirror {
         put("rear_view_mirror", Value::Boolean(v));
     }
@@ -227,23 +221,24 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.hud_layout {
         put("hud_layout", Value::String(v.to_string()));
     }
-    if let Some(v) = changes.ui_style {
-        put("ui_style", Value::String(v.to_string()));
+    changes.custom_hud_skin.into_iter().for_each(|v| put("custom_hud_skin", Value::String(v.to_string())));
+    let named = [
+        ("ui_style", changes.ui_style.map(|v| v.to_string())),
+        ("language", changes.language.map(|v| v.to_string())),
+        ("world", changes.world.map(|v| v.to_string())),
+        ("speed_units", changes.speed_units.map(|v| v.to_string())),
+        ("bike_steering", changes.bike_steering.map(|v| v.to_string())),
+        ("ui_theme", changes.ui_theme.map(|v| v.to_string())),
+        ("post_tonemap", changes.post_tonemap.map(|v| v.to_string())),
+        ("post_bloom", changes.post_bloom.map(|v| v.to_string())),
+    ];
+    for (key, value) in named {
+        if let Some(v) = value {
+            put(key, Value::String(v));
+        }
     }
-    if let Some(v) = changes.language {
-        put("language", Value::String(v.to_string()));
-    }
-    if let Some(v) = changes.speed_units {
-        put("speed_units", Value::String(v.to_string()));
-    }
-    if let Some(v) = changes.ui_theme {
-        put("ui_theme", Value::String(v.to_string()));
-    }
-    if let Some(v) = changes.post_tonemap {
-        put("post_tonemap", Value::String(v.to_string()));
-    }
-    if let Some(v) = changes.post_bloom {
-        put("post_bloom", Value::String(v.to_string()));
+    for (key, value) in super::rider_write::entries(changes) {
+        put(key, value);
     }
     if let Some(v) = changes.visual_treatment {
         put("visual_treatment", Value::String(v.to_string()));
@@ -329,17 +324,19 @@ pub fn merge(existing: &str, changes: &Partial) -> Result<String> {
     if let Some(v) = changes.paddle_down {
         put("paddle_down", Value::Integer(i64::from(v)));
     }
-    if let Some(v) = changes.manual_clutch {
-        put("manual_clutch", Value::Boolean(v));
-    }
-    if let Some(v) = changes.h_shifter {
-        put("h_shifter", Value::Boolean(v));
+    for (key, value) in [("manual_clutch", changes.manual_clutch), ("h_shifter", changes.h_shifter)] {
+        if let Some(v) = value {
+            put(key, Value::Boolean(v));
+        }
     }
     if let Some(v) = changes.motion_blur {
         put("motion_blur", Value::Boolean(v));
     }
     if let Some(v) = changes.motion_blur_strength {
         put("motion_blur_strength", Value::Float(f64::from(v)));
+    }
+    if let Some(v) = changes.grading_strength {
+        put("grading_strength", Value::Float(f64::from(v)));
     }
     fe_shadows::put_into(&changes.fe_shadows, &mut put);
     super::net::put_into(&changes.net, &mut put);

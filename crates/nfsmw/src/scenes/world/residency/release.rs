@@ -12,6 +12,7 @@ impl Residency {
             upload.release(renderer);
         }
         self.sky.release(renderer);
+        self.shared_textures.release(renderer);
         self.release_normal_materials(renderer);
         std::mem::take(&mut self.shared).release(renderer);
         for (_, state) in self.tiles.drain() {

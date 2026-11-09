@@ -31,8 +31,12 @@ pub struct SceneryManifest {
     pub anchor: [f32; 4],
     /// The game the pack was made for, if the manifest names one. `None` means the running game.
     pub source_game: Option<String>,
-    /// The objects to place, in file order. Never empty.
+    /// The objects to place, in file order. Never empty, except when the file places its own ([`SceneryManifest::placed_by_file`]).
     pub places: Vec<Place>,
+    /// The pack file holds its own `ScenerySection`, made by the tool that wrote it (a world streamed from another game's
+    /// files, `docs/specs/second-world.md`): the manifest has no `[[place]]`, the game reads no solid names from it and
+    /// reads the file when the pack's area is near, not when the world opens. Its collision pack is always used.
+    pub placed_by_file: bool,
 }
 
 /// One object placed in the pack's area.
@@ -100,11 +104,14 @@ struct RawPack {
     source_game: Option<String>,
     #[serde(default)]
     route: Option<String>,
+    #[serde(default)]
+    placed: Option<String>,
 }
 
+/// One `[[place]]` as serde reads it (shared with the `[[add]]` entries of a replacement set, `replace/`).
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawPlace {
+pub(super) struct RawPlace {
     model: String,
     pos: [f32; 3],
     #[serde(default)]
@@ -148,7 +155,11 @@ fn validate(stem: &str, raw: Raw) -> Result<SceneryManifest, ContentError> {
     let anchor = anchor(raw.pack.anchor)?;
     route(raw.pack.route)?;
     let source_game = source_game(raw.pack.source_game)?;
-    if raw.place.is_empty() {
+    let placed_by_file = placed(raw.pack.placed)?;
+    if placed_by_file && !raw.place.is_empty() {
+        return Err(ContentError::PlacedByFile);
+    }
+    if raw.place.is_empty() && !placed_by_file {
         return Err(ContentError::NoPlace);
     }
     let places = raw
@@ -157,7 +168,7 @@ fn validate(stem: &str, raw: Raw) -> Result<SceneryManifest, ContentError> {
         .enumerate()
         .map(|(at, place)| self::place(at + 1, place))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(SceneryManifest { key: stem.to_owned(), file, section, anchor, source_game, places })
+    Ok(SceneryManifest { key: stem.to_owned(), file, section, anchor, source_game, places, placed_by_file })
 }
 
 /// A pack file: a relative path under `files/`, ending in `.BUN`, with no `..`, no drive and no backslash.
@@ -194,6 +205,15 @@ fn route(route: Option<String>) -> Result<(), ContentError> {
     Err(ContentError::RouteNotInV1(route))
 }
 
+/// `placed = "file"` is the only value: the pack's file places its own objects.
+fn placed(value: Option<String>) -> Result<bool, ContentError> {
+    match value.as_deref() {
+        None => Ok(false),
+        Some("file") => Ok(true),
+        Some(other) => Err(ContentError::UnknownPlaced(other.to_owned())),
+    }
+}
+
 fn source_game(name: Option<String>) -> Result<Option<String>, ContentError> {
     let Some(name) = name else { return Ok(None) };
     if !is_id(&name) {
@@ -203,7 +223,7 @@ fn source_game(name: Option<String>) -> Result<Option<String>, ContentError> {
 }
 
 /// One placement, checked. `at` is its number in the file, from 1, for the message.
-fn place(at: usize, raw: RawPlace) -> Result<Place, ContentError> {
+pub(super) fn place(at: usize, raw: RawPlace) -> Result<Place, ContentError> {
     let fail = |reason: &'static str| ContentError::Place { at, reason };
     if !is_model(&raw.model) {
         return Err(ContentError::InvalidModel(raw.model));

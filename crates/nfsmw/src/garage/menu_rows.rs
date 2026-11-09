@@ -3,7 +3,7 @@
 use nfsmw_data::car::customization::{Category as Part, DecalZone};
 use nfsmw_data::car::physics::{PerformanceCategory as Hardware, tuning::TuningCategory};
 
-use super::Model;
+use super::{Model, menu_slots, rider_gear};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Row {
@@ -17,6 +17,10 @@ pub(crate) enum Row {
     Color(usize),
     Decal(usize, usize),
     Number(usize),
+    /// A slot only the components of a vehicle know (`options::VehicleOptions::slots`, by position): kept in `Selection::slots`.
+    Slot(u8),
+    /// One part of the rider's gear, sold in a bike's shop (`rider_gear`).
+    Gear(rider_gear::Part),
 }
 
 impl Row {
@@ -42,6 +46,8 @@ impl Row {
                 .into(),
             Self::Decal(zone, position) => format!("{} · position {}", DecalZone::ALL[zone].label(), position + 1),
             Self::Number(digit) => ["Door number · first digit", "Door number · second digit"][digit].into(),
+            Self::Slot(_) => "Parts".into(),
+            Self::Gear(part) => part.label().into(),
         }
     }
 
@@ -53,6 +59,8 @@ impl Row {
                     .is_some_and(|hash| catalog.paintable_wheels.contains(&hash))
             }),
             Self::Color(0) => car.paintable,
+            Self::Slot(_) => menu_slots::has_choices(model, self).unwrap_or(false),
+            Self::Gear(_) => true,
             Self::Junkman(category) => car.performance.junkman_available(category, model.draft.performance),
             Self::Tuning(category) => category.available(
                 model.draft.performance,
@@ -71,6 +79,10 @@ impl Row {
 
     pub fn options(self, model: &Model) -> (Vec<String>, usize) {
         let Some(car) = model.selected() else { return (Vec::new(), 0) };
+        // A vehicle with components lists its slots' own choices, by the components' names.
+        if let Some(options) = menu_slots::options(model, self) {
+            return options;
+        }
         match self {
             Self::Car => {
                 let cars: Vec<_> = model.cars.iter().collect();
@@ -84,6 +96,12 @@ impl Row {
                         .collect(),
                     selected,
                 )
+            }
+            Self::Slot(_) => (Vec::new(), 0),
+            Self::Gear(part) => {
+                let entries = rider_gear::loaded().map(|catalogue| catalogue.entries(part)).unwrap_or_default();
+                let at = rider_gear::position(&entries, model.draft.gear.get(part));
+                (entries.into_iter().map(|entry| entry.label).collect(), at)
             }
             Self::Part(category) => {
                 let Some(catalog) = &car.parts else { return (vec!["Stock".into()], 0) };
@@ -133,6 +151,23 @@ impl Row {
         if !self.enabled(model) {
             return;
         }
+        // A vehicle with components makes the choice through its rules: a refused one leaves the cart as it was.
+        if let Some(result) = menu_slots::set(model, self, index) {
+            if result.is_err() {
+                return;
+            }
+            if self == Self::Part(Part::Body) {
+                clear_missing_decal_surfaces(model);
+            }
+            if let Self::Performance(category) = self
+                && !Self::Junkman(category).enabled(model)
+            {
+                model.draft.performance.junkman &= !(1 << category as u8);
+            }
+            model.shop_total = None;
+            model.shop_error = None;
+            return;
+        }
         match self {
             Self::Car => {
                 if let Some(folder) = model.cars.get(index).map(|car| car.folder.clone()) {
@@ -171,6 +206,13 @@ impl Row {
                     index.min(10) as i8 - 5
             }
             Self::Gauge => model.draft.gauges.skin = skins(model).get(index).copied().unwrap_or(0),
+            Self::Slot(_) => {}
+            Self::Gear(part) => {
+                let entries = rider_gear::loaded().map(|catalogue| catalogue.entries(part)).unwrap_or_default();
+                if let Some(entry) = entries.get(index) {
+                    model.draft.gear.set(part, &entry.id);
+                }
+            }
             Self::Color(_) => {
                 self.set_color(model, index.checked_sub(1).and_then(|i| PALETTE.get(i)).map(|(_, rgb)| *rgb))
             }

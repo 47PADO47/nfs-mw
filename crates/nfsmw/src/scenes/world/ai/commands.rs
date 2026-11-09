@@ -341,10 +341,21 @@ pub(in crate::scenes::world) fn scripted_cops(scene: &mut WorldScene, renderer: 
 /// `signals [props]`: the traffic lights of the signalled approaches, matched to the real traffic-light props of the map
 /// or not. An approach with no matched prop shows no light.
 pub(in crate::scenes::world) fn signals_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
-    const USAGE: &str = "usage: signals [props]";
+    const USAGE: &str = "usage: signals [props | force red|amber|green|off]";
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
     match args {
         [] | ["props"] => Ok(traffic.signal_props_status()),
+        ["force", colour] => {
+            let light = match *colour {
+                "red" => Some(blackbox_roads::Light::Red),
+                "amber" => Some(blackbox_roads::Light::Amber),
+                "green" => Some(blackbox_roads::Light::Green),
+                "off" => None,
+                _ => return Err(USAGE.into()),
+            };
+            traffic.force_signal(light);
+            Ok(format!("signal lamps: {colour}"))
+        }
         _ => Err(USAGE.into()),
     }
 }

@@ -29,10 +29,19 @@ pub struct SoundFeed {
     telemetry: crate::audio::CarAudioTelemetry,
     surface: u32,
     visual_rpm_fraction: Option<f32>,
+    /// The exhaust made a pop this step that the sound is to voice (`note_exhaust_pop`); the next tick carries it.
+    exhaust_pop: bool,
 }
 
 impl SoundFeed {
+    /// The exhaust made a pop of its own this step (a bike's burnout pop): the sound of the car plays its pop with it, in the tick
+    /// `after_step` makes next (`CarInput::exhaust_pop`).
+    pub fn note_exhaust_pop(&mut self) {
+        self.exhaust_pop = true;
+    }
+
     pub fn clear(&mut self) {
+        self.exhaust_pop = false;
         self.ticks.clear();
         self.camera_contacts.clear();
         self.visual_rpm_fraction = None;
@@ -76,7 +85,9 @@ impl SoundFeed {
             nos_empty: input.nos && t.has_nos && t.nos <= 0.0,
             wheels: sim.wheel_sounds(surfaces),
             up_dot: sim.up_dot(),
+            two_wheeler: sim.is_bike(),
             pre_race,
+            exhaust_pop: std::mem::take(&mut self.exhaust_pop),
             ..Default::default()
         };
         self.telemetry = sim.audio_telemetry(surfaces);
@@ -265,5 +276,16 @@ mod tests {
         let state = feed.state("BMWM3GTR", &Telemetry::default(), PerformancePackage::default());
         assert_eq!(state.ticks.len(), 3);
         assert!(feed.state("BMWM3GTR", &Telemetry::default(), PerformancePackage::default()).ticks.is_empty());
+    }
+
+    #[test]
+    fn a_pop_noted_is_carried_by_the_next_tick_once_and_cleared_with_the_feed() {
+        let mut feed = SoundFeed::default();
+        assert!(!feed.exhaust_pop);
+        feed.note_exhaust_pop();
+        assert!(feed.exhaust_pop, "waiting for the tick the step makes");
+        feed.clear();
+        assert!(!feed.exhaust_pop, "a feed that is cleared (a new car) does not voice an old pop");
+        assert!(!CarInput::default().exhaust_pop, "a tick carries no pop unless the host noted one");
     }
 }

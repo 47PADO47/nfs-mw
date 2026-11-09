@@ -1,6 +1,7 @@
 //! Category layout for the option screens.
 use super::hd_options::HdSetting;
 use super::hud_options::HudSetting;
+use super::rider_options::RiderSetting;
 use super::{LABEL_TRANSMISSION, Row, Setting, Title, row};
 use crate::frontend::graphics_options::GraphicsSetting;
 use crate::frontend::input_options::InputSetting;
@@ -99,28 +100,7 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
                 row(Setting::Metrics, Title::Key("options-performance-overlay")),
             ])
             .collect(),
-        Category::Gameplay => vec![
-            row(Setting::HudLayout, Title::Key("options-hud-layout")),
-            row(Setting::UiStyle, Title::Key("options-hud-style")),
-            row(Setting::UiTheme, Title::Key("options-hud-theme")),
-            row(Setting::SpeedUnits, Title::Key("options-speed-units")),
-            row(Setting::ContextMinimap(MinimapContext::FreeRoam), Title::Key("options-free-roam-map-mode")),
-            row(Setting::ContextMinimap(MinimapContext::Race), Title::Key("options-race-map-mode")),
-            row(Setting::RearViewMirror, Title::Label(LABEL_REARVIEW)),
-            row(Setting::Autosave, Title::Key("options-autosave")),
-            // The original's switch, then the kinds it covers [ours], dimmed while it is off.
-            row(Setting::GameMomentCamera, Title::Label(LABEL_GAME_MOMENT_CAMERA)),
-            moment_row(MomentKind::Breakers),
-            moment_row(MomentKind::Pursuit),
-            moment_row(MomentKind::Jumps),
-            moment_row(MomentKind::Crashes),
-            row(Setting::TurnSignals, Title::Key("options-turn-signals")),
-            row(Setting::CopHealthBars, Title::Key("options-cop-health-bars")),
-            // The same row as the Player page's, so the camera can be switched from the pause menu's gameplay options too.
-            row(Setting::Camera, Title::Label(LABEL_CAMERA)),
-            // The general game options live here; the original has no label that names the language row.
-            row(Setting::Language, Title::Key("options-language")),
-        ],
+        Category::Gameplay => gameplay(),
         Category::Player => vec![
             row(Setting::Transmission, Title::Label(LABEL_TRANSMISSION)),
             row(Setting::Camera, Title::Label(LABEL_CAMERA)),
@@ -152,6 +132,44 @@ pub fn rows(category: Category, caps: &Capabilities) -> Vec<Row> {
             row(Setting::DiscordJoin, Title::Key("options-discord-join")),
         ],
     }
+}
+
+/// The Gameplay page: its rows. The rider's gear has none: it is bought in a bike's shop (`garage/rider_gear`) or set from the
+/// developer tools; the Rider Gear switch is the only row it keeps.
+pub(super) fn gameplay() -> Vec<Row> {
+    let mut rows = vec![
+        row(Setting::HudLayout, Title::Key("options-hud-layout")),
+        row(Setting::UiStyle, Title::Key("options-hud-style")),
+        row(Setting::CustomHudSkin, Title::Key("options-custom-hud-skin")),
+        row(Setting::UiTheme, Title::Key("options-hud-theme")),
+        row(Setting::SpeedUnits, Title::Key("options-speed-units")),
+        // The rider's rows come early, within a scroll of the top: the gear switch, the three riding styles (one per class of
+        // bike) and the fingers on the levers (`rider_options.rs`).
+        row(Setting::RiderGear, Title::Key("options-rider-gear")),
+    ];
+    rows.extend(RiderSetting::ALL.into_iter().map(|setting| row(Setting::Rider(setting), setting.title())));
+    rows.extend([
+        row(Setting::ContextMinimap(MinimapContext::FreeRoam), Title::Key("options-free-roam-map-mode")),
+        row(Setting::ContextMinimap(MinimapContext::Race), Title::Key("options-race-map-mode")),
+        row(Setting::RearViewMirror, Title::Label(LABEL_REARVIEW)),
+        row(Setting::Autosave, Title::Key("options-autosave")),
+        // The original's switch, then the kinds it covers [ours], dimmed while it is off.
+        row(Setting::GameMomentCamera, Title::Label(LABEL_GAME_MOMENT_CAMERA)),
+        moment_row(MomentKind::Breakers),
+        moment_row(MomentKind::Pursuit),
+        moment_row(MomentKind::Jumps),
+        moment_row(MomentKind::Crashes),
+        row(Setting::TurnSignals, Title::Key("options-turn-signals")),
+        row(Setting::CopHealthBars, Title::Key("options-cop-health-bars")),
+        row(Setting::AirControl, Title::Key("options-air-control")),
+        // The same row as the Player page's, so the camera can be switched from the pause menu's gameplay options too.
+        row(Setting::Camera, Title::Label(LABEL_CAMERA)),
+        // The general game options live here; the original has no label that names the language row.
+        row(Setting::Language, Title::Key("options-language")),
+    ]);
+    // The Free Roam world: only while a mod provides a second world.
+    rows.extend(super::world::offered().then(|| row(Setting::World, Title::Key("options-world"))));
+    rows
 }
 
 /// The row of one kind of game moment.

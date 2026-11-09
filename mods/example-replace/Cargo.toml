@@ -1,0 +1,31 @@
+# An example mod, outside the game's workspace: a plain build of the repository never compiles it. Build it on demand:
+#   cargo build --manifest-path mods/example-replace/Cargo.toml
+# It writes a replacement set for a street lamp, a texture and a prop into its own folder when the game loads it, from code, so
+# the repository holds no model or picture (docs/modding/api-replace.md).
+
+[package]
+name = "example-replace"
+description = "Example native mod: replaces a street lamp model and a road texture through replacement sets. Not built with the workspace."
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+blackbox-hash = { path = "../../libs/blackbox-hash" }
+blackbox-modding = { path = "../../libs/blackbox-modding", features = ["sdk", "host"] }
+blackbox-solid = { path = "../../libs/blackbox-solid" }
+blackbox-tpk = { path = "../../libs/blackbox-tpk" }
+png = "0.18"
+
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[workspace]

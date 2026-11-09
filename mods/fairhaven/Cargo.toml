@@ -1,0 +1,42 @@
+[package]
+name = "fairhaven"
+description = "Native mod: the city of NFS: Most Wanted (2012), Fairhaven, read from the user's own install as a second world of NFS: Most Wanted (2005), one streaming unit at a time, made when the game asks for it; also a command line that converts one unit."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "fairhaven-unit"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+blackbox-attrib.workspace = true
+blackbox-chunk.workspace = true
+blackbox-collision.workspace = true
+blackbox-hash.workspace = true
+# "host" is needed for the content schemas (`blackbox_modding::content`): the manifests the mod writes are the game's own types.
+blackbox-modding = { workspace = true, features = ["sdk", "host"] }
+blackbox-scenery.workspace = true
+blackbox-solid.workspace = true
+blackbox-tpk.workspace = true
+chameleon-bundle.workspace = true
+chameleon-gfx.workspace = true
+clap.workspace = true
+game-install.workspace = true
+log.workspace = true
+serde.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+# The golden test of the manifests reads them back with the schemas of the game (libraries; nothing depends on the mod).
+blackbox-modding = { workspace = true, features = ["host"] }
+blackbox-streaming.workspace = true
+
+[lints]
+workspace = true

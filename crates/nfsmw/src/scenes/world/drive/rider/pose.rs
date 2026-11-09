@@ -14,6 +14,7 @@ use blackbox_skeleton::{Clip, Graph, Skeleton, Transform, TwoBoneChain, apply_tw
 use glam::{Mat4, Quat, Vec3};
 
 use super::attach::Attach;
+use super::clearance::Clearance;
 use super::reach::{self, Goal, TorsoBones};
 use super::seat::Seat;
 
@@ -53,6 +54,9 @@ impl Frame {
     }
 }
 
+/// A leg let off its peg by more than this much of the way is not kept out of the bike's body: it is the animation's own pose.
+const CLEARANCE_RELEASE: f32 = 0.5;
+
 /// The names `attach.json` gives the rider's legs, left and right: the ones [`Goals::release`] lets off the pegs.
 const LEG_NAMES: [&str; 2] = ["left_leg", "right_leg"];
 
@@ -67,6 +71,8 @@ pub struct Limb {
     pub offset: Vec3,
     /// Where the tip sits in the target's own frame (a hand on its grip socket, a foot against its peg socket).
     pub frame: Option<Transform>,
+    /// Where the tip is against the grip bone it holds: the tip is put at the target's `anchor` composed with this.
+    pub anchor: Option<Transform>,
     /// Whether the limb's root hangs on the bones the body leans with (an arm does, a leg does not).
     pub on_torso: bool,
     /// Which entry of [`Goals::release`] lets this limb off its target: the rider's legs, left (0) and right (1), found by the
@@ -84,6 +90,8 @@ pub struct Resolved {
     pub torso: Option<TorsoBones>,
     /// The buttocks' contact with the seat, if the file and the bike have what it needs.
     pub seat: Option<Seat>,
+    /// The rider's body kept out of the bike's (`clearance.rs`), if the bike has a measured section and the rider a ragdoll.
+    pub clearance: Option<Clearance>,
 }
 
 impl Resolved {
@@ -103,11 +111,12 @@ impl Resolved {
                 target,
                 offset: Vec3::from_array(limb.tip_offset),
                 frame: limb.tip_frame.map(|frame| frame.transform()),
+                anchor: limb.tip_anchor.map(|anchor| anchor.transform()),
                 on_torso: torso.as_ref().is_some_and(|t| t.lean.iter().any(|&b| skeleton.is_descendant(chain.root, b))),
                 release: LEG_NAMES.iter().position(|name| *name == limb.name),
             });
         }
-        Ok(Self { limbs, shift_bone: bone(&attach.inertia.bone)?, torso, seat: None })
+        Ok(Self { limbs, shift_bone: bone(&attach.inertia.bone)?, torso, seat: None, clearance: None })
     }
 }
 
@@ -134,6 +143,8 @@ impl Steering {
 pub struct Placed {
     pub position: Vec3,
     pub rotation: Option<Quat>,
+    /// Where the grip bone it is held on is and how it is turned, if the bike's file says.
+    pub anchor: Option<(Vec3, Quat)>,
 }
 
 /// Where each target of `attach` is now, in the rider's component space: the grips turned with the handlebar, the pegs where
@@ -145,10 +156,13 @@ pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>)
         .targets
         .iter()
         .map(|target| {
-            let in_model = Vec3::from_array(target.position) + frame.offset;
-            let moved = match target.steers {
-                true => turn.transform_point3(in_model),
-                false => in_model,
+            let place = |point: Vec3| {
+                let in_model = point + frame.offset;
+                let moved = match target.steers {
+                    true => turn.transform_point3(in_model),
+                    false => in_model,
+                };
+                frame.to_rider.transform_point3(moved)
             };
             let rotation = target.rotation.map(|[x, y, z, w]| {
                 let own = Quat::from_xyzw(x, y, z, w).normalize();
@@ -158,13 +172,61 @@ pub fn rider_targets(attach: &Attach, frame: &Frame, steering: Option<Steering>)
                 };
                 frame.rider_turn * in_model
             });
-            Placed { position: frame.to_rider.transform_point3(moved), rotation }
+            Placed {
+                position: place(Vec3::from_array(target.position)),
+                rotation,
+                anchor: target.anchor.zip(target.anchor_rotation).map(|(at, [x, y, z, w])| {
+                    let own = Quat::from_xyzw(x, y, z, w).normalize();
+                    let in_model = if target.steers { turned * own } else { own };
+                    let bone = frame.rider_turn * in_model;
+                    // The hand is centred on the grip rubber (the bone is the rubber's inboard end: `Target::hand_slide`) and brought forward
+                    // over it (`HAND_FORWARD_M`).
+                    let slide = bone
+                        * (Vec3::Y * target.outboard_sign() * target.hand_slide()
+                            + Vec3::X * super::attach::HAND_FORWARD_M);
+                    (place(Vec3::from_array(at)) + slide, bone)
+                }),
+            }
         })
         .collect()
 }
 
+/// Roll the right wrist by `wrist` (0 to 1, the throttle): the hand turns about the grip, which stays in the fist. The angle is the one
+/// of the file's offset at full throttle (`Attach::wrist_throttle`, the blueprint's `Hand_R_WristDownRot`, 30 degrees); its
+/// translation is not played (it moved the hand 5 cm off the grip and under it, which a user's playtest showed:
+/// `docs/specs/ride6-rider-hands.md`, section 2). A file without the offset is left as it is.
+///
+/// The grip bone holds the hand (`anchor`): the bone's own y axis is the grip's cylinder (measured on four bikes, within a millimetre
+/// and a degree of the grip mesh's own axis, [`GRIP_AXIS`]) and its origin lies on that axis, so turning the bone about it takes the
+/// hand round the grip without moving the grip. The roll takes the knuckles toward the rider (the throttle opens). Without a bone
+/// (older files) the grip socket's frame turns by the file's rotation, about the socket's own axis, which is the bar's.
+pub fn roll_wrist(attach: &Attach, targets: &mut [Placed], wrist: f32) {
+    let Some(offset) = attach.wrist_throttle else { return };
+    let Some(placed) = attach.target_index("right_grip").and_then(|index| targets.get_mut(index)) else { return };
+    let share = wrist.clamp(0.0, 1.0);
+    let [x, y, z, w] = offset.rotation;
+    let rolled = Quat::from_xyzw(x, y, z, w).normalize();
+    if let Some((at, bone)) = placed.anchor {
+        // +y of the right bone points to the left, along the grip toward the rider: the roll toward him is a turn the other way.
+        let roll = Quat::from_axis_angle(GRIP_AXIS, -Quat::IDENTITY.angle_between(rolled) * share);
+        placed.anchor = Some((at, bone * roll));
+        return;
+    }
+    let Some(turn) = placed.rotation else { return };
+    placed.rotation = Some(turn * Quat::IDENTITY.slerp(rolled, share));
+}
+
+/// The grip bone's own axis along the grip, in the bone's frame as the importer writes it (the car's axes: the bone's y; the exporter's
+/// bones have it on z, which the car's axes turn into y).
+const GRIP_AXIS: Vec3 = Vec3::Y;
+
 /// Where the tip of `limb` is to be for its target `placed`, and the turn it takes there (`None`: the arm's own).
 pub fn tip_goal(limb: &Limb, placed: &Placed) -> (Vec3, Option<Quat>) {
+    // A hand holds the bike's grip the way the authored pose holds the reference bike's: it keeps its place and turn against the grip
+    // bone (the bike's own hand socket is only near it: up to 6 cm off on a sport bike's clip-ons).
+    if let (Some(held), Some((at, turn))) = (limb.anchor, placed.anchor) {
+        return (at + turn * held.translation, Some(turn * held.rotation));
+    }
     match (limb.frame, placed.rotation) {
         (Some(frame), Some(turn)) => (placed.position + turn * frame.translation, Some(turn * frame.rotation)),
         _ => (placed.position + limb.offset, None),
@@ -276,21 +338,60 @@ pub fn animate(
             skeleton.component_transforms(&pose.local, &mut component)?;
         }
     }
-    for limb in &resolved.limbs {
-        let Some(placed) = goals.targets.get(limb.target) else { continue };
-        let (position, turn) = tip_goal(limb, placed);
-        let pole = component[limb.pole].translation;
-        let release = limb.release.map_or(0.0, |side| goals.release[side].clamp(0.0, 1.0));
-        let own = pose.local[limb.chain.tip].rotation;
-        apply_two_bone(skeleton, &mut pose.local, limb.chain, position, pole, 1.0 - release, turn)?;
-        if release > 0.0 {
-            // The foot's own turn comes back with the leg: the peg's turn at 0, the animation's at 1.
-            let pegged = pose.local[limb.chain.tip].rotation;
-            pose.local[limb.chain.tip].rotation = pegged.slerp(own, release);
+    // The chest over a tank it leans into is moved to the side it is on, before the arms and legs reach (they follow the body).
+    if let Some(clear) = &resolved.clearance {
+        let over = clear.torso(&component, goals.frame);
+        if over != Vec3::ZERO {
+            move_bone(skeleton, &mut pose.local, resolved.shift_bone, Body { shift: over, rotation: Quat::IDENTITY })?;
+            skeleton.component_transforms(&pose.local, &mut component)?;
+        }
+    }
+    solve_limbs(skeleton, &mut pose.local, resolved, goals, &mut component)?;
+    // A limb that is still in the bike's body (a straight leg has no knee to swing out) takes the whole body over to its side: the hang-off
+    // the lean asked for is eased by what it cost, and the limbs are solved again from the new hips and shoulders.
+    if let Some(clear) = &resolved.clearance {
+        skeleton.component_transforms(&pose.local, &mut component)?;
+        let over = clear.leftover(&component, goals.frame);
+        if over != Vec3::ZERO {
+            move_bone(skeleton, &mut pose.local, resolved.shift_bone, Body { shift: over, rotation: Quat::IDENTITY })?;
+            skeleton.component_transforms(&pose.local, &mut component)?;
+            solve_limbs(skeleton, &mut pose.local, resolved, goals, &mut component)?;
         }
     }
     skeleton.component_transforms(&pose.local, &mut component)?;
     Ok(component)
+}
+
+/// Bring each limb's tip to its target (the arms to the grips, the legs to the pegs) from the pose `local`, and swing a knee or an elbow out of
+/// the bike's body. `component` is the pose's component transforms on the way in (the poles are read from it) and is left stale.
+fn solve_limbs(
+    skeleton: &Skeleton,
+    local: &mut [Transform],
+    resolved: &Resolved,
+    goals: &Goals,
+    component: &mut Vec<Transform>,
+) -> Result<(), blackbox_skeleton::Error> {
+    for (n, limb) in resolved.limbs.iter().enumerate() {
+        let Some(placed) = goals.targets.get(limb.target) else { continue };
+        let (position, turn) = tip_goal(limb, placed);
+        let pole = component[limb.pole].translation;
+        let release = limb.release.map_or(0.0, |side| goals.release[side].clamp(0.0, 1.0));
+        let own = local[limb.chain.tip].rotation;
+        apply_two_bone(skeleton, local, limb.chain, position, pole, 1.0 - release, turn)?;
+        if release > 0.0 {
+            // The foot's own turn comes back with the leg: the peg's turn at 0, the animation's at 1.
+            let pegged = local[limb.chain.tip].rotation;
+            local[limb.chain.tip].rotation = pegged.slerp(own, release);
+        }
+        // A knee or an elbow inside the bike's body is swung out about the line from hip to foot (shoulder to hand): the same solve with the
+        // pole where the joint is to go. A leg let off its peg is the clip's own and is left to it.
+        let Some(clear) = resolved.clearance.as_ref().filter(|_| release < CLEARANCE_RELEASE) else { continue };
+        skeleton.component_transforms(local, component)?;
+        if let Some(pole) = clear.limb_pole((n, limb), component, goals.frame) {
+            apply_two_bone(skeleton, local, limb.chain, position, pole, 1.0 - release, turn)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

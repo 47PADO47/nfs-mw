@@ -6,25 +6,31 @@ pub use catalog_snapshot::CatalogSnapshot;
 mod color_parts;
 mod controls;
 mod exhaust;
+pub(crate) mod hosted;
 pub use exhaust::ExhaustSelection;
 mod backfire;
 pub use backfire::BackfireEvent;
 #[cfg(test)]
+mod hosted_tests;
+#[cfg(test)]
 mod interaction_tests;
 pub(crate) mod listing;
 mod menu;
+#[cfg(test)]
+pub(crate) mod menu_fixture;
 pub(crate) mod menu_rows;
+pub(crate) mod menu_slots;
+#[cfg(test)]
+mod menu_slots_tests;
 #[cfg(test)]
 mod menu_tests;
 pub(crate) mod my_cars;
-mod parts;
-mod performance;
-#[cfg(test)]
-mod performance_tests;
+pub(crate) mod options;
 pub(crate) mod plate_edit;
 pub(crate) mod plates;
 pub(crate) mod presets;
 pub(crate) mod pricing;
+pub(crate) mod rider_gear;
 #[cfg(test)]
 mod tests;
 mod tuning;
@@ -101,6 +107,10 @@ pub struct Selection {
     pub parts: nfsmw_data::car::customization::Selection,
     pub gauges: GaugeSelection,
     pub exhaust: ExhaustSelection,
+    /// The rider's gear a bike's shop sells (`rider_gear`): the player's, so it is the same for every bike and is not kept with
+    /// the car (`presets` and the career's garage extension leave it out; the profile's `rider-gear.toml` keeps it). Only a shop
+    /// session reads or changes it: it is the profile's kept choice there, and a purchase writes it back.
+    pub gear: rider_gear::Choice,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -143,6 +153,8 @@ pub struct Model {
     /// One-shot scene completion consumed by the native frontend controller.
     pub preview_update: PreviewUpdate,
     pub open_requested: bool,
+    /// The F6 garage asked for the vehicle panel (F11); the UI pass opens it.
+    pub vehicle_panel_requested: bool,
     /// Career shop limits the session to the selected owned vehicle.
     pub shop: bool,
     pub lock_car: bool,
@@ -181,13 +193,11 @@ pub struct Model {
     pub(super) exhaust_style_dirty: bool,
     /// Only a real garage session owns a config destination; standalone UI models remain side-effect free.
     pub(crate) exhaust_style_path: Option<std::path::PathBuf>,
-    pub options_tab: OptionsTab,
     pub category: Category,
     pub cars: Vec<Car>,
     pub applied: Selection,
     pub draft: Selection,
     pub filter: String,
-    pub parts_filter: [String; 9],
     pub message: Option<Result<String, String>>,
     pub preset_picker: crate::preset_store::Picker,
 }
@@ -207,7 +217,9 @@ impl Model {
 
     pub fn select(&mut self, car: String) {
         let style = self.draft.exhaust.style();
-        self.draft = Selection { car, ..Selection::default() };
+        // The rider's gear is the player's, not the car's: the next car is worn by the same rider.
+        let gear = std::mem::take(&mut self.draft.gear);
+        self.draft = Selection { car, gear, ..Selection::default() };
         self.draft.exhaust.set_style(style);
         self.message = None;
     }
@@ -238,7 +250,6 @@ pub struct Overlay {
     pub open: bool,
     /// A startup request can wait while the front end creates its driving scene.
     pub start_requested: bool,
-    pub start_tab: OptionsTab,
     /// Also blocks the opening/closing frame from reaching the front end.
     pub had_input: bool,
     restore_capture: bool,
@@ -261,17 +272,29 @@ impl Overlay {
     }
 }
 
-pub fn start(app: &mut bevy_app::App, tab: OptionsTab) {
+/// Opens a garage at startup (`--open-garage`): the F6 car browser, or with a tab the vehicle panel (F11) on the page the tab was.
+pub fn start(app: &mut bevy_app::App, tab: Option<OptionsTab>) {
     let world = app.world_mut();
-    world.resource_mut::<Overlay>().start_tab = tab;
+    if let Some(tab) = tab {
+        let mut panels = world.resource_mut::<crate::devtools::panels::DevPanels>();
+        panels.page = match tab {
+            OptionsTab::Performance => crate::devtools::panels::VehiclePage::Performance,
+            OptionsTab::Tuning => crate::devtools::panels::VehiclePage::Tuning,
+            OptionsTab::Appearance => crate::devtools::panels::VehiclePage::Appearance,
+            OptionsTab::Parts => crate::devtools::panels::VehiclePage::Parts,
+        };
+        panels.request(crate::devtools::panels::Request::Open {
+            panel: crate::devtools::panels::Panel::Vehicle,
+            from_menu: false,
+        });
+        return;
+    }
     let mut host = world.non_send_mut::<crate::app::Host>();
     let Some(model) = host.scene.garage() else {
         world.resource_mut::<Overlay>().start_requested = true;
         return;
     };
     model.reset_draft();
-    model.options_tab = tab;
-    model.preview = tab == OptionsTab::Parts;
     world.resource_mut::<Overlay>().open = true;
     world.resource_mut::<UiFocus>().0 = true;
     world.resource_mut::<MouseCapture>().0 = false;

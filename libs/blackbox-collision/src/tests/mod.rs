@@ -10,6 +10,7 @@ mod install_filtered;
 mod install_kept;
 mod pack;
 mod query;
+mod soup_writer;
 pub(crate) mod synth;
 mod ungridded;
 mod window;
