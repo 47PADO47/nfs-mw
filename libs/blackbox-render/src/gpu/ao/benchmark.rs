@@ -90,6 +90,7 @@ fn ao_gpu_timings() {
                             normals: &normals,
                             frame: &frame,
                             settings: AoSettings { quality, method, depth_mips, ..Default::default() },
+                            jittered: false,
                         },
                     );
                     encoder.write_timestamp(&queries, 1);

@@ -4,6 +4,7 @@
 mod benchmark;
 mod bindings;
 #[cfg(test)]
+#[cfg(test)]
 mod contact_tests;
 #[cfg(test)]
 mod convergence_tests;
@@ -82,6 +83,8 @@ pub(super) struct AmbientOcclusion {
     depth: depth::DepthPyramid,
     temporal: Option<temporal::History>,
     phase: u32,
+    /// Frames drawn under a temporal upscaler, which steps the spatial methods' sample phases.
+    spin: u32,
     fallback_depth: wgpu::TextureView,
     pub mask: wgpu::TextureView,
     pub size: (u32, u32),
@@ -95,6 +98,8 @@ pub(super) struct Draw<'a> {
     pub normals: &'a wgpu::TextureView,
     pub frame: &'a FrameParams,
     pub settings: AoSettings,
+    /// The frame is jittered for a temporal upscaler, which accumulates what it is given over frames.
+    pub jittered: bool,
 }
 
 impl AmbientOcclusion {
@@ -110,6 +115,7 @@ impl AmbientOcclusion {
             images: None,
             temporal: None,
             phase: 0,
+            spin: 0,
             inputs: None,
             depth: depth::DepthPyramid::new(device, (1, 1)),
             fallback_depth: depth::DepthPyramid::new(device, (1, 1)).view,
@@ -162,15 +168,18 @@ impl AmbientOcclusion {
         }
         let images = self.images.as_ref().expect("AO images exist");
         let tan_y = (fov_y * 0.5).tan();
-        let [fog_start, fog_end] = draw.frame.fog_range();
+        self.spin = match draw.jittered && !settings.method.temporal() && animated_noise() {
+            true => self.spin % 64 + 1,
+            false => 0,
+        };
         let params = Params {
             sizes: [draw.size.0 as f32, draw.size.1 as f32, size.0 as f32, size.1 as f32],
             projection: [tan_y * aspect, tan_y, near, f32::from(u8::from(settings.depth_mips))],
             effect: [settings.radius, settings.intensity, 40.0, 100.0],
             sampling: [divisor, slices, steps, u32::from(settings.compare)],
             fog: [
-                fog_start,
-                fog_end,
+                self.spin as f32,
+                0.0,
                 f32::from(u8::from(settings.method.is_xe())),
                 match settings.method.temporal() {
                     true => self.phase as f32,
@@ -276,6 +285,13 @@ impl AmbientOcclusion {
         pass.set_bind_group(0, temporal_group.as_ref().unwrap_or(&inputs[2]), &[]);
         pass.draw(0..3, 0..1);
     }
+}
+
+/// Whether the spatial methods step their sample phases each frame under a temporal upscaler.
+/// `BLACKBOX_AO_ANIMATED_NOISE=0` keeps them fixed, for comparing the two.
+fn animated_noise() -> bool {
+    static ANIMATED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ANIMATED.get_or_init(|| std::env::var("BLACKBOX_AO_ANIMATED_NOISE").as_deref() != Ok("0"))
 }
 
 pub(crate) fn sources() -> [(&'static str, String); 6] {
