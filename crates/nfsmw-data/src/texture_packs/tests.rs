@@ -122,3 +122,17 @@ fn the_size_cap_keeps_the_stored_levels_that_fit() {
     assert_eq!(packs.sources()[0].replaced(), 1);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn a_mod_folder_matches_as_given_and_as_resolved() {
+    let dir = folder("resolved");
+    std::fs::create_dir_all(dir.join("mod/files")).unwrap();
+    // A roundabout spelling of the folder: the install's layers hand out the resolved one.
+    let given = dir.join("mod").join("files").join("..");
+    let packs = TexturePacks::new(Vec::new(), vec![ModFolder { dir: given.clone(), priority: 7 }], 0);
+    let resolved = dir.join("mod").canonicalize().unwrap();
+    assert_eq!(packs.floor(&resolved.join("files/TRACKS/STREAML2RA.BUN")), Some(7));
+    assert_eq!(packs.floor(&given.join("SCENERY/A.BUN")), Some(7));
+    assert_eq!(packs.floor(&dir.join("other/STREAML2RA.BUN")), None);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

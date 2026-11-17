@@ -45,7 +45,9 @@ pub struct TexturePacks {
     sources: Vec<Source>,
     /// The winning source of each texture hash.
     best: HashMap<u32, usize>,
-    mods: Vec<ModFolder>,
+    /// Each loaded mod's folder with its priority, as given and as the file system resolves it: the install's layers
+    /// hand out paths under the resolved folder (links and junctions followed), map packs under the given one.
+    mod_roots: Vec<(PathBuf, i32)>,
     /// The largest side a replacement keeps, in pixels: larger files drop their largest stored mip levels. 0 is no cap.
     max_size: u32,
     /// Texture hashes that a higher source took from a lower one.
@@ -69,7 +71,14 @@ impl TexturePacks {
                 }
             }
         }
-        Self { sources, best, mods, max_size, shadowed, held_back: AtomicUsize::new(0) }
+        let mut mod_roots = Vec::new();
+        for m in mods {
+            if let Ok(resolved) = m.dir.canonicalize() {
+                mod_roots.push((resolved, m.priority));
+            }
+            mod_roots.push((m.dir, m.priority));
+        }
+        Self { sources, best, mod_roots, max_size, shadowed, held_back: AtomicUsize::new(0) }
     }
 
     /// The sources, in the order given.
@@ -103,11 +112,11 @@ impl TexturePacks {
     /// The floor of a file on disk: the priority of the loaded mod whose folder holds it (the innermost, if folders
     /// nest), or `None` for a file of the install.
     pub fn floor(&self, path: &Path) -> Option<i32> {
-        self.mods
+        self.mod_roots
             .iter()
-            .filter(|m| path.starts_with(&m.dir))
-            .max_by_key(|m| m.dir.components().count())
-            .map(|m| m.priority)
+            .filter(|(root, _)| path.starts_with(root))
+            .max_by_key(|(root, _)| root.components().count())
+            .map(|&(_, priority)| priority)
     }
 
     /// Replace the pixels of every texture that has a file in a source at or above `floor`. A file that cannot be
