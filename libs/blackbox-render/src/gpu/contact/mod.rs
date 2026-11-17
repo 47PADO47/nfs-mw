@@ -1,6 +1,11 @@
 //! Spatial contact visibility from a dedicated depth/normal prepass; consumed by direct lighting.
 use super::surface::targets::Targets;
 
+mod screen;
+#[cfg(test)]
+mod tests;
+mod wavefront;
+
 use super::Renderer;
 use blackbox_gfx::{FrameParams, Projection};
 use blackbox_gpu_passes::BindCache;
@@ -30,6 +35,8 @@ pub(super) struct Contact {
     size: (u32, u32),
     /// Inputs keyed by the depth and normal views, which only change with the surface targets.
     groups: BindCache<wgpu::TextureView, wgpu::BindGroup>,
+    /// The long screen-space shadow pass, while it replaces the march.
+    screen: Option<screen::ScreenShadows>,
 }
 
 impl Contact {
@@ -116,6 +123,7 @@ impl Contact {
             mask: super::surface::mask(device, size, "contact visibility"),
             size,
             groups: BindCache::default(),
+            screen: None,
         }
     }
 
@@ -191,13 +199,26 @@ impl Renderer {
             contact.mask = super::surface::mask(&self.device, size, "contact visibility");
             contact.size = size;
         }
-        if self.shared.shadows.contact != contact.mask {
-            self.shared.shadows.set_contact(&self.device, &self.shared.glossy.material, contact.mask.clone());
+        let long = self.experiments.screen_space_shadows && screen::ScreenShadows::supported(&self.device);
+        if !long {
+            contact.screen = None;
+        }
+        if long {
+            let cache = self.pipeline_cache.as_ref();
+            let pass = contact.screen.get_or_insert_with(|| screen::ScreenShadows::new(&self.device, size, cache));
+            if let Some(surfaces) = &self.surfaces {
+                let to_sun = (-frame.light_dir).normalize_or_zero();
+                pass.encode(&self.device, &self.queue, encoder, (view_proj, to_sun), &surfaces.targets, size);
+            }
+        }
+        let mask = contact.screen.as_ref().map_or(&contact.mask, |pass| &pass.mask).clone();
+        if self.shared.shadows.contact != mask {
+            self.shared.shadows.set_contact(&self.device, &self.shared.glossy.material, mask);
             if let Some(glossy) = &mut self.glossy {
                 glossy.rebind_shadows(&self.device, &self.shared.shadows);
             }
         }
-        if let Some(surfaces) = &self.surfaces {
+        if let Some(surfaces) = self.surfaces.as_ref().filter(|_| !long) {
             contact.visibility(
                 &self.device,
                 &self.queue,
