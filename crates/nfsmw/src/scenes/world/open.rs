@@ -361,12 +361,13 @@ fn prepare_on_loaders(streamer: &Streamer, catalog: PropCatalog, groups: std::co
 }
 
 /// The helicopter's height sheet, when the track has a road network to fly over: `None` when there is no network,
-/// else the sheet or `None` (with a warning) when it cannot be read.
+/// else the sheet or `None` (with a warning) when it cannot be read. The sheet is install data, so the stream file is
+/// walked once per session and later opens of the world copy that read.
 fn heli_sheet(dir: &GameDir, stream_file: &str, has_roads: bool) -> Option<blackbox_roads::HeliSheet> {
     if !has_roads {
         return None;
     }
-    nfsmw_data::world::heli_sheet::read(dir, stream_file)
+    nfsmw_data::world::heli_sheet::cached(dir, stream_file)
         .inspect(|sheet| log::info!("helicopter sheet: {} triangles", sheet.len()))
         .map_err(|e| log::warn!("helicopter sheet: {e}; the helicopter flies at a flat floor"))
         .ok()
