@@ -7,6 +7,16 @@ use super::{
 use crate::FrameParams;
 
 impl Renderer {
+    /// The texture LOD bias of a scene view's draws (`Globals::fog_range.z`).
+    pub(super) fn scene_mip_bias(&self, reflection: bool, offscreen: bool) -> f32 {
+        // A reflection, and a capture while a temporal upscaler is chosen, are drawn at their own size with no
+        // upscale after, so the bias that matches texel density to the output would only sharpen them too much.
+        match reflection || (offscreen && self.post.has_temporal()) {
+            true => 0.0,
+            false => self.upscale.texture_lod_bias,
+        }
+    }
+
     pub(super) fn scene_globals(
         &self,
         frame: &FrameParams,
@@ -21,12 +31,7 @@ impl Renderer {
         let clip_plane = capture.map_or([0.0; 4], |v| v.clip_plane);
         let [r, g, b] = frame.clear_color;
         let [fog_start, fog_end] = frame.fog_range();
-        // A reflection, and a capture while a temporal upscaler is chosen, are drawn at their own size with no
-        // upscale after, so the bias that matches texel density to the output would only sharpen them too much.
-        let mip_bias = match reflection || (offscreen && self.post.has_temporal()) {
-            true => 0.0,
-            false => self.upscale.texture_lod_bias,
-        };
+        let mip_bias = self.scene_mip_bias(reflection, offscreen);
         let (scatter_rayleigh, scatter_mie, to_sun) = match frame.scattering {
             Some(s) => (
                 [s.rayleigh[0], s.rayleigh[1], s.rayleigh[2], 1.0],

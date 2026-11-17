@@ -10,6 +10,7 @@ pub(super) struct Prepass {
     opaque: [wgpu::RenderPipeline; 3],
     cutout: wgpu::RenderPipeline,
     glossy_cutout: wgpu::RenderPipeline,
+    window_cutout: wgpu::RenderPipeline,
     world_cutout: wgpu::RenderPipeline,
     tree_cutout: wgpu::RenderPipeline,
     prelit_cutout: wgpu::RenderPipeline,
@@ -29,7 +30,7 @@ impl Prepass {
             label: Some("contact camera matrix"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -40,7 +41,7 @@ impl Prepass {
         });
         let matrix = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("contact camera matrix"),
-            size: 64,
+            size: 80,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -106,6 +107,7 @@ impl Prepass {
             opaque: FACES.map(|face| make("fs_opaque", face)),
             cutout: make("fs_cutout", Face::Both),
             glossy_cutout: make("fs_glossy_cutout", Face::Both),
+            window_cutout: make("fs_window_cutout", Face::Both),
             world_cutout: make("fs_world_cutout", Face::Both),
             tree_cutout: make("fs_tree_cutout", Face::Both),
             prelit_cutout: make("fs_prelit_cutout", Face::Both),
@@ -120,14 +122,13 @@ impl Prepass {
         renderer: &Renderer,
         encoder: &mut wgpu::CommandEncoder,
         targets: &Targets,
-        frame: &FrameParams,
+        (frame, mip_bias): (&FrameParams, f32),
         instances: &[Instance],
     ) {
-        renderer.queue.write_buffer(
-            &self.matrix,
-            0,
-            bytemuck::cast_slice(&renderer.world_to_clip(frame).to_cols_array()),
-        );
+        let mut camera = [0.0f32; 20];
+        camera[..16].copy_from_slice(&renderer.world_to_clip(frame).to_cols_array());
+        camera[16] = mip_bias;
+        renderer.queue.write_buffer(&self.matrix, 0, bytemuck::cast_slice(&camera));
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("contact depth normal prepass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -196,7 +197,7 @@ impl Prepass {
                             if renderer.experiments.original_world_materials
                                 && matches!(draw.shading, Shading::WorldWindow(_)) =>
                         {
-                            &self.glossy_cutout
+                            &self.window_cutout
                         }
                         BlendMode::AlphaTest
                             if renderer.experiments.original_world_materials

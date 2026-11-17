@@ -214,6 +214,9 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         reflection_gain = max(reflection_gain, dielectric);
     }
     if !finish_on { env = hybrid_environment(in.world, n, reflected, env); }
+    // Environment reflections fade where AO is dark; sun highlights keep their direct visibility.
+    // Car paint keeps its full reflection: screen-space AO reads a car's own curves as occluders.
+    let specular_ao = 1.0;
 
     var out: Shaded;
     out.rgb = diffuse_rgb
@@ -224,7 +227,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     if layered {
         let layer_albedo = select(diff.rgb * tex.rgb, tex.rgb, material.surface.w > 10.5);
         let color = layered_material(n, v, sun, diffuse_rgb, layer_albedo, diff.a,
-            visibility, occlusion, in.uv, sharp_env, in.world);
+            visibility, occlusion, specular_ao, in.uv, sharp_env, in.world);
         out.rgb = color.rgb;
         surface_alpha = color.a;
     }
@@ -279,7 +282,10 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     }
 
     if !emissive { out.rgb *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w); }
-    if globals.fog_range.w < 0.5 { out.rgb += tex.rgb*diff.rgb*local_lighting(in.world,n) + clamp(spec,vec3(0.0),vec3(1.0))*diff.a*occlusion*local_specular(in.world,n,globals.camera_pos.xyz-in.world,32.0); }
+    if globals.fog_range.w < 0.5 {
+        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,0.0);
+        out.rgb += tex.rgb*diff.rgb*local.diffuse + clamp(spec,vec3(0.0),vec3(1.0))*diff.a*occlusion*local.specular;
+    }
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
     if globals.scatter_rayleigh.w > 0.5 {
@@ -385,7 +391,10 @@ fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
     var raw = (diff.rgb * tex.rgb + highlight * diff.a * spec.rgb * visibility) * visibility
         + env * spec.a * diff.a * environment_gain;
     if material.surface.w<=11.5 { raw *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w); }
-    if globals.fog_range.w < 0.5 { raw += tex.rgb*clamp(material.diffuse_min.rgb+material.diffuse_range.rgb*0.5,vec3(0.05),vec3(1.0))*local_lighting(in.world,n) + spec.rgb*local_specular(in.world,n,globals.camera_pos.xyz-in.world,32.0); }
+    if globals.fog_range.w < 0.5 {
+        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,0.0);
+        raw += tex.rgb*clamp(material.diffuse_min.rgb+material.diffuse_range.rgb*0.5,vec3(0.05),vec3(1.0))*local.diffuse + spec.rgb*local.specular;
+    }
     out.rgb = clamp(raw,vec3(0.0),vec3(1.0));
     if globals.camera_pos.w>1.5 { out.rgb=max(raw,vec3(0.0)); }
     out.texture_alpha = tex.a;
