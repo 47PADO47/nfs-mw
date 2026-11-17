@@ -33,6 +33,7 @@ pub fn load_global_textures(dir: &GameDir) -> Result<GlobalTextures> {
         for pack in blackbox_tpk::read_texture_packs(&file).with_context(|| format!("texture packs in {rel}"))? {
             out.textures.extend(pack.textures);
         }
+        crate::texture_packs::apply(&mut out.textures);
         out.anims.extend(blackbox_tpk::read_texture_anims(&file));
         if GLOBAL_MODEL_FILES.contains(&rel) {
             let solids = blackbox_solid::read_solids(&file).with_context(|| format!("shared models in {rel}"))?;

@@ -247,11 +247,10 @@ pub fn run(cli: Cli) -> Result<()> {
             let drive = drive.map(|car| crate::scenes::world::DriveOptions { car, script: drive_script });
             let options =
                 crate::scenes::world::Options { at, height, heading, pitch, fog_distance, wait_for_load, drive };
-            crate::app::run(
-                Box::new(WorldScene::open(&dir, options)?),
-                &Settings::load(view.settings_layer()),
-                view.run_options(&dir, driving).with_mods(mods),
-            )
+            // The settings first: they name the texture packs the world's textures are loaded with.
+            let settings = Settings::load(view.settings_layer());
+            let scene = WorldScene::open(&dir, options)?;
+            crate::app::run(Box::new(scene), &settings, view.run_options(&dir, driving).with_mods(mods))
         }
     }
 }

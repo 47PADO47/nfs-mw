@@ -51,6 +51,23 @@ pub(super) fn content(ui: &mut egui::Ui, settings: &mut Settings) {
     ui.checkbox(&mut settings.hd_content.cursor, "HD cursor");
     ui.checkbox(&mut settings.hd_content.fmv, "HD movies");
     ui.small("Uses your installed replacement content. Font asset changes apply on the next load; save and restart for consistent results.");
+    texture_packs(ui);
+}
+
+/// The HD texture pack folder in force: read-only, since the world loader reads it once at start-up.
+fn texture_packs(ui: &mut egui::Ui) {
+    use nfsmw_data::texture_packs;
+    let Some(packs) = texture_packs::active() else {
+        ui.label("HD texture packs: none (set `texture_packs` in the config, or --texture-packs)");
+        return;
+    };
+    ui.label(format!("HD texture packs: {}", packs.root().display()));
+    ui.label(format!(
+        "{} replacement file(s); {} world texture(s) replaced so far",
+        packs.file_count(),
+        texture_packs::replaced()
+    ));
+    ui.small("World textures only (sections and global packs). A different folder needs a restart.");
 }
 
 fn tail_trails(

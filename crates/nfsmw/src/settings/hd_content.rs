@@ -4,6 +4,10 @@
 //!
 //! Config: `[hd_content]` with `fonts`, `cursor` and `fmv`. Environment: `NFSMW_HD_FONTS`, `NFSMW_HD_CURSOR`,
 //! `NFSMW_HD_FMV`. Command line: `--hd-fonts` / `--no-hd-fonts` and the same for the others. Console: `set hd_fonts off`.
+//!
+//! The HD texture pack folder is kept here too; its keys are in `texture_packs.rs`.
+
+pub mod texture_packs;
 
 use std::sync::RwLock;
 
@@ -13,6 +17,7 @@ use toml::{Table, Value};
 
 use super::Settings;
 use super::partial::parse_bool;
+use texture_packs::TexturePackPath;
 
 /// HD font glyphs keep the stock texture's layout.
 pub const DEFAULT_FONTS: bool = true;
@@ -28,7 +33,8 @@ pub const FMV_ENV: &str = "NFSMW_HD_FMV";
 /// The console keys of the three options.
 pub const KEYS: [&str; 3] = ["hd_fonts", "hd_cursor", "hd_fmv"];
 
-const ON: HdContent = HdContent { fonts: DEFAULT_FONTS, cursor: DEFAULT_CURSOR, fmv: DEFAULT_FMV };
+const ON: HdContent =
+    HdContent { fonts: DEFAULT_FONTS, cursor: DEFAULT_CURSOR, fmv: DEFAULT_FMV, texture_packs: TexturePackPath::EMPTY };
 
 /// The options as the settings hold them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,6 +45,8 @@ pub struct HdContent {
     pub cursor: bool,
     /// Film movies are framed as the stock 1024 x 512 pictures (`fmv`).
     pub fmv: bool,
+    /// The HD texture pack folder, empty for none (`texture_packs`). Read once at start-up.
+    pub texture_packs: TexturePackPath,
 }
 
 impl Default for HdContent {
@@ -54,6 +62,7 @@ impl HdContent {
             fonts: layer.fonts.unwrap_or(DEFAULT_FONTS),
             cursor: layer.cursor.unwrap_or(DEFAULT_CURSOR),
             fmv: layer.fmv.unwrap_or(DEFAULT_FMV),
+            texture_packs: layer.texture_packs.unwrap_or_default(),
         }
     }
 }
@@ -64,19 +73,26 @@ pub struct HdContentLayer {
     pub fonts: Option<bool>,
     pub cursor: Option<bool>,
     pub fmv: Option<bool>,
+    pub texture_packs: Option<TexturePackPath>,
 }
 
 impl HdContentLayer {
     /// This layer, with `lower` filling in what it leaves unset.
     pub fn or(self, lower: Self) -> Self {
-        Self { fonts: self.fonts.or(lower.fonts), cursor: self.cursor.or(lower.cursor), fmv: self.fmv.or(lower.fmv) }
+        Self {
+            fonts: self.fonts.or(lower.fonts),
+            cursor: self.cursor.or(lower.cursor),
+            fmv: self.fmv.or(lower.fmv),
+            texture_packs: self.texture_packs.or(lower.texture_packs),
+        }
     }
 }
 
 impl From<HdContent> for HdContentLayer {
-    /// Every option set, for writing the whole set of values to the config file.
+    /// Every option set, for writing the whole set of values to the config file. The texture pack folder is left out:
+    /// nothing in the game changes it, so the file keeps what the player wrote.
     fn from(value: HdContent) -> Self {
-        Self { fonts: Some(value.fonts), cursor: Some(value.cursor), fmv: Some(value.fmv) }
+        Self { fonts: Some(value.fonts), cursor: Some(value.cursor), fmv: Some(value.fmv), texture_packs: None }
     }
 }
 
@@ -101,13 +117,15 @@ pub fn publish(settings: Res<Settings>) {
 
 /// The `[hd_content]` table of the config file. A value that is not a boolean is reported and left unset.
 pub fn read(table: &Table) -> HdContentLayer {
+    let texture_packs = texture_packs::read(table);
     let Some(section) = table.get("hd_content").and_then(Value::as_table) else {
-        return HdContentLayer::default();
+        return HdContentLayer { texture_packs, ..HdContentLayer::default() };
     };
     HdContentLayer {
         fonts: config_bool(section, "fonts"),
         cursor: config_bool(section, "cursor"),
         fmv: config_bool(section, "fmv"),
+        texture_packs,
     }
 }
 
@@ -126,6 +144,7 @@ pub fn from_env(get: impl Fn(&str) -> Option<String>) -> HdContentLayer {
         fonts: env_bool(&get, FONTS_ENV),
         cursor: env_bool(&get, CURSOR_ENV),
         fmv: env_bool(&get, FMV_ENV),
+        texture_packs: texture_packs::from_env(&get),
     }
 }
 
@@ -135,8 +154,10 @@ fn env_bool(get: &impl Fn(&str) -> Option<String>, name: &str) -> Option<bool> {
 
 /// Puts the options `changes` sets into the `[hd_content]` table of `table`, keeping the rest of the file. A table that
 /// is not a table is left alone rather than overwritten.
+/// The texture pack folder is never written: nothing in the game changes it.
 pub fn merge_into(table: &mut Table, changes: &HdContentLayer) {
-    if *changes == HdContentLayer::default() {
+    let flags = HdContentLayer { texture_packs: None, ..*changes };
+    if flags == HdContentLayer::default() {
         return;
     }
     let entry = table.entry("hd_content").or_insert_with(|| Value::Table(Table::new()));
@@ -169,6 +190,8 @@ pub struct HdContentArgs {
     /// Film movies are framed by their own size.
     #[arg(long)]
     pub no_hd_fmv: bool,
+    #[command(flatten)]
+    pub texture_packs: texture_packs::TexturePacksArgs,
 }
 
 impl HdContentArgs {
@@ -177,6 +200,7 @@ impl HdContentArgs {
             fonts: switch(self.hd_fonts, self.no_hd_fonts),
             cursor: switch(self.hd_cursor, self.no_hd_cursor),
             fmv: switch(self.hd_fmv, self.no_hd_fmv),
+            texture_packs: self.texture_packs.texture_packs,
         }
     }
 }
@@ -231,23 +255,25 @@ mod tests {
 
     #[test]
     fn all_three_options_are_on_by_default() {
-        assert_eq!(HdContent::default(), HdContent { fonts: true, cursor: true, fmv: true });
+        let on = HdContent { fonts: true, cursor: true, fmv: true, texture_packs: TexturePackPath::EMPTY };
+        assert_eq!(HdContent::default(), on);
         assert_eq!(HdContent::from_layer(HdContentLayer::default()), HdContent::default());
     }
 
     #[test]
     fn the_higher_layer_wins_and_gaps_fall_through() {
         let high = HdContentLayer { fonts: Some(false), ..Default::default() };
-        let low = HdContentLayer { fonts: Some(true), cursor: Some(false), fmv: None };
+        let low = HdContentLayer { fonts: Some(true), cursor: Some(false), ..Default::default() };
         let merged = high.or(low);
-        assert_eq!(merged, HdContentLayer { fonts: Some(false), cursor: Some(false), fmv: None });
-        assert_eq!(HdContent::from_layer(merged), HdContent { fonts: false, cursor: false, fmv: true });
+        assert_eq!(merged, HdContentLayer { fonts: Some(false), cursor: Some(false), ..Default::default() });
+        let expected = HdContent { fonts: false, cursor: false, ..HdContent::default() };
+        assert_eq!(HdContent::from_layer(merged), expected);
     }
 
     #[test]
     fn the_config_table_is_read_per_key() {
         let table: Table = "[hd_content]\nfonts = false\ncursor = \"yes\"\n".parse().unwrap();
-        assert_eq!(read(&table), HdContentLayer { fonts: Some(false), cursor: None, fmv: None });
+        assert_eq!(read(&table), HdContentLayer { fonts: Some(false), ..Default::default() });
         let none: Table = "vsync = true\n".parse().unwrap();
         assert_eq!(read(&none), HdContentLayer::default());
     }
@@ -259,13 +285,13 @@ mod tests {
             CURSOR_ENV => Some("maybe".to_owned()),
             _ => None,
         };
-        assert_eq!(from_env(env), HdContentLayer { fonts: Some(false), cursor: None, fmv: None });
+        assert_eq!(from_env(env), HdContentLayer { fonts: Some(false), ..Default::default() });
     }
 
     #[test]
     fn merging_keeps_the_other_keys_of_the_file() {
         let mut table: Table = "vsync = true\n[hd_content]\nfmv = true\n".parse().unwrap();
-        merge_into(&mut table, &HdContentLayer { fonts: Some(false), cursor: None, fmv: Some(false) });
+        merge_into(&mut table, &HdContentLayer { fonts: Some(false), fmv: Some(false), ..Default::default() });
         let section = table["hd_content"].as_table().unwrap();
         assert_eq!(section["fonts"].as_bool(), Some(false));
         assert_eq!(section["fmv"].as_bool(), Some(false));
@@ -289,6 +315,6 @@ mod tests {
     #[test]
     fn the_switches_map_to_layers() {
         let args = HdContentArgs { no_hd_fonts: true, hd_cursor: true, ..Default::default() };
-        assert_eq!(args.layer(), HdContentLayer { fonts: Some(false), cursor: Some(true), fmv: None });
+        assert_eq!(args.layer(), HdContentLayer { fonts: Some(false), cursor: Some(true), ..Default::default() });
     }
 }

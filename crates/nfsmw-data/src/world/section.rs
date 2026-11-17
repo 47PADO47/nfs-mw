@@ -89,6 +89,7 @@ pub fn parse_section(index: usize, bytes: &[u8]) -> Result<SectionData> {
         }
         textures.extend(pack.textures);
     }
+    crate::texture_packs::apply(&mut textures);
     let scenery =
         blackbox_scenery::read_scenery_sections(bytes, &blackbox_scenery::layout::MOST_WANTED).context("scenery")?;
     let spawners = blackbox_scenery::read_object_spawners(bytes, &blackbox_scenery::layout::MOST_WANTED.spawners)

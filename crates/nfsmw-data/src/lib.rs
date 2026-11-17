@@ -43,6 +43,7 @@ pub mod shared;
 pub mod sound;
 pub mod speech;
 pub mod speech_chase;
+pub mod texture_packs;
 pub mod time_of_day;
 pub mod traffic;
 pub mod vehicle_effects;
