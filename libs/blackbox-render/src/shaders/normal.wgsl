@@ -121,12 +121,20 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     if receive_ao && globals.fog_range.w<0.5 { ao = ambient_visibility(in.clip.xy); }
     let shading_normal = unit(in.tangent*n.x+in.binormal*n.y+in.normal*n.z);
     let ambient = in.ambient.rgb*world_environment(shading_normal);
+    // The legacy capture is a dry road's broad reflection: the rough end of the wet road's range (0.32).
+    reflected *= specular_occlusion(ao,dot(n,v),0.32);
     var surface = 2.0*(tex.rgb*ambient*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected);
+    // A wet receiver walks its local lights once, for the dry terms below and its own glint.
+    var local = LocalLights(vec3(0.0),vec3(0.0),vec3(0.0));
+    var local_done = false;
     if uv_offset.value.z>0.5 && light.wet_tuning.x>0.5 && light.water.x>0.0 {
-        surface = wet_surface(in, tex, spec_tex, n, l, v, diffuse_light, q, ao, surface);
+        surface = wet_surface(in, tex, spec_tex, n, l, v, diffuse_light, q, ao, surface, &local, &local_done);
     }
     surface *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
-    if globals.fog_range.w < 0.5 { surface += 2.0*tex.rgb*local_lighting(in.world,shading_normal) + spec_tex.rgb*local_specular(in.world,shading_normal,globals.camera_pos.xyz-in.world,32.0); }
+    if globals.fog_range.w < 0.5 {
+        if !local_done { local = local_lights(in.world,shading_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,0.0); }
+        surface += 2.0*tex.rgb*local.diffuse + spec_tex.rgb*local.specular;
+    }
     var rgb = surface*in.extinction+in.scatter*mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
     if globals.scatter_rayleigh.w<0.5 {
         let distance = length(in.world-globals.camera_pos.xyz);
@@ -178,7 +186,8 @@ fn wet_capture(uv:vec2<f32>,pixel:vec2<f32>)->vec3<f32> {
     return textureSampleLevel(reflection_texture,material_sampler,clamp(uv,pixel*0.5,vec2(1.0)-pixel*0.5),0.0).rgb;
 }
 fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32>,
-    v:vec3<f32>,diffuse_light:vec3<f32>,q:f32,ao:f32,dry:vec3<f32>)->vec3<f32> {
+    v:vec3<f32>,diffuse_light:vec3<f32>,q:f32,ao:f32,dry:vec3<f32>,
+    local:ptr<function,LocalLights>,local_done:ptr<function,bool>)->vec3<f32> {
     // Only upward authored reflective receivers. Vertical walls never acquire procedural pools.
     let slope = smoothstep(0.90,0.995,unit(in.normal).z);
     let damp = light.water.x*slope;
@@ -205,12 +214,8 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     let world_footprint = ray_footprint;
     var filtered = vec3(0.0);
     let road_environment_path = light.reflection.z > 0.5 && uv_offset.value.w>0.5;
-    if road_environment_path && reflectance > 0.0 {
-        let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
-        let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
-        // Resolve the fallback only for misses or partial traced contributions.
-        filtered = road_environment_at(in.world,world_n,ray,pool,world_footprint);
-    }
+    // Same roughness as the road environment lookup: a damp film (0.32) to a near-mirror pool (0.07).
+    let occlusion = specular_occlusion(ao,nv,mix(0.32,0.07,pool));
     // The capture taps only serve the paths that do not trace the road environment.
     if !road_environment_path && reflectance > 0.0 {
         let uv = in.projected_reflection.xy/in.projected_reflection.w;
@@ -228,12 +233,27 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     let power = mix(24.0,192.0,pool);
     var local_glint = vec3(0.0);
     if globals.fog_range.w < 0.5 {
-        local_glint = local_specular(in.world,shading_normal,globals.camera_pos.xyz-in.world,power);
+        let dry_normal = unit(in.tangent*n.x+in.binormal*n.y+in.normal*n.z);
+        *local = local_lights(in.world,dry_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,power);
+        *local_done = true;
+        local_glint = (*local).glint;
     }
     let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
     let h = unit(l+v);
     let glint = pow(max(dot(water_n,h),0.0),power)*(power+2.0)/50.0;
     let spec = wet_linear(light.specular.rgb)*glint*q*fresnel*water_mask;
-    let env = wet_linear(filtered)*reflectance*select(0.0,1.0,light.reflection.x>0.0);
+    // A ray or screen march only pays where it could show: a reflection that differs from the probe by half a
+    // unit must move the pixel by 3/255 or more (encoded). Pools, grazing film and dark receivers still trace;
+    // faint film on a lit road keeps the probe: docs/weather-gpu-tuning.md.
+    let lit = diffuse+spec+wet_linear(local_glint)*water_mask;
+    let level = max(lit.r,max(lit.g,lit.b));
+    let trace = damp*(pow(level+0.5*reflectance*occlusion,1.0/2.2)-pow(level,1.0/2.2)) >= 3.0/255.0;
+    if road_environment_path && reflectance > 0.0 {
+        let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
+        let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
+        // Resolve the fallback only for misses or partial traced contributions.
+        filtered = road_environment_at(in.world,world_n,ray,pool,world_footprint,trace);
+    }
+    let env = wet_linear(filtered)*reflectance*occlusion*select(0.0,1.0,light.reflection.x>0.0);
     return mix(dry,wet_encoded(diffuse+spec+env+wet_linear(local_glint)*water_mask),damp);
 }

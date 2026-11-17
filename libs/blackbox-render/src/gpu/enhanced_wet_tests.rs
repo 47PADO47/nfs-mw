@@ -126,6 +126,30 @@ fn vulkan_rt_reflects_offscreen_textures_and_updates_removed_instances() {
         r.read_output().unwrap().unwrap().rgba,
         "mirroring and explicit winding combine correctly"
     );
+    // Cutouts drawn after the wall move ahead of it into the BLAS's non-opaque geometry; wall hits in the
+    // opaque geometry must still find the wall's triangles, and the cutout count beside the winding bit
+    // must not read as a flip.
+    let green = upload(&mut r, [5, 220, 10, 255]);
+    let mut mixed = wall_data.clone();
+    let mut extra = MeshBuilder::new();
+    extra.state(Some(green), BlendMode::AlphaTest, Shading::Prelit);
+    let far = Vec3::new(0.0, -400.0, -50.0);
+    extra.flat_quad([far, far + Vec3::X, far + Vec3::new(1.0, 0.0, 1.0), far + Vec3::Z], prelit([1.0; 3], 1.0));
+    let extra = extra.finish();
+    let base = mixed.vertices.len() as u16;
+    mixed.draws.extend(
+        extra.draws.iter().map(|d| DrawRange { first_index: d.first_index + mixed.indices.len() as u32, ..*d }),
+    );
+    mixed.indices.extend(extra.indices.iter().map(|i| i + base));
+    mixed.vertices.extend(extra.vertices);
+    let mixed = Instance::new(mixed.upload(&mut r, "RT single-sided wall after cutouts"), Mat4::IDENTITY);
+    r.set_ray_reflection_instances(&[mixed]);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(absent.rgba, r.read_output().unwrap().unwrap().rgba, "a cutout count is not a winding flip");
+    r.set_ray_reflection_instances(&[mixed.with_flipped_winding(true)]);
+    r.render(&f, &[road]).unwrap();
+    assert_eq!(reflected.rgba, r.read_output().unwrap().unwrap().rgba, "opaque-geometry hits find their triangles");
+    r.destroy_mesh(mixed.mesh);
     r.destroy_mesh(single.mesh);
     for draw in &mut wall_data.draws {
         draw.two_sided = true;
