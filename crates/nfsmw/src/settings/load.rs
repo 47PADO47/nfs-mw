@@ -14,8 +14,7 @@ impl Settings {
         Ok(path)
     }
 
-    /// Resolve the settings: `cli` over the process environment over the config file over the defaults. The first call
-    /// also hands the HD texture pack folder to the world loader.
+    /// Resolve the settings: `cli` over the process environment over the config file over the defaults.
     pub fn load(cli: Partial) -> Self {
         let env = env::read(|name| std::env::var(name).ok());
         let config = game_install::config_file_path(&nfsmw_data::game::SPEC);
@@ -30,8 +29,6 @@ impl Settings {
         };
         let mut settings: Self = cli.or(env).or(file).or(extra).into();
         settings.speedbreaker = speedbreaker;
-        // The world loader takes the texture pack folder from here, once, before any scene opens.
-        hd_content::texture_packs::install(&settings);
         settings
     }
 }

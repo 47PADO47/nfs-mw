@@ -182,6 +182,8 @@ fn worker(
         };
         let event = match sections.get(index).map(|s| load_section(&mut file, index, s)) {
             Some(Ok(mut data)) => {
+                // Replacement textures are read here, where the file's place in the layers is known.
+                crate::texture_packs::apply(path, &mut data.textures);
                 let _decode = blackbox_trace::scope("Streaming worker: texture decode");
                 data.decode_for_upload(bc_supported.load(Ordering::Relaxed));
                 if let Some(prepare) = control.prepare.get() {

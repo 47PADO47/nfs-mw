@@ -5,7 +5,8 @@
 //! Config: `[hd_content]` with `fonts`, `cursor` and `fmv`. Environment: `NFSMW_HD_FONTS`, `NFSMW_HD_CURSOR`,
 //! `NFSMW_HD_FMV`. Command line: `--hd-fonts` / `--no-hd-fonts` and the same for the others. Console: `set hd_fonts off`.
 //!
-//! The HD texture pack folder is kept here too; its keys are in `texture_packs.rs`.
+//! The texture replacement settings (the HD texture pack folder and the size cap) are kept here too; their keys are in
+//! `texture_packs.rs`.
 
 pub mod texture_packs;
 
@@ -33,8 +34,13 @@ pub const FMV_ENV: &str = "NFSMW_HD_FMV";
 /// The console keys of the three options.
 pub const KEYS: [&str; 3] = ["hd_fonts", "hd_cursor", "hd_fmv"];
 
-const ON: HdContent =
-    HdContent { fonts: DEFAULT_FONTS, cursor: DEFAULT_CURSOR, fmv: DEFAULT_FMV, texture_packs: TexturePackPath::EMPTY };
+const ON: HdContent = HdContent {
+    fonts: DEFAULT_FONTS,
+    cursor: DEFAULT_CURSOR,
+    fmv: DEFAULT_FMV,
+    texture_packs: TexturePackPath::EMPTY,
+    texture_max_size: 0,
+};
 
 /// The options as the settings hold them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,6 +53,8 @@ pub struct HdContent {
     pub fmv: bool,
     /// The HD texture pack folder, empty for none (`texture_packs`). Read once at start-up.
     pub texture_packs: TexturePackPath,
+    /// The largest side a replacement DDS file keeps, 0 for no cap (`texture_max_size`). Read once at start-up.
+    pub texture_max_size: u32,
 }
 
 impl Default for HdContent {
@@ -63,6 +71,7 @@ impl HdContent {
             cursor: layer.cursor.unwrap_or(DEFAULT_CURSOR),
             fmv: layer.fmv.unwrap_or(DEFAULT_FMV),
             texture_packs: layer.texture_packs.unwrap_or_default(),
+            texture_max_size: layer.texture_max_size.unwrap_or(0),
         }
     }
 }
@@ -74,6 +83,7 @@ pub struct HdContentLayer {
     pub cursor: Option<bool>,
     pub fmv: Option<bool>,
     pub texture_packs: Option<TexturePackPath>,
+    pub texture_max_size: Option<u32>,
 }
 
 impl HdContentLayer {
@@ -84,15 +94,16 @@ impl HdContentLayer {
             cursor: self.cursor.or(lower.cursor),
             fmv: self.fmv.or(lower.fmv),
             texture_packs: self.texture_packs.or(lower.texture_packs),
+            texture_max_size: self.texture_max_size.or(lower.texture_max_size),
         }
     }
 }
 
 impl From<HdContent> for HdContentLayer {
-    /// Every option set, for writing the whole set of values to the config file. The texture pack folder is left out:
-    /// nothing in the game changes it, so the file keeps what the player wrote.
+    /// Every option set, for writing the whole set of values to the config file. The texture replacement settings are
+    /// left out: nothing in the game changes them, so the file keeps what the player wrote.
     fn from(value: HdContent) -> Self {
-        Self { fonts: Some(value.fonts), cursor: Some(value.cursor), fmv: Some(value.fmv), texture_packs: None }
+        Self { fonts: Some(value.fonts), cursor: Some(value.cursor), fmv: Some(value.fmv), ..Self::default() }
     }
 }
 
@@ -118,14 +129,16 @@ pub fn publish(settings: Res<Settings>) {
 /// The `[hd_content]` table of the config file. A value that is not a boolean is reported and left unset.
 pub fn read(table: &Table) -> HdContentLayer {
     let texture_packs = texture_packs::read(table);
+    let texture_max_size = texture_packs::read_max_size(table);
     let Some(section) = table.get("hd_content").and_then(Value::as_table) else {
-        return HdContentLayer { texture_packs, ..HdContentLayer::default() };
+        return HdContentLayer { texture_packs, texture_max_size, ..HdContentLayer::default() };
     };
     HdContentLayer {
         fonts: config_bool(section, "fonts"),
         cursor: config_bool(section, "cursor"),
         fmv: config_bool(section, "fmv"),
         texture_packs,
+        texture_max_size,
     }
 }
 
@@ -145,6 +158,7 @@ pub fn from_env(get: impl Fn(&str) -> Option<String>) -> HdContentLayer {
         cursor: env_bool(&get, CURSOR_ENV),
         fmv: env_bool(&get, FMV_ENV),
         texture_packs: texture_packs::from_env(&get),
+        texture_max_size: texture_packs::max_size_from_env(&get),
     }
 }
 
@@ -154,9 +168,9 @@ fn env_bool(get: &impl Fn(&str) -> Option<String>, name: &str) -> Option<bool> {
 
 /// Puts the options `changes` sets into the `[hd_content]` table of `table`, keeping the rest of the file. A table that
 /// is not a table is left alone rather than overwritten.
-/// The texture pack folder is never written: nothing in the game changes it.
+/// The texture replacement settings are never written: nothing in the game changes them.
 pub fn merge_into(table: &mut Table, changes: &HdContentLayer) {
-    let flags = HdContentLayer { texture_packs: None, ..*changes };
+    let flags = HdContentLayer { texture_packs: None, texture_max_size: None, ..*changes };
     if flags == HdContentLayer::default() {
         return;
     }
@@ -201,6 +215,7 @@ impl HdContentArgs {
             cursor: switch(self.hd_cursor, self.no_hd_cursor),
             fmv: switch(self.hd_fmv, self.no_hd_fmv),
             texture_packs: self.texture_packs.texture_packs,
+            texture_max_size: self.texture_packs.texture_max_size,
         }
     }
 }
@@ -255,7 +270,13 @@ mod tests {
 
     #[test]
     fn all_three_options_are_on_by_default() {
-        let on = HdContent { fonts: true, cursor: true, fmv: true, texture_packs: TexturePackPath::EMPTY };
+        let on = HdContent {
+            fonts: true,
+            cursor: true,
+            fmv: true,
+            texture_packs: TexturePackPath::EMPTY,
+            texture_max_size: 0,
+        };
         assert_eq!(HdContent::default(), on);
         assert_eq!(HdContent::from_layer(HdContentLayer::default()), HdContent::default());
     }
