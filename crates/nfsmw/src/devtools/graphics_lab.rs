@@ -14,6 +14,7 @@ mod quality;
 mod reflections;
 mod roads;
 mod saved;
+mod startup_weather;
 mod traffic;
 mod video;
 mod view;
@@ -62,6 +63,8 @@ pub struct GraphicsLab {
     cycle_lamp_restore: Option<environment::LampOptions>,
     traffic_status: Option<String>,
     pursuit_request: Option<u8>,
+    /// `NFSMW_LAB_WEATHER`, applied once when the world is up.
+    startup_weather: Option<String>,
 }
 
 impl Default for GraphicsLab {
@@ -124,6 +127,7 @@ impl Default for GraphicsLab {
             cycle_lamp_restore: None,
             traffic_status: None,
             pursuit_request: None,
+            startup_weather: std::env::var("NFSMW_LAB_WEATHER").ok(),
         }
     }
 }
@@ -268,6 +272,7 @@ pub fn show_world(
     metrics: &super::metrics::Metrics,
     scene: &mut dyn crate::viewer::Scene,
 ) {
+    startup_weather::apply(&mut lab.startup_weather, settings, scene);
     lab.environment = scene.environment();
     lab.traffic_status = (lab.open && lab.tab == profiles::Tab::Traffic).then(|| scene.traffic_status()).flatten();
     show(ctx, lab, settings, metrics);

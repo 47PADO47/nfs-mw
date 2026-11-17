@@ -74,7 +74,9 @@ pub struct ViewArgs {
     /// never takes focus from the desktop.
     #[arg(long, requires = "bench_seconds")]
     pub offscreen: bool,
-    /// Run a console command once the window is up (repeatable), e.g. --exec "fps 60" --exec "car PORSCHE911".
+    /// Run a console command once the window is up (repeatable), e.g. --exec "fps 60" --exec "car PORSCHE911". A line
+    /// `wait <seconds>` holds the lines after it that long; `wait ready` holds them until the world has loaded and the
+    /// driven car is on the road. Each line and its reply are printed.
     #[arg(long, value_name = "COMMAND")]
     pub exec: Vec<String>,
     /// Start with the developer console open.

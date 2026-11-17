@@ -34,6 +34,11 @@ pub fn push(car: &str, at: [f32; 2], heading: f32) -> bool {
     true
 }
 
+/// Whether any request is waiting.
+pub fn waiting() -> bool {
+    !WAITING.lock().unwrap_or_else(PoisonError::into_inner).is_empty()
+}
+
 /// Take every waiting request, in the order they were asked. The caller puts back the ones it cannot serve yet.
 pub fn take() -> Vec<SpawnRequest> {
     std::mem::take(&mut *WAITING.lock().unwrap_or_else(PoisonError::into_inner))
@@ -63,7 +68,7 @@ mod tests {
         let mut asked = take();
         assert_eq!(asked.iter().map(|r| r.car.as_str()).collect::<Vec<_>>(), ["HATCH", "VAN"]);
         assert_eq!(asked[0].seconds_left, WAIT_SECONDS);
-        assert!(take().is_empty(), "taking empties the queue");
+        assert!(take().is_empty() && !waiting(), "taking empties the queue");
         assert!(push("LATER", [0.0, 0.0], 0.0));
         let served = asked.remove(0);
         put_back(asked);

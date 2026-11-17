@@ -135,12 +135,16 @@ traffic at its default, the rules give the 2012 cars about 45 percent of the new
 ## Looking at them without a window
 
 ```
-nfsmw view-world --drive --exec "traffic spawn AUDA3_TR 25" --exec "traffic spawn GMCTOPKIC_TR 45 oncoming" \
-  --exec "traffic warmup 8" --screenshot traffic.png --muted
+nfsmw view-world --drive --exec "wait ready" --exec "traffic spawn AUDA3_TR 25" \
+  --exec "traffic spawn GMCTOPKIC_TR 45 oncoming" --screenshot traffic.png --screenshot-delay 3 --muted
 ```
 
-`traffic warmup` simulates the seconds first (a screenshot has no frame time), which is also when the models load and the asks are
-placed; `--exec "traffic 24"` fills the road from the patterns, with the mod cars among the others. The tests of the pure parts
+`wait ready` holds the lines after it until the car is on the road: a `traffic spawn` before that is refused, since there is no
+place to measure the metres from yet. Each `--exec` line and its reply are printed on stdout. The asks are served with the traffic
+off too (`--no-traffic`), and a placed car drives off at once, so a short `--screenshot-delay` keeps it near the given distance. The
+ask goes to the nearest lane that takes traffic in that direction: on a divided road that can be the other carriageway, which
+`oncoming` avoids when the player faces against the traffic. `traffic warmup` simulates seconds first (a screenshot has no frame
+time); `--exec "traffic 24"` fills the road from the patterns, with the mod cars among the others. The tests of the pure parts
 (manifest checks, the pool's rules, the pattern merge, the ask queue, the ABI layout and trampolines, the SDK line parser, the mod's
 ids, classes, stats and manifest) run with `cargo test -p blackbox-modding -p nfsmw-data -p nfsmw -p nfsmw-2012-content traffic`;
 the readers on the install with `CHAMELEON_GAME_DIR` and `MW2012_GAME_DIR` set and `-- --ignored`.

@@ -25,7 +25,10 @@ named constants `DEFAULT_TRAFFIC`, `DEFAULT_COP_SHARE` and `DEFAULT_TRAFFIC_LIGH
 | `traffic warmup <s>` | for `--screenshot` runs: simulate `<s>` seconds first (a screenshot has no frame time) |
 | `traffic cars`, `traffic spawn <car> [metres] [oncoming]` | the traffic cars mods add ([modding/api-traffic.md](modding/api-traffic.md)): list them; put one ahead of the player (30 m by default) as soon as its model is loaded |
 
-Headless: `--exec "traffic 24" --exec "traffic warmup 25" --screenshot out.png`.
+Headless: `--exec "traffic 24" --exec "traffic warmup 25" --screenshot out.png`. Each `--exec` line and its reply are printed on
+stdout; `--exec "wait ready"` holds the lines after it until the car is on the road, which `traffic spawn` and `pursuit cop` need.
+A police car close ahead with its light bar running: `--exec "wait ready" --exec "pursuit 1" --exec "pursuit cop COPMIDSIZE"` (a
+`pursuit cop` with no chase waits out the cops' start-up lockout, about a minute, as patrols do).
 
 ## Layers
 
