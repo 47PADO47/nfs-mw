@@ -162,6 +162,15 @@ fn advanced(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
             defaults.contact_length,
         );
     });
+    ui.add_enabled_ui(lab.options.contact_shadows, |ui| {
+        super::controls::checkbox(
+            ui,
+            &mut lab.options.screen_space_shadows,
+            "Long screen-space shadows",
+            defaults.screen_space_shadows,
+        )
+        .on_hover_text("Replaces the contact march with 60 depth samples towards the sun (Bend Studio's method): longer, finer shadows from small detail. Contact reach does not apply.");
+    });
     if !lab.options.contact_shadows {
         ui.small("Enable Contact shadow detail to adjust its reach.");
     }
@@ -192,6 +201,9 @@ fn local_lights(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
             .on_hover_text("Uses the car's headlight switch and native lamp markers. Headlights share the local shadow budget.");
         super::controls::checkbox(ui, &mut lab.options.local_tail_lights, "Player tail/brake light spill", defaults.local_tail_lights)
             .on_hover_text("Adds a small red light behind the player car. It follows the light switch, braking and lamp damage.");
+        super::controls::checkbox(ui, &mut lab.options.local_emergency_lights, "Police light bar spill", defaults.local_emergency_lights)
+            .on_hover_text("Flashing light bars of nearby police cars light the road and cars around them, in step with their flares. Unshadowed; up to four cars, sharing the light budget. Fades with night like traffic beams.");
+        super::controls::slider(ui, &mut lab.options.local_emergency_strength, 0.0..=5.0, "Light bar strength", defaults.local_emergency_strength);
         super::controls::checkbox(ui, &mut lab.options.local_traffic_headlights, "Traffic headlight beams", defaults.local_traffic_headlights)
             .on_hover_text("Nearby traffic uses its lamp markers and damage state. Beams share the light and shadow budgets.");
         super::controls::choice(ui, "Traffic cars with beams", &mut lab.options.local_traffic_limit, &[0, 2, 4, 6, 8], defaults.local_traffic_limit);
@@ -218,7 +230,7 @@ fn local_lights(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
         super::controls::slider(ui, &mut lab.options.local_specular_strength, 0.0..=1.0, "Local highlight strength", defaults.local_specular_strength)
             .on_hover_text("Adds local specular highlights on reflective surfaces. Set to zero to skip their extra shading.");
         let mib = lab.options.local_shadow_count * lab.options.local_shadow_resolution.pow(2) * 4 / (1024 * 1024);
-        ui.small(format!("Local shadow depth storage: {mib} MiB. All selected maps refresh each frame."));
+        ui.small(format!("Local shadow depth storage: {mib} MiB, and up to as much again for the kept depth of still lamps."));
         ui.small("0 shadowed lights keeps illumination. Headlights take priority; other nearby lamps share the remaining maps. RT above controls sun shadows, not these local maps.");
     });
 }

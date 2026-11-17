@@ -114,6 +114,16 @@ impl TrafficWorld {
         }
     }
 
+    /// Every car whose light bar runs this frame: its key, lamps, frame and lamp state (see `AiCar::light_bar`).
+    pub(in crate::scenes::world) fn light_bars(
+        &self,
+    ) -> impl Iterator<Item = crate::scenes::world::local_lights::LightBar<'_>> + '_ {
+        self.cars.iter().filter_map(|car| {
+            let (lamps, transform, state) = car.light_bar(self.alpha)?;
+            Some(crate::scenes::world::local_lights::LightBar { key: car.key(), lamps, transform, state })
+        })
+    }
+
     /// The lamp an approach shows, if any. A matched prop that is knocked over shows nothing at all.
     fn shown(&self, index: usize, props: &PropWorld) -> Option<super::signal_props::Lamp> {
         let lamp = self.signal_lamps.lamp(index)?;

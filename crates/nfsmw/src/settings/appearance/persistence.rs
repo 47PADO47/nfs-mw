@@ -18,7 +18,7 @@ macro_rules! lighting {
 }
 lighting! {
     enhanced_sky: bool, cloud_shadows: bool,
-    local_lamps: bool, local_street_lights: bool, local_headlights: bool, local_traffic_headlights: bool, local_traffic_limit: u32, experimental_night: bool, full_day_night: bool, auto_player_lights: bool, local_tail_lights: bool, night_sky_brightness: f32, local_light_distance: f32, local_light_strength: f32,
+    local_lamps: bool, local_street_lights: bool, local_headlights: bool, local_traffic_headlights: bool, local_traffic_limit: u32, experimental_night: bool, full_day_night: bool, auto_player_lights: bool, local_tail_lights: bool, local_emergency_lights: bool, local_emergency_strength: f32, night_sky_brightness: f32, local_light_distance: f32, local_light_strength: f32,
     local_headlight_strength: f32, local_street_strength: f32, local_street_range: f32, local_street_glow: f32, local_light_fog: f32, local_light_fog_distance: f32, local_light_fog_quality: u32, local_street_haze_count: u32, local_light_fog_count: u32, local_light_limit: u32, local_shadow_count: u32, local_shadow_resolution: u32, local_shadow_filter: f32, local_shadow_distance: f32, local_specular_strength: f32,
     enhanced_wet_surfaces: bool, puddle_coverage: f32, puddle_scale: f32, water_ripples: f32,
     road_reflection_range: f32, road_reflection_fade: f32,
@@ -28,7 +28,7 @@ lighting! {
     ray_car_reflections: bool, ray_car_range: f32, ray_car_blend: f32,
     ray_road_reflections: bool, ray_road_blend: f32, ray_road_screen_reuse: f32,
     sky_wind_speed: f32, sky_sun_size: f32, sky_sun_brightness: f32, sky_brightness: f32, sky_sunset_warmth: f32,
-    original_world_materials: bool, sun_shadows: bool, cascade_temporal: bool, far_shadows: bool, far_shadow_scale: f32, contact_shadows: bool, clearcoat: bool, paint_response: bool,
+    original_world_materials: bool, sun_shadows: bool, cascade_temporal: bool, far_shadows: bool, far_shadow_scale: f32, contact_shadows: bool, screen_space_shadows: bool, clearcoat: bool, paint_response: bool,
     local_reflection_correction: bool, weather_car_lighting: bool,
     car_skylight: bool, world_ambient: bool, world_ambient_share: f32, world_ambient_tint: f32,
     world_skylight: bool, world_skylight_strength: f32,

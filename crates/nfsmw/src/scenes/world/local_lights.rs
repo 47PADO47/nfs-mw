@@ -15,10 +15,12 @@ use std::collections::HashMap;
 mod catalog;
 mod fixtures;
 pub(super) mod lantern;
+mod light_bars;
 mod profile;
 mod selection;
 mod taillights;
 pub(super) use fixtures::{Fixture, FixturePlace};
+pub(super) use light_bars::{LightBar, siren_colour};
 use selection::{Candidate, Switches};
 
 /// Glass emission power by owning placement.
@@ -30,6 +32,7 @@ pub(super) struct Scratch {
     lights: Vec<LocalLight>,
     tail: Vec<LocalLight>,
     traffic: Vec<LocalLight>,
+    bars: Vec<LocalLight>,
     candidates: Vec<Candidate>,
     owners: Vec<InstanceKey>,
     drawn: Vec<(InstanceKey, blackbox_gfx::MeshHandle)>,
@@ -41,10 +44,11 @@ impl WorldScene {
         self.street_glows.clear();
         self.fixture_emission.clear();
         let mut scratch = std::mem::take(&mut self.local_scratch);
-        let Scratch { lights, tail, traffic, candidates, owners, drawn } = &mut scratch;
+        let Scratch { lights, tail, traffic, bars, candidates, owners, drawn } = &mut scratch;
         lights.clear();
         tail.clear();
         traffic.clear();
+        bars.clear();
         candidates.clear();
         if options.local_headlights
             && let Some(drive) = self.players.lead()
@@ -93,6 +97,17 @@ impl WorldScene {
             let priority = traffic.len().min(4);
             lights.extend(traffic.drain(..priority));
         }
+        // Light bars fade with night as traffic beams do; they never take a shadow slot.
+        if options.local_emergency_lights
+            && traffic_strength > 0.0
+            && let Some(cars) = &self.traffic
+        {
+            let camera = self.gameplay_lens(renderer.aspect_ratio()).position;
+            let used = lights.len() + tail.len() + traffic.len();
+            let remaining = selection::remaining_slots(options.local_light_limit, used);
+            let strength = options.local_emergency_strength * traffic_strength;
+            light_bars::emit_nearest(cars.light_bars(), camera, strength, remaining, bars);
+        }
         let street_night = match options.full_day_night {
             true => self.sun.cycle().map_or_else(|| super::full_cycle::at(self.day.hour()).night, |c| c.night),
             false => f32::from(u8::from(options.experimental_night)),
@@ -113,12 +128,13 @@ impl WorldScene {
             // The main view of the last frame says which LOD each lantern shows.
             selection::resolve_drawn_glass(candidates, &self.visible, owners, drawn);
             selection::push_glows(candidates, &switches, &mut self.street_glows);
-            let used = lights.len() + traffic.len() + tail.len();
+            let used = lights.len() + traffic.len() + bars.len() + tail.len();
             let remaining = selection::remaining_slots(options.local_light_limit, used);
             selection::push_lights(candidates, options.local_light_distance, remaining, lights);
         }
         // Additional traffic beams still illuminate but do not take nearby tunnel shadow slots.
         lights.append(traffic);
+        lights.append(bars);
         let remaining = selection::remaining_slots(options.local_light_limit, lights.len());
         lights.extend(tail.drain(..).take(remaining));
         renderer.set_local_lights(lights.as_slice());

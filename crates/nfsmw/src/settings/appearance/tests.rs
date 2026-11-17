@@ -366,6 +366,8 @@ fn enhanced_water_tuning_round_trips_and_original_style_stays_unchanged() {
     s.appearance.lighting.full_day_night = true;
     s.appearance.lighting.auto_player_lights = false;
     s.appearance.lighting.local_tail_lights = false;
+    s.appearance.lighting.local_emergency_lights = true;
+    s.appearance.lighting.local_emergency_strength = 2.5;
     s.appearance.lighting.local_light_distance = 550.0;
     s.appearance.lighting.local_light_strength = 0.8;
     s.appearance.lighting.local_street_strength = 2.4;

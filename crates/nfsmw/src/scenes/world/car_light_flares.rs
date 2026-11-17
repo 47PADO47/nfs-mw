@@ -7,7 +7,7 @@ use nfsmw_data::car::{CarModel, lights::FlareProfile};
 use super::car_lights::{CarLights, Kind, LampState};
 pub(super) mod emergency;
 mod enhanced;
-mod intensity;
+pub(super) mod intensity;
 mod mod_lamps;
 mod trails;
 
