@@ -221,6 +221,45 @@ simulation), and an awake-prop list needs hooks inside the vehicle library.
 | Menus and the pause screen drew the full scene, the planar floor capture and the shadow list every frame while nothing moved, and ran unbounded without vsync. | Still frames reuse the kept scene image and draw only the UI (not under temporal AA or upscalers); the floor capture and shadows are skipped while their inputs hold; menus are capped to the display's refresh rate. |
 | The swapchain queue depth was fixed at 2. | A `frame_latency` setting (1 or 2, default 2). With vsync off, the native renderer keeps the platform's own mode (Immediate where offered, which can tear); `present_mode = "mailbox"` (env `NFSMW_PRESENT_MODE`) opts into Mailbox, which never tears and shows the newest frame at each refresh. |
 
+## Round five: RT shadows, depth reuse, load (2026-11-15)
+
+Measured on an RTX 3070 (Vulkan) with synthetic scenes only; no game install was present. GPU times are batch
+timings: 120 frames then one readback, best of five, per frame including the readback share.
+
+| Finding | Fix | Measured |
+| --- | --- | --- |
+| Every RT BLAS geometry was non-opaque, so sun rays ran the alpha loop for every triangle. | Each mesh's BLAS has two geometries: alpha-tested triangles first, then opaque-blend triangles flagged `OPAQUE`. Reflection rays pass force-no-opaque and keep every test; their triangle lookup adds the cutout count (packed above the winding bit) for hits in the second geometry. | Street scene, 1280x720, 281 instances (200 facades of ~1750 triangles, 80 trees of opaque trunk plus 24 cutout cards): hard RT 0.955 to 0.905 ms (RT pass timestamp 0.336 to 0.295 ms), soft 4 rays at 50% 1.47 to 1.445 ms. Masks and frames byte-identical. |
+| Hard RT sun rays looked for the closest hit, though the Rg8 mask keeps no occluder distance. | The unfiltered mask traces with terminate-on-first-hit. The filtered path keeps closest hits: its penumbra width uses the distance. | Same scene, hard RT: 0.905 to 0.85 ms (RT pass 0.295 to 0.224 ms); soft (filtered) unchanged. Byte-identical. |
+| Prepass depth was not reused for the colour pass whenever a texture LOD bias was set (any upscaler below 100%). | The prepass samples cutouts with the colour pass's bias (glossy cutouts stay unbiased, as their colour shader is), so reuse no longer depends on the bias. A mip-flipping cutout texture now makes a mismatch fail `depth_reuse_preserves_cutout_transparency_under_biased_mips`. | Eight overdrawn lit walls with AO, 1920x1080 at 67% (bias -0.58): 1.145 to 1.06 ms. Shared and separate depth give identical frames. |
+| The helicopter sheet walked the stream file's chunk headers on every world open. | Memoised per session on the stream file's path, size and mtime (`heli_sheet::cached`); later opens copy it. | Not measured (needs the install). |
+
+Checked and left as they were:
+
+- The RT TLAS: an unchanged instance set already skips the TLAS build. wgpu 30 implements no TLAS update (it logs
+  "only rebuild is implemented"). Replacing the ordered map of the instance merge with a sort saved 4 of 45 us at 562
+  feed entries, so it was reverted.
+- The Custom HUD's world marks (at most 11 sight rays and 6 ground probes a HUD frame) are built under every theme.
+  Skipping them needs the theme and setting plumbed into the scene, a same-frame decision to avoid a one-frame gap on a
+  theme switch, and could not be measured without the install.
+- The egui pass is already skipped when nothing is up (`devtools/ui_gate.rs`); in the world it runs because the
+  default readout line is drawn.
+- `finish_bodies` cannot run per car in parallel: each car's prop collisions change the `PropWorld` that the next
+  car's prop and wall resolution reads.
+- Cop speech takes are decoded on the frame thread (`audio/speech/lines.rs`, `Files::take`): a positional read of the
+  take plus its decode, a fraction of a millisecond per line from a warm cache by estimate. Left alone: radio timing.
+
+## Round six: 4K weather, lamps and AO in game (2026-11-16)
+
+Measured in the real game on an RTX 3070 (Vulkan) at 3840x2160 with the user's settings (RT reflections and RT soft
+sun shadows on), median frame time of 12 s benches, two runs per case, image change against two runs of the old
+binary. Details in the linked docs.
+
+| Finding | Fix | Measured |
+| --- | --- | --- |
+| The wet road redraw traced a ray (or marched the screen) for every reflective pixel, though the damp film on a lit road reflects about 1% and its probe fallback looks the same. | Trace only where a reflection half a unit off the probe would move the pixel by 3/255 or more ([weather-gpu-tuning.md](weather-gpu-tuning.md)). | Night rain 27.9 to 26.5 ms, day rain 23.0 to 21.5 ms, night rain without RT road reflections 32.2 to 28.4 ms; clear day and tunnel unchanged. Image changes at or near the noise floor, invisible in 1:1 crops. |
+| Local lamps: 1.3 ms in the per-pixel walk (0.5 of it lamp-shadow lookups), 0.62 ms light fog. | None: the cost follows the lit area; cone and faint-light exits did not pay ([local-lamp-shadows.md](local-lamp-shadows.md)). | |
+| AO 2.7 ms: estimate 1.5, denoise 0.4, composite 0.4. | None: the estimate is bound by its depth reads; a cheaper budget changes the AO ([ambient-occlusion.md](ambient-occlusion.md)). | |
+
 ## How to measure
 
 Set `NFSMW_GAME_DIR` to the install first. Then run:
