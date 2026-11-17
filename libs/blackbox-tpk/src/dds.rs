@@ -88,6 +88,24 @@ pub fn read_dds(bytes: &[u8]) -> Result<DdsImage> {
     Ok(DdsImage { width, height, mip_levels, format, data: bytes[start..start + used].to_vec() })
 }
 
+impl DdsImage {
+    /// Drop the largest mip levels while a side is over `max` pixels, as long as a smaller stored level remains: a size
+    /// cap that costs no re-encoding. `0` is no cap. A file without the smaller levels keeps its size. Returns how many
+    /// levels were dropped.
+    pub fn limit_size(&mut self, max: u32) -> u32 {
+        let mut dropped = 0;
+        while max > 0 && self.width.max(self.height) > max && self.mip_levels > 1 {
+            let size = mip_level_size(self.format, self.width, self.height, 0);
+            self.data.drain(..size);
+            self.width = (self.width / 2).max(1);
+            self.height = (self.height / 2).max(1);
+            self.mip_levels -= 1;
+            dropped += 1;
+        }
+        dropped
+    }
+}
+
 impl Texture {
     /// Take the pixels of `image` and keep the name, the alpha rules and the flags.
     pub fn replace_image(&mut self, image: DdsImage) {
@@ -130,6 +148,19 @@ mod tests {
         let image = read_dds(&dds(b"DXT5", 8, 8, 4, 64 + 16)).unwrap();
         assert_eq!(image.mip_levels, 2);
         assert_eq!(image.data.len(), 80);
+    }
+
+    #[test]
+    fn a_size_cap_drops_the_largest_stored_levels() {
+        // 16x8 DXT1: 8 blocks, then 2, 1, 1 and 1.
+        let mut image = read_dds(&dds(b"DXT1", 16, 8, 5, 64 + 16 + 8 + 8 + 8)).unwrap();
+        assert_eq!(image.limit_size(4), 2);
+        assert_eq!((image.width, image.height, image.mip_levels, image.data.len()), (4, 2, 3, 24));
+        assert_eq!(image.data[0], 80);
+        assert_eq!(image.limit_size(0), 0);
+        let mut single = read_dds(&dds(b"DXT1", 16, 8, 1, 64)).unwrap();
+        assert_eq!(single.limit_size(4), 0);
+        assert_eq!((single.width, single.height), (16, 8));
     }
 
     #[test]
