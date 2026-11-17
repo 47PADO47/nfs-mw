@@ -24,10 +24,14 @@ fn alpha(layer:u32,uv:vec2<f32>)->f32 {
 @vertex fn vs_main(@builtin(vertex_index) i:u32)->@builtin(position) vec4<f32> {
     let p=vec2(f32((i<<1u)&2u),f32(i&2u)); return vec4(p*2.0-1.0,0.0,1.0);
 }
-fn sun_visibility_ray(origin:vec3<f32>,ray:vec3<f32>,bias:f32)->vec2<f32> {
+// `flags` 4 (terminate on first hit) suits callers that drop the occluder distance (`.y`): any confirmed
+// candidate is an occluder, so visibility is the same, only `.y` is no longer the nearest one.
+fn sun_visibility_ray(origin:vec3<f32>,ray:vec3<f32>,bias:f32,flags:u32)->vec2<f32> {
     var query:ray_query;
-    rayQueryInitialize(&query,rt_scene,RayDesc(0u,2u,bias*0.5,params.sun.w,origin,ray));
+    rayQueryInitialize(&query,rt_scene,RayDesc(flags,2u,bias*0.5,params.sun.w,origin,ray));
     while rayQueryProceed(&query) {
+        // Opaque-blend triangles sit in an OPAQUE geometry and commit without reaching here, so every
+        // candidate is a cutout from geometry 0, which starts at the instance's first triangle.
         let candidate=rayQueryGetCandidateIntersection(&query);
         let t=rt_triangles[candidate.instance_custom_data+candidate.primitive_index];
         let a=rt_vertices[t.x]; let b=rt_vertices[t.y]; let c=rt_vertices[t.z];
@@ -68,7 +72,7 @@ fn surface_cell(world:vec3<f32>,n:vec3<f32>,valid:bool)->vec4<u32> {
     return vec4(bitcast<vec3<u32>>(world-params.camera.xyz),pack2x16snorm(encode_normal(n)));
 }
 struct Traced { visibility:vec4<f32>, surface:vec4<u32> };
-fn trace(pixel:vec4<f32>)->Traced {
+fn trace(pixel:vec4<f32>,flags:u32)->Traced {
     let coordinate=min(vec2<i32>(pixel.xy/params.tuning.zw*params.screen.xy),vec2<i32>(params.screen.xy)-vec2(1));
     let d=textureLoad(depth,coordinate,0);
     let encoded=textureLoad(normals,coordinate,0);
@@ -88,7 +92,7 @@ fn trace(pixel:vec4<f32>)->Traced {
     let bias=params.tuning.x;
     let origin=world+normal*bias;
     if params.soft.x<=0.0 {
-        let sample=sun_visibility_ray(origin,params.sun.xyz,bias);
+        let sample=sun_visibility_ray(origin,params.sun.xyz,bias,flags);
         out.visibility=vec4(sample.x,weight,sample.y,1.0);
         return out;
     }
@@ -111,7 +115,7 @@ fn trace(pixel:vec4<f32>)->Traced {
         let radius=sqrt(sun_random(seed,j*2u+1u,0u))*params.soft.x;
         let angle=6.28318531*(f32(j)+sun_random(seed,j*2u,0u))/f32(strata);
         let ray=normalize(params.sun.xyz+radius*(cos(angle)*tangent+sin(angle)*bitangent));
-        let sample=sun_visibility_ray(origin,ray,bias);
+        let sample=sun_visibility_ray(origin,ray,bias,flags);
         visible+=sample.x;
         if sample.x<0.5 { separation+=sample.y; hits+=1.0; }
     }
@@ -119,10 +123,12 @@ fn trace(pixel:vec4<f32>)->Traced {
     return out;
 }
 @fragment fn fs_main(@builtin(position) pixel:vec4<f32>)->@location(0) vec4<f32> {
-    return trace(pixel).visibility;
+    // The unfiltered mask is Rg8: it keeps visibility and coverage, never the occluder distance.
+    return trace(pixel,4u).visibility;
 }
 struct Filtered { @location(0) visibility:vec4<f32>, @location(1) surface:vec4<u32> };
 @fragment fn fs_filtered(@builtin(position) pixel:vec4<f32>)->Filtered {
-    let traced=trace(pixel);
+    // The filter sizes penumbrae from the nearest occluder distance, so these rays need the closest hit.
+    let traced=trace(pixel,0u);
     return Filtered(traced.visibility,traced.surface);
 }

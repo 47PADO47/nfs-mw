@@ -17,6 +17,9 @@ pub(super) struct Mesh {
     pub vertices: Vec<Vertex>,
     pub triangles: Vec<[u32; 4]>,
     pub textures: Vec<usize>,
+    /// Alpha-tested triangles, stored first. The rest form a second, `OPAQUE` BLAS geometry whose
+    /// shadow-ray hits commit without shader involvement; see [`Mesh::partition_cutouts`].
+    pub cutouts: u32,
 }
 impl Mesh {
     pub fn new(desc: &MeshDesc<'_>, layers: &[Option<u32>]) -> Option<Self> {
@@ -88,7 +91,19 @@ impl Mesh {
         }
         let center = (low + high) * 0.5;
         let radius = (high - low).length() * 0.5;
-        Some(Self { blas: None, center, radius, vertices, triangles, textures })
+        Some(Self { blas: None, center, radius, vertices, triangles, textures, cutouts: 0 })
+    }
+    /// Moves alpha-tested triangles (flag bit 24) ahead of opaque ones, keeping each group's order.
+    /// Runs once after per-draw passes that walk `triangles` in draw order. Opaque-blend triangles
+    /// then form their own BLAS geometry flagged `OPAQUE`: the sun-shadow query confirms such hits
+    /// unconditionally anyway, and reflection rays force every hit non-opaque. A hit in geometry 1 is
+    /// at triangle `cutouts + primitive_index`; the reflection shader reads `cutouts` from the
+    /// instance's winding word.
+    pub fn partition_cutouts(&mut self) {
+        let (mut cutouts, opaque): (Vec<_>, Vec<_>) = self.triangles.iter().partition(|t| t[3] & (1 << 24) != 0);
+        self.cutouts = cutouts.len() as u32;
+        cutouts.extend(opaque);
+        self.triangles = cutouts;
     }
     pub fn build(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         if self.blas.is_some() {
@@ -106,34 +121,49 @@ impl Mesh {
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::BLAS_INPUT,
         });
-        let size = wgpu::BlasTriangleGeometrySizeDescriptor {
-            vertex_format: wgpu::VertexFormat::Float32x3,
-            vertex_count: vertices.len() as u32,
-            index_format: Some(wgpu::IndexFormat::Uint32),
-            index_count: Some(indices.len() as u32),
-            flags: wgpu::AccelerationStructureGeometryFlags::empty(),
-        };
+        let split = self.cutouts as usize * 3;
+        let sizes: Vec<_> = [
+            (0, split, wgpu::AccelerationStructureGeometryFlags::empty()),
+            (split, indices.len(), wgpu::AccelerationStructureGeometryFlags::OPAQUE),
+        ]
+        .into_iter()
+        .filter(|(start, end, _)| end > start)
+        .map(|(start, end, flags)| {
+            let size = wgpu::BlasTriangleGeometrySizeDescriptor {
+                vertex_format: wgpu::VertexFormat::Float32x3,
+                vertex_count: vertices.len() as u32,
+                index_format: Some(wgpu::IndexFormat::Uint32),
+                index_count: Some((end - start) as u32),
+                flags,
+            };
+            (start as u32, size)
+        })
+        .collect();
         let blas = device.create_blas(
             &wgpu::CreateBlasDescriptor {
                 label: Some("RT resident mesh"),
                 flags: wgpu::AccelerationStructureFlags::PREFER_FAST_TRACE,
                 update_mode: wgpu::AccelerationStructureUpdateMode::Build,
             },
-            wgpu::BlasGeometrySizeDescriptors::Triangles { descriptors: vec![size.clone()] },
+            wgpu::BlasGeometrySizeDescriptors::Triangles {
+                descriptors: sizes.iter().map(|(_, size)| size.clone()).collect(),
+            },
         );
-        let entry = wgpu::BlasBuildEntry {
-            blas: &blas,
-            geometry: wgpu::BlasGeometries::TriangleGeometries(vec![wgpu::BlasTriangleGeometry {
-                size: &size,
+        let geometries = sizes
+            .iter()
+            .map(|(first, size)| wgpu::BlasTriangleGeometry {
+                size,
                 vertex_buffer: &vertex_buffer,
                 first_vertex: 0,
                 vertex_stride: 64,
                 index_buffer: Some(&index_buffer),
-                first_index: Some(0),
+                first_index: Some(*first),
                 transform_buffer: None,
                 transform_buffer_offset: None,
-            }]),
-        };
+            })
+            .collect();
+        let entry =
+            wgpu::BlasBuildEntry { blas: &blas, geometry: wgpu::BlasGeometries::TriangleGeometries(geometries) };
         let mut encoder = device.create_command_encoder(&Default::default());
         encoder.build_acceleration_structures([&entry], std::iter::empty());
         queue.submit([encoder.finish()]);

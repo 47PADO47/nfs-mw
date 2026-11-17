@@ -233,7 +233,8 @@ impl Scene {
             let transform = i.transform.transpose().to_cols_array()[..12].try_into().unwrap();
             self.bindings.tlas[count] =
                 Some(wgpu::TlasInstance::new(m.blas.as_ref().unwrap(), transform, offset, *mask));
-            winding.push(u32::from(i.flip_winding));
+            // Bit 0: baked winding flip. Above it: the mesh's cutout count, the start of its opaque geometry.
+            winding.push(u32::from(i.flip_winding) | m.cutouts << 1);
             count += 1;
         }
         let _scope = blackbox_trace::scope("Vulkan RT: build TLAS");
@@ -284,6 +285,7 @@ impl Renderer {
                 .collect();
             surfaces::apply(&mut mesh, desc, &layers, &surfaces);
             shadow::classify(&mut mesh, desc, &layers, &surfaces);
+            mesh.partition_cutouts();
             rt.meshes.insert(handle, mesh);
             rt.dirty = true;
         }
