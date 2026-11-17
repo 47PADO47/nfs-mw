@@ -91,6 +91,12 @@ fn ambient_visibility(pixel: vec2<f32>) -> f32 {
     let p = clamp(vec2<i32>(pixel), vec2<i32>(0), vec2<i32>(shadow_data.ambient.xy) - vec2<i32>(1));
     return textureLoad(ambient_map, p, 0).r;
 }
+// Environment reflections occluded with the AO mask: Lagarde and de Rousiers, "Moving Frostbite to PBR" (2014).
+// Exactly one at full visibility, so AO off leaves every reflection unchanged.
+fn specular_occlusion(ao: f32, nv: f32, roughness: f32) -> f32 {
+    if ao >= 1.0 { return 1.0; }
+    return saturate(pow(max(nv, 0.0) + ao, exp2(-16.0 * roughness - 1.0)) - 1.0 + ao);
+}
 
 const BLOCKERS = array<vec2<f32>, 16>(
     vec2<f32>(0.0, 0.0), vec2<f32>(0.35, 0.0), vec2<f32>(-0.175, 0.303), vec2<f32>(-0.175, -0.303),
@@ -189,7 +195,9 @@ fn cascade_sample(world: vec3<f32>, normal: vec3<f32>, cascade: u32) -> vec3<f32
     radius = max(radius, antialias);
     maximum_radius = max(maximum_radius, antialias);
     var blocker_fraction = 0.0;
-    if shadow_data.softness.y > 0.5 && shadow_data.softness.x > 0.0 {
+    // A penumbra far from the camera spans a pixel or two: the blocker search fades out from 80 to 120 m.
+    let near = 1.0 - smoothstep(80.0, 120.0, distance(world, shadow_data.camera.xyz));
+    if shadow_data.softness.y > 0.5 && shadow_data.softness.x > 0.0 && near > 0.0 {
         // Directional light has no finite depth origin. The old p.z*span footprint
         // changed when unrelated upstream casters expanded the fitted depth slab.
         // Cover the bounded penumbra with a fixed search, within the cascade guard band.
@@ -213,7 +221,7 @@ fn cascade_sample(world: vec3<f32>, normal: vec3<f32>, cascade: u32) -> vec3<f32
         }
         // No tap sees a blocker: the receiver is lit, whatever the filter would have averaged.
         if count < 0.5 { return vec3<f32>(1.0,0.0,radius/8.0); }
-        radius = max(radius, clamp(separation / count * shadow_data.softness.x / texel_world, 0.0, maximum_radius));
+        radius = max(radius, near * clamp(separation / count * shadow_data.softness.x / texel_world, 0.0, maximum_radius));
         blocker_fraction = count / 8.0;
         // Every tap is a blocker and the penumbra fits inside the search: fully shadowed.
         if count > 7.5 && radius < 2.5 { return vec3<f32>(0.0,blocker_fraction,radius/8.0); }
@@ -354,16 +362,25 @@ fn local_shadow_visibility(uv:vec2<f32>,depth:f32,index:u32)->f32 {
     if radius<=0.0 {
         return textureSampleCompareLevel(local_shadow_map,shadow_sampler,uv,i32(index),depth);
     }
-    let texel=1.0/vec2<f32>(textureDimensions(local_shadow_map));
-    var visibility=0.0;
-    for(var y=-1;y<=1;y++) {
-        for(var x=-1;x<=1;x++) {
-            let weight=f32((2-abs(x))*(2-abs(y)));
-            visibility+=weight*textureSampleCompareLevel(local_shadow_map,shadow_sampler,
-                uv+vec2<f32>(f32(x),f32(y))*texel*radius,i32(index),depth);
-        }
+    // A 3x3 tent (1,2,1)/4 of bilinear compares spaced `radius` texels, folded into four bilinear compares.
+    // At one texel it covers four texels per axis, weighted (1-f, 2-f, 1+f, f)/4; each pair is one tap at its
+    // weighted centre, which is exact. Narrower, the taps move towards the centre (close to the old tent).
+    // Wider, two taps per axis at the old filter's variance approximate it (a slightly softer, smooth edge).
+    let size=vec2<f32>(textureDimensions(local_shadow_map));
+    let p=uv*size-0.5; let f=fract(p);
+    var lo=p-vec2(radius*0.70710678); var hi=p+vec2(radius*0.70710678);
+    var a=vec2(0.5);
+    if radius<=1.0 {
+        a=0.75-0.5*f;
+        lo=p+(-1.0-f+(2.0-f)/(3.0-2.0*f))*radius; hi=p+(1.0-f+f/(1.0+2.0*f))*radius;
     }
-    return visibility*0.0625;
+    let b=1.0-a;
+    lo=(lo+0.5)/size; hi=(hi+0.5)/size;
+    let layer=i32(index);
+    return a.x*a.y*textureSampleCompareLevel(local_shadow_map,shadow_sampler,lo,layer,depth)
+        +b.x*a.y*textureSampleCompareLevel(local_shadow_map,shadow_sampler,vec2(hi.x,lo.y),layer,depth)
+        +a.x*b.y*textureSampleCompareLevel(local_shadow_map,shadow_sampler,vec2(lo.x,hi.y),layer,depth)
+        +b.x*b.y*textureSampleCompareLevel(local_shadow_map,shadow_sampler,hi,layer,depth);
 }
 // A 16x16 world-space grid fitted to the selected light spheres (origin tuning.yz, cell
 // edge tuning.w) stores conservative light masks. It covers every light, so a receiver
@@ -415,12 +432,19 @@ fn local_lighting(world:vec3<f32>,normal:vec3<f32>)->vec3<f32> {
     return result/(vec3(1.0)+result*0.65);
 }
 
-// Direct local highlights share each light's cone, attenuation and shadow visibility.
-fn local_specular(world:vec3<f32>,normal:vec3<f32>,view:vec3<f32>,power:f32)->vec3<f32> {
-    if shadow_data.local_tuning.x<=0.0 || shadow_data.local_options.x<0.5 { return vec3(0.0); }
+// The diffuse term and up to two highlights of the lights reaching a receiver, from one walk of its light
+// list: `specular` uses `normal` and `power`, `glint` (skipped when `glint_power` is zero) uses `glint_normal`.
+// Every term shares each light's cone, attenuation and shadow visibility, looked up along `normal`.
+struct LocalLights { diffuse:vec3<f32>, specular:vec3<f32>, glint:vec3<f32> };
+fn local_lights(world:vec3<f32>,normal:vec3<f32>,view:vec3<f32>,power:f32,
+    glint_normal:vec3<f32>,glint_power:f32)->LocalLights {
+    var result=LocalLights(vec3(0.0),vec3(0.0),vec3(0.0));
+    if shadow_data.local_options.x<0.5 { return result; }
+    let shiny=shadow_data.local_tuning.x>0.0;
+    let glinting=shiny && glint_power>0.0;
     let n=normal/max(length(normal),0.0001);
+    let g=glint_normal/max(length(glint_normal),0.0001);
     let v=view/max(length(view),0.0001);
-    var result=vec3(0.0);
     for(var bucket=0u;bucket<4u;bucket++) {
       var mask=local_light_mask(world,bucket);
       loop {
@@ -434,15 +458,22 @@ fn local_specular(world:vec3<f32>,normal:vec3<f32>,view:vec3<f32>,power:f32)->ve
         if distance2<=0.000001 || distance2>=light.w*light.w { continue; }
         let d=sqrt(distance2);
         let l=delta/d;
-        let half_sum=l+v;
-        let h=half_sum/max(length(half_sum),0.0001);
-        let highlight=pow(max(dot(n,h),0.0),max(power,1.0))*max(dot(n,l),0.0);
+        let lambert=max(dot(n,l),0.0);
         var cone=smoothstep(shadow_data.local_directions[i].w,shadow_data.local_colors[i].w,
             dot(-l,shadow_data.local_directions[i].xyz));
         if shadow_data.local_uppers[i].w>0.5 {
             cone*=1.0-smoothstep(0.10,0.30,dot(-l,shadow_data.local_uppers[i].xyz));
         }
-        if highlight*cone<0.0001 { continue; }
+        let half_sum=l+v;
+        let h=half_sum/max(length(half_sum),0.0001);
+        var highlight=0.0;
+        var glint=0.0;
+        if shiny { highlight=pow(max(dot(n,h),0.0),max(power,1.0))*lambert; }
+        if glinting { glint=pow(max(dot(g,h),0.0),max(glint_power,1.0))*max(dot(g,l),0.0); }
+        let lit=lambert*cone>0.0;
+        let lit_highlight=highlight*cone>=0.0001;
+        let lit_glint=glint*cone>=0.0001;
+        if !(lit || lit_highlight || lit_glint) { continue; }
         var visibility=1.0;
         if i<u32(shadow_data.local_options.y) && shadow_data.local_weights[i/4u][i%4u]>0.0 {
             let projected=shadow_data.local_matrices[i]*vec4(world+n*0.012,1.0);
@@ -453,8 +484,14 @@ fn local_specular(world:vec3<f32>,normal:vec3<f32>,view:vec3<f32>,power:f32)->ve
             visibility=mix(1.0,local_shadow_visibility(uv,p.z-0.00003,i),shadow_data.local_weights[i/4u][i%4u]);
         }
         let falloff=pow(max(1.0-d*d/(light.w*light.w),0.0),2.0)/(1.0+0.04*d*d);
-        result+=shadow_data.local_colors[i].rgb*highlight*cone*falloff*visibility;
+        let colour=shadow_data.local_colors[i].rgb*(cone*falloff*visibility);
+        if lit { result.diffuse+=colour*lambert; }
+        if lit_highlight { result.specular+=colour*highlight; }
+        if lit_glint { result.glint+=colour*glint; }
       }
     }
-    return result/(vec3(1.0)+result*0.65)*shadow_data.local_tuning.x;
+    result.diffuse=result.diffuse/(vec3(1.0)+result.diffuse*0.65);
+    result.specular=result.specular/(vec3(1.0)+result.specular*0.65)*shadow_data.local_tuning.x;
+    result.glint=result.glint/(vec3(1.0)+result.glint*0.65)*shadow_data.local_tuning.x;
+    return result;
 }
