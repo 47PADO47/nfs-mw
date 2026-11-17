@@ -3,11 +3,17 @@
 //! Wind scroll and a slowly moving sun change every frame, but re-marching the whole map for them costs more
 //! than the clouds are worth. Those changes rebuild one horizontal band per call, cycling through the bands, so
 //! every texel is still a complete single-frame march and at most `BANDS - 1` calls old. A coverage, warmth,
-//! sun or camera change that is visible at once rebuilds every row immediately. No texel blends with history.
+//! or sun change that is visible at once rebuilds every row immediately, as does a camera move while the map is held.
+//! Only the frame's own view marches a band: its other views share the map. No texel blends with history.
 
-/// Horizontal bands the map is split into. Four bands make the steady wind cost a quarter of a full march.
-pub(super) const BANDS: u32 = 4;
+/// Horizontal bands the map is split into. Eight bands make the steady wind cost an eighth of a full march. Clouds
+/// drift by a fraction of a texel in the eight frames a band waits, so the seams between bands do not show.
+pub(super) const BANDS: u32 = 8;
 const ALL_STALE: u32 = (1 << BANDS) - 1;
+/// Where each band starts, in rows of a 384-row map (row 0 is the horizon). A row near the horizon looks through up
+/// to four times as much cloud as one overhead (`steps` in `sky_enhanced.wgsl`), so the bands are cut to march about
+/// the same number of samples each, not the same number of rows.
+const EDGES: [u32; BANDS as usize + 1] = [0, 20, 41, 82, 142, 203, 263, 324, 384];
 /// Squared change of a sun or light vector (about one degree) above which the whole map rebuilds at once.
 const BIG_VECTOR_MOVE: f32 = 3.0e-4;
 /// Change of coverage or sunset warmth above which the whole map rebuilds at once.
@@ -70,7 +76,8 @@ impl Rebuild {
     /// First row and row count to scissor for a map `height` rows tall.
     pub fn rows(self, height: u32) -> (u32, u32) {
         let Rebuild::Band(band) = self else { return (0, height) };
-        let (start, end) = (band * height / BANDS, (band + 1) * height / BANDS);
+        let edge = |band: u32| EDGES[band as usize] * height / EDGES[BANDS as usize];
+        let (start, end) = (edge(band), edge(band + 1));
         (start, end - start)
     }
 }
@@ -84,14 +91,24 @@ pub(super) struct Schedule {
 
 impl Schedule {
     /// The rebuild to record for this call, if any. `moved` is a camera move far enough to need a full march.
-    pub fn plan(&mut self, key: Key, moved: bool) -> Option<Rebuild> {
+    /// `primary` is the frame's own view: a frame's other views (reflection faces, mirror, road capture) share the
+    /// map and must not each march a band of it, or every band is marched every frame.
+    pub fn plan(&mut self, key: Key, moved: bool, primary: bool) -> Option<Rebuild> {
         let Some(previous) = self.key else { return self.full(key) };
-        if moved || key.jumped_from(&previous) {
+        if key.jumped_from(&previous) {
             return self.full(key);
         }
         if key != previous {
             self.key = Some(key);
             self.stale = ALL_STALE;
+        }
+        // Bands in turn are each marched from the eye of their own frame, so they follow a moving camera without a
+        // full march. Only a held map (no wind) has to be marched again for a move.
+        if moved && self.stale == 0 {
+            return self.full(key);
+        }
+        if !primary {
+            return None;
         }
         self.next_band().map(Rebuild::Band)
     }

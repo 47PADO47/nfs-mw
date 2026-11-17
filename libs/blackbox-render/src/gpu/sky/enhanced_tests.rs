@@ -229,3 +229,39 @@ fn celestial_moon_is_visible_and_does_not_change_the_day_sky() {
         assert_eq!(expected, image(&mut renderer, mesh, cycle), "cycle day sky differs at coverage {coverage}");
     }
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn reflection_faces_do_not_march_extra_cloud_bands() {
+    use blackbox_gfx::{ReflectionQuality, ReflectionScene, RenderBackend};
+    let _gpu = test_support::serial();
+    let Some(mut renderer) = test_support::headless((32, 32)) else { return };
+    let source = texture(&mut renderer, "unused authored source", 1, &[255; 4]);
+    let material = renderer
+        .create_sky_material(&SkyMaterialDesc { kind: SkyLayerKind::Base, diffuse: source, miscellaneous: source })
+        .unwrap();
+    let mesh = mesh(&mut renderer, material, [0.5; 2]);
+    let commands = [Instance::new(mesh, Mat4::IDENTITY)];
+    let state = SkyState { enhanced: true, cloud_coverage: 0.6, ..Default::default() };
+    let mut view = frame();
+    let draw = |renderer: &mut Renderer, view: &FrameParams, frame: u32| {
+        renderer.set_sky_state(SkyState { scroll: 0.01 * frame as f32, ..state });
+        renderer.set_reflection_scene(Some(ReflectionScene {
+            sun_shadows: false,
+            fade_distance: None,
+            origin: Vec3::ZERO,
+            quality: ReflectionQuality::Low,
+            frame: *view,
+            faces: [&commands; 6],
+            refresh: 0b111,
+        }));
+        renderer.render(view, &commands).unwrap();
+        renderer.sky.as_ref().unwrap().cloud_map.updates
+    };
+    let built = draw(&mut renderer, &view, 0);
+    for frame in 1..=8 {
+        // The eye also moves past the full-march distance: bands in turn already follow it.
+        view.camera_position.x += 40.0;
+        assert_eq!(draw(&mut renderer, &view, frame), built + u64::from(frame), "one band a frame, whatever the views");
+    }
+}
