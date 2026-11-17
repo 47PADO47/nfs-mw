@@ -1,3 +1,8 @@
+// The screen-space sun masks (RT sun visibility, contact shadows, cascade history) hold the depth prepass's surface at
+// each pixel: opaque and alpha-tested draws. A blended draw sees another surface's value there (whatever lies behind
+// it), so its pipeline sets this false and it keeps the shadow maps alone.
+override SCREEN_SHADOW_MASK: bool = true;
+
 // Directional PCSS with bilinear blocker moments, a fixed light-space disk,
 // and smoothly blended cascade handoffs. No screen-locked sampling noise.
 // No frame seed, jitter, history or reprojection. SHADOW_GROUP selects the material layout.
@@ -306,6 +311,7 @@ fn car_direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) 
 
 fn direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> f32 {
     shadow_footprint = shadow_receiver_footprint(world);
+    if !SCREEN_SHADOW_MASK { return sun_visibility(world, normal); }
     if shadow_data.contact.z > 1.5 {
         let p = clamp(vec2<i32>(pixel),vec2<i32>(0),vec2<i32>(shadow_data.contact.xy)-vec2<i32>(1));
         let ray = textureLoad(contact_map,p,0).rg;
