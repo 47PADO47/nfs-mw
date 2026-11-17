@@ -31,7 +31,8 @@ pub(super) fn complete(dir: &GameDir, solids: &[Solid], packs: &mut Vec<TextureP
         let bytes = nfsmw_data::shared_unwrapped(dir, source)?;
         let supplemental = blackbox_tpk::read_texture_packs_filtered(&bytes, |hash| missing.contains(&hash))
             .with_context(|| format!("shared menu materials in {source}"))?;
-        for pack in supplemental {
+        for mut pack in supplemental {
+            nfsmw_data::texture_packs::apply_file(dir, source, &mut pack.textures);
             for texture in &pack.textures {
                 missing.remove(&texture.name_hash);
             }
