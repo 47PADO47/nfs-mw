@@ -165,7 +165,7 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
 | `lap` | `racer`, `lap`, `lap_time`, `race_time`; the last lap too |
 | `racer_finished` | `racer`, `place`, `total_time` |
 | `knocked_out` | `racer`, `race_time` |
-| `sample` | `race_time`, `racers`: per racer on the road `racer`, `position`, `speed`, `controls` (`throttle`, `brake`, `steering`, `gear`, `rpm`) and, for a racer an AI driver drives, `driver` (`target_speed`, `base_skill`, `catch_up`, `skill`, `catch_up_force`, `stand_in`) |
+| `sample` | `race_time`, `racers`: per racer on the road `racer`, `position`, `speed`, `controls` (`throttle`, `brake`, `steering`, `gear`, `rpm`, `drive_torque`, `wheels_on_ground`) and, for a racer an AI driver drives, `driver` (`target_speed`, `base_skill`, `catch_up`, `skill`, `catch_up_force`, `stand_in`, `nitrous`) |
 | `race_finished` | `race_time`, `results` (`racer`, `place`, `finished`, `total_time` per racer) |
 
 - The finish line is not a checkpoint: crossing it writes `lap`, and no `checkpoint`. A race with no finish line closes
@@ -195,7 +195,8 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
   (the physics space's `(x, y, z)` is `(-y, z, x)` of it). `speed` is the speed along the car in m/s, without its sign.
   `controls` are what each car stepped with in its last step after the input shaping, whoever drove it: `throttle`
   and `brake` 0 to 1, `steering` -1 to 1 (positive to the right), `gear` -1 reverse, 0 neutral, 1 and up forward, and
-  `rpm` the engine speed after the step. The player's are those of the sample's tick; an opponent's are read after the
+  `rpm` the engine speed after the step, `drive_torque` the engine's drive torque in N m and `wheels_on_ground` the wheels
+  touching the ground. The player's are those of the sample's tick; an opponent's are read after the
   world's step of that tick.
 - `driver` (`crates/nfsmw/src/scenes/world/race/trace_rows.rs`) is what the AI driver asked for in that tick: the
   opponents' drivers, and the autopilot's while it has the player's car (absent before it takes the car). `target_speed`
@@ -203,7 +204,7 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
   character's skill, `catch_up` the offset the catch-up added this tick, and `skill` the sum in 0..1 that the driver uses
   ([ai-driver-speed-skill.md](specs/ai-driver-speed-skill.md) section 8). `catch_up_force` is the catch-up force budget,
   0 to 0.5, which scales the car's positive engine torque, drag and downforce; the player's car gets neither offset nor
-  force (both 0). `stand_in` is true while the racer moves on its off-world stand-in rather than by physics; its
+  force (both 0). `nitrous` is true while the car's nitrous burns (always false for the player's car). `stand_in` is true while the racer moves on its off-world stand-in rather than by physics; its
   `controls` are then those of its last physics step.
 - The player's vehicle record is the car folder's own `pvehicle`: `--drive BMWM3GTR` races `bmwm3gtr`, and
   `--drive BMWM3GTRE46` races `bmwm3gtre46`, the record the prologue's M3 GTR uses (`CAR:PRESET` adds a preset ride's

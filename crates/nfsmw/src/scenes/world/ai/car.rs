@@ -435,6 +435,7 @@ impl AiCar {
                         true => 0.0,
                         false => view.forward.y,
                     },
+                    racer::TankView { tank: self.sim.telemetry().nos, held: self.controls.nos },
                 );
                 self.target = think.target;
                 self.speed = think.speed;
