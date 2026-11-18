@@ -15,6 +15,9 @@ UI comparisons: [continuous reference recording](ui-reference-capture.md) and
 
 Native physics work: [collision and destruction parity](native-physics-parity.md).
 Driving state flow: [downstream consumer audit](driving-state-audit.md).
+Player driving: [implementation and remaining gaps](player-driving-status.md).
+
+Status per gameplay system: [implemented, compared, playtested](parity-status.md).
 
 Documentation for the Rust rewrite of Need for Speed: Most Wanted (2005, PC v1.3 / Black Edition): how
 the game stores its data, what prior work exists, and how the rewrite is built. Format claims are checked
@@ -64,6 +67,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [specs/traffic-driving-parity.md](specs/traffic-driving-parity.md) | Physical-step steering, event density and pattern precedence, retired custom rules and remaining original-game comparisons |
 | [world-interactions-todo.md](world-interactions-todo.md) | Deferred collision, cleanup, trailer and pursuit-breaker work with acceptance checks |
 | [testing.md](testing.md) | the kinds of tests, the real-install tests and how to run them |
+| [parity-tracing.md](parity-tracing.md) | Driving the remake unattended and reading what it did: trace and replay variables, scripted input, headless runs, timestep and seeds, settings that differ from the original, known gaps |
 | [profiling.md](profiling.md) | Build profiles (`release`, `profiling`, `dist`) and the mimalloc allocator; the Tracy workflow is in [profiling-bevy.md](profiling-bevy.md) |
 | [performance-audit.md](performance-audit.md) | The 2026-10-17 performance audit: frame and load findings, the fixes, before and after numbers, the cache verdict, follow-ups |
 | [benchmarks/](benchmarks/) | Dated measurement reports: [Bevy vs native, 2026-10-10](benchmarks/2026-10-10-bevy-vs-native.md) and [performance sweep, 2026-10-17](benchmarks/2026-10-17-perf-sweep.md) |
@@ -93,6 +97,9 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [mods/README.md](mods/README.md) | Index of 42 community mod and tool repositories: one page each (mechanism, config, licence, how the rewrite could match it) |
 | [licensing.md](licensing.md) | Project license, what each source license allows, unlicensed repos, the spec-first process |
 | [ai-drivers.md](ai-drivers.md) | The AI drivers in the code: traffic and cops, which spec each layer follows, deliberate differences, what is open |
+| [parity-status.md](parity-status.md) | One row per gameplay system: what is implemented, what was compared with the original, what was playtested, the count of `[ours]` rules, and the detail docs |
+| [player-driving-status.md](player-driving-status.md) | Player driving: implemented scope, captures and replays, evidence limits and unresolved behaviour |
+| [police-ai-driving-handoff.md](police-ai-driving-handoff.md) | Police road, reinforcement and SUV driving follow-up: implemented, failed acceptance, next work |
 | [pursuit-system.md](pursuit-system.md) | Current police/pursuit behaviour, repaired placeholders, original-game parity gaps, enhancements and verification |
 | [specs/career.md](specs/career.md) | Career and progression overview: economy, blacklist, milestones, flow, car lot, save; the loop, what the rewrite needs and the open questions |
 | [provenance/career-core.md](provenance/career-core.md) | `crates/nfsmw-career`, the career slices (settings, stable, economy, SMS inbox, safe house, rap sheet, save screens, regions, profile file glue): what is covered, the choices made where the specs are silent, the known gaps |
@@ -202,6 +209,7 @@ contract has a companion provenance record and an explicit validation boundary.
 ## Project tools
 
 Police AI: [implementation coverage and remaining parity limits](police-ai-parity.md).
+Police driving: [handoff and remaining parity work](police-ai-driving-handoff.md).
 
 - **Rust:** `nfsmw check-install | list-cars | view-car | view-world` (see the [root README](../README.md)).
   The engine-generic libraries are in [`libs/`](../libs), each with its own README.
