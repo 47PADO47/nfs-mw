@@ -91,6 +91,7 @@ impl WorldScene {
     /// Carries out the drive's events, in order.
     fn apply_safe_house_drive(&mut self, events: Vec<DriveEvent>) {
         for event in events {
+            crate::parity::career_trace::record("drive_event", serde_json::json!({"event": format!("{event:?}")}));
             match event {
                 DriveEvent::CopsOff => self.bar_drive_cops(true),
                 DriveEvent::CopsOn => self.bar_drive_cops(false),

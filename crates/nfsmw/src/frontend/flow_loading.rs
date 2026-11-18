@@ -79,6 +79,10 @@ impl Frontend {
         log::info!("starting free roam");
         let dir = self.dir.clone();
         let car = self.quick_car.take().unwrap_or_else(|| DEFAULT_CAR.to_owned());
+        let handoff = serde_json::json!({"to": "world", "car": car, "race": self.quick_race,
+            "career": self.career.is_active(), "drive_to_safe_house": self.drive_to_safe_house,
+            "safe_house_start": self.safe_house_start.pending});
+        crate::parity::career_trace::record("world_load", handoff);
         let spawned = std::thread::Builder::new()
             .name("world-load".to_owned())
             .spawn(move || WorldScene::load(&dir, free_roam_options(&car)));
@@ -181,6 +185,7 @@ impl Frontend {
 
     fn loading_failed(&mut self, reason: &str, host: &mut Host, env: &mut Env) {
         log::error!("cannot start free roam: {reason}");
+        crate::parity::career_trace::record("world_load_failed", serde_json::json!({"reason": reason}));
         self.load = None;
         self.quick_custom = None;
         self.show_menu(host, env);
@@ -193,5 +198,6 @@ impl Frontend {
         self.screens.clear();
         self.stage = Stage::Playing;
         log::info!("loaded: free roam starts");
+        crate::parity::career_trace::record("world_shown", serde_json::Value::Null);
     }
 }

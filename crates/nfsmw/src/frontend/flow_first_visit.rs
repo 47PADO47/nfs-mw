@@ -65,6 +65,7 @@ impl Frontend {
             return false;
         }
         let args = Args { safehouse: true, sequence: true, ..Args::default() };
+        crate::parity::career_trace::record("handoff", serde_json::json!({"to": "first_safe_house_visit"}));
         self.play_movie(FIRST_VISIT_MOVIE, AfterMovie::Open(SAFE_HOUSE_RIVAL_BIO.to_owned(), args), host);
         if !matches!(self.stage, Stage::Movie { .. }) {
             return false;
@@ -91,6 +92,8 @@ impl Frontend {
             return log::warn!("career: no career is played, so the Blacklist sequence stops");
         };
         log::info!("career: Blacklist sequence {action:?} at stage {stage}");
+        let step = serde_json::json!({"action": format!("{action:?}"), "stage": stage});
+        crate::parity::career_trace::record("blacklist_step", step);
         match action {
             StepAction::RivalMovie => self.sequence_movie(&rival_movie(stage), stepper, host, env),
             StepAction::RapSheetMovie => self.sequence_movie(RAP_SHEET_MOVIE, stepper, host, env),
@@ -128,6 +131,7 @@ impl Frontend {
     /// The safe house menu, over the menu backdrop: where the sequence ends. The menu stands before the world (the world was
     /// replaced by the intro movie), so its Resume Free Roam starts the world.
     pub(super) fn open_safe_house(&mut self, host: &mut Host, env: &mut Env) {
+        crate::parity::career_trace::record("handoff", serde_json::json!({"to": "safe_house"}));
         self.in_safe_house = true;
         self.latch = true;
         self.screens.clear();

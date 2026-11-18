@@ -6,7 +6,6 @@
 use std::collections::VecDeque;
 
 use glam::Vec3;
-use nfsmw_career::story::prologue::{flashback_message, message_card_label};
 use nfsmw_career::story::{
     AfterIntroNis, IntroContext, IntroStep, StoryFields, after_intro_nis, intro_steps, nis_shell_steps,
 };
@@ -210,12 +209,7 @@ pub(super) fn intro_queue(session: &RaceSession) -> VecDeque<IntroStep> {
         // Split screen is not in this build: no race is played in it.
         split_screen: false,
     };
-    let mut fields = story_fields(race);
-    // The prologue's flashbacks open on their days-ago card, which the install gives only one of its races.
-    if fields.intro_message_id.is_none() && session.options.career {
-        fields.intro_message_id = flashback_message(&session.event);
-    }
-    intro_steps(&fields, ctx).into()
+    intro_steps(&story_fields(race), ctx).into()
 }
 
 /// The story fields of a race, as the rules read them.
@@ -236,9 +230,10 @@ impl StoryWorld for WorldScene {
         match cue {
             Cue::Message(id) => {
                 log::info!("race: the message {id} is shown");
-                let label = message_card_label(id).unwrap_or(MESSAGE_LABEL);
                 // The language table writes a line break as `^`.
-                let text = self.language_text(label).replace('^', "\n");
+                let text = self.language_text(MESSAGE_LABEL).replace('^', "\n");
+                let card = serde_json::json!({"id": id, "label": format!("{MESSAGE_LABEL:#010x}"), "text": text});
+                crate::parity::career_trace::record("message_card", card);
                 Playing::Message { text, left: MESSAGE_SECS }
             }
             Cue::Movie(name) => self.start_movie(&name),
@@ -300,6 +295,8 @@ impl WorldScene {
             false => engine.begin_countdown(),
         };
         session.stage = Stage::Running;
+        let line = serde_json::json!({"event": session.event, "rolling": rolling});
+        crate::parity::career_trace::record("race_countdown", line);
         self.race_events(session, started);
     }
 

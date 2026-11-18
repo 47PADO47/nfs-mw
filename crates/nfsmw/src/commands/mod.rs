@@ -84,6 +84,12 @@ pub fn run(cli: Cli) -> Result<()> {
     if let Some(race_run) = command.race_run() {
         crate::parity::race_run::init(race_run.options(|name| std::env::var(name).ok()));
     }
+    if let Command::Play { career_run, .. } = &command {
+        let path =
+            crate::parity::career_trace::path_of(career_run.career_trace.clone(), |name| std::env::var(name).ok());
+        crate::parity::career_trace::init(path.as_deref());
+        crate::parity::career_trace::set_exit_after_first_car(career_run.exit_after_first_car);
+    }
     match command {
         Command::CheckInstall => install::check(game_dir),
         Command::Setup => setup::run(game_dir),
@@ -144,11 +150,14 @@ pub fn run(cli: Cli) -> Result<()> {
             let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
-        Command::Play { skip_boot, drive, aliases, ui_script, view, .. } => {
+        Command::Play { skip_boot, drive, aliases, ui_script, career_run, view, .. } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let settings = Settings::load(view.settings_layer());
             let scripted = skip_boot || ui_script.is_some();
-            let start = start::of(drive || session_starts(&launch), aliases, scripted, settings.skip_intro);
+            let start = match career_run.new_career {
+                Some(alias) => crate::frontend::Start::NewCareer(alias),
+                None => start::of(drive || session_starts(&launch), aliases, scripted, settings.skip_intro),
+            };
             run_front_end(&dir, &settings, mods, (start, &launch), ui_script.as_deref(), None, &view, false)
         }
         Command::ViewScreen { name, pause, options, safehouse, category, ui_script, look, car, view } => {

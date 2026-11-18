@@ -29,6 +29,7 @@ impl StoryMovie {
             return Err("a movie is playing; stop it first".into());
         }
         let movie = MoviePlayback::open(dir, name, 0.0).map_err(|e| format!("{e:#}"))?;
+        crate::parity::career_trace::record("movie_start", serde_json::json!({"movie": name, "player": "world"}));
         self.ended = false;
         self.playing = Some(movie);
         Ok(())
@@ -52,6 +53,8 @@ impl StoryMovie {
         if movie.finished() {
             self.playing = None;
             self.ended = true;
+            let how = if skip { "skipped" } else { "finished" };
+            crate::parity::career_trace::record("movie_end", serde_json::json!({"player": "world", "how": how}));
         }
     }
 
@@ -59,6 +62,9 @@ impl StoryMovie {
     pub fn stop(&mut self) -> bool {
         let was = self.playing.take().is_some();
         self.ended |= was;
+        if was {
+            crate::parity::career_trace::record("movie_end", serde_json::json!({"player": "world", "how": "stopped"}));
+        }
         was
     }
 

@@ -10,6 +10,13 @@ use crate::scenes::world::moment::heading_angle;
 use crate::scenes::world::scene_space::Anchor;
 use crate::scenes::world::{WorldScene, space};
 
+/// The career-flow trace's line for a scene that was asked to start: `nis_start`, or `nis_failed` with the reason.
+fn trace_nis_start(name: &str, track: u32, played: &Result<(), String>) {
+    let line = serde_json::json!({"scene": name, "track": track, "error": played.as_ref().err()});
+    let kind = if played.is_ok() { "nis_start" } else { "nis_failed" };
+    crate::parity::career_trace::record(kind, line);
+}
+
 /// How far below its probe point a character's ground is looked for, in metres [ours]: the probe starts 2 m above the
 /// pelvis, so this reaches a few metres under the feet.
 const CHARACTER_GROUND_BELOW: f32 = 6.0;
@@ -30,7 +37,9 @@ impl WorldScene {
         let ground =
             space::ground_below(collision, at.x, at.y, at.z + space::CAR_GROUND_ABOVE, at.z - 10.0).unwrap_or(at.z);
         let anchor = Anchor::facing(Vec3::new(at.x, at.y, ground), heading_angle(view.forward));
-        self.nis.play(&self.dir, name, anchor, kind, track)
+        let played = self.nis.play(&self.dir, name, anchor, kind, track);
+        trace_nis_start(name, track, &played);
+        played
     }
 
     /// Plays the arrest scene the bust asks for (`busted-sequence.md` section 4), as an arrest NIS (not skippable).
@@ -79,7 +88,9 @@ impl WorldScene {
         track: u32,
         anchor: Anchor,
     ) -> Result<(), String> {
-        self.nis.play(&self.dir, name, anchor, NisKind::of_scene(name), track)
+        let played = self.nis.play(&self.dir, name, anchor, NisKind::of_scene(name), track);
+        trace_nis_start(name, track, &played);
+        played
     }
 
     /// Ends the scene that plays. Returns whether one did.
@@ -119,6 +130,7 @@ impl WorldScene {
         self.apply_nis_events(events);
         if let Some(outcome) = self.nis.take_outcome() {
             log::info!("NIS scene ended: {outcome:?}");
+            crate::parity::career_trace::record("nis_end", serde_json::json!({"outcome": format!("{outcome:?}")}));
             // A bust waiting on its arrest scene goes on; the bust ignores any other scene's end.
             if let Some(traffic) = self.traffic.as_mut() {
                 traffic.arrest_scene_over();

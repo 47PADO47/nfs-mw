@@ -69,6 +69,8 @@ mod flow_sms;
 mod flow_split;
 #[path = "flow_startup.rs"]
 mod flow_startup;
+#[path = "flow_trace.rs"]
+mod flow_trace;
 
 /// Where the front end starts.
 #[derive(Clone, Debug, PartialEq)]
@@ -87,6 +89,8 @@ pub enum Start {
     /// Where the boot flow ends: the profile step (the list of saved aliases, or the question to create one when there is
     /// none), then the main menu. The explicit way to run that step without the movies and the title screen.
     Aliases,
+    /// A new career under this alias, as Start New Career does, with no boot flow and no menus (`play --new-career`).
+    NewCareer(String),
 }
 
 /// A step of the boot flow (the original `BootFlowManager`).
@@ -300,6 +304,10 @@ impl Frontend {
             }
             Start::Browse(name) => self.show_browsed(&name, host, env),
             Start::Drive => self.start_free_roam(LoadingScreen::Plain, host, env),
+            Start::NewCareer(alias) => {
+                self.show_backdrop(host);
+                self.apply(vec![Command::CareerNew(alias)], host, env);
+            }
         }
     }
 
@@ -313,6 +321,7 @@ impl Frontend {
         };
         self.stage = Stage::Boot(step);
         log::info!("boot: {step:?}");
+        crate::parity::career_trace::record("boot_step", serde_json::json!({"step": format!("{step:?}")}));
         match step {
             Boot::Movie { name, .. } => {
                 let scene = crate::movie::MovieScene::open(&self.dir, name, 0.0);

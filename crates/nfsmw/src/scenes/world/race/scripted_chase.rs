@@ -1,5 +1,5 @@
-//! The scripted chases of the prologue in the world (`docs/specs/story-flow.md` section 2.4): race `16.1.0`, whose car
-//! gives out after the call (it has only the call trigger), and race `16.2.1`, whose car is cut at `kill_engine`. The
+//! The scripted chase of the prologue in the world (`docs/specs/story-flow.md` section 2.4): race `16.2.1`, whose car is
+//! cut at `kill_engine`. The opening race `16.1.0` is raced to its finish line like any race (section 2.8 rule 1). The
 //! rules are `nfsmw_career::story::chase_16_2_1`; this file feeds them the player's place and the race's trigger volumes
 //! each frame, and carries out the events they return: the engine cut, the phone call, the cops and the bail, the fade
 //! to black and the end of the race, which goes through the race's outro (`outro.rs`). After `16.2.1` the car lot
@@ -7,7 +7,6 @@
 
 use glam::Vec3;
 use nfsmw_career::story::chase_16_2_1::{Chase, ChaseEvent, ChaseInput};
-use nfsmw_career::story::prologue::OPENING_EVENT;
 use nfsmw_data::gameplay::{BoxTrigger, GameplayData, PlaneTrigger, SphereTrigger, world_heading};
 
 use super::Stage;
@@ -17,9 +16,9 @@ use crate::scenes::world::{WorldScene, space};
 /// The career event id of the chase that ends in the car lot.
 pub const CHASE_EVENT: &str = "16.2.1";
 
-/// Whether `event` is one of the prologue races the chase script runs in.
+/// Whether `event` is the prologue race the chase script runs in.
 pub fn is_chase_event(event: &str) -> bool {
-    event == CHASE_EVENT || event == OPENING_EVENT
+    event == CHASE_EVENT
 }
 
 /// Seconds the phone takes to load the call's voice before the call starts (`WaitForCallLoad`, `notifycellcallstarted`).
@@ -265,7 +264,7 @@ impl ChaseRun {
 }
 
 impl WorldScene {
-    /// One frame of the scripted chase. It starts with race 16.1.0 or 16.2.1 running, is fed the player's place each
+    /// One frame of the scripted chase. It starts with race 16.2.1 running, is fed the player's place each
     /// frame and carries out what it asks. The run ends with the race and clears when the race is another one.
     pub(in crate::scenes::world) fn update_scripted_chase(&mut self, dt: f32) {
         let Some((is_chase, running, name)) = self
@@ -308,6 +307,7 @@ impl WorldScene {
 
     /// Carries out one event of the chase.
     fn apply_chase_event(&mut self, event: ChaseEvent) {
+        crate::parity::career_trace::record("chase_event", serde_json::json!({"event": format!("{event:?}")}));
         match event {
             ChaseEvent::SabotageEngine { level } => {
                 log::info!("chase: engine sabotaged at level {level}");

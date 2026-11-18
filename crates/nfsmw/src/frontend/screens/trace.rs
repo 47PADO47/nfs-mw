@@ -123,6 +123,11 @@ impl Screens {
     }
 
     pub(super) fn trace_stack(&mut self, action: &str) {
+        if crate::parity::career_trace::enabled() {
+            let names: Vec<&str> = self.stack.iter().map(|screen| screen.name.as_str()).collect();
+            let top = names.last().copied();
+            crate::parity::career_trace::record("screen", json!({"action": action, "top": top, "stack": names}));
+        }
         let Some(trace) = self.trace.as_mut() else { return };
         let stack: Vec<Value> =
             self.stack.iter().map(|screen| json!({"package_id": screen.id.0, "name": screen.name})).collect();

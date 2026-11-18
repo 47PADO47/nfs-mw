@@ -3,6 +3,8 @@
 //! The script replaces the real input and the real clock: every frame takes one step of 1/60 s. A button name
 //! presses it for 4 frames and releases it for 4 frames, `hold NAME SECONDS` keeps it down, `wait SECONDS`
 //! does nothing. `console COMMAND` runs a console command (`console story race 16.2.1`), to drive a world from a script.
+//! `loop` repeats the steps after it for as long as the run lasts (`loop; wait 2; accept` presses accept every two
+//! seconds), for unattended runs that press through whatever screen comes up.
 
 use std::collections::VecDeque;
 
@@ -75,6 +77,8 @@ fn key(name: &str) -> Result<KeyCode, String> {
 #[derive(Debug, Clone, Default)]
 pub struct UiScript {
     steps: VecDeque<Step>,
+    /// The steps after a `loop` step: they run again each time the script runs out. Empty without a `loop`.
+    repeat: Vec<Step>,
     /// The key the last frame's step pressed, until the frontend takes it (`take_key`).
     key: Option<KeyCode>,
     /// Where the scripted pointer is, once a `pointer` step has run.
@@ -122,9 +126,11 @@ impl UiScript {
     pub fn parse(text: &str) -> Result<Self, String> {
         let mut steps = VecDeque::new();
         let mut device = None;
+        let mut repeat_from = None;
         for part in text.split([';', ',']).map(str::trim).filter(|p| !p.is_empty()) {
             let words: Vec<&str> = part.split_whitespace().collect();
             match words[..] {
+                ["loop"] if repeat_from.is_none() => repeat_from = Some(steps.len()),
                 ["device", "xbox"] => device = Some(crate::input::InputDevice::Xbox),
                 ["device", "keyboard"] => device = Some(crate::input::InputDevice::Keyboard),
                 ["wait", s] => steps.push_back(Step {
@@ -194,7 +200,12 @@ impl UiScript {
                 _ => return Err(format!("cannot read the script step {part:?}")),
             }
         }
-        Ok(Self { steps, device, key: None, pointer: None, text: None, console: None })
+        let repeat: Vec<Step> = repeat_from.map_or_else(Vec::new, |from| steps.iter().skip(from).cloned().collect());
+        // A loop of nothing but zero-length steps would never let a frame go by.
+        if !repeat.is_empty() && repeat.iter().all(|step| step.frames == 0) {
+            return Err("the steps after loop take no time".into());
+        }
+        Ok(Self { steps, repeat, device, key: None, pointer: None, text: None, console: None })
     }
 
     /// The key the script pressed on the frame just stepped, if any. The frontend takes it once per frame.
@@ -219,6 +230,9 @@ impl UiScript {
 
     /// The pad mask of the next frame, or none when the script is over.
     pub fn next_mask(&mut self) -> Option<u32> {
+        if self.steps.is_empty() {
+            self.steps.extend(self.repeat.iter().cloned());
+        }
         let step = self.steps.front_mut()?;
         let mask = step.mask;
         if let Some(key) = step.key {
@@ -241,7 +255,7 @@ impl UiScript {
     }
 
     pub fn is_over(&self) -> bool {
-        self.steps.is_empty()
+        self.steps.is_empty() && self.repeat.is_empty()
     }
 }
 
@@ -267,6 +281,21 @@ mod tests {
         assert_eq!(&masks[7..11], &[0; 4]);
         assert_eq!(masks[11..].iter().filter(|&&m| m == pad::ACCEPT).count(), 6);
         assert!(s.is_over());
+    }
+
+    #[test]
+    fn the_steps_after_loop_repeat_for_ever() {
+        let mut s = UiScript::parse("accept; loop; wait 0.05; accept").unwrap();
+        let masks: Vec<u32> = (0..60).map_while(|_| s.next_mask()).collect();
+        assert_eq!(masks.len(), 60, "a looping script never runs out");
+        assert_eq!(&masks[..8], &[pad::ACCEPT, pad::ACCEPT, pad::ACCEPT, pad::ACCEPT, 0, 0, 0, 0]);
+        assert_eq!(&masks[8..19], &[0, 0, 0, pad::ACCEPT, pad::ACCEPT, pad::ACCEPT, pad::ACCEPT, 0, 0, 0, 0]);
+        assert_eq!(&masks[19..22], &[0, 0, 0], "the loop starts again at its wait");
+        assert!(!s.is_over());
+        assert!(UiScript::parse("loop; wait 0").is_err(), "a loop must take time");
+        let mut tail = UiScript::parse("wait 0.02; loop").unwrap();
+        while tail.next_mask().is_some() {}
+        assert!(tail.is_over(), "nothing after loop repeats nothing");
     }
 
     #[test]

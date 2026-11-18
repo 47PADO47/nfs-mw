@@ -3,6 +3,7 @@
 use clap::{Parser, Subcommand};
 
 use super::Cli;
+use super::career_args::CareerRunArgs;
 use super::parse::parse_xy;
 use super::race_args::RaceRunArgs;
 use super::view_args::ViewArgs;
@@ -91,6 +92,8 @@ pub enum Command {
         ui_script: Option<String>,
         #[command(flatten)]
         race_run: RaceRunArgs,
+        #[command(flatten)]
+        career_run: CareerRunArgs,
         #[command(flatten)]
         view: ViewArgs,
     },

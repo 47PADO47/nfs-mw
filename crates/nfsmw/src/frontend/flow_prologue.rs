@@ -68,6 +68,7 @@ impl Frontend {
             .with(|career| forced_car(&career.data.gameplay, event, |preset| preset_folder(dir, preset)))
             .flatten();
         log::info!("career: starting race {event} in {car:?}");
+        crate::parity::career_trace::record("career_race_request", serde_json::json!({"event": event, "car": car}));
         self.origin = QuitTo::Career;
         self.quick_race = Some(event.to_owned());
         self.race_options = Some(RaceOptions { career: true, ..RaceOptions::default() });
@@ -120,6 +121,8 @@ impl Frontend {
     /// (`story-flow.md` section 2.3).
     pub(super) fn open_car_lot(&mut self, zone: Option<String>, host: &mut Host, env: &mut Env) {
         log::info!("career: the car lot opens ({zone:?})");
+        let lot = serde_json::json!({"to": "car_lot", "zone": zone, "first_car": zone.is_none()});
+        crate::parity::career_trace::record("handoff", lot);
         let args = Args { safehouse: true, first_car: zone.is_none(), from_world: zone.is_some(), ..Args::default() };
         // Leaving the lot starts at the lot once; the safe house later starts use stays the last safe house.
         self.safe_house_start.lot = zone;
@@ -143,6 +146,7 @@ impl Frontend {
     /// safe house is.
     pub(super) fn start_first_drive(&mut self, host: &mut Host, env: &mut Env) {
         log::info!("career: driving to the first safe house");
+        crate::parity::career_trace::record("handoff", serde_json::json!({"to": "drive_to_safe_house"}));
         self.in_safe_house = true;
         self.leave_safe_house();
         self.origin = QuitTo::Career;

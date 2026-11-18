@@ -232,3 +232,67 @@ What this does not give:
   runs do not put the same input on the same tick.
 - `play --drive` takes the same options, but opens the front end, whose post-race screen freezes the world; use
   `view-world` for batch runs.
+
+## Unattended career run
+
+One command starts a new career on an empty profile folder and plays it with nobody at the controls until the first
+car is bought in the car lot the prologue ends in, or a time limit. The options are on `play`; they are never saved
+(`crates/nfsmw/src/cli/career_args.rs`, `crates/nfsmw/src/parity/career_trace.rs`).
+
+| Option | Effect |
+|---|---|
+| `--new-career <ALIAS>` | Starts a new career under the alias at once, as Start New Career on the career menu does (`Command::CareerNew`), with no boot flow and no menus. Set `BLACKBOX_PROFILE_DIR` to an empty folder so no real profile or config is read or written |
+| `--career-trace <FILE>`, `NFSMW_CAREER_TRACE=<FILE>` | Writes the career-flow trace (below) to this file, replacing it; the flag wins |
+| `--exit-after-first-car` | Ends the process when the first car is bought in the first-car lot |
+| `--autopilot` | As in a race run: the opponents' driver has the player's car in every race of the career, from the green light |
+| `--ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right"` | The scripted pad: the steps after `loop` repeat for the whole run. Accept goes on from whatever front-end screen is up (the win photo, the results). In the first-car lot Accept asks to buy the car shown, Left moves the question's focus from No (where it opens) to Yes, and Accept buys it. The lot opens on a car the prologue's cash does not pay for (the GTI at 35,000 against 31,000): Accept then shows the notice, the next press closes it, and the two Rights step to the next car |
+
+```sh
+mkdir -p out/profile
+BLACKBOX_PROFILE_DIR="$(pwd -W)/out/profile" STREAMLINE_PLUGIN_DIR="$(pwd -W)" \
+nfsmw --game-dir "<install>" play --new-career CAREERRUN --autopilot \
+  --career-trace out/career.jsonl --race-trace out/races.jsonl --exit-after-first-car \
+  --ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right" \
+  --seed 1 --stock-rules --no-sound --backend vulkan --bench-seconds 3000 --offscreen --max-fps 60
+```
+
+`--offscreen` with `--bench-seconds` works on `play` as on `view-world`: the window stays hidden and the benchmark's
+`N` seconds are the time limit. The movies and NIS scenes play at their own length: the world skips them only on a
+real Accept, which the scripted pad does not send to the world. The run needs a graphics adapter.
+
+What the run does not drive: the free-roam drive to the first safe house (after the purchase) has no driver, so the
+run ends at the purchase. A run takes about 25 minutes, most of it the movies and scenes at their own length.
+
+### Career-flow trace
+
+JSON lines, written and flushed as they happen. Every line has `kind`, `seq` (from 1), `tick` and `sim_time` (the physics
+ticks run so far in the process and their simulated seconds, summed over every world of the run, so they never go back)
+and `wall_ms` (milliseconds since the file was opened). The front end runs while the world is frozen or not built, so
+lines in a row can share a `sim_time`.
+
+| `kind` | Fields |
+|---|---|
+| `header` | `schema` (`nfsmw-career-trace-v1`), `created_unix_ms`, `build` (`git_commit`, `git_dirty`) |
+| `screen` | `action` (`open`, `pop`, `clear`), `top` and `stack`: the FEng packages on the front end's stack after the change |
+| `boot_step` | `step`: a boot movie or the title screen |
+| `movie_start`, `movie_end`, `movie_missing` | `movie`; `player` (`front_end` over the menus, `world` over a race); `how` (`finished`, `skipped`, `stopped`) |
+| `nis_start`, `nis_failed`, `nis_end` | `scene`, `track`, `error`; `outcome` at the end |
+| `message_card` | `id`, `label` (language hash) and `text` of a race's message card |
+| `career_new`, `career_resume` | a new career (`alias`) or Resume Career |
+| `career_race_request` | the front end starts a career race behind the loading screen: `event`, `car` |
+| `world_load`, `world_shown`, `world_load_failed` | the front end hands over to a new world (`car`, `race`, `career`, `drive_to_safe_house`, `safe_house_start`), the world is on screen, or it could not be built |
+| `race_start`, `race_start_failed` | a queued race starts in the world: `query`, `career`, `error` |
+| `race_countdown` | the intro is over and the countdown (or rolling start) begins: `event`, `rolling` |
+| `race_over` | the race engine's end: `event`, `name`, `place`, `racers`, `finished`, `time`, `career` |
+| `career_race_result` | what the career recorded: `event`, `place`, `cash_paid`, `bins_done`, `bins_entered` |
+| `race_answer` | the post-race screen's answer: `Restart` or `Exit` |
+| `race_outro`, `race_chain` | the outro begins (`won`, `chain`: the race's `PostRaceActivity`); the outro is over and `next` is queued, or `null` |
+| `race_end` | the race is taken down: `event`, `stage` it was in, `next_queued` |
+| `chase_event`, `drive_event` | the scripted chase of `16.1.0`/`16.2.1` and the drive to the first safe house, one line per event |
+| `cell_call`, `sms_delivered` | a phone call processed (`id`, `outcome`), text messages delivered (`delivered`, `open_at`) |
+| `career_request` | a request of the world's career taken by the front end (`SafeHouse`, `CarLot`, `FirstCarLot`, `Sms`, ...) |
+| `handoff` | `to`: `car_lot` (`zone`, `first_car`), `drive_to_safe_house`, `first_safe_house_visit`, `safe_house` |
+| `blacklist_step` | a step of the safe house's Blacklist sequence: `action`, `stage` |
+| `car_lot_action` | a confirmed purchase or sale: `action`, `first_drive`, `outcome` |
+| `career_state` | when any of these changed since the last such line: `playing`, `alias`, `stage` (the bin), `cash`, `car_handle`, `car`, `cars_owned`, `flags` (settings flags, hex), `won_in_career` (event ids), `unlocked_in_career` (a count), `rival_beaten` |
+| `run_end` | `reason`: `first_car_bought` with `--exit-after-first-car` |

@@ -187,6 +187,8 @@ impl WorldScene {
                 // Ids from the calls are small positive numbers, so the `i32` cast is exact.
                 let outcome = process_cell_call(inbox, call.id as i32, language, ctx.overlay_allowed);
                 log_call(call.id, outcome);
+                let line = serde_json::json!({"id": call.id, "outcome": format!("{outcome:?}")});
+                crate::parity::career_trace::record("cell_call", line);
                 if let CellCallOutcome::Speak(_) = outcome {
                     cell_call::request(call.id);
                 }
@@ -201,6 +203,8 @@ impl WorldScene {
         });
         let Some(flush) = flushed.flatten() else { return };
         log::info!("phone: {} message(s) delivered, the message {} opens", flush.delivered.len(), flush.open_at);
+        let line = serde_json::json!({"delivered": format!("{:?}", flush.delivered), "open_at": flush.open_at});
+        crate::parity::career_trace::record("sms_delivered", line);
         self.career.requests.push_back(popup_request(&flush));
     }
 

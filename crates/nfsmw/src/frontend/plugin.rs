@@ -394,6 +394,7 @@ fn update(
     }
 
     fe.last_mask = mask;
+    fe.trace_career_state();
     // The input layer seats both players while a split-screen race or a co-op session (`input::coop_seats`) is on.
     let seats = fe.split_seats().or_else(|| {
         crate::input::coop_seats(host.scene.coop_second_device(), map.pads.iter().map(|(entity, _)| entity))

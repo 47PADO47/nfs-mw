@@ -74,6 +74,16 @@ fn a_done_bin_keeps_its_boss_race_open_and_hands_the_walk_down() {
 }
 
 #[test]
+fn a_first_place_marks_the_event_won_in_the_career_and_a_loss_does_not() {
+    let mut nodes = NodeStates::default();
+    assert!(!note_career_win(&mut nodes, "16.2.2", 2), "a loss writes nothing");
+    assert!(nodes.get("16.2.2").is_none());
+    assert!(note_career_win(&mut nodes, "16.2.2", 1));
+    assert!(nodes.get("16.2.2").is_some_and(|state| state.won_in_career()));
+    assert!(!note_career_win(&mut nodes, "16.2.2", 1), "a repeat win changes nothing");
+}
+
+#[test]
 fn a_boss_race_is_told_apart_from_a_free_race() {
     let bl = blacklist(0);
     assert!(is_boss_race(&bl, "15.5.1"));

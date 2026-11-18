@@ -294,13 +294,15 @@ What the rewrite decides where the spec above is silent. All of it is open to Gh
 
 1. The call, kill, cop and bail triggers of `16.1.0` and `16.2.1` are **plane triggers** (`planetrigger`), not boxes. A plane
    is a slab 1 m thick, so it is tested along the player's step, not by where the step ends. `16.1.0` has only
-   `call_from_mia` (and `wrongway`); the chase script runs on it as on `16.2.1`.
+   `call_from_mia` (and `wrongway`). The chase script runs on `16.2.1` only: `16.1.0` is raced to its finish line, won or
+   lost as any race (a run of the original, given to this work as an observation, won it in about 61 s and showed the
+   results without advancing after a loss). Whether call 10 plays at `16.1.0`'s `call_from_mia` is open.
 2. The voice load of call 10 is a fixed 10 s (`WaitForCallLoad`), so the backup sabotage (15 s after the call trigger) comes
    before the call's own fade (8 s after the call starts). `notifyengineblown` is the sabotage plus 6 s, or the car coasting
    under 3 m/s after 1.5 s. Then the 1 s timer ends the race (F-16). The screen fades to black over 3 s and stays black until
    the next race or movie takes the screen.
-3. A scripted end counts as a win of the event (the chain and the resume read it) and goes through the race outro: `16.1.0`
-   leads to `16.2.2`; `16.2.1` plays `storyfmv_bus12` and then opens the car lot.
+3. A scripted end counts as a win of the event (the chain and the resume read it) and goes through the race outro: `16.2.1`
+   plays `storyfmv_bus12` and then opens the car lot.
 4. The flashback races open on a days-ago card: `16.2.2` "Six Days Ago..." (message 6), `16.2.3` "Four Days Ago..." (4),
    `16.1.1` "Two Days Ago..." (message 2, from the data). The texts are the install's (`0x4CBBA984`, `0x2117EECC`,
    `0xA461D64A`; `^` is a line break). Messages 6 and 4 are not in the race data **[unconfirmed]**.

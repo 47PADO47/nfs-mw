@@ -175,7 +175,7 @@ fn a_step_beside_or_short_of_the_plane_misses_it() {
 }
 
 #[test]
-fn the_opening_race_has_only_the_call_and_its_engine_gives_out_after_the_sabotage() {
+fn a_chase_with_only_the_call_trigger_still_gives_out_after_the_sabotage() {
     let mut zones: [Option<Zone>; 4] = [None, None, None, None];
     zones[CALL] = Some(Zone::Plane(plane()));
     let mut run = ChaseRun::from_zones(zones);
@@ -236,4 +236,11 @@ fn the_cops_spawn_at_the_races_own_spawn_points_facing_their_markers() {
     assert!((points[0].1 - Vec3::Z).length() < 1e-5, "heading 0 faces +z");
     assert!((points[1].1 - Vec3::new(-1.0, 0.0, 0.0)).length() < 1e-5, "heading 90 faces -x");
     assert!(cop_points(&data, "16_1_0_partial_dday").is_empty());
+}
+
+#[test]
+fn only_the_scripted_chase_runs_the_chase_script() {
+    assert!(is_chase_event("16.2.1"));
+    assert!(!is_chase_event("16.1.0"), "the opening race is raced to its finish");
+    assert!(!is_chase_event("16.2.2"));
 }

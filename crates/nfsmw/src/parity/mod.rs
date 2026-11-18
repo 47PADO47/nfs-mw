@@ -1,11 +1,12 @@
 //! Options for unattended, repeatable comparison runs against the original game: a seed for the random sources that
 //! single player otherwise seeds from the clock (`seed.rs`), the switch that forces every mechanics-changing setting to
 //! the original's behaviour (`stock.rs`), the header a trace records about the run (`header.rs`), and the unattended
-//! race run: its options (`race_run.rs`) and its record (`race_trace.rs`).
+//! race run: its options (`race_run.rs`) and its record (`race_trace.rs`); and the career-flow trace (`career_trace.rs`).
 //!
 //! The options are per run: the command line or the environment sets them once, before anything reads them, and nothing
 //! saves them.
 
+pub mod career_trace;
 pub mod header;
 pub mod race_run;
 pub mod race_trace;

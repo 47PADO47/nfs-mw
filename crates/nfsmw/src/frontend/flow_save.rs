@@ -138,6 +138,7 @@ impl Frontend {
             }
         };
         log::info!("career: new career {alias}");
+        crate::parity::career_trace::record("career_new", serde_json::json!({"alias": alias}));
         self.career.set(career);
         self.start_career_race(FIRST_PROLOGUE_RACE, host, env);
     }
