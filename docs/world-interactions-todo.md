@@ -56,10 +56,17 @@ See [coverage and evidence](world-interactions.md),
   model-budget competition. The current fragment adapter uses full rigid bodies.
 - Match explosion shell/point selection, occlusion, damage and event causality.
   Current waves use sphere broad phase and a center-force adapter.
-- Add authored breakup particles/audio, cinematic cameras/slowdown, dynamic
-  regions, music and speech hooks.
-- Complete pursuit score/cop-wreck notifications and exact stop-cop AI behavior.
-- Implement spike strips and remaining scripted world set pieces.
+- Add authored breakup particles/audio, dynamic regions, music and speech hooks.
+  The breaker's cinematic camera cut and slowdown are implemented
+  (`scenes/world/moment.rs`, [spec](specs/pursuit-breaker-moment.md)); not seen in
+  a live game ([pursuit-system.md](pursuit-system.md)).
+- Compare the cop-wreck notice on screen with the original. The destroyed-cop
+  line is implemented (`hud/takedown.rs`, [spec](specs/hud-pursuit-takedown.md)).
+  Pursuit score and exact stop-cop AI behavior remain.
+- Compare spike strips with the original and implement the remaining scripted
+  world set pieces. Strips are implemented (`libs/blackbox-pursuit/src/spikes.rs`,
+  `scenes/world/ai/spikes.rs`); the Spikes row of
+  [pursuit-system.md](pursuit-system.md) lists what is missing.
 - Test every installed breaker in gameplay, including repeated impacts, passing
   traffic, entering cops, leaving/returning to the area and parent/tile unload.
 

@@ -154,11 +154,11 @@ world is up. **Open:** the interact prompt, meters, hiding HUD parts, screen tex
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
-| Message | `hud.message(text: &str, style: MessageStyle { Info, Warning, Big }, secs: f32)` | G | `hud/elements.rs`, `hud/state.rs` (`HudState`) |
+| Message | `hud.message(text: &str, style: MessageStyle { Info, Warning, Big }, secs: f32)` | G | `hud/elements.rs`, `hud/state/mod.rs` (`HudState`) |
 | Interact prompt | `hud.prompt(text: &str) -> PromptId`, `hud.clear_prompt(PromptId)` (the "press X" text) | G | `hud/interact_prompt.rs` |
 | Meter | `hud.meter(label: &str, style) -> Result<MeterId>`, `set_fraction(MeterId, f32)`, `remove(MeterId)` | G | `hud/` mod meter (new); look from `hud/speedbreaker.rs` |
 | Show or hide HUD | `hud.set_visible(HudPart, bool)` (all, speedometer, minimap, pursuit bar) **W** | G | `hud/viewport.rs`, `settings/hud_layout.rs` |
-| Read HUD state | `hud.speed_display() -> u32`, `hud.rpm_fraction() -> f32` | G | `hud/state.rs` (`display_speed`, `rpm_fraction`) |
+| Read HUD state | `hud.speed_display() -> u32`, `hud.rpm_fraction() -> f32` | G | `hud/state/mod.rs` (`display_speed`, `rpm_fraction`) |
 | Screen text | `hud.text(TextDef { pos: Vec2, text, size, colour, secs }) -> TextId`, `remove` | G | `libs/blackbox-text`, `hud/` mod layer (new) |
 | Screen size | `hud.size() -> Vec2` the HUD canvas in pixels | G | `hud/viewport.rs` |
 
