@@ -1,8 +1,9 @@
 //! The race trace: one JSON line per thing a race did, for comparing a race run in the remake with the same race run
 //! in the original game. Off unless `--race-trace <file>` or `NFSMW_RACE_TRACE=<file>` names a file.
 //!
-//! The first line of a race is its `header`: the run header every trace shares (`header.rs`), the event, the racers and
-//! the laps. Then `timer_start`, `autopilot`, `checkpoint`, `lap`, `racer_finished`, `knocked_out` and `race_finished`
+//! The first line of a race is its `header` (`race_trace/header.rs`), written at the green light: the run header every
+//! trace shares (`parity/header.rs`), the build, the event, the rules the race runs under, the racers on the grid and the
+//! laps. Then `timer_start`, `autopilot`, `checkpoint`, `lap`, `racer_finished`, `knocked_out` and `race_finished`
 //! lines follow, each stamped with the physics tick it happened in, the simulated time and the wall time, and a `sample`
 //! line every tenth of a second of race time (`sample.rs`). Racer 0 is the player; laps and checkpoints count from 1;
 //! times are seconds of race time, which starts at the green light.
@@ -18,12 +19,11 @@ use std::time::Instant;
 use blackbox_race::{Race, RaceEvent};
 use serde::Serialize;
 
-use super::header::RunHeader;
-use super::race_run::Autopilot;
-
+mod header;
 mod sample;
 
-pub use sample::{Controls, SampleClock, SampleRow};
+pub use header::{Build, Difficulty, Header, Mode, RacerRow, Traffic};
+pub use sample::{Controls, DriverRow, SampleClock, SampleRow};
 
 /// The layout's name, in every header.
 pub const SCHEMA: &str = "nfsmw-race-trace-v1";
@@ -40,17 +40,6 @@ pub struct Stamp {
     pub wall_ms: f64,
 }
 
-/// One racer on the grid.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct RacerRow {
-    pub racer: usize,
-    pub name: String,
-    /// The car: the player's car folder, an opponent's `pvehicle` name.
-    pub car: Option<String>,
-    /// The race counts this racer as a person: the race is over when every such racer is done.
-    pub human: bool,
-}
-
 /// How one racer stood when the race was over.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct ResultRow {
@@ -59,45 +48,6 @@ pub struct ResultRow {
     pub finished: bool,
     /// The finish time; `null` for a racer that did not finish before the race was over.
     pub total_time: Option<f32>,
-}
-
-/// What a race's first line says about it.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Header {
-    pub schema: &'static str,
-    /// Unix time of the line, milliseconds.
-    pub created_unix_ms: u64,
-    pub run: RunHeader,
-    /// The career event id, for example `16.1.1`.
-    pub event: String,
-    /// The race's collection name.
-    pub race: String,
-    pub race_type: String,
-    /// The opponents that stand on the grid.
-    pub opponents: usize,
-    pub laps: u32,
-    /// The checkpoints of one lap, without the finish line.
-    pub checkpoints_per_lap: usize,
-    /// The race has a finish line besides its checkpoints; crossing it closes a lap and raises no `checkpoint` line.
-    pub finish_line: bool,
-    /// No countdown: the timer starts when the racers are placed.
-    pub rolling_start: bool,
-    pub racers: Vec<RacerRow>,
-    /// The autopilot of the run; `null` when a person (or nobody) drives the player's car.
-    pub autopilot: Option<AutopilotRow>,
-}
-
-/// The autopilot's options.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
-pub struct AutopilotRow {
-    pub after_secs: f32,
-    pub skill: f32,
-}
-
-impl From<Autopilot> for AutopilotRow {
-    fn from(autopilot: Autopilot) -> Self {
-        Self { after_secs: autopilot.after_secs, skill: autopilot.skill }
-    }
 }
 
 /// One line of the trace.

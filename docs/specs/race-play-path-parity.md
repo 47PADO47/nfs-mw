@@ -30,7 +30,9 @@ eligibility checks or replacing it with a loaded career's car. See
 Ordinary custom races allow zero opponents, as reported by the user for the OG.
 Keep the existing extended maximum. Racer ID zero remains the player even when
 the physical grid slot varies. Authored forced positions and scripted career
-starts take priority. A solo race has one valid grid slot.
+starts take priority over the planned grid; where a standing start's intro NIS
+ends its cars, those end poses are the grid ([route](ai-racers-route.md)
+section 3). A solo race has one valid grid slot.
 
 The remake draws custom starting slots from a separate random stream, seeded
 from the clock in single player or from the world's explicit session seed.

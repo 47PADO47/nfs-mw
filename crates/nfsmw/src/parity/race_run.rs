@@ -20,6 +20,8 @@ pub struct RaceRequest {
     pub opponents: Option<usize>,
     /// The number of laps; `None` keeps the event's own.
     pub laps: Option<u32>,
+    /// The quick-race difficulty, a `DifficultyLevel` of 0 to 100; `None` keeps the event's own.
+    pub difficulty: Option<i32>,
 }
 
 /// The opponents' driver in the player's car.

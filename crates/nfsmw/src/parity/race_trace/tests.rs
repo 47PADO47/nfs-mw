@@ -4,6 +4,8 @@ use serde_json::{Value, json};
 
 use super::*;
 use crate::parity::ParityOptions;
+use crate::parity::header::RunHeader;
+use crate::parity::race_run::Autopilot;
 
 fn gate(z: f32) -> Gate {
     Gate::new(Vec3::new(0.0, 0.0, z), Vec3::Z, Vec3::Y, [2.0, 40.0, 10.0])
@@ -136,15 +138,38 @@ fn header() -> Header {
             None,
             None,
         ),
+        build: Build { git_commit: Some("abc123"), git_dirty: Some(false) },
         event: "16.1.1".into(),
         race: "race_bin_16/16_1_1_circuit".into(),
         race_type: "circuit".into(),
+        mode: Mode::Quick,
+        difficulty: Some(Difficulty::new(100, 2)),
+        catch_up: true,
+        traffic: Traffic { level: 50, pattern: None, cars: 20 },
+        cops: false,
         opponents: 3,
         laps: 2,
         checkpoints_per_lap: 4,
         finish_line: true,
         rolling_start: false,
-        racers: vec![RacerRow { racer: 0, name: "player".into(), car: Some("BMWM3GTR".into()), human: true }],
+        racers: vec![
+            RacerRow {
+                racer: 0,
+                name: "player".into(),
+                car: Some("BMWM3GTR".into()),
+                human: true,
+                skill: Some(1.0),
+                grid: Some([1634.5, 382.75, 94.5]),
+            },
+            RacerRow {
+                racer: 1,
+                name: "JOEY".into(),
+                car: Some("gto".into()),
+                human: false,
+                skill: Some(0.375),
+                grid: Some([1634.875, 380.125, 94.625]),
+            },
+        ],
         autopilot: Some(Autopilot { after_secs: 1.5, skill: 1.0 }.into()),
     }
 }
@@ -155,9 +180,30 @@ fn the_header_line_carries_the_run_header_the_event_the_opponents_and_the_laps()
     assert_eq!((&line["kind"], &line["schema"]), (&json!("header"), &json!(SCHEMA)));
     assert_eq!((&line["run"]["seed"], &line["run"]["stock_rules"]), (&json!(7), &json!(true)));
     assert_eq!((&line["event"], &line["opponents"], &line["laps"]), (&json!("16.1.1"), &json!(3), &json!(2)));
-    assert_eq!(line["racers"][0], json!({"racer": 0, "name": "player", "car": "BMWM3GTR", "human": true}));
+    assert_eq!(
+        line["racers"][0],
+        json!({"racer": 0, "name": "player", "car": "BMWM3GTR", "human": true, "skill": 1.0,
+               "grid": [1634.5, 382.75, 94.5]})
+    );
+    assert_eq!((&line["racers"][1]["skill"], &line["racers"][1]["grid"][0]), (&json!(0.375), &json!(1634.875)));
     assert_eq!(line["autopilot"], json!({"after_secs": 1.5, "skill": 1.0}));
     assert_eq!(line["tick"], json!(0));
+}
+
+#[test]
+fn the_header_says_which_rules_the_race_runs_under_and_which_build_ran_it() {
+    let line = serde_json::to_value(Record::Header { stamp: stamp(0), header: Box::new(header()) }).unwrap();
+    assert_eq!(line["mode"], json!("quick"));
+    assert_eq!(line["difficulty"], json!({"level": 100, "name": "hard"}));
+    assert_eq!((&line["catch_up"], &line["cops"]), (&json!(true), &json!(false)));
+    assert_eq!(line["traffic"], json!({"level": 50, "pattern": null, "cars": 20}));
+    assert_eq!(line["build"], json!({"git_commit": "abc123", "git_dirty": false}));
+    let career = Header { mode: Mode::of(true), difficulty: None, ..header() };
+    let line = serde_json::to_value(Record::Header { stamp: stamp(0), header: Box::new(career) }).unwrap();
+    assert_eq!((&line["mode"], &line["difficulty"]), (&json!("career"), &json!(null)));
+    assert_eq!(Mode::of(false), Mode::Quick);
+    let names: Vec<&str> = [(33, 0), (66, 1), (100, 2)].map(|(level, class)| Difficulty::new(level, class).name).into();
+    assert_eq!(names, ["easy", "medium", "hard"]);
 }
 
 #[test]
@@ -205,9 +251,10 @@ fn a_sample_line_has_every_racer_and_the_players_controls() {
         racer: 0,
         position: [1.5, -2.0, 100.0],
         speed: 30.0,
-        controls: Some(Controls { throttle: 1.0, brake: 0.0, steering: -0.25, gear: 3 }),
+        controls: Some(Controls { throttle: 1.0, brake: 0.0, steering: -0.25, gear: 3, rpm: 7000.0 }),
+        driver: None,
     };
-    let opponent = SampleRow { racer: 1, position: [4.0, 5.0, 6.0], speed: 28.5, controls: None };
+    let opponent = SampleRow { racer: 1, position: [4.0, 5.0, 6.0], speed: 28.5, controls: None, driver: None };
     let line = serde_json::to_value(Record::Sample { stamp: stamp(6), race_time: 0.1, racers: vec![player, opponent] })
         .unwrap();
     assert_eq!((&line["kind"], &line["tick"]), (&json!("sample"), &json!(6)));
@@ -215,9 +262,30 @@ fn a_sample_line_has_every_racer_and_the_players_controls() {
         line["racers"],
         json!([
             {"racer": 0, "position": [1.5, -2.0, 100.0], "speed": 30.0,
-             "controls": {"throttle": 1.0, "brake": 0.0, "steering": -0.25, "gear": 3}},
+             "controls": {"throttle": 1.0, "brake": 0.0, "steering": -0.25, "gear": 3, "rpm": 7000.0}},
             {"racer": 1, "position": [4.0, 5.0, 6.0], "speed": 28.5},
         ]),
-        "an opponent has no controls key"
+        "a row without a car to read or a driver has no such keys"
     );
+}
+
+#[test]
+fn the_autopilots_driver_is_in_the_players_row() {
+    let driver = DriverRow {
+        target_speed: 44.0,
+        base_skill: 1.0,
+        catch_up: 0.0,
+        skill: 1.0,
+        catch_up_force: 0.0,
+        stand_in: false,
+    };
+    let controls = Some(Controls { throttle: 0.5, brake: 0.0, steering: 0.1, gear: 2, rpm: 5000.0 });
+    let row = SampleRow { racer: 0, position: [0.0; 3], speed: 20.0, controls, driver: Some(driver) };
+    let line = serde_json::to_value(row).unwrap();
+    assert_eq!(
+        line["driver"],
+        json!({"target_speed": 44.0, "base_skill": 1.0, "catch_up": 0.0, "skill": 1.0, "catch_up_force": 0.0,
+               "stand_in": false})
+    );
+    assert_eq!(line["controls"]["rpm"], json!(5000.0));
 }

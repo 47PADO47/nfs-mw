@@ -132,6 +132,7 @@ they are never saved, and without them nothing changes (`crates/nfsmw/src/parity
 |---|---|
 | `--race <EVENT>` | Starts in this race, skipping the menus: a career event id (`16.1.1`) or a race name, as the console's `race start` takes it. The race is queued as a quick race is and starts when the car stands, through the same start path. It needs `--drive` |
 | `--race-opponents <N>`, `--race-laps <N>` | The opponents and the laps; left out, the event's own. `race start <race> opponents=N laps=N` in the console does the same |
+| `--race-difficulty <LEVEL>` | The quick-race difficulty: `easy`, `medium` or `hard` (the levels 33, 66 and 100 the quick race writes) or a `DifficultyLevel` of 0 to 100. Left out, the event's own `DifficultyLevel`: 100, hard, in 250 of the 255 races ([gameplay-races.md](formats/gameplay-races.md) section 3.3). It sets the opponents' skills and the catch-up's class; a `--race` run is a quick race |
 | `--autopilot` | In a race, the opponents' AI driver drives the player's car from the green light |
 | `--autopilot-after <SECS>` | The driver takes the car this many seconds of race time after the green light; until then the car gets the real input, which is none with nobody at the controls |
 | `--autopilot-skill <0-1>` | The driver's skill on the opponents' scale, default 1. The catch-up never changes it |
@@ -156,14 +157,14 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
 
 | `kind` | Fields |
 |---|---|
-| `header` | `schema` (`nfsmw-race-trace-v1`), `created_unix_ms`, `run` (the [run header](#run-header), with the world part), `event`, `race`, `race_type`, `opponents` and `laps` as the race runs them, `checkpoints_per_lap`, `finish_line`, `rolling_start`, `racers` (`racer`, `name`, `car`, `human`), `autopilot` (`after_secs`, `skill`, or `null`). Written when the racers stand on the grid |
+| `header` | `schema` (`nfsmw-race-trace-v1`), `created_unix_ms`, `run` (the [run header](#run-header), with the world part), `build`, `event`, `race`, `race_type`, `mode`, `difficulty`, `catch_up`, `traffic`, `cops`, `opponents` and `laps` as the race runs them, `checkpoints_per_lap`, `finish_line`, `rolling_start`, `racers` (`racer`, `name`, `car`, `human`, `skill`, `grid`), `autopilot` (`after_secs`, `skill`, or `null`). Written at the green light, just before `timer_start` (see below) |
 | `timer_start` | `race_time` 0: the green light, or the start of a rolling race |
 | `autopilot` | `race_time` at which the driver took the car |
 | `checkpoint` | `racer`, `lap`, `checkpoint`, `race_time` |
 | `lap` | `racer`, `lap`, `lap_time`, `race_time`; the last lap too |
 | `racer_finished` | `racer`, `place`, `total_time` |
 | `knocked_out` | `racer`, `race_time` |
-| `sample` | `race_time`, `racers`: per racer on the road `racer`, `position`, `speed` and, for the player only, `controls` (`throttle`, `brake`, `steering`, `gear`) |
+| `sample` | `race_time`, `racers`: per racer on the road `racer`, `position`, `speed`, `controls` (`throttle`, `brake`, `steering`, `gear`, `rpm`) and, for a racer an AI driver drives, `driver` (`target_speed`, `base_skill`, `catch_up`, `skill`, `catch_up_force`, `stand_in`) |
 | `race_finished` | `race_time`, `results` (`racer`, `place`, `finished`, `total_time` per racer) |
 
 - The finish line is not a checkpoint: crossing it writes `lap`, and no `checkpoint`. A race with no finish line closes
@@ -171,13 +172,38 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
 - The race is over when the player has finished or is out, or the time ran out. The opponents still on the road are not
   timed after that: they are in `results` with `finished` false and no `lap` or `racer_finished` line follows.
 - A restart of the race writes a new `header`.
+- The `header` is the race's identity, read from the running race when the light turns green
+  (`crates/nfsmw/src/parity/race_trace/header.rs`, `crates/nfsmw/src/scenes/world/race/trace_rows.rs`); nothing in it is
+  copied from the command line. A race taken down before its green light writes no header.
+  - `build`: `git_commit` (the commit the binary was built from, `null` without Git at compile time) and `git_dirty`
+    (tracked files had changes when the build script last ran, `crates/nfsmw/build.rs`).
+  - `mode`: `quick` or `career`, the rule set the race runs under (the skills, the catch-up's context, the result).
+  - `difficulty`: the quick-race difficulty in effect, `level` (0 to 100) and `name` (`easy` below 34, `medium` to 66,
+    `hard` above); `null` in a career race, which does not use it.
+  - `catch_up`: whether the catch-up (rubber band) is on.
+  - `traffic`: `level`, the event's traffic density in percent as the world applies it (0 in a drag race), `pattern`
+    (`drag`, or `null`) and `cars`, the most traffic cars the world keeps.
+  - `cops`: whether police may enter the race (false when the race bars them or the F5 police switch is off).
+  - per racer `skill`: the base skill its AI driver uses (an opponent's from its car, the player's the autopilot's;
+    `null` for a racer no AI drives), before the catch-up offsets it; and `grid`: where it stands at the green light,
+    in the frame of `sample.position`.
 - `sample` lines (`crates/nfsmw/src/parity/race_trace/sample.rs`) come every 0.1 s of race time from the green light
   until the race is over, on the first tick whose race time reaches the next multiple of 0.1 s (to half a tick; at 60 Hz
   every sixth tick, the first on the green light's tick, after its `timer_start`). None is written during the countdown.
   `position` is in the game's world coordinates, metres: x and y on the ground, z up, the axes of the data's `Position`
   (the physics space's `(x, y, z)` is `(-y, z, x)` of it). `speed` is the speed along the car in m/s, without its sign.
-  `controls` are what the player's car stepped with in that tick after the input shaping, whoever drove it: `throttle`
-  and `brake` 0 to 1, `steering` -1 to 1 (positive to the right), `gear` -1 reverse, 0 neutral, 1 and up forward.
+  `controls` are what each car stepped with in its last step after the input shaping, whoever drove it: `throttle`
+  and `brake` 0 to 1, `steering` -1 to 1 (positive to the right), `gear` -1 reverse, 0 neutral, 1 and up forward, and
+  `rpm` the engine speed after the step. The player's are those of the sample's tick; an opponent's are read after the
+  world's step of that tick.
+- `driver` (`crates/nfsmw/src/scenes/world/race/trace_rows.rs`) is what the AI driver asked for in that tick: the
+  opponents' drivers, and the autopilot's while it has the player's car (absent before it takes the car). `target_speed`
+  is the speed in m/s it is asked to reach (the think's, or the recovery speed while it reverses). `base_skill` is the
+  character's skill, `catch_up` the offset the catch-up added this tick, and `skill` the sum in 0..1 that the driver uses
+  ([ai-driver-speed-skill.md](specs/ai-driver-speed-skill.md) section 8). `catch_up_force` is the catch-up force budget,
+  0 to 0.5, which scales the car's positive engine torque, drag and downforce; the player's car gets neither offset nor
+  force (both 0). `stand_in` is true while the racer moves on its off-world stand-in rather than by physics; its
+  `controls` are then those of its last physics step.
 - The player's vehicle record is the car folder's own `pvehicle`: `--drive BMWM3GTR` races `bmwm3gtr`, and
   `--drive BMWM3GTRE46` races `bmwm3gtre46`, the record the prologue's M3 GTR uses (`CAR:PRESET` adds a preset ride's
   parts, as `BMWM3GTRE46:M3GTRCAREERSTART`). The two records differ in engine, gearing, tires, brakes, chassis and mass,

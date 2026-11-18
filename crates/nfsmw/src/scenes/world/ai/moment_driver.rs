@@ -46,6 +46,14 @@ pub(in crate::scenes::world) struct MomentDriver {
     request: DriveRequest,
 }
 
+impl MomentDriver {
+    /// The speed the driver is asked for now (m/s), and its skill: the base, the catch-up offset (none: the race's
+    /// catch-up never reaches the player's car) and the skill it drives with.
+    pub(in crate::scenes::world) fn trace_state(&self) -> (f32, f32, f32, f32) {
+        (self.request.speed, self.racer.base_skill, self.racer.glue, self.racer.skill())
+    }
+}
+
 impl TrafficWorld {
     #[cfg(test)]
     pub(in crate::scenes::world) fn moment_input(

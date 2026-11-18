@@ -83,3 +83,18 @@ models. Later stock-race captures resolve model parents, as recorded in
 grid randomization and remaining pace differences need separate verification.
 The remake's controlled player-trajectory probe measures the production settings,
 physical rivals and catch-up without claiming a complete behavioral match.
+
+## Start grid of `16.1.1` (2026-11-18)
+
+Install data (unmodded reference install): `16_1_1_circuit/16_1_1_startgrid` holds
+only `Position` and `Rotation`. `16_1_1_circuit/opponent` names
+`16_1_1_circuit/opponent/spawn` (a `carmarker`, 109 m ahead of the start) as its
+`ForceStartPosition`; the remake used it as that racer's grid slot. The race's
+`IntroNIS` is `IntroNis10`, a type 4 scene, whose `car1` to `car4` channels end
+at (1634.50, 382.94), (1634.92, 380.12), (1635.14, 377.51) and (1634.18, 385.92).
+An unattended observation of the running original, supplied with the task, put
+the player and the three opponents at those points at the green light and had a
+car at the forced-start marker only before the cars were placed. The other
+standing-start intros end in rows about 3 m behind the start; the Blacklist boss
+intros and the rolling D-Day intro do not end in a grid. No executable code was
+read for this change.

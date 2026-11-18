@@ -6,11 +6,9 @@ use blackbox_race::{Phase, RaceEvent};
 
 use super::{RaceOptions, RaceSession};
 use crate::parity::race_run::{self, RaceRunOptions};
-use crate::parity::race_trace::{
-    Controls, Header, RaceLog, RacerRow, Record, SCHEMA, SampleClock, SampleRow, Stamp, TraceFile,
-};
+use crate::parity::race_trace::{RaceLog, Record, SampleClock, Stamp, TraceFile};
+use crate::scenes::world::WorldScene;
 use crate::scenes::world::ai::MomentDriver;
-use crate::scenes::world::{WorldScene, space};
 
 /// The world's side of an unattended race run.
 #[derive(Default)]
@@ -84,7 +82,12 @@ impl Unattended {
 
 /// The options of the race a run asked for: the event's own but for the opponents and the laps given.
 pub(super) fn options_of(request: &race_run::RaceRequest) -> RaceOptions {
-    RaceOptions { laps: request.laps, opponents: request.opponents, ..RaceOptions::default() }
+    RaceOptions {
+        laps: request.laps,
+        opponents: request.opponents,
+        difficulty: request.difficulty,
+        ..RaceOptions::default()
+    }
 }
 
 impl WorldScene {
@@ -113,47 +116,26 @@ impl WorldScene {
         }
     }
 
-    /// The racers stand on the grid and the race exists: its header line.
+    /// The racers stand on the grid and the race exists: a new race's trace begins. Its header is written at the green
+    /// light (`trace_race_event`), when the grid it records is the grid the race starts from.
     pub(super) fn trace_race_begins(&mut self, session: &RaceSession) {
-        let Some(engine) = session.engine.as_ref() else { return };
-        self.unattended.log = RaceLog::default();
-        self.unattended.samples = SampleClock::default();
-        if self.unattended.plan.trace.is_none() {
+        if session.engine.is_none() {
             return;
         }
-        let player_car = self.players.lead().map(|drive| drive.car_name.clone());
-        let racers = session.plan.iter().zip(engine.racers()).enumerate().map(|(racer, (plan, state))| RacerRow {
-            racer,
-            name: plan.name.clone(),
-            car: plan.model.clone().or_else(|| player_car.clone().filter(|_| racer == 0)),
-            human: state.human,
-        });
-        let course = engine.course();
-        let header = Header {
-            schema: SCHEMA,
-            created_unix_ms: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_millis() as u64),
-            run: self.run_header(),
-            event: session.event.clone(),
-            race: session.name.clone(),
-            race_type: format!("{:?}", session.kind).to_ascii_lowercase(),
-            opponents: engine.racers().len().saturating_sub(1),
-            laps: course.laps,
-            checkpoints_per_lap: course.checkpoints.len(),
-            finish_line: course.finish.is_some(),
-            rolling_start: session.origin.race.params.rolling_start,
-            racers: racers.collect(),
-            autopilot: self.unattended.plan.autopilot.map(Into::into),
-        };
-        self.unattended.write(|stamp| Record::Header { stamp, header: Box::new(header) });
+        self.unattended.log = RaceLog::default();
+        self.unattended.samples = SampleClock::default();
     }
 
     /// One event of the running race: its trace lines, and the end of the process when the race is over and the run
-    /// asked for that.
+    /// asked for that. The green light writes the race's header first.
     pub(super) fn trace_race_event(&mut self, session: &RaceSession, event: &RaceEvent) {
         let Some(engine) = session.engine.as_ref() else { return };
         if self.unattended.plan.trace.is_some() {
+            if *event == RaceEvent::Go
+                && let Some(header) = self.race_trace_header(session)
+            {
+                self.unattended.write(|stamp| Record::Header { stamp, header: Box::new(header) });
+            }
             let stamp = self.unattended.stamp();
             for record in self.unattended.log.records(engine, event, stamp) {
                 self.unattended.write(|_| record);
@@ -166,7 +148,8 @@ impl WorldScene {
     }
 
     /// One tick of `dt` of the running race, after its events: a `sample` line when one is due. The player's place and
-    /// controls are those its car stepped with this tick; the opponents' are the places the race was given.
+    /// controls are those its car stepped with this tick; the opponents' are the places the race was given and what
+    /// their drivers did in their last step (`trace_rows.rs`).
     pub(super) fn trace_race_sample(&mut self, session: &RaceSession, dt: f32) {
         let Some(engine) = session.engine.as_ref() else { return };
         if self.unattended.plan.trace.is_none() || engine.phase() != Phase::Racing {
@@ -176,31 +159,7 @@ impl WorldScene {
         if !self.unattended.samples.due(race_time, dt) {
             return;
         }
-        let mut racers = Vec::with_capacity(engine.racers().len());
-        if let Some((drive, sim)) = self.players.lead().and_then(|drive| Some((drive, drive.sim()?))) {
-            let telemetry = sim.telemetry();
-            racers.push(SampleRow {
-                racer: 0,
-                position: drive.position().to_array(),
-                speed: telemetry.speed_mps.abs(),
-                controls: Some(Controls {
-                    throttle: sim.gas_pedal(),
-                    brake: sim.brake_pedal(),
-                    steering: sim.steering_input(),
-                    gear: telemetry.gear,
-                }),
-            });
-        }
-        if let Some(traffic) = self.traffic.as_ref() {
-            let first = racers.len();
-            racers.extend(traffic.racers().map(|(racer, at, speed)| SampleRow {
-                racer,
-                position: space::to_render(at.to_array()).to_array(),
-                speed,
-                controls: None,
-            }));
-            racers[first..].sort_by_key(|row| row.racer);
-        }
+        let racers = self.race_trace_rows();
         self.unattended.write(|stamp| Record::Sample { stamp, race_time, racers });
     }
 
@@ -231,11 +190,11 @@ mod tests {
 
     #[test]
     fn the_requested_race_keeps_the_events_own_values_unless_given() {
-        let request = race_run::RaceRequest { event: "16.1.1".into(), opponents: None, laps: None };
+        let request = race_run::RaceRequest { event: "16.1.1".into(), opponents: None, laps: None, difficulty: None };
         assert_eq!(options_of(&request), RaceOptions::default());
-        let request = race_run::RaceRequest { opponents: Some(3), laps: Some(2), ..request };
+        let request = race_run::RaceRequest { opponents: Some(3), laps: Some(2), difficulty: Some(33), ..request };
         let options = options_of(&request);
-        assert_eq!((options.opponents, options.laps), (Some(3), Some(2)));
+        assert_eq!((options.opponents, options.laps, options.difficulty), (Some(3), Some(2), Some(33)));
         assert!(
             !options.career && !options.demo,
             "a comparison run is a plain race: no career result, no gate hopping"

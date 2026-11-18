@@ -1,5 +1,6 @@
-//! The race trace's `sample` lines: every racer's place and speed, and the controls the player's car was given, every
-//! tenth of a second of race time, for comparing how the cars accelerate and which lines they take.
+//! The race trace's `sample` lines: every racer's place and speed, the controls each car stepped with and what its AI
+//! driver asked for, every tenth of a second of race time, for comparing how the cars accelerate and which lines they
+//! take.
 
 use serde::Serialize;
 
@@ -28,8 +29,8 @@ impl SampleClock {
     }
 }
 
-/// The controls the player's car stepped with in the tick of a sample, after the input shaping: what the car was given,
-/// whoever drove it.
+/// The controls a car stepped with in the tick of a sample, after the input shaping: what the car was given, whoever
+/// drove it, and its engine speed after the step.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct Controls {
     /// 0 to 1.
@@ -40,6 +41,27 @@ pub struct Controls {
     pub steering: f32,
     /// -1 reverse, 0 neutral, 1 and up the forward gears.
     pub gear: i32,
+    /// Engine revolutions per minute.
+    pub rpm: f32,
+}
+
+/// What the AI driver of a racer asked for in the tick of a sample: an opponent's driver, or the autopilot's in the
+/// player's car.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct DriverRow {
+    /// The speed the driver is asked for, m/s: the think's, or the recovery speed while it reverses.
+    pub target_speed: f32,
+    /// The character's skill, 0 to 1.
+    pub base_skill: f32,
+    /// The catch-up offset added to the skill this tick (0 for the player's car).
+    pub catch_up: f32,
+    /// The skill the driver uses: the base plus the offset, in 0..1.
+    pub skill: f32,
+    /// The catch-up force budget, 0 to 0.5: it scales the car's engine torque, drag and downforce (0 for the player's
+    /// car).
+    pub catch_up_force: f32,
+    /// The racer moves on its off-world stand-in, not by physics; `controls` are then those of its last physics step.
+    pub stand_in: bool,
 }
 
 /// One racer in a sample.
@@ -51,7 +73,10 @@ pub struct SampleRow {
     pub position: [f32; 3],
     /// Speed along the car, m/s, without its sign.
     pub speed: f32,
-    /// The player's car only.
+    /// Every racer with a car to read: the player's and the opponents'.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub controls: Option<Controls>,
+    /// Every racer an AI driver drives: the opponents, and the player's car while the autopilot has it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub driver: Option<DriverRow>,
 }

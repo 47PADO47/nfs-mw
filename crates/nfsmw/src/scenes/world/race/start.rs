@@ -6,6 +6,7 @@ use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
 use super::grid;
 use super::heat::{self, HeatChase, Police};
+use super::nis_grid;
 use super::setup::{self, RaceOptions};
 use super::startable;
 use super::wrong_way;
@@ -157,6 +158,7 @@ impl WorldScene {
         if !people.is_empty() {
             self.seat_race_people(&mut plan, &people)?;
         }
+        self.stand_on_intro_grid(&race, &start, options.career, &mut plan);
         let p = &race.params;
         let prepared = Prepared {
             course,
@@ -277,6 +279,33 @@ impl WorldScene {
     }
 }
 
+impl WorldScene {
+    /// Puts the racers where the race's intro NIS leaves its cars (`nis_grid.rs`), when the race has such an intro.
+    fn stand_on_intro_grid(
+        &self,
+        race: &Race,
+        start: &nfsmw_data::gameplay::Placement,
+        career: bool,
+        plan: &mut [RacerPlan],
+    ) {
+        let Some(scene) = nis_grid::grid_scene(race, career) else { return };
+        let ends = match crate::scenes::world::nis::intro_grid(&self.dir, &scene, start_spawn(start)) {
+            Ok(ends) => ends,
+            Err(e) => {
+                log::warn!("race: the grid of {scene} could not be read, so the racers keep the planned grid: {e}");
+                return;
+            }
+        };
+        let moved = nis_grid::stand_on(plan, &ends);
+        log::info!("race: {moved} of {} racer(s) stand where {scene} leaves its cars", plan.len());
+    }
+}
+
+/// The race start as a spawn: the `racestart` marker in render space, facing its heading.
+pub(super) fn start_spawn(start: &nfsmw_data::gameplay::Placement) -> Spawn {
+    Spawn { position: space::to_render(start.position.to_array()), heading: grid::spawn_heading(start.heading_deg) }
+}
+
 /// The stock cars an opponent may drive when its character names none: the cars of the car lot.
 fn stock_pool(dir: &game_install::GameDir) -> Vec<String> {
     let folders = nfsmw_data::car::list(dir);
@@ -301,10 +330,7 @@ fn plan_racers(
     pool: &[String],
     has_road: bool,
 ) -> Vec<RacerPlan> {
-    let slot = |placement: &nfsmw_data::gameplay::Placement| Spawn {
-        position: space::to_render(placement.position.to_array()),
-        heading: grid::spawn_heading(placement.heading_deg),
-    };
+    let slot = start_spawn;
     let mut plan = vec![RacerPlan {
         name: player_name(),
         name_label: None,

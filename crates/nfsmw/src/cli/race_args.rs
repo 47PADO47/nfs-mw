@@ -25,6 +25,23 @@ fn parse_skill(text: &str) -> Result<f32, String> {
     Ok(skill)
 }
 
+/// A quick-race difficulty: `easy`, `medium` or `hard` (the levels 33, 66 and 100 the quick race writes), or a level
+/// from 0 to 100.
+fn parse_difficulty(text: &str) -> Result<i32, String> {
+    let text = text.trim();
+    match text.to_ascii_lowercase().as_str() {
+        "easy" => return Ok(33),
+        "medium" => return Ok(66),
+        "hard" => return Ok(100),
+        _ => {}
+    }
+    let level: i32 = text.parse().map_err(|_| format!("{text:?} is not easy, medium, hard or a level of 0 to 100"))?;
+    if !(0..=100).contains(&level) {
+        return Err(format!("{level} is not between 0 and 100"));
+    }
+    Ok(level)
+}
+
 /// Options of an unattended race run.
 #[derive(Args, Clone, Default)]
 pub struct RaceRunArgs {
@@ -38,6 +55,10 @@ pub struct RaceRunArgs {
     /// With --race: the number of laps [default: the event's own].
     #[arg(long, value_name = "N", requires = "race", value_parser = clap::value_parser!(u32).range(1..))]
     pub race_laps: Option<u32>,
+    /// With --race: the quick-race difficulty, easy, medium, hard or a level of 0 to 100 [default: the event's own
+    /// DifficultyLevel].
+    #[arg(long, value_name = "LEVEL", requires = "race", value_parser = parse_difficulty)]
+    pub race_difficulty: Option<i32>,
     /// In a race, the opponents' AI driver drives the player's car from the green light.
     #[arg(long)]
     pub autopilot: bool,
@@ -62,6 +83,7 @@ impl RaceRunArgs {
             event: event.trim().to_owned(),
             opponents: self.race_opponents,
             laps: self.race_laps,
+            difficulty: self.race_difficulty,
         });
         let autopilot = self.autopilot.then(|| Autopilot {
             after_secs: self.autopilot_after.unwrap_or(0.0),

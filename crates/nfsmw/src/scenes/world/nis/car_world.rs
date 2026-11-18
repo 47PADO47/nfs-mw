@@ -269,7 +269,7 @@ fn rolled_wheels(
 
 /// The heading of a car's rotation, in radians from +X as [`Spawn::heading`] counts it. The car's forward axis is its
 /// +X in render space.
-fn heading_of(rotation: Quat) -> f32 {
+pub(super) fn heading_of(rotation: Quat) -> f32 {
     let forward = rotation * Vec3::X;
     forward.y.atan2(forward.x)
 }

@@ -32,11 +32,27 @@ fn a_drive_with_no_race_options_is_an_ordinary_run() {
 #[test]
 fn a_race_keeps_the_events_own_opponents_and_laps_unless_given() {
     let plain = options(&["nfsmw", "view-world", "--drive", "--race", "16.1.1"]);
-    assert_eq!(plain.race, Some(RaceRequest { event: "16.1.1".into(), opponents: None, laps: None }));
+    assert_eq!(plain.race, Some(RaceRequest { event: "16.1.1".into(), opponents: None, laps: None, difficulty: None }));
     let set = options(&["nfsmw", "play", "--drive", "--race", "16.1.1", "--race-opponents", "3", "--race-laps", "2"]);
-    assert_eq!(set.race, Some(RaceRequest { event: "16.1.1".into(), opponents: Some(3), laps: Some(2) }));
+    assert_eq!(
+        set.race,
+        Some(RaceRequest { event: "16.1.1".into(), opponents: Some(3), laps: Some(2), difficulty: None })
+    );
     let alone = options(&["nfsmw", "view-world", "--drive", "BMWM3GTR", "--race", "16.1.1", "--race-opponents", "0"]);
     assert_eq!(alone.race.unwrap().opponents, Some(0), "a race against nobody can be asked for");
+}
+
+#[test]
+fn the_quick_race_difficulty_is_a_name_or_a_level_and_keeps_the_events_own_unless_given() {
+    let level = |args: &[&str]| options(args).race.and_then(|race| race.difficulty);
+    let base = ["nfsmw", "view-world", "--drive", "--race", "16.1.1"];
+    assert_eq!(level(&base), None, "the event's own DifficultyLevel");
+    for (name, want) in [("easy", 33), ("Medium", 66), ("hard", 100), ("0", 0), ("50", 50)] {
+        assert_eq!(level(&[&base[..], &["--race-difficulty", name]].concat()), Some(want), "{name}");
+    }
+    assert!(fails(&[&base[..], &["--race-difficulty", "101"]].concat()));
+    assert!(fails(&[&base[..], &["--race-difficulty", "brutal"]].concat()));
+    assert!(fails(&["nfsmw", "view-world", "--drive", "--race-difficulty", "hard"]), "it needs a race");
 }
 
 #[test]
