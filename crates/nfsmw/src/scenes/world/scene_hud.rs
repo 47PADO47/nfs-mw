@@ -12,6 +12,10 @@ impl WorldScene {
         if self.career.garage.is_some() {
             return Some(crate::hud::HudState { visible: false, ..Default::default() });
         }
+        // A race's message card is the HUD's own package, drawn alone over the frame.
+        if self.race_card_text().is_some() {
+            return Some(crate::hud::HudState { visible: false, message_card: true, ..Default::default() });
+        }
         // `None` would show the viewer's idle HUD, so a playing scene answers with a hidden one.
         if self.cutscene_playing() {
             // An arrest keeps the busted overlay up for the whole scene, and its overlay events cue the package.

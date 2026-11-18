@@ -89,3 +89,33 @@ fn the_events_the_player_only_logs_ask_the_world_for_nothing() {
     }
     assert_eq!(screen, NisScreen::default());
 }
+
+#[test]
+fn the_black_fade_message_fades_the_screen_to_black_and_the_end_holds_it() {
+    let mut screen = NisScreen::default();
+    let fade = NisEvent::Overlay { package: "BLACK_FADE_OUT.fng".into(), message: "15_OUT".into() };
+    dispatch(fade, &mut screen);
+    assert_eq!(screen.black_alpha(), 0.0, "the fade starts clear");
+    screen.advance(0.15625);
+    assert!((screen.black_alpha() - 0.5).abs() < 1e-4, "half way at half its 300 ticks");
+    assert!(screen.is_showing());
+    screen.advance(1.0);
+    assert_eq!(screen.black_alpha(), 1.0);
+    screen.end();
+    assert_eq!(screen.black_alpha(), 0.0, "the scene's screen clears at its end");
+    assert!(screen.take_held_black(), "a scene that ended black hands the black over");
+    assert!(!screen.take_held_black(), "once");
+}
+
+#[test]
+fn a_scene_that_did_not_reach_black_holds_nothing_and_other_messages_fade_nothing() {
+    let mut screen = NisScreen::default();
+    dispatch(NisEvent::Overlay { package: "BLACK_FADE_OUT.fng".into(), message: "15_OUT".into() }, &mut screen);
+    screen.advance(0.1);
+    screen.end();
+    assert!(!screen.take_held_black());
+    dispatch(NisEvent::Overlay { package: "BUSTED_OVERLAY.fng".into(), message: "15_OUT".into() }, &mut screen);
+    assert_eq!(screen.black_alpha(), 0.0, "only the black fade package fades");
+    assert_eq!(black_fade("30_IN"), Some((1.0, 0.0, 0.625)));
+    assert_eq!(black_fade("FLASHTRIGGER"), None);
+}

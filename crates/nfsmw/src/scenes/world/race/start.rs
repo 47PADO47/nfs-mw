@@ -135,7 +135,7 @@ impl WorldScene {
         let opponents: Vec<_> = people.iter().map(|seat| seat.opponent()).chain(race_opponents).collect();
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
-        let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road && startable::runs_opponents(&race));
+        let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road);
         if !options.career
             && split.is_none()
             && people.is_empty()
@@ -307,7 +307,7 @@ pub(super) fn start_spawn(start: &nfsmw_data::gameplay::Placement) -> Spawn {
 }
 
 /// The stock cars an opponent may drive when its character names none: the cars of the car lot.
-fn stock_pool(dir: &game_install::GameDir) -> Vec<String> {
+pub(super) fn stock_pool(dir: &game_install::GameDir) -> Vec<String> {
     let folders = nfsmw_data::car::list(dir);
     let on_disk = |name: &String| folders.iter().any(|f| f.eq_ignore_ascii_case(name));
     nfsmw_data::career_cars::load(dir)

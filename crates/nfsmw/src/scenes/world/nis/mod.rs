@@ -29,9 +29,13 @@ mod light;
 mod loading;
 mod player;
 mod race_grid;
+pub(super) mod report;
 mod skin;
 mod world;
 
+#[cfg(test)]
+pub(super) use cars::Target;
 pub(super) use command::nis_command;
+pub(super) use kind::NisKind;
 pub(super) use player::NisPlayer;
 pub(super) use race_grid::intro_grid;

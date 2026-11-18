@@ -163,6 +163,13 @@ fn tables(dir: &GameDir) -> Result<Arc<Tables>, String> {
     .map_err(|e| format!("{e:#}"))
 }
 
+/// The take `scene` plays, chosen as the audio plugin chooses it, without decoding it: `Ok(None)` when the scene has no
+/// stream (for the scene report, `scenes/world/nis/report.rs`).
+pub fn take_of(dir: &GameDir, scene: &str) -> Result<Option<nfsmw_data::sound::NisTake>, String> {
+    let tables = tables(dir)?;
+    Ok(nis_take(&tables.index, &tables.sentences, scene))
+}
+
 /// Read the take of `scene` from the install. `Ok(None)` when the scene has no stream.
 fn load(dir: &GameDir, scene: &str, countdown: bool) -> Take {
     let tables = tables(dir)?;

@@ -167,17 +167,20 @@ impl NisPlayer {
         let Some(result) = self.loading.as_mut().and_then(Loading::poll) else { return };
         let Some(loading) = self.loading.take() else { return };
         let _trace = blackbox_trace::scope("NIS: prepare the loaded scene");
-        let started = result.and_then(|loaded| {
-            let ready = loading.prepare(loaded)?;
-            self.start_with_cars(ready.plan, ready.cars, ready.sequence, ready.characters)?;
-            if let Some(playing) = self.play.as_mut() {
-                playing.revs = ready.revs;
-            }
-            Ok(())
-        });
+        let started = result.and_then(|loaded| self.start_prepared(loading.prepare(loaded)?));
         let Err(error) = started else { return };
         log::warn!("NIS {}: the scene is not played: {error}", loading.name);
         self.give_up(&loading.name, &format!("failed ({error})"));
+    }
+
+    /// Starts a scene read and prepared off the player ([`Loading::prepare`]): its cars, events, characters and rev curves.
+    /// Refused while another plays, or when the scene has no time to play.
+    pub fn start_prepared(&mut self, ready: super::loading::Prepared) -> Result<(), String> {
+        self.start_with_cars(ready.plan, ready.cars, ready.sequence, ready.characters)?;
+        if let Some(playing) = self.play.as_mut() {
+            playing.revs = ready.revs;
+        }
+        Ok(())
     }
 
     /// Ends the load that is under way as skipped. Returns whether one was.
@@ -308,7 +311,7 @@ impl NisPlayer {
         self.final_cars = Some(handed_back(playing.spots(), std::mem::take(&mut self.player_stays)));
         self.last = Some(format!("{}: {outcome:?}", playing.name));
         self.outcome = Some(outcome);
-        self.screen.clear();
+        self.screen.end();
         self.cut = true;
         self.retired.push(playing.characters);
     }

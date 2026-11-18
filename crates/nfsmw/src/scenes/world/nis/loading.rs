@@ -81,6 +81,11 @@ impl Loading {
         }
     }
 
+    /// Waits for the thread's result (for a headless run: the frame thread never waits).
+    pub fn wait(&self) -> Result<Loaded, String> {
+        self.receiver.recv().map_err(|_| "the loading thread stopped".to_owned())?
+    }
+
     /// The scene's plan, car tracks, events and characters from what was read. The error names what failed.
     pub fn prepare(&self, loaded: Loaded) -> Result<Prepared, String> {
         let Loaded { bundle, library, light_materials, revs } = loaded;

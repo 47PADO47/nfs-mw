@@ -123,6 +123,10 @@ impl WorldScene {
             if let Some(traffic) = self.traffic.as_mut() {
                 traffic.arrest_scene_over();
             }
+            // A scene that faded itself to black leaves the screen black until the next race or movie takes it.
+            if self.nis.screen_mut().take_held_black() {
+                self.screen_fade.set_black();
+            }
             self.finish_nis_cars();
         }
         if self.nis.is_playing() {

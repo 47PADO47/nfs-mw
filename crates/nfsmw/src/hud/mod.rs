@@ -51,6 +51,7 @@ mod map_picture;
 mod map_roads;
 mod map_source;
 mod message;
+mod message_card;
 #[cfg(test)]
 mod message_tests;
 mod milestone_board;
@@ -121,6 +122,7 @@ pub use message::{
     Tone as ModMessageTone, advance as advance_mod_message, hide as hide_mod_message, is_up as mod_message_up,
     line as mod_message_line, set as set_mod_message, show as show_mod_message,
 };
+pub use message_card::{CARD_TEXT, CARD_TICKS, message_card_drawn};
 pub use milestone_board::{BoardSlot, Display as MilestoneDisplay, MilestoneBoard, SLOTS as MILESTONE_SLOTS};
 pub use notify::{Category as NoticeCategory, ChipKind, NoticeId};
 pub use plugin::HudPlugin;

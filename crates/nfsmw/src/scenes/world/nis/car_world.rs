@@ -34,8 +34,8 @@ impl WorldScene {
             let kind = cop_cars::slot_kind(slot);
             let found = match (self.nis.race_start_scene(), kind) {
                 (true, Some(SlotKind::Player | SlotKind::Civilian)) => self.race.as_ref().and_then(|race| {
-                    let grid_slot = actor_grid_slot(race.plan.first()?.grid_slot, slot);
-                    let id = race.plan.iter().position(|plan| plan.grid_slot == grid_slot)?;
+                    let grid: Vec<usize> = race.plan.iter().map(|plan| plan.grid_slot).collect();
+                    let id = race_start_racer(&grid, slot)?;
                     if id == 0 {
                         return self.players.lead().map(|_| Target::Player);
                     }
@@ -229,6 +229,14 @@ impl WorldScene {
         let (collision, _) = self.residency.world_parts();
         first_ground_below(|from, to| space::ground_below(collision, at.x, at.y, from, to), at.z, last)
     }
+}
+
+/// The racer (its index in the race's plan, 0 being the player) that the car channel `slot` of a race's start scene
+/// drives, for the plan's grid slots `grid` (the player's first). The channel of the player's grid slot is the primary
+/// one (`actor_grid_slot`). `None` when no racer stands on the channel's grid slot: the channel stays off.
+pub(super) fn race_start_racer(grid: &[usize], slot: usize) -> Option<usize> {
+    let grid_slot = actor_grid_slot(*grid.first()?, slot);
+    grid.iter().position(|&planned| planned == grid_slot)
 }
 
 /// The primary cinematic channel follows the human, independently of the physical starting order.

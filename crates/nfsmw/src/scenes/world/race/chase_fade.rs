@@ -25,6 +25,11 @@ impl ScreenFade {
         self.rate = -1.0 / secs.max(0.01);
     }
 
+    /// The screen is black at once, and stays black (a cutscene that ended on its own fade to black).
+    pub fn set_black(&mut self) {
+        *self = ScreenFade { alpha: 1.0, rate: 0.0 };
+    }
+
     /// The screen is clear again at once.
     pub fn clear(&mut self) {
         *self = ScreenFade::default();
