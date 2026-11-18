@@ -75,8 +75,8 @@ point through the centres of the gates in order (the straight lines, one metre p
 The circuit `16_1_1_circuit` (`16.1.1`, two laps) lists 7 checkpoints in its own `Checkpoint` array: `checkpoint1` to
 `checkpoint6`, then `ai_cp7`, all of class `checkpoint` with 40 m cubes and no flag that sets one apart. `ai_cp7` lies at
 about 0.82 of the lap along the straight lines through the gates. A child `ai_cp8`, about 170 m before the finish line
-(after `ai_cp7`), is not in the list. **[unconfirmed]**: the original, run unattended, records six checkpoint stamps a lap
-there and none at `ai_cp7`; the data gives no reason for it, so the rewrite keeps the seven the list holds.
+(after `ai_cp7`), is not in the list. The original, run unattended, reports seven checkpoints a lap for every racer
+(numbers 1 to 7, the seventh at about 0.82 of the player's lap time) and then the lap **[verified]**, as the list says.
 
 ## 4. What the rewrite does, and the report that a race ends at the last checkpoint **[ours]**
 
