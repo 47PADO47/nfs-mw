@@ -5,8 +5,6 @@ use blackbox_race::Race;
 use glam::Vec3;
 use nfsmw_data::pursuit::ai_vehicle;
 
-use nfsmw_data::gameplay::ShortcutMarker;
-
 use super::{RaceSession, Stage, intro, shortcuts};
 use crate::scenes::world::ai::{ModelState, RacerSpawn};
 use crate::scenes::world::{WorldScene, space};
@@ -105,19 +103,10 @@ impl WorldScene {
         let speed = if prep.rolling { prep.initial_speed } else { 0.0 };
         let mut kept = vec![session.plan[0].clone()];
         let mut grid = vec![(!self.race_lead_idle, player_physics)];
-        let markers: Vec<ShortcutMarker> = match &self.gameplay {
-            Some(data) => {
-                session.origin.race.params.shortcuts.iter().filter_map(|k| data.shortcut(*k)).copied().collect()
-            }
-            None => Vec::new(),
-        };
         if let Some(traffic) = self.traffic.as_mut() {
             let collision = self.residency.collision();
-            let lines = self.scenery_groups.active_barriers(traffic.track_barriers());
-            let shortcuts = match &session.route {
-                Some(route) => shortcuts::shortcuts_of(traffic, route, &markers, &lines),
-                None => Vec::new(),
-            };
+            // Searched at the start with the walls up (`start.rs`): an intro scene may have put them down since.
+            let shortcuts = std::mem::take(&mut session.shortcuts);
             // The people of the grid are the first racers after the lead; one that cannot stand there is dropped from
             // `race_people` so the next person keeps their racer number.
             let mut seated_people = 0;

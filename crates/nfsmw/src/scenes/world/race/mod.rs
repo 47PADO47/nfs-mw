@@ -227,7 +227,7 @@ pub(super) struct RaceSession {
     pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
     /// One lap of `route` for the Custom map, built with it (`route.rs`); `None` without a route.
     pub map_route: Option<crate::hud::RaceRouteHandle>,
-    /// The route's shortcuts, found when the racers go on the grid (`shortcuts.rs`).
+    /// The route's shortcuts, found at the start with the walls up (`shortcuts.rs`).
     pub shortcuts: Vec<shortcuts::Shortcut>,
     /// The session is a restart of a race that ran: the race goes back to its grid and counts down, without its intro
     /// (the restart path of the original enters the pre-race state, `docs/specs/race-wrongway.md` section 3).

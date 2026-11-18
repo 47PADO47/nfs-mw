@@ -221,8 +221,9 @@ impl WorldScene {
         // the race's end (`docs/specs/career-regions.md` section 3.5).
         self.lift_region_gates();
         let walls = self.raise_race_walls(&race.barriers);
-        // The route is built with the walls up (its shortcuts read them); an intro scene then plays with them down.
+        // The route and its shortcuts are searched with the walls up (they read them); an intro scene plays with them down.
         let route = self.build_race_route(&prepared.course, player_spawn);
+        let shortcuts = self.race_shortcuts(&race, route.as_deref());
         let intro_nis = super::intro::has_intro_nis(&race.story, options.career);
         let deferred_walls = if intro_nis { race.barriers.clone() } else { Vec::new() };
         let walls = if intro_nis { self.lower_race_walls(walls) } else { walls };
@@ -277,7 +278,7 @@ impl WorldScene {
             origin: Origin { race: race.clone(), course: given_course },
             route,
             map_route,
-            shortcuts: Vec::new(),
+            shortcuts,
             restarted: false,
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
