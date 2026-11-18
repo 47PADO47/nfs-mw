@@ -70,7 +70,7 @@ pub(super) fn finish_prologue(career: &mut Career) -> u32 {
             .races
             .iter()
             .find(|race| race_event_id(race) == event)
-            .map_or(0.0, |race| race.params.cash_value);
+            .map_or(0.0, |race| race.win_cash_value());
         let result = EventResult {
             event: event.to_owned(),
             placing: 1,

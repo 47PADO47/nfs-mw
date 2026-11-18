@@ -91,14 +91,15 @@ pub enum Key {
     Owned(u32),
 }
 
-/// One row of the list: the car's shown name, its price (the price to pay, or the half the sale gives), and whether it
-/// is greyed (listed but not yet available).
+/// One row of the list: the car's shown name, its price (the price to pay, or the half the sale gives), whether it
+/// is greyed (listed but not yet available), and for a greyed car the Blacklist member whose defeat opens it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     pub key: Key,
     pub name: String,
     pub price: u32,
     pub locked: bool,
+    pub unlock_by: Option<u8>,
 }
 
 /// What Accept does with a row: nothing, a notice, or a question.
@@ -350,7 +351,7 @@ impl CarLotLogic {
         let rows: Vec<serde_json::Value> = self
             .rows()
             .iter()
-            .map(|row| serde_json::json!({"car": row.name, "price": row.price, "locked": row.locked}))
+            .map(|row| serde_json::json!({"car": row.name, "price": row.price, "locked": row.locked, "unlock_by": row.unlock_by}))
             .collect();
         let line = serde_json::json!({"tab": format!("{:?}", self.tab), "first_car": self.first_car,
             "cursor": self.cursor, "rows": rows});
@@ -414,11 +415,11 @@ impl CarLotLogic {
 impl ScreenLogic for CarLotLogic {
     fn start(&mut self, cx: &mut Cx) {
         cx.rt.post_to_package(cx.package, super::car_lot_look::LOT_MODE);
-        // The lot opens on the first car the stage lets the player buy, not on a greyed one above it; back from the Showcase it
-        // stands where it was left.
+        // The lot opens on its first row (`career-car-lot.md` section 1.2: the original opens on 1/32, a car it lets the player
+        // buy, since the buyable cars come first); back from the Showcase it stands where it was left.
         match super::car_lot_look::take_return() {
             Some((tab, cursor)) => (self.tab, self.cursor) = (tab, cursor),
-            None => self.cursor = self.rows().iter().position(|item| !item.locked).unwrap_or(0),
+            None => self.cursor = 0,
         }
         self.clamp();
         self.trace_list();

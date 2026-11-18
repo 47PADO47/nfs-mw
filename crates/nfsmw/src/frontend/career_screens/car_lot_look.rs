@@ -1,5 +1,6 @@
 //! What the car lot shows around its cars: the room's car for a row, and the package's sample widgets put right.
 
+use blackbox_text::label_hash;
 use nfsmw_career::carlot;
 use nfsmw_career::carlot::{LotCar, LotState};
 use nfsmw_career::economy::sale_proceeds;
@@ -12,7 +13,9 @@ use crate::frontend::logic::Cx;
 use crate::frontend::look::{CarLook, CarRecordRef};
 use crate::frontend::quick_play::fill::logo_textures;
 use crate::frontend::quick_play::pool::{self, CarPool, PoolCar};
+use crate::frontend::quick_play::text;
 use crate::i18n::fmt::grouped;
+use crate::ui::Text;
 
 /// The objects of `Car_Select.fng` the lot draws, by name hash (the custom race's car select draws the same package,
 /// `custom_race/car_select.rs`).
@@ -21,6 +24,8 @@ const MODEL_LOGO: u32 = 0xB05D_D708;
 const NUMBER: u32 = 0x6F25_A248;
 const NUMBER_OF: u32 = 0xB203_7BDC;
 const LOCKED_GROUP: u32 = 0xD0F7_C7CC;
+/// The locked notice's sentence (the custom race's car select fills the same string).
+const LOCKED_TEXT: u32 = 0x2D25_B2C4;
 /// The car name strings (the model-name picture names the car instead; one shares its name with the debug label) and the heat
 /// meter, which belongs to the career's own car select.
 const HIDDEN: [u32; 3] = [0xD6D3_2016, 0x79D6_E45C, 0xBDE6_E3BA];
@@ -76,8 +81,19 @@ pub(super) fn draw(cx: &mut Cx, shown: &Shown<'_>) {
     set_bars(cx, shown.ratings);
     let locked = shown.row.is_some_and(|row| row.locked);
     cx.script(LOCKED_GROUP, if locked { SCRIPT_SHOW } else { SCRIPT_HIDE });
+    let sentence = shown.row.filter(|row| row.locked).and_then(|row| row.unlock_by).and_then(unlock_sentence);
+    cx.text_object(LOCKED_TEXT, &sentence.unwrap_or_default());
     set_text(cx, COST_VALUE, shown.row.map(|row| grouped(i64::from(row.price))).unwrap_or_default());
     set_text(cx, FUNDS_VALUE, grouped(i64::from(shown.cash)));
+}
+
+/// The locked notice of a car opened by beating Blacklist member `member`: the language table's `Unlock this car by beating
+/// %s, Blacklist member %d.` with the member's alias, as the custom race's car select writes it. `None` when the language
+/// table lacks the sentence or the alias.
+fn unlock_sentence(member: u8) -> Option<String> {
+    let template = Text::Game(text::RIVAL_LABEL).resolve()?;
+    let alias = Text::Game(label_hash(&text::alias_key(member))).resolve()?;
+    Some(text::fill_sentence(&template, &alias, member))
 }
 
 /// Shared car identity, including career select. Raw catalogue names and the duplicate debug string stay hidden.
@@ -175,6 +191,7 @@ pub(super) fn lot_rows(cars: &[LotCar], stage: u8) -> Vec<Item> {
             name: car.name.clone(),
             price: car.price,
             locked: state == LotState::Locked,
+            unlock_by: (state == LotState::Locked).then(|| carlot::unlocked_by(car.unlock_rank)).flatten(),
         })
         .collect();
     let Some(pool) = pool::cars().filter(|pool| !pool.cars.is_empty()) else { return rows };
@@ -194,6 +211,7 @@ pub(super) fn owned_rows(stable: &Stable, cars: &[LotCar]) -> Vec<Item> {
                 name: lot.name.clone(),
                 price: sale_proceeds(lot.price),
                 locked: false,
+                unlock_by: None,
             })
         })
         .collect()

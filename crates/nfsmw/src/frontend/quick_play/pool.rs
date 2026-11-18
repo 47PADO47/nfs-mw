@@ -176,7 +176,11 @@ pub fn cars_of(
             if !drivable || !class {
                 return None;
             }
-            let folder = folder_for(&name, folders)?;
+            // The car's vehicle names its folder (`imprezzawrx` is the vehicle `imprezawrx`); the name is the fallback.
+            let folder = car
+                .vehicle_name()
+                .and_then(|vehicle| folder_for(vehicle, folders))
+                .or_else(|| folder_for(&name, folders))?;
             Some(PoolCar {
                 handle: vlt_hash(&name),
                 manufacturer: car.manufacturer,
@@ -215,9 +219,10 @@ pub fn presets_of(
         .collect()
 }
 
-/// The `CARS/` folder of a front-end car. The collection is not always named like the folder (`carrera_gt` is the folder
-/// `CARRERAGT`, `a4_32` is `A4`), so the name is tried as it is, without its underscores, and up to its first underscore.
-/// **[ours]**: the exe takes the folder from the car's record, which the catalogue does not link.
+/// The `CARS/` folder of a car name. The pool asks with the car's vehicle name first (`CatalogueCar::vehicle_name`, the
+/// `pvehicle` collection that names the front-end collection), then with the front-end name, which is not always the folder's
+/// (`carrera_gt` is the folder `CARRERAGT`, `a4_32` is `A4`): a name is tried as it is, without its underscores, and up to its
+/// first underscore. **[ours]** for the name forms.
 pub fn folder_for(name: &str, folders: &[String]) -> Option<String> {
     let squeezed: String = name.chars().filter(|c| *c != '_').collect();
     let stem = name.split('_').next().unwrap_or(name);

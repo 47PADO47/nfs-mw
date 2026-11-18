@@ -268,7 +268,7 @@ impl WorldScene {
                 .post_race_activity
                 .and_then(|key| data.races.iter().find(|r| r.key == key))
                 .map(|r| r.name.clone()),
-            cash_value: options.cash.unwrap_or(p.cash_value),
+            cash_value: options.cash.unwrap_or_else(|| race.win_cash_value()),
             pool,
             challenge: None,
             heat_chase,

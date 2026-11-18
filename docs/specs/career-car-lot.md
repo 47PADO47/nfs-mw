@@ -37,6 +37,53 @@ rival being challenged, falling to 1. A car with unlock rank `r` is **available 
 available from the start; a rank 14 car after the player has beaten rival 15 (stage 14); a rank 2 car when only rivals 2 and
 1 remain **[exe]**. A locked car is still listed (greyed) in the career car lot **[exe]**.
 
+### 1.1 The car's vehicle **[verified]**
+
+Each car's `pvehicle` collection (`attributes.bin`) names its `frontend` collection in its own field `frontend` (key
+`0x85885722`, a reference into that class). The names differ for five cars: `a3_20t` is the vehicle `a3`, `a4_32` is `a4`,
+`imprezzawrx` (sic) is `imprezawrx`, `corvette_car` is `corvette`, `carrera_gt` is `carreragt`. The preset rides pair the
+same keys (`BL5`: front end `corvette_car`, vehicle `corvette`). The vehicle's name is the car type and `CARS/` folder, so
+the rewrite finds a car's folder through this link; matching on the front-end name alone loses the Impreza.
+
+### 1.2 The order of the lot's list
+
+Observed in the running original, 2026-11-18 (the first car lot after the prologue, stepped through once with Right):
+
+- The list holds the 32 cars of section 2 (counter `n/32`) and opens on 1/32. Right from 32 wraps to 1.
+- Order: `is300`, `punto`, `cobaltss`, `gti` (the four buyable cars), then the locked cars grouped by the Blacklist member
+  whose defeat opens them, 15 down to 3: `tt`, `a3_20t` (15); `eclipsegt`, `a4_32` (14); `supra`, `clio` (13); `rx8`,
+  `cts`, `mustanggt` (12); `lancerevo8`, `sl500` (11); `gto`, `monaro`, `caymans` (10); `imprezzawrx`, `rx7` (9);
+  `clk500`, `elise` (8); `db9`, `997s` (7); `viper`, `gallardo` (6); `911turbo`, `corvette_car` (5); `murcielago`,
+  `fordgt` (4); `slr`, `carrera_gt` (3).
+- A buyable car shows `Cost: <price>`; a locked one `Unlock this car by beating <alias>, Blacklist member <n>`, where `n` is
+  its unlock rank plus one.
+
+How the screen builds that list **[exe]** (addresses in [provenance/career-flow.md](../provenance/career-flow.md)):
+
+1. **Source.** The career's stable, slot 0 to 199 in slot order. A record is kept when it is in use and matches the
+   screen's filter (the context bits; the lot's records carry the in-lot flag of section 1). Each kept record becomes
+   one row with a locked flag from the availability rule of section 1.
+2. **Slot order of a new career.** The default stable takes the starting preset first, then the preset rides, then one
+   record per `pvehicle` collection that names a `frontend` collection (section 1.1), in the order a walk of the
+   `pvehicle` class gives. A class keeps its collection keys in an open-addressed table: a key goes to slot
+   `key mod size` and on to the next free slot, and the walk reads the table slot by slot
+   ([attributes.md](../formats/attributes.md), "Collection table order"). For the stock data the table has 222 slots,
+   the class's collection reserve **[verified]**: only that size reproduces the observed list.
+3. **Sort.** For the screen's filters 1, 2, 8 and 16 (the career lot is filter 1) the rows are sorted with one
+   comparison: a row goes before another when its car's unlock rank is higher. Equal ranks compare as "not before", and
+   the list sort is not stable:
+   - a first pass keeps a current row and looks at the next: when the current row is not before it, the next row is
+     moved in front of the current one, which stays current; otherwise the next row becomes current. A pass that moves
+     nothing ends the sort;
+   - else a merge sort runs: runs of 1, 2, 4... rows are merged pairwise from the front, a merge takes the left run's
+     row only when the right run is used up or the left row goes before the right one (so of two equal rows the right
+     run's goes first), and the sort ends after a pass with fewer than two merges.
+
+These three steps give the 32 observed positions exactly from the install data **[verified]** (the install test in
+`crates/nfsmw/src/career/data_tests.rs`). The order inside a rank is thus an artefact of the vehicle keys, the table size
+and the sort, not a designed key: no single data field orders it (the earlier search over prices, classes, makers and
+collection orders found none).
+
 ## 2. The 2005 catalogue **[verified]**
 
 Cars with a price and the for-sale flag set in `fe_attrib.bak`: 32 cars. `unlock` = unlock rank, `class` as above.
@@ -166,6 +213,11 @@ catalogue is read by `nfsmw-data::career_cars`. The choices and gaps are in
 [provenance/career-core.md](../provenance/career-core.md). The purchase and sale flows that call these checks are not
 wired yet. The limits (10 purchased cars, 25 records, 20 customs) are values in `Limits`, not screen literals.
 
+The lot's order (section 1.2) is `carlot::listed` (the lot's sort, `carlot::order::lot_sort`) over the catalogue that
+`career_cars::in_stable_order` puts in a new career's stable order (the `pvehicle` walk, `Database::collections_in_table_order`); the screen opens on row 1 and writes the unlock line of a locked row with the member of
+`carlot::unlocked_by`. The catalogue pairs each car with its vehicle (section 1.1, `career_cars::catalogue`), which gives the
+lot record's vehicle key and the car's folder.
+
 ## Open questions
 
 1. The manufacturer index order and the part-info array of the `frontend` record. The stat bars are answered in part (pass 5, 2026-10-18). The lit-strip rule is answered since: the bars are the garage's `BASE_`, `FILLBAR_` and `HANDLE_<axis>` objects, drawn and rated as in [garage-performance-bars](garage-performance-bars.md#the-car-selects). Which car the car lot's tick marks is still open.
@@ -190,15 +242,9 @@ wired yet. The limits (10 purchased cars, 25 records, 20 customs) are values in 
    - [exe] Category index (exe index to category). The switch in `0x007B8F10` maps the upgrade id in `[this + 0x148]` (`0x201` to `0x207`) to index: `0x205` = 0 (tires), `0x206` = 1 (brakes), `0x203` = 2 (chassis), `0x202` = 3 (transmission), `0x201` = 4 (engine), `0x207` = 5 (induction), `0x204` = 6 (nitrous). Index 5 = induction is [exe]: `0x007AFAE0` tests category 5 on the car, and only id `0x207` uses that test. Names for the other ids follow the repo order and are [unconfirmed]. The category strings are in the exe at `0x008A0D08` to `0x008A0D40`.
    - **Status: UNRESOLVED (partial).** Answered: the per-car lo and hi source, the blend, the axis map, the category index. Open: the lit rule (FEng side), the fill-versus-delta choice, why lo and hi would differ (see the `0x0067F800` side effect), the hash `0xCDC136E8`.
 
-2. Whether the car lot lists locked cars with a lock icon or hides them in the retail UI.
+2. Whether the car lot lists locked cars with a lock icon or hides them in the retail UI. Answered (observed 2026-11-18): the
+   locked cars are listed, each with its unlock line (section 1.2).
 3. Where the per-car "tab" filter of the Car Select screen (six tabs) maps to class bits.
 4. How the default stable decides the flag combinations seen in saves (`career-save.md` open question 3).
-5. The order of the lot's list and the car it opens on. Not in this spec or the data's order of collections: the
-   installed `FE_ATTRIB.bin` keeps the `frontend` collections in key order (elise, gallardo, caymans, fordgt, ...), which
-   the rewrite lists (`carlot::listed`) and opens on the first available row (the GTI at stage 16). The default stable is
-   built one slot per vehicle collection ([career-save.md](../formats/career-save.md) 4.1, **[exe]**), whose order in
-   `attributes.bin` is again key order (a3, clio, db9, monaro, gallardo, eclipsegt, slr, 911turbo, ...); whether the lot
-   screen walks the stable in slot order or sorts (by availability, unlock rank, price or maker) is not read. To settle:
-   in the original's first car lot after the prologue, step through the list with Right and log each car's name, price
-   and lock state and the car shown first; the stable's slot order in a save written right after tells whether the
-   screen sorts.
+5. The order of the lot's list: answered (section 1.2). Open: the table size is the class's collection reserve by the fit
+   to the observation, not read where the table is created.
