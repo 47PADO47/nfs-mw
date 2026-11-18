@@ -134,7 +134,7 @@ impl TextureSource {
         if (self.format == PixelFormat::P8) != has_palette {
             return Err(self.fail("a palette is required for P8 and not allowed for other formats"));
         }
-        if self.palette.len() % 4 != 0 || self.palette.len() / 4 > 256 {
+        if !self.palette.len().is_multiple_of(4) || self.palette.len() / 4 > 256 {
             return Err(self.fail("palette must be 1 to 256 four-byte entries"));
         }
         Ok(())

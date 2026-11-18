@@ -21,7 +21,7 @@ impl Data {
 
     /// Pads with zeros to a multiple of 4 bytes.
     pub fn align(&mut self) {
-        while self.bytes.len() % 4 != 0 {
+        while !self.bytes.len().is_multiple_of(4) {
             self.bytes.push(0);
         }
     }

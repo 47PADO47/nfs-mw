@@ -161,8 +161,8 @@ const SAG_FACTOR: f32 = 0.9;
 pub(super) fn rest_at(spec: &mut VehicleSpec, clearance: f32) {
     let front_share = spec.chassis.front_weight_bias * 0.01;
     let shares = [front_share, 1.0 - front_share];
-    for axle in 0..2 {
-        let corner = spec.mass * shares[axle] * 0.5;
+    for (axle, share) in shares.into_iter().enumerate() {
+        let corner = spec.mass * share * 0.5;
         let stiffness = (spec.chassis.spring_stiffness[axle] * LB_IN_TO_N_M).max(1.0);
         let sag = SAG_FACTOR * corner * 9.81 / stiffness;
         spec.chassis.ride_height[axle] = (clearance + sag) / inch_to_m(1.0);
