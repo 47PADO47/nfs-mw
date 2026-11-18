@@ -16,8 +16,13 @@ fn car_focus(drive: &Drive) -> [f32; 2] {
 }
 
 impl WorldScene {
-    /// Map position (x, y) the streaming follows for the lead (or the free camera).
+    /// Map position (x, y) the streaming follows for the lead (or the free camera). While a NIS scene plays it follows
+    /// the scene's camera: a scene's cars and camera can be far from where the player's car stands (a race's start scene
+    /// leaves the car on its grid slot while the scene plays across the city).
     pub(super) fn focus(&self) -> [f32; 2] {
+        if let Some(lens) = self.nis.lens(self.drawn_aspect.max(0.1)) {
+            return [lens.position.x, lens.position.y];
+        }
         match (self.players.lead(), self.view) {
             (Some(drive), View::Chase) => car_focus(drive),
             _ => [self.camera.position.x, self.camera.position.y],

@@ -8,6 +8,7 @@
 
 pub mod career_trace;
 pub mod header;
+pub mod nis_capture;
 pub mod race_run;
 pub mod race_trace;
 pub mod seed;

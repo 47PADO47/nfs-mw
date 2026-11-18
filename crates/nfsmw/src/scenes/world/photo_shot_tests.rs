@@ -10,6 +10,7 @@ fn key(time: f32, eye: [[f32; 3]; 2], look: [[f32; 3]; 2], space: Space) -> Key 
         cubic_look: false,
         space_eye: space,
         space_look: space,
+        overlay: 0,
         time,
         tangent_length: [1.0, 1.0],
         eye,

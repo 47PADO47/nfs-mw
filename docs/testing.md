@@ -296,3 +296,31 @@ lines in a row can share a `sim_time`.
 | `car_lot_action` | a confirmed purchase or sale: `action`, `first_drive`, `outcome` |
 | `career_state` | when any of these changed since the last such line: `playing`, `alias`, `stage` (the bin), `cash`, `car_handle`, `car`, `cars_owned`, `flags` (settings flags, hex), `won_in_career` (event ids), `unlocked_in_career` (a count), `rival_beaten` |
 | `run_end` | `reason`: `first_car_bought` with `--exit-after-first-car` |
+
+### NIS frame capture
+
+For looking at the cutscenes of a run: set `NFSMW_NIS_CAPTURE=<folder>` on any `play` run (for example the career run
+above, or `play --drive --race 16.1.0`). While a captured scene plays, its clock steps one scene frame (1/30 s) per drawn
+frame and waits while a frame is read back, so the pictures do not depend on the machine; story movies are skipped
+(`crates/nfsmw/src/parity/nis_capture.rs`, `crates/nfsmw/src/scenes/world/nis/capture.rs`).
+
+| Variable | Effect |
+|---|---|
+| `NFSMW_NIS_CAPTURE_EVERY` | a picture every N scene frames, `<scene>-<frame>.png` (default 15); four more after the scene ends, `<scene>-end-<n>.png` |
+| `NFSMW_NIS_CAPTURE_SIZE` | picture size, `WIDTHxHEIGHT` (default 640x360). Give the run the same `--screenshot-size`, or the HUD layer does not fit the picture |
+| `NFSMW_NIS_CAPTURE_SCENES` | only these scenes, comma separated |
+| `NFSMW_NIS_CAPTURE_EXIT` | `1`: end the process once each listed scene has played |
+| `NFSMW_NIS_CAMERA_SLOT` | the car slot the camera's car-space keys follow (default 0, `car1`), for comparisons |
+
+`frames.jsonl` has one line per scene frame: the scene time, the anchor, the camera (the track's eye and look in render
+space, its spaces, field of view, overlay byte and simulation speed, the lens the scene asks for and the lens the frame
+used), each car channel (the car it drives, its pose from the scene data, the pose it is drawn at, the ground lift between
+them, its speed) and the traffic cars near the camera that no channel takes. After the scene an `end` line says where the
+player's car and the other cars stand.
+
+```sh
+BLACKBOX_PROFILE_DIR="$(pwd -W)/out/profile" STREAMLINE_PLUGIN_DIR="$(pwd -W)" NFSMW_NIS_CAPTURE="$(pwd -W)/out/nis" \
+NFSMW_NIS_CAPTURE_SIZE=960x540 nfsmw --game-dir "<install>" play --new-career CAREERRUN --autopilot --exit-after-first-car \
+  --ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right" \
+  --seed 1 --stock-rules --no-sound --backend vulkan --bench-seconds 3000 --offscreen --screenshot-size 960x540
+```

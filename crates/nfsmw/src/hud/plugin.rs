@@ -265,7 +265,10 @@ fn sync(
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
         overlay.cue(&mut hud.runtime, state.busted_overlay_cue);
-        overlay.suspect_line(&mut hud.runtime, state.busted_summary.as_ref());
+        match state.busted_overlay_text {
+            Some(label) => overlay.fixed_line(&mut hud.runtime, label),
+            None => overlay.suspect_line(&mut hud.runtime, state.busted_summary.as_ref()),
+        }
     }
     apply_map_mode(&mut state, &settings);
 }

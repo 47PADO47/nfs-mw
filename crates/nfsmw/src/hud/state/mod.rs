@@ -115,6 +115,9 @@ pub struct HudState {
     /// The chase the arrest closes, for the busted overlay's suspect line (`hud/busted_line.rs`). The world sets it with
     /// the overlay; `None` keeps the package's sample text.
     pub busted_summary: Option<super::ChaseSummary>,
+    /// The language label the busted overlay's crawl shows when a scene that is not an arrest puts the overlay up (the
+    /// D-Day start's police camera); `None` leaves the crawl to [`HudState::busted_summary`].
+    pub busted_overlay_text: Option<u32>,
     /// Career mode is on: the bounty row's number, the car's banked bounty plus the chase's pending points. `None`
     /// outside career mode, where the bounty row and the heat meter stay hidden.
     pub career_bounty: Option<u32>,
@@ -189,6 +192,7 @@ impl Default for HudState {
             busted_overlay: false,
             message_card: false,
             busted_overlay_cue: None,
+            busted_overlay_text: None,
             busted_summary: None,
             career_bounty: None,
             total_bounty: None,

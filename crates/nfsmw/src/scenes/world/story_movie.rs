@@ -114,6 +114,8 @@ impl WorldScene {
     /// world can freeze while a movie plays.
     pub(in crate::scenes::world) fn update_story_movie(&mut self, input: &ActionState, dt: f32) {
         let skip = input.just_pressed(Action::MenuAccept) || input.just_pressed(Action::MenuStart);
+        // The NIS frame capture looks at the scenes only: the story movies before them are passed over.
+        let skip = skip || (crate::parity::nis_capture::enabled() && self.story_movie.is_playing());
         self.story_movie.update(skip, dt);
     }
 

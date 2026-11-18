@@ -15,6 +15,7 @@ fn line_track() -> Track {
         cubic_look: false,
         space_eye: Space::Scene,
         space_look: Space::Scene,
+        overlay: 0,
         time: 0.0,
         tangent_length: [1.0, 1.0],
         eye: [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]],

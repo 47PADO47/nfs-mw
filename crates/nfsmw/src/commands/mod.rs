@@ -89,6 +89,7 @@ pub fn run(cli: Cli) -> Result<()> {
             crate::parity::career_trace::path_of(career_run.career_trace.clone(), |name| std::env::var(name).ok());
         crate::parity::career_trace::init(path.as_deref());
         crate::parity::career_trace::set_exit_after_first_car(career_run.exit_after_first_car);
+        crate::parity::nis_capture::init_from_env();
     }
     match command {
         Command::CheckInstall => install::check(game_dir),

@@ -193,6 +193,11 @@ pub(super) fn intro_end(nis_shell: bool) -> IntroEnd {
     }
 }
 
+/// Whether the intro of a race with the story fields `race` plays a NIS scene.
+pub(super) fn has_intro_nis(race: &RaceStory, career: bool) -> bool {
+    intro_plan(race, career).iter().any(|step| matches!(step, IntroStep::Nis { scene, .. } if !scene.is_empty()))
+}
+
 /// The steps of a race's intro, in the order they run (`story-flow.md` sections 1.1 and 1.2).
 pub(super) fn intro_queue(session: &RaceSession) -> VecDeque<IntroStep> {
     // A restart goes back to the pre-race state, past the intro (`docs/specs/race-wrongway.md` section 3).
@@ -285,8 +290,12 @@ impl WorldScene {
         }
     }
 
-    /// Starts the countdown (or the rolling start) on the engine that stands on the grid.
+    /// Starts the countdown (or the rolling start) on the engine that stands on the grid. The walls a race's intro scene
+    /// kept down go up first.
     pub(super) fn start_countdown(&mut self, session: &mut RaceSession) {
+        if !session.deferred_walls.is_empty() {
+            session.walls = self.raise_race_walls(&std::mem::take(&mut session.deferred_walls));
+        }
         let rolling = session.origin.race.params.rolling_start;
         if !rolling {
             let story = &session.origin.race.story;
