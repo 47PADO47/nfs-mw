@@ -267,9 +267,13 @@ The item handles these screen messages (the names are the pad hashes; the number
 | the dialog's "yes" (`0xD05FC3A3`) | **delete:** `slot.state = 0` and the row is refreshed |
 | screen exit (`EXIT_COMPLETE`, `0xE1FDE1D1`) | unpauses and closes the overlay |
 
-Mapping button 4 to replay and button 5 to delete is read from the effects of the handlers; which physical key
-carries each hash was not checked. **[unconfirmed]** A deleted message returns to state 0, so a script that sends
-the same id again (a repeat of the trigger) delivers it again.
+Mapping button 4 to replay and button 5 to delete is read from the effects of the handlers. The packages name the
+keys: in `SMS_Message.fng` the PC hint groups show `PC_key_esc` beside Done, `PC_key_1` beside Delete (whose hotspot
+sends `0xC519BFC4`) and `PC_key_2` beside Re-Play (`0xC519BFC3`); the console copy shows Triangle, Circle and Square. In
+`SMS_Mailboxes.fng` they are Esc Back, Enter Read and 1 Delete (`0xC519BFC4`), and on the console Triangle, Cross and
+Circle. `0x35F8620B` is no key: it is the event that the screen's handler script sends 500 ms after the screen starts.
+**[verified]** (install packages, `nfsmw dump-screen`) A deleted message returns to state 0, so a script that sends the
+same id again (a repeat of the trigger) delivers it again.
 
 ## 5. Who sends what
 
@@ -334,6 +338,7 @@ messages that the original never sends should stay unsent.
 ## 8. Open questions
 
 1. The precise identity of the three player-car checks and the pursuit check in the can-show test (section 3.5).
-2. Which physical controls the hashes `0xC519BFC3`, `0xC519BFC4` and `0x35F8620B` stand for on keyboard and pad.
+2. ~~Which physical controls the hashes `0xC519BFC3`, `0xC519BFC4` and `0x35F8620B` stand for.~~ Answered from the
+   packages in section 4.3.
 3. The exact SPCH rule that picks the take from the selector pair (`cellcall` sentence rules are not decoded).
 4. Whether the late-game save was recorded in a text language (the sequence-0 entries suggest it).

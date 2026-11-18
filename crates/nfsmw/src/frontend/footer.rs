@@ -65,6 +65,16 @@ pub enum Footer {
     GarageTuning,
     GarageTuningHelp,
     GarageNumbers,
+    /// The SMS inbox (`SMS_MailBoxes.fng`): Back, and Read and Delete while the tab lists a message; nothing while a
+    /// message opened from it stands over it.
+    SmsInbox {
+        has_messages: bool,
+        reading: bool,
+    },
+    /// One text message (`SMS_Message.fng`, also over the game): Done, Delete and, for a story message, Re-Play.
+    SmsMessage {
+        replay: bool,
+    },
 }
 
 impl Footer {

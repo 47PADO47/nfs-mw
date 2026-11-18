@@ -110,6 +110,9 @@ pub enum Command {
         /// Preview the safe-house menu with an in-memory career, without reading or writing a profile.
         #[arg(long, hide = true, conflicts_with_all = ["pause", "options"])]
         safehouse: bool,
+        /// Preview the SMS inbox with an in-memory career holding these delivered messages, oldest first: `--sms 15,17,123`.
+        #[arg(long, hide = true, value_name = "IDS", value_delimiter = ',', conflicts_with_all = ["pause", "options"])]
+        sms: Vec<u32>,
         /// For the option screens: audio, video, gameplay, player, hud, controls or discord.
         #[arg(long, default_value = "audio")]
         category: String,
