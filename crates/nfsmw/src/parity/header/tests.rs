@@ -33,7 +33,7 @@ fn header(options: ParityOptions, settings: &Settings, ini: Vec<IniFile>, extra:
 
 #[test]
 fn the_header_records_the_run_and_the_world_as_it_runs() {
-    let options = ParityOptions { seed: Some(42), stock_rules: false };
+    let options = ParityOptions { seed: Some(42), stock_rules: false, traffic: None };
     let extra = ExtraOptions {
         heat_override: Some(true),
         heat_min: Some(3.0),
@@ -76,7 +76,7 @@ fn the_header_records_the_run_and_the_world_as_it_runs() {
 fn every_setting_of_the_stock_list_is_in_the_header() {
     let mut forced = modded_settings();
     stock::force_settings(&mut forced);
-    let options = ParityOptions { seed: None, stock_rules: true };
+    let options = ParityOptions { seed: None, stock_rules: true, traffic: None };
     let json = serde_json::to_value(header(options, &forced, Vec::new(), ExtraOptions::default())).unwrap();
     assert_eq!((&json["seed"], &json["stock_rules"]), (&serde_json::Value::Null, &serde_json::json!(true)));
     let world = json["world"].as_object().expect("the world's part");

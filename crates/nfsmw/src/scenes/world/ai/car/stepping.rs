@@ -73,6 +73,9 @@ impl AiCar {
         }
         let mut view = self.sim.driver_view();
         view.in_shock = self.shock > 0.0;
+        // A held racer stages: its throttle controller holds the staging gas while the chassis holds the car
+        // (`ai-driver-control-pid.md` section 2, `race-play-path-parity.md` pace evidence).
+        view.staging = held;
         self.shock = (self.shock - self.step_delta / SHOCK_TIME).max(0.0);
         let reversing = self.driver.reverse_override_left() > 0.0;
         let flags = match (&self.role, reversing, self.searching) {
@@ -114,7 +117,7 @@ impl AiCar {
             self.arrived = false;
             self.controls = AiControls { brake: self.wreck_brake(), ..AiControls::default() };
         }
-        if (self.arrested || self.racer_held()) && !self.is_wrecked() {
+        if self.arrested && !self.is_wrecked() {
             self.controls = AiControls { brake: 1.0, handbrake: 1.0, ..AiControls::default() };
         }
         shift(&mut self.sim, self.controls.gear);

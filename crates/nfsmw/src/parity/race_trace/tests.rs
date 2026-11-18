@@ -132,7 +132,7 @@ fn header() -> Header {
         schema: SCHEMA,
         created_unix_ms: 1,
         run: RunHeader::new(
-            ParityOptions { seed: Some(7), stock_rules: true },
+            ParityOptions { seed: Some(7), stock_rules: true, traffic: None },
             Vec::new(),
             Default::default(),
             None,

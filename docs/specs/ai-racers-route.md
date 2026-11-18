@@ -28,9 +28,13 @@ converted from map to physics space.
   every gate of every lap, with the race's barrier lines closing the roads they cross (`blackbox_roads::build_route`,
   `ai/race_route.rs`). Each leg tries a route search with the lines, then the same with the lines lifted within 60 m of
   its ends, then a plain racer search with no lines; a leg whose road does not pass through its gate (its centre line
-  sampled every 2 m) does not count, and a leg with none is missing. On the install 2,207 legs of 217 courses give
-  2,106, 55, 3 and 43 missing (`race_routes`, a real-install test). The network's barrier flags are clear again
-  afterwards, as before.
+  sampled every 2 m) does not count, and a leg with none is missing. A route search puts both ends of a leg on the
+  nearest segment the lines leave open (`build_leg`): race routes avoid closed segments ([race-barriers.md](race-barriers.md)
+  section 5), and a gate just past a fork otherwise snapped to the closed connector, failed the first try and was
+  routed by the second through the road the barrier shuts (`16_1_1_circuit`'s seventh checkpoint: a 985 m loop through the
+  closed connector and the dead end beyond it instead of the 627 m course; racers that followed it stuck there). On the install 2,207 legs of
+  217 courses give 2,139, 24, 3 and 41 missing (2,106, 55, 3 and 43 before), and 654 of 971 shortcut markers keep a road
+  (661 before) (`race_routes`, a real-install test). The network's barrier flags are clear again afterwards, as before.
 - **Shortcuts in the rewrite [ours].** A marker's shortcut is the road from the start of the route's nearest leg
   through the marker to the leg's end, kept when it is at most 1.25 times the leg. The search carries active race
   barriers on temporary road flags, with the base leg's exemptions and accepted fallback segments retained

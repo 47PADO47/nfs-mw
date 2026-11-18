@@ -77,13 +77,16 @@ impl Vehicle {
             return false;
         }
         let c = self.controls;
+        // A caller's coefficient (a racer's catch-up share, a manoeuvre) keeps its precedence over the police value.
+        let drag =
+            self.maneuver.tire_steering_drag.or(self.force_scales.tire_steering_drag).unwrap_or(STEER_DRAG_REDUCTION);
         for (i, tire) in self.tires.iter_mut().enumerate() {
             tire.brake = c.brake;
             tire.ebrake = match i >= 2 {
                 true => c.handbrake,
                 false => 0.0,
             };
-            tire.drag_reduction = STEER_DRAG_REDUCTION;
+            tire.drag_reduction = drag;
         }
         true
     }

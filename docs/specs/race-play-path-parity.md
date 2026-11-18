@@ -100,3 +100,9 @@ catch-up therefore affects positive engine torque, drag and downforce using
 the existing [speed/skill contract](ai-driver-speed-skill.md), section 8.3.
 Pass those per-car force scales into simulation; leave human, traffic and police
 scales at one. Do not change installed specs or use a fixed race-speed boost.
+Simple suspension brings its own tire, brakes and drive slip rules
+([police simple chassis](cop-simple-chassis.md) sections 1 to 3); race opponents
+use them, with the racer steering-drag share. Held rivals stage as the driver
+specs give it: staging gas 0.8, no brake, the staging speed request. The chassis
+staging holds the body, and the simple tire's staging rule lets the driven wheels
+slip at a quarter of their traction until GO.

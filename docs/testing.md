@@ -91,7 +91,7 @@ The command line wins over the environment. Without `--seed` the choices above d
 
 `--stock-rules` forces, in one list (`crates/nfsmw/src/parity/stock.rs`):
 
-- traffic lights off, the traffic budget 20 and the Reference traffic policy;
+- traffic lights off, the traffic budget 20 (unless the command line sets one) and the Reference traffic policy;
 - `[pursuit_options]`: `enhanced` off, `bounty_fixes` off, the other values at their defaults;
 - physics rate 60 Hz, game speed 1.0, animation speed 1.0, the rev limiter on, car scale 1.0, rain amount 100 %;
 - every kind of game moment on (the main Game Moment Camera switch stays the player's);
@@ -101,7 +101,8 @@ The command line wins over the environment. Without `--seed` the choices above d
 - the F5 testing overrides off.
 
 The world applies the forced values where it takes its settings, so a change made in a menu during a stock run does
-not reach the simulation. Not forced, because the original's value is not stated or the original has the same player
+not reach the simulation. An explicit `--traffic <N>` or `--no-traffic` on the command line wins over the forced
+budget, since the original can also run a race without traffic; the environment and `config.toml` do not. Not forced, because the original's value is not stated or the original has the same player
 option: `cop_share`, `always_rain`, `transmission`, the Game Moment Camera switch, the control deadzones and
 sensitivities, the wheel options and `eatrax_jukebox.toml` (music only).
 

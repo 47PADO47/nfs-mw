@@ -43,7 +43,7 @@ fn course(
     surfaces: &SurfaceTable,
     quantile: usize,
 ) -> ([AiCar; 2], RoadNav, f32) {
-    let filter = SegmentFilter { traffic: true, cop: true, no_decision: true };
+    let filter = SegmentFilter { traffic: true, cop: true, no_decision: true, open: false };
     let mut candidates = Vec::new();
     for (segment_id, segment) in world.network.segments.iter().enumerate() {
         if !filter.allows(segment) || segment.length < 40.0 {

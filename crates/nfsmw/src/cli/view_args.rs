@@ -392,9 +392,20 @@ impl ViewArgs {
         }
     }
 
-    /// The run's seed and stock-rules switch: the command line over the environment (`parity/mod.rs`).
+    /// The run's seed and stock-rules switch: the command line over the environment (`parity/mod.rs`), with the
+    /// vehicle budget the command line sets, which a stock run keeps.
     pub fn parity_options(&self) -> crate::parity::ParityOptions {
-        crate::parity::ParityOptions::resolve(self.seed, self.stock_rules, |name| std::env::var(name).ok())
+        let options =
+            crate::parity::ParityOptions::resolve(self.seed, self.stock_rules, |name| std::env::var(name).ok());
+        crate::parity::ParityOptions { traffic: self.traffic_budget(), ..options }
+    }
+
+    /// The vehicle budget `--traffic N` or `--no-traffic` (0) asks for.
+    fn traffic_budget(&self) -> Option<u32> {
+        match self.no_traffic {
+            true => Some(0),
+            false => self.traffic,
+        }
     }
 
     /// The command-line layer of the settings: the top layer, above the environment and the config file.
@@ -432,7 +443,7 @@ impl ViewArgs {
             vehicle_reflection_brightness: self.vehicle_reflection_brightness,
             smoke_quality: self.smoke_quality,
             radio: switch(self.radio, self.no_radio),
-            traffic: if self.no_traffic { Some(0) } else { self.traffic },
+            traffic: self.traffic_budget(),
             cop_share: self.cop_share,
             traffic_lights: switch(self.traffic_lights, self.no_traffic_lights),
             cop_health_bars: switch(self.cop_health_bars, self.no_cop_health_bars),
