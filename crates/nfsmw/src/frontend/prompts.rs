@@ -16,6 +16,7 @@ use crate::ui::{
 mod career_car;
 mod legacy;
 pub(super) mod race;
+pub(super) mod sms;
 
 const FONT: u32 = 0x5455_70c6; // FONT_MW_BODY
 /// Half the height of a hint in its frame's units, before the fit: the keycaps are 22 high.
@@ -63,6 +64,9 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
         return hints;
     }
     if let Some(hints) = career_car::hints(footer, bindings, device) {
+        return hints;
+    }
+    if let Some(hints) = sms::hints(footer, bindings, device) {
         return hints;
     }
     if let Some(hints) = super::garage_ui::prompts::hints(footer, bindings, device) {
@@ -191,7 +195,9 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
         | Footer::GarageCart { .. }
         | Footer::GarageTuning
         | Footer::GarageTuningHelp
-        | Footer::GarageNumbers => {}
+        | Footer::GarageNumbers
+        | Footer::SmsInbox { .. }
+        | Footer::SmsMessage { .. } => {}
     }
     // Each hint names the action a click on it presses; the pairs of arrows have none.
     let mut hints = vec![(action(Action::MenuAccept), L::Accept, Some(Action::MenuAccept))];
@@ -292,6 +298,7 @@ pub fn decorate(
     if matches!(footer, Footer::CareerCarSelect { .. }) {
         career_car::hide_legacy(tree);
     }
+    sms::hide_legacy(tree, footer);
     if name.eq_ignore_ascii_case(screen::SAFE_HOUSE_RIVAL_BIO) {
         legacy::hide_children(tree, 0xdde3_db34);
     }

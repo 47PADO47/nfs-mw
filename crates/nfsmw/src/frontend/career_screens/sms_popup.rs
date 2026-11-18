@@ -1,15 +1,15 @@
 //! The text message that opens over the game when the phone delivers it (`docs/specs/story-flow-2.md` section 3.7,
 //! `docs/specs/career-phone.md` section 3.6). The screen is `SMS_Message.fng`, the inbox's message screen; this logic
-//! shows the message and closes it with Back or the focused Done button, which resumes the game. The first showing
-//! plays a story message's voice; Replay (button 4) plays it again, and Delete (button 5) asks first, then empties the slot
-//! and closes the popup.
+//! shows the message ([`MessageView`]) and closes it with Back or the focused Done button, which resumes the game. The
+//! first showing plays a story message's voice; Replay (button 4) plays it again, and Delete (button 5) asks first, then
+//! empties the slot and closes the popup.
 
 use blackbox_feng::ids::PAD_BACK;
 use blackbox_feng::runtime::pad;
 
-use super::sms::{DELETE, REPLAY, delete_question, hide_gamepad_footer, open_message, replay_voice, show_message};
-use crate::frontend::ids::{INIT_COMPLETE, INPUT_ENABLE};
-use crate::frontend::logic::{Command, Cx, ScreenLogic};
+use super::sms_message::MessageView;
+use crate::frontend::ids::INPUT_ENABLE;
+use crate::frontend::logic::{Command, Cx, Footer, ScreenLogic};
 
 /// The Done button's group in `SMS_Message.fng` (`nfsmw dump-screen SMS_Message.fng`).
 const DONE: u32 = 0x000F_A4AA;
@@ -26,24 +26,20 @@ pub const fn closes_on_press(bits: u32, focus: Option<u32>) -> bool {
 
 /// The message screen over the frozen game, showing message `id`.
 pub struct SmsPopup {
-    id: u32,
+    view: MessageView,
 }
 
 impl SmsPopup {
     /// The popup for message `id`.
     pub fn new(id: u32) -> Self {
-        Self { id }
+        Self { view: MessageView::new(id) }
     }
 }
 
 impl ScreenLogic for SmsPopup {
     fn start(&mut self, cx: &mut Cx) {
-        show_message(cx, self.id);
+        self.view.show(cx);
         cx.rt.post_to_package(cx.package, INPUT_ENABLE);
-    }
-
-    fn tick(&mut self, cx: &mut Cx, _dt: f32) {
-        hide_gamepad_footer(cx);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
@@ -51,12 +47,7 @@ impl ScreenLogic for SmsPopup {
             cx.send(Command::Resume);
             return;
         }
-        match message {
-            INIT_COMPLETE => open_message(self.id),
-            REPLAY => replay_voice(self.id),
-            DELETE => cx.send(Command::Confirm(delete_question(self.id, Command::Resume))),
-            _ => {}
-        }
+        self.view.message(cx, message, Command::Resume);
     }
 
     fn pressed(&mut self, cx: &mut Cx, button: u32) {
@@ -71,10 +62,19 @@ impl ScreenLogic for SmsPopup {
             cx.send(Command::Resume);
         }
     }
+
+    fn scroll(&mut self, cx: &mut Cx, steps: i32) {
+        self.view.scroll(cx, -steps);
+    }
+
+    fn footer(&self) -> Footer {
+        self.view.footer()
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::sms::{DELETE, REPLAY};
     use super::*;
 
     #[test]

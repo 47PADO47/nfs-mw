@@ -345,7 +345,7 @@ impl Screens {
     }
 
     /// Runs the commands that switch, push or pop screens (which can queue more) and returns the rest.
-    fn apply_stack_commands(&mut self, mut commands: Vec<Command>, env: &mut Env) -> Vec<Command> {
+    pub(super) fn apply_stack_commands(&mut self, mut commands: Vec<Command>, env: &mut Env) -> Vec<Command> {
         let mut rest = Vec::new();
         let mut budget = 32;
         while !commands.is_empty() && budget > 0 {

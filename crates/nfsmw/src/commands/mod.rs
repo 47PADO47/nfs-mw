@@ -166,7 +166,7 @@ pub fn run(cli: Cli) -> Result<()> {
             };
             run_front_end(&dir, &settings, mods, (start, &launch), ui_script.as_deref(), None, &view, false)
         }
-        Command::ViewScreen { name, pause, options, safehouse, category, ui_script, look, car, view } => {
+        Command::ViewScreen { name, pause, options, safehouse, sms, category, ui_script, look, car, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let category = match category.to_ascii_lowercase().as_str() {
                 "audio" => crate::frontend::Category::Audio,
@@ -183,9 +183,12 @@ pub fn run(cli: Cli) -> Result<()> {
             if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {
                 anyhow::bail!("no screen {name:?} in the install (try list-screens)");
             }
-            if safehouse {
+            if safehouse || !sms.is_empty() {
                 let data = std::sync::Arc::new(crate::career::CareerData::load(&dir)?);
-                let career = crate::career::Career::new("PREVIEW", data, &Default::default())?;
+                let mut career = crate::career::Career::new("PREVIEW", data, &Default::default())?;
+                for id in &sms {
+                    anyhow::ensure!(career.settings.sms.deliver(*id), "there is no text message {id}");
+                }
                 crate::career::CareerHandle::shared().set(career);
             }
             let start = crate::frontend::Start::Screen(

@@ -43,8 +43,19 @@
     a free record; which one the original takes is not confirmed.
   - `frontend/career_screens/region_unlock.rs`: the label string the region text is set on is `0xD6C0E097` (spec
     7.2). Its black twin is not set, and the button's size is decoded but not confirmed.
-  - `frontend/career_screens/sms.rs`: hidden for non-story messages. The voice group's role is read from its script
-    only.
+  - `frontend/career_screens/sms.rs`, `sms_message.rs`: hidden for non-story messages. The voice group's role is read
+    from its script only. The story messages are the Voice tab and the tips the Text tab: the story messages are the
+    ones with a voice, the list opens on the story tab (spec 4.1) and the package's corner frame starts on the Voice tab;
+    no text names the tabs' contents. A row shows `<sender>: <subject>`; the spec names the two values, not how they are
+    joined. The message body is wrapped over the package's ten line strings with the installed font, and a longer body
+    scrolls a line per arrow press; whether the original scrolls it, and how its arrows light, is not confirmed. Delete on
+    the list deletes the highlighted row after the same question as the message screen (the package's list footer has
+    the Delete button and sends the same message). The footers are drawn by `frontend/prompts/sms.rs` for the device
+    used last, in the packages' order and with their captions, in place of both package copies. The list's tabs, rows
+    and footer start out of view: the inbox posts the package's own `0x775CE5DF` and `0x93107F76` (what the message
+    screen's exit script sends to every package) when it opens and when a message closes, and `0x293E75E8` when it
+    opens a message over itself; which native call sends them in the original is not confirmed. The rows start
+    without the focus, so the inbox keeps its own highlight and gives its row the focus.
 - **Checked against the game by:**
   - Unit tests: each module has a `*_tests.rs` next to it (for example `career/state_tests.rs`,
     `career/io_tests.rs`, `career/start_tests.rs`, `career/autosave_tests.rs`, `scenes/world/career/*_tests.rs`,
@@ -60,7 +71,9 @@
   - Offscreen runs (2026-10-18): `nfsmw play --ui-script "wait 3;accept;wait 30" --screenshot <png>` presses Career on
     the main menu, drives in free roam in career mode, writes `PLAYER/PLAYER` (63,596 bytes, the size of the original's
     profile files) to the temporary folder and shows the closed-region minimap variant. `nfsmw view-screen <name>
-    --screenshot <png>` draws `SMS_Mailboxes.fng` and `Car_Select.fng`.
+    --screenshot <png>` draws `SMS_Mailboxes.fng` and `Car_Select.fng`; with the hidden `--sms 15,17,123` the inbox of
+    its in-memory career holds those messages, and `--ui-script "device xbox; wait 2; accept; wait 2"` opens the newest
+    one with the controller's footer.
 - **Known differences from the original and gaps:**
   - Profiles are written to this build's own `career` folder next to the config file, never to the original's
     `Documents\NFS Most Wanted`. This is deliberate, so the rewrite cannot damage the original's saves.
