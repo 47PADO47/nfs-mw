@@ -79,9 +79,11 @@ fn the_events_the_player_only_logs_ask_the_world_for_nothing() {
     let logged = [
         NisEvent::HideCharacter { name: "Cop".into(), show: false },
         NisEvent::Freeze(true),
-        NisEvent::Lights { cop: true, head: false },
         NisEvent::CopLights(true),
-        NisEvent::CarShake { shake: 0.003, rate: 0.9, ramp: 1.0, time: 6.0 },
+        NisEvent::Rain(-1.0),
+        NisEvent::PhotoFinish,
+        NisEvent::DDaySpeech,
+        NisEvent::Inert("ENISTimeOfDay"),
         NisEvent::Other(7),
     ];
     for event in logged {
@@ -118,4 +120,15 @@ fn a_scene_that_did_not_reach_black_holds_nothing_and_other_messages_fade_nothin
     assert_eq!(screen.black_alpha(), 0.0, "only the black fade package fades");
     assert_eq!(black_fade("30_IN"), Some((1.0, 0.0, 0.625)));
     assert_eq!(black_fade("FLASHTRIGGER"), None);
+}
+
+#[test]
+fn the_motion_blur_event_holds_the_blur_off_and_stop_effects_asks_the_world() {
+    let mut screen = NisScreen::default();
+    assert!(!screen.motion_blur_off());
+    assert_eq!(dispatch(NisEvent::MotionBlur(false), &mut screen), None);
+    assert!(screen.motion_blur_off());
+    dispatch(NisEvent::MotionBlur(true), &mut screen);
+    assert!(!screen.motion_blur_off());
+    assert_eq!(dispatch(NisEvent::StopEffects, &mut screen), Some(Request::StopEffects));
 }

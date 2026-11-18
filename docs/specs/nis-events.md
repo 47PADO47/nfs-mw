@@ -134,10 +134,11 @@ static count (section 4).
 | ENISWolrdGeometry | `509649B1` | 4: p `fSceneryGroupName`; 8: i `fEnable` | 1 | 1 | Shows or hides a scenery group (`IntroNisBL07`). The name is spelled this way in the decomp. [decomp] |
 | ENISWorldAnimTrigger | `62F10875` | 4: p `fAnimTreeName`; 8: f `fTimeSet`; 12: i `fAnimPause`; 16: i `fAnimHide` | 0 | 0 | Not used in any NIS. |
 
-**Handlers.** The generated `.cpp` for every `ENIS` type is 0 bytes in the CC0 decomp. [decomp] A code search finds
-these names only in the symbol list. So what each handler does on the PC is **[unconfirmed – needs Ghidra]**. The
-original's handler for an event is reached through the event's `MakeEvent` callback (for example
-`ENISCarShake_MakeEvent_Callback`) and its class. Find that class's vtable and its process override in `speed.exe`.
+**Handlers.** The generated `.cpp` for every `ENIS` type is 0 bytes in the CC0 decomp. [decomp] What each handler does
+on the PC was read in `speed.exe` and checked on the running game: see [part 3](nis-events-3.md). It replaces the
+[inferred] meanings in this table where they differ: `ENISCarShake` is a body roll vibration of the car, not a camera
+shake; `ENISDetach` hands the car from its channel to its physics (its speed field is unused); `ENISTimeOfDay`,
+`ENISFakeFar`, `ENISPlayEffect`, `ENISNukeSmack` and `ENISDetail` do nothing on the PC.
 
 ## 3. Event reference: the other events NIS sequences use
 
@@ -344,7 +345,7 @@ of the table it reads.
 
 ## 8. Facts still missing
 
-1. The handlers for all 26 `ENIS` types on the PC. Start with their vtables; the decomp's generated `.cpp` files are empty.
+1. Done for the PC: [part 3](nis-events-3.md). Open there: what `ENISRain` -1 does, the camera context of the lag byte.
 2. The meaning of stimuli `0` and `0x1A24FA80`, and the names of the NIS tags (their hashes are in section 1.3). Which
    animation event calls `NISActivity::FireEventTag`.
 3. `NISActivity::Play` (the start frame) and its caller; the frame of scene time zero relative to the audio start.

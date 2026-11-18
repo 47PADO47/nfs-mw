@@ -10,14 +10,14 @@ impl AiCar {
     pub(in crate::scenes::world::ai) fn lamp_state(&self) -> LampState {
         LampState {
             broken: self.sim.lamp_damage(),
-            emergency: match self.emergency_lights() {
+            emergency: match self.shows_emergency() {
                 true => 0x7000,
                 false => 0,
             },
             time: self.lamp_time(1.0),
             brake: self.sim.lamp_brake(),
             reverse: self.sim.telemetry().gear < 0,
-            headlights: true,
+            headlights: self.shows_headlights(),
             enhanced: self.rig.enhanced_lamps(),
             ..Default::default()
         }

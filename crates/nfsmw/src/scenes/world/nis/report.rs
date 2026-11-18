@@ -15,6 +15,7 @@ use game_install::GameDir;
 use nfsmw_data::nis::{CameraLibrary, NisBundle};
 use serde::Serialize;
 
+use super::car_events::CarEvent;
 use super::car_world::race_start_racer;
 use super::cars::{CAR_SLOTS, Part, channel_of};
 use super::cop_cars::{SlotKind, slot_kind};
@@ -158,7 +159,7 @@ pub fn run(dir: &GameDir, scene: &str, kind: NisKind, track: u32, seating: &Seat
         problems: Vec::new(),
         open: Vec::new(),
     };
-    report.channels = channels(&bundle, &ready.cars, kind, seating, &mut report);
+    report.channels = channels(dir, &bundle, &ready.cars, kind, seating, &mut report);
     audio(dir, &bundle.name, &mut report);
     camera_findings(&mut report);
     let sequence = ready.sequence.clone();
@@ -171,7 +172,13 @@ pub fn run(dir: &GameDir, scene: &str, kind: NisKind, track: u32, seating: &Seat
         report.problems.push(format!("the scene ran {frames} of its {} frames ({outcome:?})", header.vanish_frame));
     }
     if let Some(package) = sequence {
-        report.events = census(package, &bundle.name, seconds, kind, &mut report.unhandled);
+        let bound: Vec<String> = report
+            .channels
+            .iter()
+            .filter(|channel| channel.binding != "none")
+            .map(|channel| channel.channel.clone())
+            .collect();
+        report.events = census(package, &bundle.name, seconds, kind, &bound, &mut report.unhandled);
     }
     event_findings(&mut report);
     Ok(report)
@@ -180,6 +187,7 @@ pub fn run(dir: &GameDir, scene: &str, kind: NisKind, track: u32, seating: &Seat
 /// The channels the bundle names and what each one drives. A channel with only one of its `_t` and `_q` clips does not
 /// play, so it is a problem.
 fn channels(
+    dir: &GameDir,
     bundle: &NisBundle,
     cars: &[super::cars::CarTrack],
     kind: NisKind,
@@ -208,7 +216,8 @@ fn channels(
             out.push(ChannelReport { channel, ends_at: None, binding: "none".into() });
             continue;
         };
-        let binding = bind(slot, kind, seating, &channel, report);
+        let listed = super::scene_list::listed_vehicle(dir, &bundle.name, slot);
+        let binding = bind(slot, kind, seating, &channel, listed, report);
         out.push(ChannelReport { channel, ends_at: Some(track.end_time()), binding });
     }
     out
@@ -223,7 +232,14 @@ fn channel_name(slot: usize) -> String {
 }
 
 /// What car channel `slot` drives, by the rules of `car_world.rs` (`link_nis_cars`), with the findings it gives.
-fn bind(slot: usize, kind: NisKind, seating: &Seating, channel: &str, report: &mut SceneReport) -> String {
+fn bind(
+    slot: usize,
+    kind: NisKind,
+    seating: &Seating,
+    channel: &str,
+    listed: Option<Option<&str>>,
+    report: &mut SceneReport,
+) -> String {
     match (seating.race_start, slot_kind(slot)) {
         (true, Some(SlotKind::Player | SlotKind::Civilian)) => {
             let Some(id) = race_start_racer(&seating.grid, slot) else {
@@ -254,12 +270,16 @@ fn bind(slot: usize, kind: NisKind, seating: &Seating, channel: &str, report: &m
             report.open.push(format!("{channel}: takes the nearest civilian traffic car (the remake's choice)"));
             "nearest traffic car".into()
         }
+        (_, Some(SlotKind::Cop)) if listed.is_some() => match listed.flatten() {
+            Some(vehicle) => format!("{vehicle} of the scene's special car list"),
+            None => "none".into(),
+        },
         (_, Some(SlotKind::Cop)) => {
             let rule = match super::cop_cars::cop_source(kind) {
                 super::cop_cars::CopSource::BorrowFirst => "a chase car, else a spawned copmidsize",
                 super::cop_cars::CopSource::SpawnFirst => "a spawned copmidsize, else a chase car",
             };
-            report.open.push(format!("{channel}: takes {rule}; the scene's special car list is not read"));
+            report.open.push(format!("{channel}: takes {rule}; the scene has no special car list"));
             format!("police car: {rule}")
         }
         (_, None) => "none".into(),
@@ -323,6 +343,7 @@ fn census(
     scene: &str,
     seconds: f32,
     kind: NisKind,
+    bound: &[String],
     unhandled: &mut BTreeMap<String, u32>,
 ) -> Vec<EventReport> {
     let Some(mut events) = NisEvents::start(package, scene) else { return Vec::new() };
@@ -332,6 +353,13 @@ fn census(
     while at <= seconds + CENSUS_TAIL {
         let after_end = at > seconds + FRAME / 2.0;
         for event in events.advance(step) {
+            // As the player does, a channel with no car fires nothing (`player.rs`).
+            if let NisEvent::Car { system, .. } = event
+                && !super::car_events::slot_of(system)
+                    .is_some_and(|slot| bound.contains(&super::car_events::slot_name(slot)))
+            {
+                continue;
+            }
             let (event, handled) = describe(&event, kind);
             out.push(EventReport { at, event, handled, after_end });
         }
@@ -349,7 +377,16 @@ fn census(
 /// An event's name with its values, and whether the player acts on it (`handlers.rs`: `dispatch`).
 fn describe(event: &NisEvent, kind: NisKind) -> (String, bool) {
     match event {
-        NisEvent::Car { event, .. } => (format!("{event:?}"), true),
+        NisEvent::Car { system, event } => {
+            let channel = super::car_events::slot_of(*system)
+                .map_or_else(|| format!("{system:08X}"), super::car_events::slot_name);
+            // Nitrous and neutral revs are kept but not shown or heard (`nis-events-3.md` section 7).
+            let acted = !matches!(event, CarEvent::Nitro(_) | CarEvent::NeutralRev { .. });
+            (format!("{event:?} {channel}"), acted)
+        }
+        NisEvent::MotionBlur(_) | NisEvent::StopEffects => (format!("{event:?}"), true),
+        // The original stores these and acts on none of them: doing nothing is the original's behaviour.
+        NisEvent::Inert(name) => ((*name).to_owned(), true),
         NisEvent::CellCall(id) => (format!("ECellCall {id}"), true),
         NisEvent::ScreenFlash { length } => (format!("ENISScreenFlash {length}"), true),
         NisEvent::PlayEffect { name, .. } => (format!("ENISPlayEffect {name}"), true),

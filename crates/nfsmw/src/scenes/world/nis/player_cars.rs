@@ -136,3 +136,11 @@ fn camera_slot() -> usize {
 
 /// The default slot of [`camera_slot`]: `car1`.
 pub const CAMERA_SLOT: usize = 0;
+
+impl Playing {
+    /// Whether channel `slot` has a car: linked to one, or not linked yet (the events of a scene that has not linked
+    /// its cars keep their effect until it does).
+    pub(super) fn has_car(&self, slot: usize) -> bool {
+        self.links.as_ref().is_none_or(|links| links.iter().any(|&(linked, _)| linked == slot))
+    }
+}

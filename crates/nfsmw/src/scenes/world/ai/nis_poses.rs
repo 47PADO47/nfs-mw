@@ -44,6 +44,20 @@ impl TrafficWorld {
         }
     }
 
+    /// Gives the car at `index` the lights a NIS scene sets, or its own with `None`.
+    pub fn set_nis_lights(&mut self, index: usize, lights: Option<(bool, bool)>) {
+        if let Some(car) = self.cars.get_mut(index) {
+            car.set_nis_lights(lights);
+        }
+    }
+
+    /// Repairs the car at `index` (a scene's `ENISCarDamageReset`, or a reattach that repairs).
+    pub fn repair_nis_car(&mut self, index: usize) {
+        if let Some(car) = self.cars.get_mut(index) {
+            car.repair_nis();
+        }
+    }
+
     /// The car's physics pose now, or `None` for an index no car has.
     pub fn car_pose(&self, index: usize) -> Option<CarPose> {
         self.cars.get(index).map(|car| car.pose(self.alpha))
@@ -94,16 +108,28 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) -> Option<usize> {
-        let model = self.cop_models.iter().find(|model| model.model.name.eq_ignore_ascii_case(NIS_COP_MODEL))?;
+        self.spawn_nis_cop_model(NIS_COP_MODEL, at, heading, collision, surfaces)
+    }
+
+    /// [`TrafficWorld::spawn_nis_cop`] with the police model `name`.
+    pub(super) fn spawn_nis_cop_model(
+        &mut self,
+        name: &str,
+        at: Vec3,
+        heading: f32,
+        collision: &CollisionWorld,
+        surfaces: &SurfaceTable,
+    ) -> Option<usize> {
+        let model = self.cop_models.iter().find(|model| model.model.name.eq_ignore_ascii_case(name))?;
         let facing = Vec3::new(heading.cos(), heading.sin(), 0.0);
         let physics_at = Vec3::from(space::to_physics(at));
         let target = Vec3::from(space::to_physics(at + facing * FACING_REACH));
         let player = model.car.performance;
         let spot = CopSpot { at: physics_at, target, speed: 0.0, player, band: None };
-        if self.spawn_cop_at(NIS_COP_MODEL, spot, collision, surfaces) {
+        if self.spawn_cop_at(name, spot, collision, surfaces) {
             return Some(self.cars.len() - 1);
         }
-        let model = self.cop_models.iter().find(|model| model.model.name.eq_ignore_ascii_case(NIS_COP_MODEL))?;
+        let model = self.cop_models.iter().find(|model| model.model.name.eq_ignore_ascii_case(name))?;
         let toward = target - physics_at;
         let filter = SegmentFilter { cop: true, ..SegmentFilter::default() };
         let mut nav = RoadNav::new(NavKind::Direction, LaneType::Cop, filter);
