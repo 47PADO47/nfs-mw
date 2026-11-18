@@ -88,6 +88,8 @@ fn play_one_shots(mut audio: NonSendMut<Audio>, mut player: Local<OneShotPlayer>
 /// The voices of the phone calls and messages asked for since the last frame (`cell_call.rs`).
 fn play_cell_calls(mut audio: NonSendMut<Audio>) {
     let _trace = blackbox_trace::scope("Audio: cell call voices");
+    // A NIS skip clears the speech queue before the frame's new voices are queued.
+    audio.follow_nis_skip();
     cell_call::service(&mut audio);
 }
 
@@ -101,23 +103,12 @@ pub(super) fn drive_car(
     time: Res<Time>,
     mut music: ResMut<MusicInput>,
     mut audio: NonSendMut<Audio>,
-    mut seen: Local<u32>,
     settings: Option<Res<Settings>>,
     frontend: Option<Res<crate::frontend::Frontend>>,
 ) {
     let _trace = blackbox_trace::scope("Audio: car / traffic / music update");
     // A scene that went away takes its soundtrack with it, even when the next one has none.
-    if *seen != host.scene_changes {
-        *seen = host.scene_changes;
-        audio.drive_car(None, 0.0);
-        audio.drive_second_car(None, 0.0);
-        audio.stop_music();
-        audio.stop_traffic();
-        audio.stop_explosion();
-        audio.stop_world_effect_audio();
-        audio.stop_moment_stream();
-        audio.stop_nis();
-        audio.stop_police_radio();
+    if audio.follow_scene_change(host.scene_changes) {
         *music = MusicInput::default();
     }
     let car = host.scene.car_sound();
@@ -194,11 +185,7 @@ pub(super) fn drive_car(
     let scene_soundtrack = host.scene.owns_soundtrack();
     let songs_free = audio.update_interactive(&music.state(), driving && !scene_soundtrack, time.delta_secs());
     audio.update_radio(driving, host.scene.radio_on_menus(), !songs_free || scene_soundtrack);
-    if let Some(clip) = host.scene.take_clip()
-        && let Err(e) = audio.play_music(super::pcm::sound(&clip))
-    {
-        log::warn!("the scene's sound: {e}");
-    }
+    audio.follow_clip(host.scene.as_mut());
 }
 
 #[cfg(test)]

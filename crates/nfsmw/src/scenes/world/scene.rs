@@ -118,6 +118,9 @@ impl Scene for WorldScene {
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         self.story_movie.take_clip()
     }
+    fn clip_playing(&self) -> bool {
+        self.story_movie.is_playing()
+    }
 
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
         self.scene_set_tire_effects(smoke, skid_marks)

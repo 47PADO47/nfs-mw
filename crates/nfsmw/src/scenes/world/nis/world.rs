@@ -123,8 +123,10 @@ impl WorldScene {
     /// Reads the player's skip and plays the scene on real frame time. Runs before the world reads the frame's input,
     /// so the world can freeze while a scene plays.
     pub(in crate::scenes::world) fn update_nis(&mut self, input: &ActionState, dt: f32) {
-        if input.just_pressed(Action::MenuAccept) || input.just_pressed(Action::MenuStart) {
-            self.nis.skip();
+        let skip = input.just_pressed(Action::MenuAccept) || input.just_pressed(Action::MenuStart);
+        if skip && self.nis.skip() {
+            // A skip clears the speech queue (`nis-player-2.md` section 13): the scene's call or line stops with it.
+            crate::audio::nis::note_skip();
         }
         let events = self.nis.advance(dt);
         self.apply_nis_events(events);

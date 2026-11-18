@@ -7,6 +7,7 @@
 //! plugin reports whether the voice still plays through `Scene::note_nis_audio`. A take that ends is not started again
 //! until the request changes.
 use super::radio::feeder::FileSource;
+use super::streams::{Event, Kind};
 use super::{Audio, Group, pcm};
 use ea_audio::speech::{Sentences, SpeechIndex};
 use game_install::GameDir;
@@ -107,14 +108,38 @@ fn spawn_take(dir: &GameDir, scene: &str, countdown: bool) -> Slot {
 pub(super) struct NisAudio {
     requested: Requested,
     voice: Option<StaticSoundHandle>,
+    /// The trace instance and the scene of `voice`.
+    voice_instance: u64,
+    voice_scene: Option<String>,
     /// The scene whose take is being decoded, and the take when the thread is done.
     pending: Option<(String, Slot)>,
 }
 
 impl Drop for NisAudio {
     fn drop(&mut self) {
-        self.stop();
+        let _ = self.stop();
     }
+}
+
+thread_local! {
+    /// A NIS scene was skipped since the audio plugin last looked ([`note_skip`]).
+    static SKIPPED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The player skipped the NIS scene: a skip clears the speech queue (`nis-player-2.md` section 13). Call it on the
+/// main thread, where the audio plugin takes it before the frame's phone-call voices.
+pub fn note_skip() {
+    SKIPPED.with(|skipped| skipped.set(true));
+}
+
+fn take_skip() -> bool {
+    SKIPPED.with(|skipped| skipped.replace(false))
+}
+
+/// Whether a skip waits for the audio plugin.
+#[cfg(test)]
+pub(super) fn skip_pending() -> bool {
+    SKIPPED.with(std::cell::Cell::get)
 }
 
 impl NisAudio {
@@ -123,17 +148,39 @@ impl NisAudio {
         self.voice.as_ref().is_some_and(|voice| voice.state() != PlaybackState::Stopped)
     }
 
-    /// Stop the voice at once, and forget a take that is still decoding.
-    pub fn stop(&mut self) {
+    /// Puts `voice` in the place of a decoded take, for tests over an install without the NIS stream.
+    #[cfg(test)]
+    pub(super) fn set_voice(&mut self, voice: StaticSoundHandle) {
+        self.voice = Some(voice);
+    }
+
+    /// The scene whose take the voice plays.
+    pub fn scene(&self) -> Option<&str> {
+        self.voice.as_ref().and(self.voice_scene.as_deref())
+    }
+
+    /// Stop the voice at once, and forget a take that is still decoding. Returns the voice's trace instance and
+    /// whether it still played, when there was a voice.
+    pub fn stop(&mut self) -> Option<(u64, bool)> {
         self.pending = None;
-        if let Some(mut voice) = self.voice.take() {
-            voice.stop(Tween { duration: Duration::ZERO, ..Tween::default() });
+        let mut voice = self.voice.take()?;
+        let playing = voice.state() != PlaybackState::Stopped;
+        voice.stop(Tween { duration: Duration::ZERO, ..Tween::default() });
+        Some((self.voice_instance, playing))
+    }
+
+    /// Forgets the voice once its take has run out. Returns its trace instance then.
+    fn take_ended(&mut self) -> Option<u64> {
+        let ended = self.voice.as_ref()?.state() == PlaybackState::Stopped;
+        if !ended {
+            return None;
         }
+        self.voice = None;
+        Some(self.voice_instance)
     }
 
     /// Starts reading the take of `scene` from the install: the prefetched one when there is one, else a new thread's.
     fn begin(&mut self, dir: &GameDir, scene: &str, countdown: bool) {
-        self.stop();
         let slot = claim_prefetched(scene, countdown).unwrap_or_else(|| spawn_take(dir, scene, countdown));
         self.pending = Some((scene.to_owned(), slot));
     }
@@ -189,6 +236,9 @@ impl Audio {
     /// plays on the first update after it is ready.
     pub(super) fn update_nis(&mut self, wanted: Option<&NisAudioRequest>) {
         self.play_ready_nis_take();
+        if let Some(instance) = self.nis.take_ended() {
+            self.trace_stream(Event::End, Kind::Nis, instance, "take over");
+        }
         if !self.nis.requested.set(wanted) {
             return;
         }
@@ -201,7 +251,7 @@ impl Audio {
             ],
             ..Default::default()
         });
-        self.nis.stop();
+        self.stop_nis_voice("request changed");
         let Some(request) = wanted else { return };
         let Some(scene) = request.scene.as_deref() else { return };
         self.nis.begin(&self.dir, scene, request.countdown);
@@ -224,17 +274,36 @@ impl Audio {
         };
         match self.play(Group::Sfx, sound) {
             Ok(voice) => {
+                let instance = self.trace.instance();
+                self.trace_stream(Event::Start, Kind::Nis, instance, &scene);
                 self.nis.voice = Some(voice);
-                self.trace.note("nis_voice_start", &scene);
+                self.nis.voice_instance = instance;
+                self.nis.voice_scene = Some(scene);
             }
             Err(error) => log::warn!("NIS audio cannot play {scene}: {error}"),
         }
     }
 
     /// Stop the NIS audio at once and forget its request, so the same scene starts again when asked for.
-    pub(super) fn stop_nis(&mut self) {
+    pub(super) fn stop_nis(&mut self, reason: &str) {
         self.nis.requested.set(None);
-        self.nis.stop();
+        self.stop_nis_voice(reason);
+    }
+
+    /// Stops the NIS voice, if there is one, and says why in the audio trace.
+    fn stop_nis_voice(&mut self, reason: &str) {
+        let Some((instance, playing)) = self.nis.stop() else { return };
+        let event = if playing { Event::Stop } else { Event::End };
+        self.trace_stream(event, Kind::Nis, instance, reason);
+    }
+
+    /// A skipped NIS scene clears the speech queue and stops the line that sounds (`nis-player-2.md` sections 12 and
+    /// 13): its phone call or speech line does not outlive the scene. Runs before the frame's new voices are served.
+    pub(super) fn follow_nis_skip(&mut self) {
+        if !take_skip() {
+            return;
+        }
+        self.silence_speech("nis skipped");
     }
 
     /// Whether the NIS audio still plays.

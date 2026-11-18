@@ -10,6 +10,8 @@ use blackbox_feng::ids::*;
 use super::aems::{EffectModule, EffectSampler};
 use super::{Audio, Group};
 
+#[cfg(test)]
+mod inventory_tests;
 mod photo;
 #[cfg(test)]
 mod tests;
@@ -99,6 +101,8 @@ struct Running {
     age: f32,
     released: bool,
     group: Group,
+    /// Release only once the voices have run out: a graph whose destroy node stops its voices (`FX_Camera`).
+    hold: bool,
 }
 
 /// Sound lifetimes survive screen changes and end independently of the menu stack.
@@ -154,7 +158,14 @@ impl MenuPlayer {
                     logical_ms: audio.trace.now_ms(),
                     ..Default::default()
                 });
-                self.active.push(Running { module, words: words.to_vec(), age: 0.0, released: false, group })
+                self.active.push(Running {
+                    module,
+                    words: words.to_vec(),
+                    age: 0.0,
+                    released: false,
+                    group,
+                    hold: false,
+                })
             }
             Err(error) => {
                 audio.trace.record(super::trace::Record {
@@ -183,7 +194,8 @@ impl MenuPlayer {
             running.age += dt;
             let usable = running.module.update(&mut EffectSampler(audio, running.group), dt, &running.words);
             // The graph must see its class data once before its short-lived Csis owner is released.
-            if !running.released && running.age >= 1.0 / 60.0 {
+            let free = !running.hold || running.module.silent();
+            if !running.released && running.age >= 1.0 / 60.0 && free {
                 running.module.release();
                 running.released = true;
             }

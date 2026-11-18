@@ -146,3 +146,7 @@ pub(in crate::scenes::world) fn movie_command(world: &mut WorldScene, args: &[&s
         _ => Err(USAGE.into()),
     }
 }
+
+#[cfg(test)]
+#[path = "story_movie_tests.rs"]
+mod tests;

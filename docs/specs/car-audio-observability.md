@@ -29,6 +29,12 @@ versus consumed controller revisions. Output capabilities are stated separately:
 the pan/filter/pitch backend and effective authored wet processing cannot become
 verified original behavior merely because module outputs match.
 
+The streams a scene owns (a movie's sound, the NIS take, a cut speech line) write `stream_start` with a fresh instance,
+and the same instance in `stream_stop` (stopped by the host, the reason in `detail`: `movie over`, `scene changed`,
+`request changed`, `nis skipped`) or `stream_end` (it had run out). With `logical_ms` this answers which streams play
+at a time, who started them and what stopped them. The console's `audio-active` lists the ones that play now
+(`crates/nfsmw/src/audio/streams.rs`). **[ours]**
+
 The audio callback performs no trace file I/O. Producers never wait for disk;
 queue saturation and write failures invalidate complete trace evidence. A
 clean session end records dropped counts. Abrupt termination without that

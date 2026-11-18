@@ -443,6 +443,9 @@ impl Scene for Pausable {
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         self.inner.take_clip()
     }
+    fn clip_playing(&self) -> bool {
+        self.inner.clip_playing()
+    }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         self.paused_take_traffic_sounds()
