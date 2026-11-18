@@ -18,6 +18,7 @@ use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
 use super::event_tiles::{EventTiles, install_loader};
 use super::frame_cache::{FrameCache, TreeKey};
 use super::map_source::{MapSource, resolve_stem};
+use super::message_card::{CARD_PACKAGE, MessageCard};
 use super::minimap::MinimapBinding;
 use super::notify::{HudNotifications, intense};
 use super::radio::RadioHud;
@@ -66,6 +67,8 @@ struct Hud {
     trax: Option<TraxBinding>,
     /// The busted overlay, when the install has it (`busted_overlay.rs`).
     overlay: Option<BustedOverlay>,
+    /// The race's message card, when the install has it (`message_card.rs`).
+    card: Option<MessageCard>,
     /// The drag race HUD, when the install has it: it takes the place of the race HUD while a drag race runs.
     drag: Option<DragHud>,
     /// What the trees in the frame cell were built from, and the layers composed from them (`frame_cache.rs`).
@@ -174,6 +177,8 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
     let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
     let trax = trax::load(dir, &mut runtime);
     let overlay = catalog.find(OVERLAY_PACKAGE).cloned().map(BustedOverlay::new);
+    // The screen files are shared with the front end through the session memo, so this reads nothing twice.
+    let card = Catalog::load(dir, &crate::ui::SCREEN_FILES).find(CARD_PACKAGE).cloned().map(MessageCard::new);
     let drag = catalog.find(DRAG_PACKAGE).cloned().map(|drag| {
         let package = runtime.load(drag);
         let binding = HudBinding::new(&mut runtime, package);
@@ -192,6 +197,7 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
         map_picture: None,
         trax,
         overlay,
+        card,
         drag,
         cache: FrameCache::default(),
     })
@@ -253,6 +259,9 @@ fn sync(
         }
     }
     state.map_picture = hud.map_picture.clone();
+    if let Some(card) = hud.card.as_mut() {
+        card.set_shown(&mut hud.runtime, state.message_card);
+    }
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
         overlay.cue(&mut hud.runtime, state.busted_overlay_cue);
@@ -324,6 +333,15 @@ fn present(
     let routed =
         !themes.hud_is_static() && themes.provided_by(ElementId::Banner).is_some_and(|id| id != ThemeId::Original);
     super::set_cards_routed(routed);
+    // The message card is a full-screen package of its own: it alone runs and is drawn while it is up.
+    if let Some(card) = hud.card.as_ref().and_then(MessageCard::shown) {
+        drawn.shown();
+        hud.runtime.update(time.delta_secs());
+        let _ = hud.runtime.take_outgoing();
+        let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
+        presenter.0.present(&hud.runtime.tree(card), &assets.0, screen, &mut out);
+        return;
+    }
     if !state.visible || !settings.hud {
         // A scene hides the HUD, but an arrest keeps the busted overlay over the frame: it alone runs and is drawn.
         if let Some(overlay) = hud.overlay.as_ref().and_then(BustedOverlay::shown) {

@@ -143,6 +143,12 @@ pub fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Command::DumpAnim { path, bank, sample } => dump_anim::run(game_dir, &path, bank.as_deref(), sample),
+        Command::NisReport { scene, event } => {
+            let dir = open_install(game_dir)?;
+            let json = crate::scenes::world::nis_report_json(&dir, scene.as_deref(), event.as_deref());
+            println!("{}", json.map_err(anyhow::Error::msg)?);
+            Ok(())
+        }
         Command::ViewAnim { path, skeleton, clip, time, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let scene =

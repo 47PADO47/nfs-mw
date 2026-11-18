@@ -170,6 +170,16 @@ pub enum Command {
         #[arg(long, value_name = "N", requires = "bank", value_parser = clap::value_parser!(u32).range(1..))]
         sample: Option<u32>,
     },
+    /// Play NIS scenes to their end with no window and no sound and print a JSON report: the car each channel drives,
+    /// the camera, the frames played, the events and the fallbacks. With no scene, every step of the career prologue:
+    /// `nfsmw nis-report IntroNis05 --event 16.2.3`.
+    NisReport {
+        /// The scene, e.g. IntroNis05; the whole prologue when left out.
+        scene: Option<String>,
+        /// Stand the scene as this career event's intro does (its racers and camera track), e.g. 16.2.3.
+        #[arg(long, value_name = "EVENT", requires = "scene")]
+        event: Option<String>,
+    },
     /// Show a skeleton of a bundle as sticks, one box per bone, animated by one of its clips (drag to orbit, scroll to
     /// zoom, Esc to quit): `nfsmw view-anim NIS/Scene_ArrestF02_BundleB.bun --clip <name> --time 1`.
     ViewAnim {
@@ -245,7 +255,8 @@ impl Command {
             | Self::ListScreens
             | Self::Strings { .. }
             | Self::DumpScreen { .. }
-            | Self::DumpAnim { .. } => None,
+            | Self::DumpAnim { .. }
+            | Self::NisReport { .. } => None,
         }
     }
 

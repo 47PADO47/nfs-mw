@@ -37,6 +37,7 @@ mod report;
 pub(in crate::scenes::world) mod reset;
 mod restart;
 pub(in crate::scenes::world) mod route;
+pub(in crate::scenes::world) mod scene_report;
 pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
 #[cfg(test)]

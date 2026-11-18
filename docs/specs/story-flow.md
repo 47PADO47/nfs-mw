@@ -303,9 +303,15 @@ What the rewrite decides where the spec above is silent. All of it is open to Gh
    the next race or movie takes the screen.
 3. A scripted end counts as a win of the event (the chain and the resume read it) and goes through the race outro: `16.2.1`
    plays `storyfmv_bus12` and then opens the car lot.
-4. The flashback races open on a days-ago card: `16.2.2` "Six Days Ago..." (message 6), `16.2.3` "Four Days Ago..." (4),
-   `16.1.1` "Two Days Ago..." (message 2, from the data). The texts are the install's (`0x4CBBA984`, `0x2117EECC`,
-   `0xA461D64A`; `^` is a line break). Messages 6 and 4 are not in the race data **[unconfirmed]**.
+4. A race shows a message card only where its data sets `IntroMessageID`. In the prologue that is `16.1.1` alone
+   (message 2) **[verified]**; `16.2.2` and `16.2.3` set none and open on their movie (the rewrite's earlier "Six Days
+   Ago..." and "Four Days Ago..." cards there are removed). Given (one unattended run of the original): `SixDaysLater.fng`
+   opens between the photo finish of the third prologue event and `16.1.1`, and no screen opens before `16.2.2` or
+   `16.2.3`. The rewrite shows that package itself, in the HUD's runtime and alone over the frame
+   (`hud/message_card.rs`): its black panel, its `Number2.tga` image and its own string "SIX DAYS LATER..."
+   (label `0x290C9B44`, which the English table has no text for, so the package's text shows), with its own scripts. The card stays up until the last of them ends, 4700 ticks (4.9 s at 960 a
+   second) **[verified]** (`nfsmw dump-screen SixDaysLater.fng`); what closes the card in the original is native and not
+   known. Without the package the text stand-in draws the same label.
 5. The car lot is platform 5: its room is `FRONTEND/PLATFORMS/CAR_LOT.BIN`, the camera `angle_entry_car_lot` onto
    `angle_final_car_lot` and the screen pose `carlot_car_select`, the car stood at 340 degrees. It replaces the world; leaving
    a lot zone starts the world again at the zone.
@@ -314,3 +320,10 @@ What the rewrite decides where the spec above is silent. All of it is open to Gh
 7. `IntroNisDDEnd` is not a second cutscene of the prologue. Ghidra: its only code use is `FUN_00641840` (0x00641840), the
    teardown of the race status, which posts the name as an event for a human racer when the race state is not 8. Nothing
    plays a scene of that name, so no extra NIS follows `16.1.0` or `16.2.1` **[exe]**.
+8. The NIS shell `16.8.1` plans the two racers its data lists (`rog`, `razor`), as every race does, though they never
+   race: its scene `EndingNis03` has channels `car2` and `car3`, and they drive them. Before, the shell planned no
+   opponents and the two channels stayed empty **[verified]** (`nfsmw nis-report`).
+9. `EndingNis03` fades the screen to black at 26.29 s with `BLACK_FADE_OUT.fng` message `15_OUT`
+   ([nis-events-2.md](nis-events-2.md) B.2). The package's script for that message runs the black panel's alpha from 0 to
+   255 over 300 ticks (0.31 s at 960 ticks a second) **[verified]** (`nfsmw dump-screen BLACK_FADE_OUT.fng`). The rewrite
+   draws that fade, and a scene that ends black leaves the screen black until the next race or movie takes it.

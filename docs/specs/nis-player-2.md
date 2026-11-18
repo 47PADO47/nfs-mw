@@ -256,6 +256,15 @@ and unloads the bundle from memory.
 - The racers (`car2` to `car8`) are set not animating, and any with no clip are left deactivated.
 - The cops that the NIS spawned are killed.
 
+### 14.5 Checking a scene headless **[ours]**
+
+`nfsmw nis-report <scene> [--event <event>]` reads a scene as the world does, plays it to its end on a 30 Hz clock with no
+window and no sound, and prints JSON: the car each channel drives (by the world's linking rule; with `--event`, the
+race's racers by grid slot and its camera track), the camera track, the frames played, every event with whether the
+player acts on it, and two lists: `problems` (defects the data settles: a channel the data has a car for that stays off,
+a stock pick, a cut ending) and `open` (the rewrite's choices where the data is silent). With no scene it reports every
+step of the career prologue. The ignored test `scene_report::tests` runs the prologue and fails on any problem.
+
 ## 15. Facts still missing (for the supervisor's Ghidra pass)
 
 Each item names the function or field and what to find. Addresses are in `speed.exe` 1.3 (image base 0x400000).

@@ -107,6 +107,8 @@ pub struct HudState {
     /// it while the bust sequence shows the overlay (`scenes/world/ai/police/busted/flow.rs`) and while an arrest scene
     /// plays, whose camera puts it up (`scenes/world/scene_hud.rs`).
     pub busted_overlay: bool,
+    /// A race's message card is up (`hud/message_card.rs`): the HUD draws `SixDaysLater.fng` alone over the frame.
+    pub message_card: bool,
     /// The arrest scene's last message to the overlay (`ENISOverlayMessage`): its FEng hash and the event's serial. The
     /// HUD posts each serial once while the overlay is up (`FLASHTRIGGER` runs the package's flash).
     pub busted_overlay_cue: Option<(u32, u32)>,
@@ -185,6 +187,7 @@ impl Default for HudState {
             visible: true,
             busted: 0.0,
             busted_overlay: false,
+            message_card: false,
             busted_overlay_cue: None,
             busted_summary: None,
             career_bounty: None,

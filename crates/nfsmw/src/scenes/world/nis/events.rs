@@ -80,6 +80,9 @@ pub struct NisEvents {
     player: Player,
     /// The event ids with no handler that were already logged this scene.
     unknown: BTreeSet<u32>,
+    /// The ids of the events with no handler that fired since [`NisEvents::take_unhandled`] last ran, in order. Dropped
+    /// with the scene; the scene report reads them.
+    unhandled: Vec<u32>,
     /// Set when the player refused to run (a bad time): the scene plays on with no more events.
     failed: bool,
 }
@@ -103,7 +106,7 @@ impl NisEvents {
             log::warn!("NIS {scene}: the START stimulus failed: {error}");
             return None;
         }
-        Some(Self { package, player, unknown: BTreeSet::new(), failed: false })
+        Some(Self { package, player, unknown: BTreeSet::new(), unhandled: Vec::new(), failed: false })
     }
 
     /// Runs `dt` seconds of scene time and returns the events that fired in it, in order. Each event fires once. The
@@ -128,10 +131,16 @@ impl NisEvents {
         fired
     }
 
+    /// The ids of the events with no handler that fired since the last call, in order.
+    pub fn take_unhandled(&mut self) -> Vec<u32> {
+        std::mem::take(&mut self.unhandled)
+    }
+
     /// Decodes one event into `fired`. An event with no handler is logged once; a malformed one is logged and skipped.
     fn collect(&mut self, package: &Package, event: &Event, system: u32, fired: &mut Vec<NisEvent>) {
         match decode(package, event) {
             Some(NisEvent::Other(id)) => {
+                self.unhandled.push(id);
                 if self.unknown.insert(id) {
                     log::debug!("NIS event {id:08X} has no handler; it is ignored");
                 }

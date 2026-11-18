@@ -17,9 +17,11 @@ use crate::scenes::world::road::Spawn;
 use crate::scenes::world::scene_space::Anchor;
 use crate::scenes::world::{WorldScene, space};
 
-/// Seconds the message card stays up: the length of `SixDaysLater.fng`'s script, about 4.2 s (`story-flow-2.md` F-04).
-pub(super) const MESSAGE_SECS: f32 = 4.2;
-/// The language label of the message card's text: "SIX DAYS LATER..." (`story-flow-2.md` F-04).
+/// Seconds the message card stays up: until the last of `SixDaysLater.fng`'s own scripts ends (`hud/message_card.rs`),
+/// 4700 ticks at the FEng runtime's 960 a second.
+pub(super) const MESSAGE_SECS: f32 = crate::hud::CARD_TICKS / blackbox_feng::runtime::TICKS_PER_SECOND;
+/// The language label of the message card's text, the one `SixDaysLater.fng` carries: "SIX DAYS LATER..."
+/// (`story-flow-2.md` F-04). The stand-in draws it when the install has no such package.
 pub(super) const MESSAGE_LABEL: u32 = 0x290C_9B44;
 /// The settings bits of the tutorials (`story-flow-2.md` F-03): drag `0x40`, speed trap `0x80`, tollbooth `0x100`.
 const DRAG_BIT: u32 = 0x40;
@@ -197,13 +199,18 @@ pub(super) fn intro_queue(session: &RaceSession) -> VecDeque<IntroStep> {
     if session.restarted {
         return VecDeque::new();
     }
-    let race = &session.origin.race.story;
+    intro_plan(&session.origin.race.story, session.options.career)
+}
+
+/// The intro steps of a race with the story fields `race`, played in the career when `career` is set. Every step comes
+/// from the race's own fields: a message card only where the race sets `IntroMessageID` (`story-flow-2.md` F-04).
+pub(super) fn intro_plan(race: &RaceStory, career: bool) -> VecDeque<IntroStep> {
     // The NIS shell race has no racing: its intro is its cutscene alone (`race_life::nis_shell_steps`).
     if race.nis_shell {
         return nis_shell_steps(&story_fields(race)).into();
     }
     let ctx = IntroContext {
-        career: session.options.career,
+        career,
         boss_race: race.boss_race,
         dday: race.dday,
         // Split screen is not in this build: no race is played in it.
@@ -232,6 +239,8 @@ impl StoryWorld for WorldScene {
                 log::info!("race: the message {id} is shown");
                 // The language table writes a line break as `^`.
                 let text = self.language_text(MESSAGE_LABEL).replace('^', "\n");
+                // The label has no text in the language table: the package's own string is what it shows.
+                let text = if text.is_empty() { crate::hud::CARD_TEXT.to_owned() } else { text };
                 let card = serde_json::json!({"id": id, "label": format!("{MESSAGE_LABEL:#010x}"), "text": text});
                 crate::parity::career_trace::record("message_card", card);
                 Playing::Message { text, left: MESSAGE_SECS }
@@ -364,9 +373,12 @@ impl WorldScene {
         }
     }
 
-    /// Draws the message card (`SixDaysLater.fng` stands in: the world cannot open a front-end card, so the text is drawn
-    /// over a black screen).
+    /// Draws the message card's stand-in, the package's text over a black screen, when the HUD has no `SixDaysLater.fng`
+    /// to draw (`hud/message_card.rs`).
     pub(in crate::scenes::world) fn show_race_message_card(&self, ctx: &egui::Context) {
+        if crate::hud::message_card_drawn() {
+            return;
+        }
         let Some(text) = self.race_card_text() else { return };
         let screen = ctx.content_rect();
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("story_card")));

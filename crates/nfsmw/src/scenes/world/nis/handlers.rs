@@ -15,12 +15,49 @@ use crate::scenes::world::prop_effects::{Command, Source};
 /// The particle source a NIS scene's named effects play under. It is not a sequence object's id.
 const NIS_EFFECT_SOURCE: u32 = 0x4E49_5345;
 
-/// What a NIS scene puts over the frame: a full-screen flash, and the last overlay message it sent. Both end with the
-/// scene.
+/// The overlay package whose messages fade the screen to black and back (`EndingNis03` sends it `15_OUT`).
+pub const BLACK_FADE_PACKAGE: &str = "BLACK_FADE_OUT.fng";
+
+/// What a NIS scene puts over the frame: a full-screen flash, a black fade, and the last overlay message it sent. They
+/// end with the scene, except a fade that reached black: the screen stays black ([`NisScreen::take_held_black`]).
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct NisScreen {
     flash: Option<Flash>,
     overlay: Option<Overlay>,
+    fade: Option<Fade>,
+    /// The scene ended black, and the world has not taken the black over yet.
+    held_black: bool,
+}
+
+/// A fade of the black panel of [`BLACK_FADE_PACKAGE`]: its opacity goes from `from` to `to` over `length` seconds.
+#[derive(Debug, Clone, PartialEq)]
+struct Fade {
+    from: f32,
+    to: f32,
+    length: f32,
+    elapsed: f32,
+}
+
+impl Fade {
+    fn alpha(&self) -> f32 {
+        let done = (self.elapsed / self.length).clamp(0.0, 1.0);
+        self.from + (self.to - self.from) * done
+    }
+}
+
+/// The fade a message of [`BLACK_FADE_PACKAGE`] starts: the black panel's opacity at the start and at the end, and the
+/// seconds it takes. From install data: each message starts one script of the package's panel, whose colour track runs
+/// the alpha from 0 to 255 (`_OUT`) or from 255 to 0 (`_IN`) over 300 (`15_`) or 600 (`30_`) ticks, at 960 ticks a
+/// second (`nfsmw dump-screen BLACK_FADE_OUT.fng`). `None` for any other message.
+pub fn black_fade(message: &str) -> Option<(f32, f32, f32)> {
+    let (from, to, ticks) = match message.to_ascii_uppercase().as_str() {
+        "15_OUT" => (0.0, 1.0, 300.0),
+        "15_IN" => (1.0, 0.0, 300.0),
+        "30_OUT" => (0.0, 1.0, 600.0),
+        "30_IN" => (1.0, 0.0, 600.0),
+        _ => return None,
+    };
+    Some((from, to, ticks / blackbox_feng::runtime::TICKS_PER_SECOND))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,12 +87,19 @@ impl NisScreen {
     /// end of the scene. The event shows nothing itself: the original only queues the message to the package, which the
     /// arrest camera has put up (`docs/specs/busted-sequence.md` section 6.1).
     pub fn show_overlay(&mut self, package: String, message: String) {
+        let fade = black_fade(&message).filter(|_| package.eq_ignore_ascii_case(BLACK_FADE_PACKAGE));
+        if let Some((from, to, length)) = fade {
+            self.fade = Some(Fade { from, to, length, elapsed: 0.0 });
+        }
         let serial = self.overlay.as_ref().map_or(0, |overlay| overlay.serial.wrapping_add(1));
         self.overlay = Some(Overlay { package, message, serial });
     }
 
     /// Runs `dt` seconds of scene time: the flash fades, and it ends when its length has passed.
     pub fn advance(&mut self, dt: f32) {
+        if let Some(fade) = self.fade.as_mut() {
+            fade.elapsed += dt.max(0.0);
+        }
         let Some(flash) = self.flash.as_mut() else { return };
         flash.elapsed += dt.max(0.0);
         if flash.elapsed >= flash.length {
@@ -82,14 +126,31 @@ impl NisScreen {
         Some((fe_hash_upper(&overlay.message), overlay.serial))
     }
 
-    /// Whether a flash shows, so [`Self::draw`] puts something over the frame. The overlay packages are the HUD's.
-    pub fn is_showing(&self) -> bool {
-        self.flash.is_some()
+    /// The black fade's opacity now, 0 when no fade runs.
+    pub fn black_alpha(&self) -> f32 {
+        self.fade.as_ref().map_or(0.0, Fade::alpha)
     }
 
-    /// Clears the flash and the overlay: the scene has ended.
+    /// Whether a flash or a black fade shows, so [`Self::draw`] puts something over the frame. The other overlay packages
+    /// are the HUD's.
+    pub fn is_showing(&self) -> bool {
+        self.flash.is_some() || self.black_alpha() > 0.0
+    }
+
+    /// Clears the flash, the fade and the overlay: a new scene starts.
     pub fn clear(&mut self) {
         *self = Self::default();
+    }
+
+    /// The scene has ended: everything clears, and a fade that had reached black is held for the world to take.
+    pub fn end(&mut self) {
+        let black = self.black_alpha() >= 1.0;
+        *self = Self { held_black: black, ..Self::default() };
+    }
+
+    /// Whether the scene that ended left the screen black, once.
+    pub fn take_held_black(&mut self) -> bool {
+        std::mem::take(&mut self.held_black)
     }
 
     /// Draws the flash over the frame.
@@ -99,6 +160,10 @@ impl NisScreen {
         }
         let screen = ctx.content_rect();
         let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("nis_screen")));
+        let black = self.black_alpha();
+        if black > 0.0 {
+            painter.rect_filled(screen, 0.0, egui::Color32::from_black_alpha((black * 255.0).round() as u8));
+        }
         if let Some(alpha) = self.flash_alpha() {
             painter.rect_filled(screen, 0.0, egui::Color32::from_white_alpha((alpha * 255.0) as u8));
         }
