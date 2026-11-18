@@ -28,6 +28,9 @@ pub struct ParityOptions {
     pub seed: Option<u64>,
     /// Every mechanics-changing setting is forced to the original game's behaviour (`stock.rs`).
     pub stock_rules: bool,
+    /// The vehicle budget the command line asked for (`--traffic N`, `--no-traffic` as 0). A stock run keeps it over
+    /// its own budget: the original can run a race without traffic.
+    pub traffic: Option<u32>,
 }
 
 impl ParityOptions {
@@ -37,6 +40,7 @@ impl ParityOptions {
             seed: seed
                 .or_else(|| env_value(&get, SEED_ENV, |text| text.trim().parse::<u64>().map_err(|e| e.to_string()))),
             stock_rules: stock_rules || env_value(&get, STOCK_RULES_ENV, crate::settings::parse_bool).unwrap_or(false),
+            traffic: None,
         }
     }
 }
@@ -92,19 +96,19 @@ mod tests {
     #[test]
     fn nothing_given_changes_nothing() {
         assert_eq!(ParityOptions::resolve(None, false, env(&[])), ParityOptions::default());
-        assert_eq!(ParityOptions::default(), ParityOptions { seed: None, stock_rules: false });
+        assert_eq!(ParityOptions::default(), ParityOptions { seed: None, stock_rules: false, traffic: None });
     }
 
     #[test]
     fn the_environment_sets_both() {
         let options = ParityOptions::resolve(None, false, env(&[(SEED_ENV, " 42 "), (STOCK_RULES_ENV, "1")]));
-        assert_eq!(options, ParityOptions { seed: Some(42), stock_rules: true });
+        assert_eq!(options, ParityOptions { seed: Some(42), stock_rules: true, traffic: None });
     }
 
     #[test]
     fn the_command_line_wins_and_bad_values_are_ignored() {
         let options = ParityOptions::resolve(Some(7), false, env(&[(SEED_ENV, "42"), (STOCK_RULES_ENV, "0")]));
-        assert_eq!(options, ParityOptions { seed: Some(7), stock_rules: false });
+        assert_eq!(options, ParityOptions { seed: Some(7), stock_rules: false, traffic: None });
         let bad = ParityOptions::resolve(None, false, env(&[(SEED_ENV, "-3"), (STOCK_RULES_ENV, "perhaps")]));
         assert_eq!(bad, ParityOptions::default());
         assert!(ParityOptions::resolve(None, true, env(&[(STOCK_RULES_ENV, "off")])).stock_rules);

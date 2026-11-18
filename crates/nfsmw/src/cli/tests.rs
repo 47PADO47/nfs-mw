@@ -225,3 +225,14 @@ fn the_seed_and_the_stock_rules_are_run_flags_and_no_settings() {
     assert!(Cli::try_parse_from(["nfsmw", "view-world", "--seed", "-1"]).is_err());
     assert!(Cli::try_parse_from(["nfsmw", "check-install"]).unwrap().command.unwrap().view_args().is_none());
 }
+
+#[test]
+fn a_command_line_vehicle_budget_reaches_the_run_options() {
+    let budget = |args: &[&str]| {
+        let cli = Cli::try_parse_from(["nfsmw", "view-world"].iter().chain(args)).unwrap();
+        cli.command.expect("a command").view_args().expect("view-world opens a window").parity_options().traffic
+    };
+    assert_eq!(budget(&["--stock-rules", "--no-traffic"]), Some(0));
+    assert_eq!(budget(&["--stock-rules", "--traffic", "6"]), Some(6));
+    assert_eq!(budget(&["--stock-rules"]), None, "the stock budget applies");
+}

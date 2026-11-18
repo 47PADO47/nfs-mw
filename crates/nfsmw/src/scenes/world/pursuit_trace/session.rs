@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn the_session_records_the_run_header_beside_the_settings() {
         use crate::parity::ParityOptions;
-        let options = ParityOptions { seed: Some(9), stock_rules: true };
+        let options = ParityOptions { seed: Some(9), stock_rules: true, traffic: None };
         let run = RunHeader::new(options, Vec::new(), Default::default(), None, None);
         let settings = serde_json::json!({"physics_rate_hz": 60});
         let session = Session::new("2026-11-18T00:00:00Z".into(), "install".into(), settings.clone(), run);

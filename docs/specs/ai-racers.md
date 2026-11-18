@@ -89,7 +89,10 @@ with the car's heading. Racers that have been knocked out or have finished are n
   the only other one with such a decal.
 - Skill: `base_skill` of section 3; matching: `racer.rs` (`matched_limits`) with the character's `MinimumAIPerformance`
   as the bias between the weaker of the two cars and the racer's own numbers.
-- Spawn on the grid: `ai/racers.rs`; the cars are held with the brakes until GO (rolling starts are not held and start
+- Spawn on the grid: `ai/racers.rs`; until GO the cars stage: the chassis holds the body, the throttle controller
+  holds its staging gas of 0.8 with no brake ([ai-driver-control-pid.md](ai-driver-control-pid.md) section 2), and the
+  think asks for the staging speed at the plain road point ([ai-driver-speed-skill.md](ai-driver-speed-skill.md)
+  section 1) **[decomp]**, `ai/car/stepping.rs`, `ai/racer.rs` (rolling starts are not held and start
   at `InitialPlayerSpeed`, unit assumed m/s). They are exempt from the traffic's removal rules and count in its budget.
 - Far racers are emulated: [ai-racers-route.md](ai-racers-route.md) section 6.
 

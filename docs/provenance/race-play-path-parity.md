@@ -98,3 +98,44 @@ car at the forced-start marker only before the cars were placed. The other
 standing-start intros end in rows about 3 m behind the start; the Blacklist boss
 intros and the rolling D-Day intro do not end in a grid. No executable code was
 read for this change.
+
+## Opponent launch of `16.1.1` (2026-11-18)
+
+Observation of the running unmodded original, given with the task (three
+unattended runs: medium, no traffic, two laps, three opponents, standing start):
+one second after the green light the `gto` is at 7.8 to 8.3 m/s, the
+`imprezawrx` at 11.4 to 12.0 and the `rx8` at 7.7 to 8.1; the first checkpoint
+follows at 7.47, 7.17 and 7.33 to 7.35 s. Also given: the opponents' base skill
+is 0.4 and their catch-up behaves as the remake's. In the remake's trace the
+opponents had full throttle and a requested speed above their own from the
+first sample, so the pedals did not limit them.
+
+Install data (unmodded reference install, maximum ordinary packages as the
+remake reads them): `gto` 1693 kg, rear drive, peak 551 N m, first gear
+2.97 x 3.3, red line 6200; `imprezawrx` 1480 kg, torque split 0.5, peak 550 N m,
+first gear 3.2 x 3.0, red line 7000; `rx8` 1631 kg, rear drive, peak 489 N m,
+first gear 3.7 x 3.5, red line 9000. A flat-ground full-throttle test of these
+records (`drive/sim/racer_launch_tests.rs`, ignored, needs the install) on the
+racer tire left the two rear-drive cars at their limiters in first gear with the
+rear tires at 3 to 13 percent traction until about 2.5 s; on the simple tire
+they reached 8.3 and 9.9 m/s at one second against 5.7 and 6.4, and the
+`imprezawrx` was within 0.6 m/s on both tires at every mark.
+
+The specs already state the two rules applied: the behaviour selector's Simple
+suspension for race opponents (above) carries the simple tire of the police
+chassis spec, and the driver specs give staging racers 0.8 gas and the staging
+speed request, which the host replaced with full brakes and an unchanged
+governor. No executable code was read for this change.
+
+## Stuck opponent at the seventh checkpoint of `16.1.1` (2026-11-18)
+
+Remake runs only. In five of six remake runs one opponent left the course about
+50 m past the seventh checkpoint and drove for 30 to 45 s in a low dead end
+north-east of it. Its think log showed it on its route the whole time: the
+route's last leg went that way. The install's road graph forks 14 m before the
+checkpoint; the race's barrier lines close the north-east connector, and the
+leg's start had snapped to it, so the strict search failed and the fallback
+lifted the lines near the gate. The other racers left that road only when the
+corner threw them wide and the off-path check put them on the course road. The
+barrier spec already has race routes avoid closed segments. No executable code
+was read and nothing about the original's routing is claimed.

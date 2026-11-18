@@ -11,6 +11,9 @@ use crate::scenes::world::{road::Spawn, space};
 #[cfg(test)]
 #[path = "ai_acceleration_tests.rs"]
 mod acceleration_tests;
+#[cfg(test)]
+#[path = "racer_launch_tests.rs"]
+mod racer_launch_tests;
 
 impl CarSim {
     #[cfg(test)]
@@ -198,6 +201,14 @@ impl CarSim {
     /// A police car: the AI controls on the simple chassis with its own tires, as the original gives every police car
     /// (`docs/specs/cop-simple-chassis.md`).
     pub fn configure_police(&mut self) {
+        self.configure_ai();
+        self.vehicle.set_simple_tires(true);
+    }
+
+    /// A race opponent: the AI controls on the simple suspension with its own tires, which the original's behaviour
+    /// selector gives racers whatever their `pvehicle` names (`docs/specs/race-play-path-parity.md`, pace evidence;
+    /// the tire in `docs/specs/cop-simple-chassis.md`).
+    pub fn configure_racer(&mut self) {
         self.configure_ai();
         self.vehicle.set_simple_tires(true);
     }

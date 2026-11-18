@@ -9,7 +9,9 @@
 //! | Native mods | [`MODS`]: none load | `ModsSettings::load`, through [`mods_mode`] |
 //! | The F5 testing overrides | [`force_testing`]: all off | the world, each frame |
 //!
-//! Nothing here writes the config file: the forced values exist in memory only.
+//! Nothing here writes the config file: the forced values exist in memory only. A vehicle budget given on the command
+//! line (`--traffic N`, `--no-traffic`) wins over the forced one ([`keep_command_line_traffic`]): the original can run
+//! a race without traffic, so a stock run may too.
 //!
 //! Left as the player set them, because no doc or code states the original's value or because the original has the
 //! same player option: `cop_share`, `always_rain`, `transmission`, the Game Moment Camera's main switch, the control
@@ -60,6 +62,12 @@ pub fn force_settings(settings: &mut Settings) {
     settings.game_moments = GameMoments { camera: settings.game_moments.camera, ..GameMoments::default() };
 }
 
+/// Puts back the vehicle budget the command line asked for, if it asked for one, over the forced budget.
+pub fn keep_command_line_traffic(settings: &mut Settings, command_line: Option<u32>) {
+    let Some(traffic) = command_line else { return };
+    settings.traffic = traffic;
+}
+
 /// Clears the F5 testing overrides (traffic off, police off, locked heat, career bin, unlimited nitrous and
 /// Speedbreaker, pause).
 pub fn force_testing(testing: &mut Overrides) {
@@ -84,6 +92,7 @@ pub fn effective(settings: &Settings) -> Settings {
     let mut settings = *settings;
     if super::stock_rules() {
         force_settings(&mut settings);
+        keep_command_line_traffic(&mut settings, super::options().traffic);
     }
     settings
 }
@@ -185,6 +194,22 @@ mod tests {
         let mut pursuit_options = defaults.pursuit_options;
         pursuit_options.bounty_fixes = false;
         assert_eq!(forced, Settings { traffic_lights: false, pursuit_options, ..defaults });
+    }
+
+    #[test]
+    fn a_command_line_vehicle_budget_wins_over_the_forced_one() {
+        let mut forced = modded();
+        force_settings(&mut forced);
+        keep_command_line_traffic(&mut forced, None);
+        assert_eq!(forced.traffic, 20, "without one the stock budget stays");
+        for asked in [0, 8] {
+            let mut forced = modded();
+            force_settings(&mut forced);
+            keep_command_line_traffic(&mut forced, Some(asked));
+            assert_eq!(forced.traffic, asked);
+            assert!(!forced.traffic_lights);
+            assert_eq!(forced.traffic_policy, TrafficPolicy::default(), "only the budget is the command line's");
+        }
     }
 
     #[test]
