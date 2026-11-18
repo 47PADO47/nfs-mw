@@ -124,8 +124,9 @@ impl WorldScene {
     /// so the world can freeze while a scene plays.
     pub(in crate::scenes::world) fn update_nis(&mut self, input: &ActionState, dt: f32) {
         let skip = input.just_pressed(Action::MenuAccept) || input.just_pressed(Action::MenuStart);
-        if skip || crate::parity::career_trace::skip_cinematics() {
-            self.nis.skip();
+        if (skip || crate::parity::career_trace::skip_cinematics()) && self.nis.skip() {
+            // A skip clears the speech queue (`nis-player-2.md` section 13): the scene's call or line stops with it.
+            crate::audio::nis::note_skip();
         }
         let ending = self.nis.playing_name().map(str::to_owned);
         let events = self.nis.advance(self.nis_capture_step(dt));

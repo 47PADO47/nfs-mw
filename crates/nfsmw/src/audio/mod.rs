@@ -53,8 +53,10 @@ pub mod preview;
 pub mod preview_play;
 mod radio;
 mod refs;
+mod scene_sound;
 mod siren;
 mod speech;
+mod streams;
 mod thunder;
 mod trace;
 pub mod traffic;
@@ -175,8 +177,11 @@ pub struct Audio {
     second_car: Option<car::CarAudio>,
     /// The selectors of player 2's car whose sound failed, as `failed` keeps them for the first car.
     second_failed: Option<(String, SoundUpgrades)>,
-    /// The scene's soundtrack that is playing, kept so it can be stopped when the scene goes.
-    music: Option<StaticSoundHandle>,
+    /// The scene's soundtrack that is playing (a movie's sound), with its trace instance, kept so it can be stopped
+    /// when the movie or the scene goes.
+    music: Option<(StaticSoundHandle, u64)>,
+    /// The host's scene-change count the scene's sounds were last stopped for (`scene_sound.rs`).
+    scene_seen: u32,
 }
 
 /// A car's engine voice and the data that maps its RPM to the loops' frequency.
@@ -274,6 +279,7 @@ impl Audio {
             second_car: None,
             second_failed: None,
             music: None,
+            scene_seen: 0,
         };
         if let Some(path) = std::env::var_os("NFSMW_AUDIO_TRACE")
             && let Err(error) = audio.start_trace(std::path::Path::new(&path))
@@ -356,16 +362,24 @@ impl Audio {
 
     /// Plays a scene's soundtrack in the music group, in place of the one playing.
     pub fn play_music(&mut self, data: StaticSoundData) -> Result<(), String> {
-        self.stop_music();
+        self.stop_music("replaced");
+        let seconds = data.duration().as_secs_f64();
         let handle = self.play(Group::Music, data)?;
-        self.music = Some(handle);
+        let instance = self.trace.instance();
+        self.trace_stream(streams::Event::Start, streams::Kind::Movie, instance, &format!("seconds={seconds:.3}"));
+        self.music = Some((handle, instance));
         Ok(())
     }
 
-    /// Stops the soundtrack, if one is playing.
-    pub fn stop_music(&mut self) {
-        let Some(mut handle) = self.music.take() else { return };
+    /// Stops the soundtrack, if one is playing; `reason` goes to the audio trace.
+    pub fn stop_music(&mut self, reason: &str) {
+        let Some((mut handle, instance)) = self.music.take() else { return };
+        let event = match handle.state() {
+            kira::sound::PlaybackState::Stopped => streams::Event::End,
+            _ => streams::Event::Stop,
+        };
         handle.stop(Tween::default());
+        self.trace_stream(event, streams::Kind::Movie, instance, reason);
     }
 
     /// The gameplay database, shared by the session (see `nfsmw_data::shared::attributes`).

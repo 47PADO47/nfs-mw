@@ -41,7 +41,12 @@ listener. Keep its authored mixer and recording selection. At entrance,
 request the authored `FX_Camera` sound in
 `IG_GLOBAL/FX_Camera.abk` once. It uses eight class words, selector zero and
 SFX volume. **[PC static]** This is misc sound 2, separate from menu acceptance
-and the speedbreaker's `FX_UVES` class. Keep the existing audio master/SFX buses.
+and the speedbreaker's `FX_UVES` class. From install data, the class's graph
+starts three voices of the bank's one recording (1.44 s at 36 kHz) at 1.0, 1.07
+and 0.5 of its rate, panned apart, and its destroy node stops them: keep the
+module until its voices have run out, and do not release it after its first
+tick as the menu sounds are. The `game_camera` moment is not positioned
+(`IsPositioned` false); request it at the camera. Keep the existing audio master/SFX buses.
 Do not replace absent data with an invented sound.
 
 Returning from standings to the existing photo should retain its completed
