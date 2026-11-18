@@ -124,7 +124,9 @@ impl WorldScene {
             for plan in session.plan.iter().skip(1) {
                 let Some(model) = plan.model.clone() else { continue };
                 let car_type = model.split(':').next().unwrap_or(&model);
-                let physics = (plan.person.is_none() && !session.options.career && !model.contains(':'))
+                // A preset ride is the car's looks; its hardware is the same full match as any other quick-race car
+                // (`docs/specs/race-play-path-parity.md`, pace evidence).
+                let physics = (plan.person.is_none() && !session.options.career)
                     .then(|| {
                         let package =
                             nfsmw_data::car::physics::PerformanceCatalog::read(self.physics.database(), car_type)?

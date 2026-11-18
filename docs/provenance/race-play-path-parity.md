@@ -39,6 +39,15 @@ through `VehicleParams::matched` at offset `0x28`. The constructor at
 `0x0067c310`. The matcher uses stock/max normalized endpoints and ordinary
 package counts. This establishes maximum ordinary race hardware for valid
 endpoints, independently of the action planner's later player matching.
+`CreateVehicle` takes the vehicle key from the character's front-end preset
+ride when one resolves, otherwise from its car type, and builds the `[1, 1, 1]`
+target after that choice for both. At the constructor's call site
+(`0x00689967`) the matcher call is guarded only by a non-null target pointer;
+no preset or customization test was found there. The installed `presetride`
+class has 25 records and none for the `OPM_*` presets that `16.1.1` names.
+Unattended runs of `16.1.1` in the unmodded original (2026-11-18) put the
+`gto`, `imprezawrx` and `rx8` opponents at 52 to 60 m/s ten seconds after the
+green light, where the remake's stock-hardware opponents reached 40 to 44.
 The quick action's default zero bias follows the existing `Physics::Info`
 and `AIActionRace` reference declarations. No translated code is included.
 

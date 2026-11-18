@@ -72,7 +72,12 @@ This does not grant Junkman parts. The action planner still caps performance
 against the player's car; quick-race matching bias defaults to zero **[decomp]**.
 
 Apply maximum ordinary hardware to computer opponents in ordinary quick races.
-Keep human cars and scripted career/preset setup outside this follow-up change.
+The vehicle comes from the character's preset ride when it names one, otherwise
+from its car type; the `[1, 1, 1]` target is supplied in both cases, so a preset
+ride's opponent gets the same maximum hardware with the preset's looks **[exe]**.
+The `OPM_*` presets of the street rivals have no `presetride` record in this
+install, so reading upgrade levels from that class gives them stock hardware.
+Keep human cars and scripted career setup outside this follow-up change.
 An installed probe must inspect both actual vehicle hardware and action limits.
 Its external player trajectory controls catch-up and residency; it is a diagnostic
 replay, not evidence of identical human driving or a finished OG parity pass.
