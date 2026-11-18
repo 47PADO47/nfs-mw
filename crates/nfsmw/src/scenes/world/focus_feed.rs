@@ -34,6 +34,10 @@ impl WorldScene {
         let curve = self.breaker_visuals.speed_blur(speed, burning, sim_dt);
         focus.radial_blur = self.tuning.motion_blur.radial_blur(curve);
         self.add_nitrous_screen(&mut focus, sim_dt);
+        // A scene's `ENISMotionBlur` 0 holds the blur off until the scene ends (`docs/specs/nis-events.md` section 2.2).
+        if self.nis.is_playing() && self.nis.screen().motion_blur_off() {
+            focus.radial_blur = 0.0;
+        }
         if let Some(look) = self.pursuit_look_frame(sim_dt, real_dt) {
             focus.radial_blur = focus.radial_blur.max(self.tuning.motion_blur.radial_blur(look.radial_blur));
             renderer.set_colour_look(look.look);

@@ -19,6 +19,7 @@ pub mod mesh_animation;
 pub mod moment;
 pub mod object_fx;
 mod props;
+pub mod scene_cars;
 mod section;
 pub mod sequences;
 mod streamer;

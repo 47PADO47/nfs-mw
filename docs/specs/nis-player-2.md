@@ -156,7 +156,9 @@ The first key of the track gives the space of its eye and look point:
   put the eye at `x` −59 to −9 m and look along `+x` **[verified]**. Which car the keys follow is not in the CC0 tree.
   What the rewrite does **[ours]** (`scene_space.rs`, `nis/player_camera.rs`): car-space points are placed on the scene
   pose of `car1` (before the ground lift). With it the end of `IntroNisDD` (39 to 43 s) frames the two racers as the
-  original does **[reference frames]**. Hybrid space is still not placed (the orbit plays).
+  original does **[reference frames]**. Hybrid space is still not placed (the orbit plays). The PC mover: car space
+  follows the human racer's car; hybrid space adds that car's position with no rotation ([nis-events-3.md](nis-events-3.md)
+  section 4) **[pc]**.
 
 This matches section 5.2 of [nis-player.md](nis-player.md): type-4 cameras are authored in the render frame, so the type-4 origin and turn are zero.
 
@@ -190,7 +192,10 @@ follows it is **[unconfirmed]**.
   from its start to about 8.2 s, in all five recorded plays **[reference frames]**, with the crawl "STATUS: CODE 3
   PURSUIT – DISTRICT: ROCKPORT POLICE DEPARTMENT – CONDITION: 3 – SUSPECTS: 2 VEHICLES" (language label `0x626AC047`,
   the string after the five arrest crawls). So overlay 3 is that package. The rewrite puts it up while the sample's
-  overlay is 3, with that crawl outside an arrest **[ours]** (`scene_hud.rs`). Values 2 and 4 are **[unconfirmed]**.
+  overlay is 3, with that crawl outside an arrest **[ours]** (`scene_hud.rs`). The PC camera mover maps the byte to a
+  package: 1 `FLASHERS.fng`, 2 `BLACK_FADE_OUT.fng`, 3 `BUSTED_OVERLAY.fng`, 4 `BLACK_BACKGROUND.fng`, and swaps the
+  package when a key's byte differs from the last key's ([nis-events-3.md](nis-events-3.md) section 4) **[pc]**. What 4
+  draws on screen is not settled; the rewrite draws nothing for 2 and 4.
 - The key byte that the ICE layout calls "letterbox" is not checked here, because its offset is in question in the
   format doc (the two bytes at 0x7C and 0x7D are equal in every key sampled). **[unconfirmed]**
 

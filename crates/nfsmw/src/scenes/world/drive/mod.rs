@@ -169,6 +169,8 @@ pub struct Drive {
     /// The pose a NIS scene gives the car while it plays (`nis_pose.rs`); `None` draws the physics pose.
     nis_pose: Option<CarPose>,
     nis_body_tilt: glam::Quat,
+    /// The head lights a NIS scene sets (`ENISLights`), `None` for the player's own switch.
+    nis_headlights: Option<bool>,
     /// Network prediction plus its smoothed correction; `None` draws the physics pose (`predict.rs`).
     net_pose: Option<CarPose>,
     telemetry: Telemetry,
@@ -237,7 +239,7 @@ impl Drive {
             nos_glow: self.nos_glow(),
             reverse,
             steer: self.steer_lamp,
-            headlights: self.headlights && !dark,
+            headlights: self.nis_headlights.unwrap_or(self.headlights) && !dark,
             enhanced: self.rig.enhanced_lamps(),
             turn_signals: false,
             dark,

@@ -114,7 +114,7 @@ impl AiCar {
                 glass: self.glass_mask(),
                 broken_lights: self.lamp_state().broken,
                 damage: self.sim.events.as_ref().map(|e| e.source_levels()),
-                body_tilt: self.nis_body_tilt,
+                body_tilt: self.nis_look.tilt,
                 ..Default::default()
             },
             out,

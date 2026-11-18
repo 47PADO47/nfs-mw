@@ -26,6 +26,10 @@ const CANDIDATE_DATA: u32 = 0x0003_7070;
 const MOMENT_COUNT: usize = 0x14;
 const MOMENT_LIST: usize = 0xC9C;
 const MOMENT_LIMIT: usize = 64;
+/// The special car lists of the candidate table: a count at 0x18, the records (scene hash, list code) from 0xE9C.
+const CAR_LIST_COUNT: usize = 0x18;
+const CAR_LIST_LIST: usize = 0xE9C;
+const CAR_LIST_LIMIT: usize = 55;
 /// `TrackPositionMarkers`.
 const POSITION_MARKERS: u32 = 0x0003_4146;
 const MARKER_LEN: usize = 0x30;
@@ -92,6 +96,8 @@ pub struct Marker {
 pub struct MomentData {
     /// Scene hash to marker kind (an index of [`MARKER_NAMES`]).
     pub kinds: BTreeMap<u32, u32>,
+    /// Scene hash to its special car list code (`super::scene_cars`).
+    pub car_lists: BTreeMap<u32, i32>,
     /// Marker name hash to the markers of that name, in file order.
     pub markers: BTreeMap<u32, Vec<Marker>>,
     /// The NIS camera sets of the install: the scene's camera tracks by scene hash.
@@ -128,6 +134,12 @@ impl MomentData {
             let (Some(scene), Some(kind)) = (word(at), word(at + 4)) else { break };
             self.kinds.insert(scene, kind);
         }
+        let count = word(CAR_LIST_COUNT).context("candidate table too short")? as usize;
+        for i in 0..count.min(CAR_LIST_LIMIT) {
+            let at = CAR_LIST_LIST + 8 * i;
+            let (Some(scene), Some(code)) = (word(at), word(at + 4)) else { break };
+            self.car_lists.insert(scene, code as i32);
+        }
         Ok(())
     }
 
@@ -155,6 +167,11 @@ impl MomentData {
                 markers.iter().map(move |m| (m.position, blackbox_attrib::vlt_hash(moment)))
             })
             .collect()
+    }
+
+    /// The special car list code of a scene (`super::scene_cars`), `None` when it names none.
+    pub fn car_list_of(&self, scene: u32) -> Option<i32> {
+        self.car_lists.get(&scene).copied()
     }
 
     /// The marker kind a scene plays at.

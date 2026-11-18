@@ -27,6 +27,8 @@ pub struct NisScreen {
     fade: Option<Fade>,
     /// The scene ended black, and the world has not taken the black over yet.
     held_black: bool,
+    /// The scene switched the motion blur off (`ENISMotionBlur` 0); the original's flag is on outside scenes.
+    blur_off: bool,
 }
 
 /// A fade of the black panel of [`BLACK_FADE_PACKAGE`]: its opacity goes from `from` to `to` over `length` seconds.
@@ -93,6 +95,16 @@ impl NisScreen {
         }
         let serial = self.overlay.as_ref().map_or(0, |overlay| overlay.serial.wrapping_add(1));
         self.overlay = Some(Overlay { package, message, serial });
+    }
+
+    /// `ENISMotionBlur`: the frame's motion blur on or off for the rest of the scene.
+    pub fn set_motion_blur(&mut self, on: bool) {
+        self.blur_off = !on;
+    }
+
+    /// Whether the scene has switched the motion blur off.
+    pub fn motion_blur_off(&self) -> bool {
+        self.blur_off
     }
 
     /// Runs `dt` seconds of scene time: the flash fades, and it ends when its length has passed.
@@ -177,6 +189,8 @@ pub(super) enum Request {
     Call(u32),
     /// Play a named effect at a point of the scene.
     Effect(EffectRequest),
+    /// End every particle effect now.
+    StopEffects,
 }
 
 /// A named effect at a point of the scene (scene space), with its magnitude vector.
@@ -201,12 +215,6 @@ pub(super) fn dispatch(event: NisEvent, screen: &mut NisScreen) -> Option<Reques
             screen.show_overlay(package, message);
             None
         }
-        NisEvent::CarShake { shake, rate, ramp, time } => {
-            log::debug!(
-                "NIS car shake {shake} at rate {rate}, ramp {ramp}, for {time} s: the camera does not shake yet"
-            );
-            None
-        }
         NisEvent::HideCharacter { name, show } => {
             log::debug!("NIS character {name}: show {show}; characters are not drawn yet");
             None
@@ -215,16 +223,42 @@ pub(super) fn dispatch(event: NisEvent, screen: &mut NisScreen) -> Option<Reques
             log::debug!("NIS freeze {on}: not applied yet");
             None
         }
-        NisEvent::Lights { cop, head } => {
-            log::debug!("NIS lights: cop {cop}, head {head}: not applied to the cars yet");
-            None
-        }
         NisEvent::CopLights(on) => {
             log::debug!("NIS cop lights {on}: not applied to the cars yet");
             None
         }
         NisEvent::PlayEffect { name, position, magnitude } => {
             Some(Request::Effect(EffectRequest { name, position, magnitude }))
+        }
+        NisEvent::MotionBlur(on) => {
+            screen.set_motion_blur(on);
+            None
+        }
+        NisEvent::Rain(amount) => {
+            // The original forces its rain override to `amount`; the prologue only sends -1. Not applied here.
+            log::debug!("NIS rain {amount}: the world's rain is not forced");
+            None
+        }
+        NisEvent::StopEffects => Some(Request::StopEffects),
+        NisEvent::AeroDynamics(factor) => {
+            log::debug!("NIS aerodynamics {factor}: the scene's free cars have no downforce of their own here");
+            None
+        }
+        NisEvent::PhotoFinish => {
+            log::debug!("NIS photo finish: its flash pulse and sound pause are not drawn");
+            None
+        }
+        NisEvent::DDaySpeech => {
+            log::debug!("NIS D-Day speech: no speech line is played");
+            None
+        }
+        NisEvent::RoadNoise(off) => {
+            log::debug!("NIS road noise off {off}: the cars' road noise is not changed");
+            None
+        }
+        NisEvent::Inert(name) => {
+            log::debug!("NIS {name}: the original does nothing with it");
+            None
         }
         NisEvent::Car { .. } | NisEvent::Other(_) => None,
     }
@@ -237,6 +271,7 @@ impl WorldScene {
             match dispatch(event, self.nis.screen_mut()) {
                 Some(Request::Call(id)) => self.career.phone.call(id),
                 Some(Request::Effect(effect)) => self.play_nis_effect(effect),
+                Some(Request::StopEffects) => self.object_fx.request([Command::KillAll]),
                 None => {}
             }
         }

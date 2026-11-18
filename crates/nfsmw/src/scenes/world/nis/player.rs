@@ -286,13 +286,13 @@ impl NisPlayer {
         let step = playing.run.elapsed() - before;
         let mut events = playing.events.as_mut().map_or_else(Vec::new, |events| events.advance(step));
         events.retain(|event| {
-            if let NisEvent::Car { system, event } = *event {
-                if let Some(slot) = super::car_events::slot_of(system) {
-                    playing.motion[slot].apply(event, playing.run.elapsed());
-                }
-                return false;
+            let NisEvent::Car { system, event } = *event else { return true };
+            // A channel with no car fires nothing in the original (live log, `nis-events.md` section 2.2).
+            let slot = super::car_events::slot_of(system).filter(|&slot| playing.has_car(slot));
+            if let Some(slot) = slot {
+                playing.motion[slot].apply(event, playing.run.elapsed());
             }
-            true
+            false
         });
         self.screen.advance(dt);
         if finished {

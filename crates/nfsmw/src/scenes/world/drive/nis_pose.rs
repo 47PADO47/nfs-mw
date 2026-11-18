@@ -15,7 +15,13 @@ impl Drive {
         self.nis_pose = pose;
         if pose.is_none() {
             self.nis_body_tilt = glam::Quat::IDENTITY;
+            self.nis_headlights = None;
         }
+    }
+
+    /// The head lights a NIS scene sets, or the player's own switch again with `None`.
+    pub fn set_nis_headlights(&mut self, on: Option<bool>) {
+        self.nis_headlights = on;
     }
 
     pub fn set_nis_body_tilt(&mut self, tilt: glam::Quat) {

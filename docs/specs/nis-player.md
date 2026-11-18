@@ -275,7 +275,7 @@ it as animating and zeroes its speed.
 | Arrest player | `car1` | the player's own car, added by the chooser (`IVehicle::First(VEHICLE_PLAYERS)`) **[decomp]** |
 | Arrest cop | `cop1` | a NIS cop car. The arrest's special car list is code 0 (one police car, `copmidsize_nis`) for all 26 arrests **[verified: table]**. Who creates it is **[unconfirmed]** |
 | Race racers | `car1`..`car8` | added by the race code, not in CC0 **[unconfirmed]** |
-| NIS cops | `cop1`..`cop8` | `PrepareVehicles` creates NIS police cars from the special car list (one, several, a sport cop, or one of nine traffic mixes), at the origin, facing +x, with the NIS driver **[decomp]**. Its caller is **[unconfirmed]** |
+| NIS cops | `cop1`..`cop8` | `PrepareVehicles` creates NIS police cars from the special car list (one, several, a sport cop, or one of nine traffic mixes), at the origin, facing +x, with the NIS driver **[decomp]**. The lists and the order are in [nis-events-3.md](nis-events-3.md) section 6 **[pc]**; its caller is **[unconfirmed]** |
 
 The special car list codes are in [nis-scenes.md](nis-scenes.md), section 6.2.
 

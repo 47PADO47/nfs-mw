@@ -47,12 +47,12 @@ fn a_race_start_channel_drives_the_racer_of_its_grid_slot() {
         listed: 3,
     };
     let mut report = empty_report();
-    assert_eq!(bind(0, NisKind::Intro, &seating, "car1", &mut report), "player (BMWM3GTRE46:M3GTRCAREERSTART)");
-    assert_eq!(bind(1, NisKind::Intro, &seating, "car2", &mut report), "racer 1 razor (mustang)");
+    assert_eq!(bind(0, NisKind::Intro, &seating, "car1", None, &mut report), "player (BMWM3GTRE46:M3GTRCAREERSTART)");
+    assert_eq!(bind(1, NisKind::Intro, &seating, "car2", None, &mut report), "racer 1 razor (mustang)");
     assert!(report.problems.is_empty(), "{:?}", report.problems);
-    assert_eq!(bind(2, NisKind::Intro, &seating, "car3", &mut report), "none");
+    assert_eq!(bind(2, NisKind::Intro, &seating, "car3", None, &mut report), "none");
     assert_eq!(report.problems.len(), 1, "a channel the data has a racer for is a problem");
-    assert_eq!(bind(3, NisKind::Intro, &seating, "car4", &mut report), "none");
+    assert_eq!(bind(3, NisKind::Intro, &seating, "car4", None, &mut report), "none");
     assert_eq!((report.problems.len(), report.open.len()), (1, 1), "one past the data's racers is open");
 }
 
@@ -61,10 +61,10 @@ fn a_stock_pick_is_a_problem_and_a_traffic_car_is_open() {
     let seats = vec![seat("p", Some("a"), false), seat("r", Some("b"), true)];
     let seating = Seating { race_start: true, grid: vec![0, 1], seats, listed: 2 };
     let mut report = empty_report();
-    bind(1, NisKind::Intro, &seating, "car2", &mut report);
+    bind(1, NisKind::Intro, &seating, "car2", None, &mut report);
     assert_eq!(report.problems.len(), 1);
     let mut report = empty_report();
-    assert_eq!(bind(1, NisKind::Outro, &Seating::default(), "car2", &mut report), "nearest traffic car");
+    assert_eq!(bind(1, NisKind::Outro, &Seating::default(), "car2", None, &mut report), "nearest traffic car");
     assert!(report.problems.is_empty());
     assert_eq!(report.open.len(), 1);
 }
@@ -106,4 +106,14 @@ fn black_fade_out_scripts_print_their_colour_keys() {
             }
         }
     }
+}
+
+#[test]
+fn a_cop_channel_of_a_listed_scene_names_its_list_vehicle_or_none() {
+    let mut report = empty_report();
+    let listed = Some(Some("trafminivan"));
+    let binding = bind(14, NisKind::Intro, &Seating::default(), "cop7", listed, &mut report);
+    assert_eq!(binding, "trafminivan of the scene's special car list");
+    assert_eq!(bind(9, NisKind::Arrest, &Seating::default(), "cop2", Some(None), &mut report), "none");
+    assert!(report.open.is_empty());
 }

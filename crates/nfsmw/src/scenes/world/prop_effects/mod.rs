@@ -26,7 +26,13 @@ pub struct Source {
 
 pub enum Command {
     Play(Source),
-    Stop { source: u32, owner: Weak<()>, instance: Option<u32> },
+    Stop {
+        source: u32,
+        owner: Weak<()>,
+        instance: Option<u32>,
+    },
+    /// Ends every effect at once, its particles too (a NIS scene's `ENISStopEffects`).
+    KillAll,
 }
 
 const MAX_INSTANCES: usize = 64;
@@ -87,6 +93,7 @@ impl ObjectFx {
                     }
                 }
                 Command::Play(source) => self.start(source),
+                Command::KillAll => self.live.clear(),
             }
         }
     }

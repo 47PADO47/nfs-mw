@@ -218,7 +218,8 @@ and the non-delta channels ([eagl-animation-channels.md](eagl-animation-channels
 directory and the ICE camera sets. [NIS player](nis-player.md) and [NIS player, part 2](nis-player-2.md) cover how a
 scene starts, is placed, timed, skipped and ended, with its characters and camera. [NIS events](nis-events.md) and
 [NIS events, part 2](nis-events-2.md) cover the event sequences and the NIS audio stream. Its record is
-[../provenance/nis-player.md](../provenance/nis-player.md).
+[../provenance/nis-player.md](../provenance/nis-player.md). What the PC does with each scene event is in
+[NIS events, part 3](nis-events-3.md) ([../provenance/nis-events-pc.md](../provenance/nis-events-pc.md)).
 
 [Movie subtitles](subtitles.md) covers which file belongs to which movie, when a line shows and clears, and which
 objects draw it.

@@ -38,6 +38,7 @@ mod moment_feed;
 pub(in crate::scenes::world) use moment_driver::{MomentDriver, PilotCar, RaceAim};
 mod net_export;
 mod nis_poses;
+mod nis_vehicles;
 mod original_camera;
 mod parallel;
 mod pattern;
