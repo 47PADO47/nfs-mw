@@ -82,6 +82,11 @@ with the car's heading. Racers that have been knocked out or have finished are n
   when a count is asked for): `race/setup.rs` (`opponents_of`), with the car from the preset ride (`CarTables::preset`),
   the `CarType`, or a stable pick from the cars the car lot sells (`stock_car`). A car whose model does not load (the
   generic character's `trueno` has no physics in this install) is replaced by the next stock car.
+- A preset ride's decal that its body kit has no place for is left off and the car is kept **[ours]**: `16.1.1`'s
+  `opponent2` (`OPM_WRX_VERSION2`, an `IMPREZAWRX`) names a right quarter panel decal its kit has no placeholder for,
+  and failing on it put a stock car in its place. The original races `gto`, `imprezawrx` and `rx8` there, in that order
+  (observed in the running game). Of the presets the race characters name, Ronnie's `BL3` (a `DB9`, windshield decal) is
+  the only other one with such a decal.
 - Skill: `base_skill` of section 3; matching: `racer.rs` (`matched_limits`) with the character's `MinimumAIPerformance`
   as the bias between the weaker of the two cars and the racer's own numbers.
 - Spawn on the grid: `ai/racers.rs`; the cars are held with the brakes until GO (rolling starts are not held and start
