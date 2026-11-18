@@ -163,6 +163,7 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
 | `lap` | `racer`, `lap`, `lap_time`, `race_time`; the last lap too |
 | `racer_finished` | `racer`, `place`, `total_time` |
 | `knocked_out` | `racer`, `race_time` |
+| `sample` | `race_time`, `racers`: per racer on the road `racer`, `position`, `speed` and, for the player only, `controls` (`throttle`, `brake`, `steering`, `gear`) |
 | `race_finished` | `race_time`, `results` (`racer`, `place`, `finished`, `total_time` per racer) |
 
 - The finish line is not a checkpoint: crossing it writes `lap`, and no `checkpoint`. A race with no finish line closes
@@ -170,6 +171,17 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
 - The race is over when the player has finished or is out, or the time ran out. The opponents still on the road are not
   timed after that: they are in `results` with `finished` false and no `lap` or `racer_finished` line follows.
 - A restart of the race writes a new `header`.
+- `sample` lines (`crates/nfsmw/src/parity/race_trace/sample.rs`) come every 0.1 s of race time from the green light
+  until the race is over, on the first tick whose race time reaches the next multiple of 0.1 s (to half a tick; at 60 Hz
+  every sixth tick, the first on the green light's tick, after its `timer_start`). None is written during the countdown.
+  `position` is in the game's world coordinates, metres: x and y on the ground, z up, the axes of the data's `Position`
+  (the physics space's `(x, y, z)` is `(-y, z, x)` of it). `speed` is the speed along the car in m/s, without its sign.
+  `controls` are what the player's car stepped with in that tick after the input shaping, whoever drove it: `throttle`
+  and `brake` 0 to 1, `steering` -1 to 1 (positive to the right), `gear` -1 reverse, 0 neutral, 1 and up forward.
+- The player's vehicle record is the car folder's own `pvehicle`: `--drive BMWM3GTR` races `bmwm3gtr`, and
+  `--drive BMWM3GTRE46` races `bmwm3gtre46`, the record the prologue's M3 GTR uses (`CAR:PRESET` adds a preset ride's
+  parts, as `BMWM3GTRE46:M3GTRCAREERSTART`). The two records differ in engine, gearing, tires, brakes, chassis and mass,
+  and only `bmwm3gtre46` has induction. The header's `world.player_car` is the folder the run drove.
 
 ### Without a window and without sound
 

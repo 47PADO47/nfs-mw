@@ -176,3 +176,48 @@ fn the_file_holds_one_json_object_per_line_and_replaces_an_older_file() {
     assert_eq!((&lines[0]["kind"], &lines[0]["laps"]), (&json!("header"), &json!(2)));
     assert_eq!((&lines[1]["kind"], &lines[1]["tick"]), (&json!("timer_start"), &json!(180)));
 }
+
+#[test]
+fn samples_keep_to_the_ticks_every_tenth_of_a_second_from_the_green_light() {
+    let dt = 1.0_f32 / 60.0;
+    let mut clock = SampleClock::default();
+    let mut race_time = 0.0_f32;
+    let mut taken = Vec::new();
+    // The race time as the engine sums it: 0 at the green light's tick, then one delta a tick.
+    for tick in 0..=60 {
+        if clock.due(race_time, dt) {
+            taken.push(tick);
+        }
+        race_time += dt;
+    }
+    assert_eq!(taken, (0..=60).step_by(6).collect::<Vec<_>>(), "six ticks of 60 Hz to a sample");
+    // A tick longer than the period takes one sample, not one per period it spans; the next is due at the multiple
+    // after the one nearest its race time.
+    let mut clock = SampleClock::default();
+    assert!(clock.due(0.0, 0.25));
+    assert!(clock.due(0.25, 0.25), "0.1 and 0.2 are past: one sample");
+    assert!(!clock.due(0.3, 0.01) && clock.due(0.4, 0.01));
+}
+
+#[test]
+fn a_sample_line_has_every_racer_and_the_players_controls() {
+    let player = SampleRow {
+        racer: 0,
+        position: [1.5, -2.0, 100.0],
+        speed: 30.0,
+        controls: Some(Controls { throttle: 1.0, brake: 0.0, steering: -0.25, gear: 3 }),
+    };
+    let opponent = SampleRow { racer: 1, position: [4.0, 5.0, 6.0], speed: 28.5, controls: None };
+    let line = serde_json::to_value(Record::Sample { stamp: stamp(6), race_time: 0.1, racers: vec![player, opponent] })
+        .unwrap();
+    assert_eq!((&line["kind"], &line["tick"]), (&json!("sample"), &json!(6)));
+    assert_eq!(
+        line["racers"],
+        json!([
+            {"racer": 0, "position": [1.5, -2.0, 100.0], "speed": 30.0,
+             "controls": {"throttle": 1.0, "brake": 0.0, "steering": -0.25, "gear": 3}},
+            {"racer": 1, "position": [4.0, 5.0, 6.0], "speed": 28.5},
+        ]),
+        "an opponent has no controls key"
+    );
+}

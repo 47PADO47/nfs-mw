@@ -124,6 +124,7 @@ impl WorldScene {
         self.race_log(session, dt);
         let tick = tick_of(&events);
         self.race_events(session, events);
+        self.trace_race_sample(session, dt);
         tick
     }
 

@@ -2,13 +2,15 @@
 //! race is, the physics ticks are counted, every race writes its trace (`parity/race_trace.rs`) and the process is asked
 //! to end when a race is over. The autopilot is `autopilot.rs`. With no option given, none of this does anything.
 
-use blackbox_race::RaceEvent;
+use blackbox_race::{Phase, RaceEvent};
 
 use super::{RaceOptions, RaceSession};
 use crate::parity::race_run::{self, RaceRunOptions};
-use crate::parity::race_trace::{Header, RaceLog, RacerRow, Record, SCHEMA, Stamp, TraceFile};
-use crate::scenes::world::WorldScene;
+use crate::parity::race_trace::{
+    Controls, Header, RaceLog, RacerRow, Record, SCHEMA, SampleClock, SampleRow, Stamp, TraceFile,
+};
 use crate::scenes::world::ai::MomentDriver;
+use crate::scenes::world::{WorldScene, space};
 
 /// The world's side of an unattended race run.
 #[derive(Default)]
@@ -23,6 +25,8 @@ pub(in crate::scenes::world) struct Unattended {
     /// The trace file was asked for once; a file that could not be made is not tried again.
     trace_tried: bool,
     log: RaceLog,
+    /// When the race's next `sample` line is due.
+    samples: SampleClock,
     /// The autopilot's driver, while it has the player's car (`autopilot.rs`).
     pub(super) pilot: Option<MomentDriver>,
     pub(super) engaged: bool,
@@ -113,6 +117,7 @@ impl WorldScene {
     pub(super) fn trace_race_begins(&mut self, session: &RaceSession) {
         let Some(engine) = session.engine.as_ref() else { return };
         self.unattended.log = RaceLog::default();
+        self.unattended.samples = SampleClock::default();
         if self.unattended.plan.trace.is_none() {
             return;
         }
@@ -158,6 +163,45 @@ impl WorldScene {
             log::info!("race run: {} is over, the process ends", session.name);
             race_run::request_exit(Ok(()));
         }
+    }
+
+    /// One tick of `dt` of the running race, after its events: a `sample` line when one is due. The player's place and
+    /// controls are those its car stepped with this tick; the opponents' are the places the race was given.
+    pub(super) fn trace_race_sample(&mut self, session: &RaceSession, dt: f32) {
+        let Some(engine) = session.engine.as_ref() else { return };
+        if self.unattended.plan.trace.is_none() || engine.phase() != Phase::Racing {
+            return;
+        }
+        let race_time = engine.elapsed();
+        if !self.unattended.samples.due(race_time, dt) {
+            return;
+        }
+        let mut racers = Vec::with_capacity(engine.racers().len());
+        if let Some((drive, sim)) = self.players.lead().and_then(|drive| Some((drive, drive.sim()?))) {
+            let telemetry = sim.telemetry();
+            racers.push(SampleRow {
+                racer: 0,
+                position: drive.position().to_array(),
+                speed: telemetry.speed_mps.abs(),
+                controls: Some(Controls {
+                    throttle: sim.gas_pedal(),
+                    brake: sim.brake_pedal(),
+                    steering: sim.steering_input(),
+                    gear: telemetry.gear,
+                }),
+            });
+        }
+        if let Some(traffic) = self.traffic.as_ref() {
+            let first = racers.len();
+            racers.extend(traffic.racers().map(|(racer, at, speed)| SampleRow {
+                racer,
+                position: space::to_render(at.to_array()).to_array(),
+                speed,
+                controls: None,
+            }));
+            racers[first..].sort_by_key(|row| row.racer);
+        }
+        self.unattended.write(|stamp| Record::Sample { stamp, race_time, racers });
     }
 
     /// A race was taken down, finished or not: the autopilot lets go, and a run that exits after its race ends now if

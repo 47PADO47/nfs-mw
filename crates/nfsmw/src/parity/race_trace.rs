@@ -3,10 +3,11 @@
 //!
 //! The first line of a race is its `header`: the run header every trace shares (`header.rs`), the event, the racers and
 //! the laps. Then `timer_start`, `autopilot`, `checkpoint`, `lap`, `racer_finished`, `knocked_out` and `race_finished`
-//! lines follow, each stamped with the physics tick it happened in, the simulated time and the wall time. Racer 0 is the
-//! player; laps and checkpoints count from 1; times are seconds of race time, which starts at the green light.
+//! lines follow, each stamped with the physics tick it happened in, the simulated time and the wall time, and a `sample`
+//! line every tenth of a second of race time (`sample.rs`). Racer 0 is the player; laps and checkpoints count from 1;
+//! times are seconds of race time, which starts at the green light.
 //!
-//! A race raises a few lines a second at most, so they are written and flushed where they are raised: a line is on
+//! A race raises a dozen lines a second at most, so they are written and flushed where they are raised: a line is on
 //! disk when the process ends, with no thread to wait for.
 
 use std::fs::File;
@@ -19,6 +20,10 @@ use serde::Serialize;
 
 use super::header::RunHeader;
 use super::race_run::Autopilot;
+
+mod sample;
+
+pub use sample::{Controls, SampleClock, SampleRow};
 
 /// The layout's name, in every header.
 pub const SCHEMA: &str = "nfsmw-race-trace-v1";
@@ -146,6 +151,13 @@ pub enum Record {
         stamp: Stamp,
         racer: usize,
         race_time: f32,
+    },
+    /// Every racer on the road, every [`sample::SAMPLE_PERIOD`] of race time from the green light until the race ends.
+    Sample {
+        #[serde(flatten)]
+        stamp: Stamp,
+        race_time: f32,
+        racers: Vec<SampleRow>,
     },
     /// The race is over: every person is done, or the time ran out. Racers still on the road are not timed after it.
     RaceFinished {
