@@ -104,6 +104,13 @@ pub enum Sheet {
 pub const SHEETS: [Sheet; 4] = [Sheet::RaceEvents, Sheet::Milestones, Sheet::Bounty, Sheet::Bio];
 
 impl Sheet {
+    pub fn in_context(self, in_game: bool) -> Option<&'static str> {
+        if in_game && self == Self::Milestones {
+            return Some(screen::IN_GAME_MILESTONES);
+        }
+        self.screen()
+    }
+
     /// The label of the sheet's name (`REP_SHEET_RACE_EVENTS`, `REP_SHEET_MILESTONE_EVENTS`, `REP_SHEET_BOUNTY`,
     /// `REP_SHEET_BIO`).
     pub fn label(self) -> u32 {
@@ -124,6 +131,13 @@ impl Sheet {
             Sheet::Bio => Some(screen::SAFE_HOUSE_RIVAL_BIO),
         }
     }
+}
+
+#[cfg(test)]
+#[test]
+fn pause_selects_the_in_game_milestone_package() {
+    assert_eq!(Sheet::Milestones.in_context(true), Some(screen::IN_GAME_MILESTONES));
+    assert_eq!(Sheet::Milestones.in_context(false), Some(screen::SAFE_HOUSE_MILESTONES));
 }
 
 /// One entry of the Remastered look's list for a rival: a sheet, or the Challenge Rival button.

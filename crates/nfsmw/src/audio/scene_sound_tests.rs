@@ -73,6 +73,33 @@ fn trace_lines(audio: &mut Audio, path: &std::path::Path) -> Vec<String> {
 }
 
 #[test]
+fn overlapping_presentations_mute_world_and_engine_until_both_clear() {
+    let (mut audio, trace, _dir) = rig("presentation");
+    for group in [Group::World, Group::Engine] {
+        audio.play(group, super::super::pcm::sound(&tone())).unwrap();
+    }
+    let peak = |audio: &mut Audio| {
+        audio.render_replay(4_800);
+        audio.render_replay(800).iter().fold(0.0_f32, |max, sample| max.max(sample.abs()))
+    };
+    assert!(peak(&mut audio) > 0.05);
+    audio.set_presentation_mix(true, false);
+    assert!(peak(&mut audio) < 0.001);
+    audio.set_presentation_mix(true, true);
+    audio.set_presentation_mix(false, true);
+    assert!(peak(&mut audio) < 0.001);
+    audio.play_music(super::super::pcm::sound(&tone())).unwrap();
+    assert!(peak(&mut audio) > 0.05, "the movie's own track plays");
+    audio.stop_music("test");
+    assert!(peak(&mut audio) < 0.001);
+    audio.set_presentation_mix(false, false);
+    assert!(peak(&mut audio) > 0.05, "the retained world voices resume");
+    assert!(
+        trace_lines(&mut audio, &trace).iter().any(|line| line.contains("presentation_mix") && line.contains("resume"))
+    );
+}
+
+#[test]
 fn a_skipped_movie_takes_its_sound_along_while_the_scene_stays() {
     let (mut audio, trace, _dir) = rig("skip");
     let mut scene = MovieStandIn { clip: Some(tone()), playing: true, nis: None };

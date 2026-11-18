@@ -69,6 +69,7 @@ mod scene;
 mod screens;
 mod script;
 mod scroller;
+mod sound_rules;
 mod splash;
 mod stage;
 mod stat_bars;

@@ -37,6 +37,16 @@ impl SmsPopup {
 }
 
 impl ScreenLogic for SmsPopup {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        super::sms_message::replay_sound(Some(&self.view), message, cue)
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.view.show(cx);
         cx.rt.post_to_package(cx.package, INPUT_ENABLE);

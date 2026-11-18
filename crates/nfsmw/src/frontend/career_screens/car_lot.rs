@@ -386,6 +386,8 @@ impl CarLotLogic {
         let car = super::car_lot_look::ShowcaseCar { name: row.name.clone(), look, tab: self.tab, cursor: self.cursor };
         super::car_lot_look::set_showcase(car);
         let args = Args { safehouse: true, first_car: self.first_car, from_world: self.from_world, ..Args::default() };
+        // This direct switch bypasses the car select package's Showcase transition response.
+        crate::audio::menu::request(0x44D4_3738);
         cx.send(Command::Switch(screen::SHOWCASE.to_string(), args));
     }
 
@@ -412,6 +414,16 @@ impl CarLotLogic {
 }
 
 impl ScreenLogic for CarLotLogic {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        cue.filter(|_| !crate::frontend::sound_rules::vertical(message))
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         cx.rt.post_to_package(cx.package, super::car_lot_look::LOT_MODE);
         // The lot opens on the first car the stage lets the player buy, not on a greyed one above it; back from the Showcase it

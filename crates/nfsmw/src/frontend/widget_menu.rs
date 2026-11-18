@@ -35,6 +35,7 @@ pub struct WidgetMenu {
     top: usize,
     on_screen: usize,
     leaving: bool,
+    changed_value: bool,
     /// Whether a list look (Remastered or Custom) draws this page, and the rows as it shows them (`vertical.rs`).
     vertical: bool,
     entries: Vec<MenuEntry>,
@@ -65,6 +66,7 @@ impl WidgetMenu {
             top: 0,
             on_screen,
             leaving: false,
+            changed_value: false,
             vertical: false,
             entries: Vec::new(),
             heading: String::new(),
@@ -301,33 +303,6 @@ impl WidgetMenu {
         true
     }
 
-    /// Left or right on the selected row changes its setting; the new value is in effect at once.
-    fn change(&mut self, cx: &mut Cx, forward: bool) {
-        let Some(row) = self.rows.get(self.selected).copied() else { return };
-        if self.leaving {
-            return;
-        }
-        self.nudge = Some((self.selected, forward, self.clock));
-        if row.setting == options::Setting::AdvancedGraphics {
-            cx.send(Command::OpenGraphics);
-            return;
-        }
-        if let options::Setting::Mod(_) | options::Setting::ModManaged(_) | options::Setting::GameplayOption(_) =
-            row.setting
-        {
-            mod_options::change(cx.mods, row.setting, forward);
-            self.draw_visible(cx);
-            return;
-        }
-        if row.setting == options::Setting::Autosave {
-            options::autosave::change(cx);
-            self.draw_visible(cx);
-            return;
-        }
-        row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
-        self.draw_visible(cx);
-    }
-
     fn leave(&mut self, cx: &mut Cx) {
         if self.leaving {
             return;
@@ -355,6 +330,19 @@ impl WidgetMenu {
 const CURSOR: u32 = 0x0674_5352;
 
 impl ScreenLogic for WidgetMenu {
+    fn sound_trigger(
+        &mut self,
+        _: &Runtime,
+        _: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        if super::sound_rules::horizontal(message) && self.rows.get(self.selected).is_some() && !self.changed_value {
+            return None;
+        }
+        cue
+    }
+
     fn accepts_input(&self) -> bool {
         !self.leaving
     }
@@ -468,6 +456,7 @@ impl ScreenLogic for WidgetMenu {
     /// The package's scripts write positions (the arrows' scripts hold their placeholder place); the rows are put
     /// back where the layout wants them after every update.
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
+        self.changed_value = false;
         hide_short_scrollbar(cx, self.rows.len(), self.on_screen, self.top);
         show_overflow_arrows(cx, self.rows.len(), self.on_screen);
         self.clock += dt;

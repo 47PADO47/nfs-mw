@@ -71,14 +71,14 @@ impl NitrousVoice {
         let Some(sounds) = self.sounds.as_ref() else { return };
         if let Some(start) = &sounds.start {
             let data = start.volume(decibels(sounds.profile.start_gain));
-            if let Err(error) = audio.play(Group::Sfx, data) {
+            if let Err(error) = audio.play(Group::World, data) {
                 log::warn!("the nitrous start sound does not play: {error}");
             }
         }
         let Some(looped) = &sounds.looped else { return };
         let fade = Tween { duration: seconds(sounds.profile.loop_fade_in), ..Tween::default() };
         let data = looped.volume(decibels(sounds.profile.loop_gain)).fade_in_tween(fade);
-        match audio.play(Group::Sfx, data) {
+        match audio.play(Group::World, data) {
             Ok(handle) => self.looping = Some(handle),
             Err(error) => log::warn!("the nitrous loop does not play: {error}"),
         }
@@ -91,7 +91,7 @@ impl NitrousVoice {
         let end = sounds.end.as_ref().map(|end| end.volume(decibels(sounds.profile.end_gain)));
         self.stop_loop(fade);
         let Some(end) = end else { return };
-        if let Err(error) = audio.play(Group::Sfx, end) {
+        if let Err(error) = audio.play(Group::World, end) {
             log::warn!("the nitrous end sound does not play: {error}");
         }
     }

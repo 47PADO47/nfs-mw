@@ -61,6 +61,7 @@ pub struct IconMenu {
     icons: Vec<Icon>,
     strip: IconStrip,
     reacts: bool,
+    scrolled: bool,
     pending: Option<Pending>,
     /// Whether the active theme lays the menu out as a vertical list (`themed`). The package then only supplies the
     /// order of the entries and the messages: it draws nothing, so the menu acts at once instead of playing its leave.
@@ -83,7 +84,18 @@ impl IconMenu {
     pub fn with_icons(kind: Kind, args: Args, icons: Vec<Icon>) -> Self {
         let colours = if !matches!(kind, Kind::Pause | Kind::Categories { pause: true, .. }) { WHITE } else { ORANGE };
         let strip = IconStrip::new(icons.iter().map(Self::face).collect(), colours);
-        Self { kind, args, icons, strip, reacts: true, pending: None, vertical: false, top: 0, stats_open: false }
+        Self {
+            kind,
+            args,
+            icons,
+            strip,
+            reacts: true,
+            scrolled: false,
+            pending: None,
+            vertical: false,
+            top: 0,
+            stats_open: false,
+        }
     }
 
     /// What the screen remembers its selection under: the package name and which menu it is (the pause package
@@ -150,11 +162,25 @@ impl IconMenu {
         }
         if let Some(entry) = self.strip.neighbour(step) {
             self.select(cx, entry);
+            self.scrolled = true;
         }
     }
 }
 
 impl ScreenLogic for IconMenu {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        if super::sound_rules::horizontal(message) && !self.scrolled {
+            return None;
+        }
+        cue
+    }
+
     fn accepts_input(&self) -> bool {
         self.reacts
     }
@@ -286,6 +312,7 @@ impl ScreenLogic for IconMenu {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
+        self.scrolled = false;
         self.vertical = cx.list_look();
         if self.strip.is_empty() {
             return;
@@ -297,11 +324,22 @@ impl ScreenLogic for IconMenu {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use blackbox_feng::fe_hash_upper;
 
     #[test]
     fn icon_objects_are_named_option_n() {
         assert_eq!(fe_hash_upper("OPTION_1"), 0x4B4E_3888);
         assert_eq!(fe_hash_upper("OPTION_10"), 0xB515_49B8);
+    }
+
+    #[test]
+    fn the_icon_sound_requires_a_scroll() {
+        let runtime = blackbox_feng::Runtime::new();
+        let package = blackbox_feng::PackageId(0);
+        let mut menu = IconMenu::new(Kind::Main, Args::default());
+        assert_eq!(menu.sound_trigger(&runtime, package, 0x4812_2792, Some(2)), None);
+        menu.scrolled = true;
+        assert_eq!(menu.sound_trigger(&runtime, package, 0x4812_2792, Some(2)), Some(2));
     }
 }

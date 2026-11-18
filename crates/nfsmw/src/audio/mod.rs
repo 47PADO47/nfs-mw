@@ -89,6 +89,7 @@ pub use volume::{Group, Volumes};
 struct Output {
     manager: OutputManager,
     sfx: TrackHandle,
+    world: TrackHandle,
     music: TrackHandle,
     music_filter: filter::CutoffHandle,
     engine: TrackHandle,
@@ -137,6 +138,8 @@ pub struct Audio {
     nis: nis::NisAudio,
     dir: GameDir,
     volumes: Volumes,
+    world_muted: bool,
+    movie_active: bool,
     /// The bytes of the banks read so far, by path under `SOUND/`.
     banks: HashMap<String, Arc<Vec<u8>>>,
     module_banks: HashMap<String, Arc<blackbox_aems::ModuleBank>>,
@@ -253,6 +256,8 @@ impl Audio {
             nis: nis::NisAudio::default(),
             dir,
             volumes,
+            world_muted: false,
+            movie_active: false,
             banks: HashMap::new(),
             module_banks: HashMap::new(),
             decoder: decode_worker::Decoder::default(),
@@ -306,9 +311,29 @@ impl Audio {
         let tween = Tween::default();
         out.manager.volume(volume::decibels(volumes.master), tween);
         out.sfx.set_volume(volume::decibels(volumes.sfx), tween);
+        out.world.set_volume(volume::decibels(if self.world_muted { 0.0 } else { volumes.sfx }), tween);
         out.music.set_volume(volume::decibels(volumes.music), tween);
-        out.engine.set_volume(volume::decibels(volumes.engine), tween);
+        out.engine.set_volume(volume::decibels(if self.world_muted { 0.0 } else { volumes.engine }), tween);
+        out.wet.world_muted(volumes, self.world_muted);
         out.hud.set_volume(volume::decibels(volumes.hud), tween);
+    }
+
+    pub(super) fn set_presentation_mix(&mut self, photo: bool, movie: bool) {
+        let muted = photo || movie;
+        if (muted, movie) == (self.world_muted, self.movie_active) {
+            return;
+        }
+        self.world_muted = muted;
+        self.movie_active = movie;
+        self.trace.note(
+            "presentation_mix",
+            match (photo, movie) {
+                (_, true) => "movie",
+                (true, false) => "photo",
+                _ => "resume",
+            },
+        );
+        self.set_volumes(self.volumes);
     }
 
     fn output(&mut self) -> Result<&mut Output, String> {
@@ -353,6 +378,7 @@ impl Audio {
         let out = self.output()?;
         let track = match group {
             Group::Sfx => &mut out.sfx,
+            Group::World => &mut out.world,
             Group::Music => &mut out.music,
             Group::Engine => &mut out.engine,
             Group::Hud => &mut out.hud,
@@ -431,12 +457,22 @@ impl Output {
         })
         .map_err(|e| e.to_string())?;
         let sfx = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
+        let world = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
         let mut music_builder = TrackBuilder::new();
         let music_filter = music_builder.add_effect(filter::MusicFilterBuilder);
         let music = manager.add_sub_track(music_builder).map_err(|e| e.to_string())?;
         let engine = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
         let hud = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
-        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, music_filter, engine, hud, wet })
+        Ok(Self {
+            manager: OutputManager::Device(Box::new(manager)),
+            sfx,
+            world,
+            music,
+            music_filter,
+            engine,
+            hud,
+            wet,
+        })
     }
 }
 

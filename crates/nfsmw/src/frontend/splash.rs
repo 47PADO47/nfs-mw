@@ -25,6 +25,16 @@ pub struct Splash {
 }
 
 impl ScreenLogic for Splash {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        _: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        cue.filter(|_| self.allow_continue)
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         for hidden in [HD_GROUP, START_CLICK, MOUSE_CLICK, LICENCE_LINE, ESRB_ICON] {
             cx.hide(hidden, true);
@@ -42,4 +52,15 @@ impl ScreenLogic for Splash {
             _ => {}
         }
     }
+}
+
+#[cfg(test)]
+#[test]
+fn splash_cues_wait_for_ready() {
+    let runtime = blackbox_feng::Runtime::new();
+    let package = blackbox_feng::PackageId(0);
+    let mut splash = Splash::default();
+    assert_eq!(splash.sound_trigger(&runtime, package, PAD_ACCEPT, Some(4)), None);
+    splash.allow_continue = true;
+    assert_eq!(splash.sound_trigger(&runtime, package, PAD_ACCEPT, Some(4)), Some(4));
 }

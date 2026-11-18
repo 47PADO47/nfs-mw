@@ -222,6 +222,10 @@ pub struct Frontend {
 }
 
 impl Frontend {
+    pub(crate) fn photo_audio_state(&self) -> Option<bool> {
+        self.screens.photo_audio_state()
+    }
+
     pub fn new(screens: Screens, dir: GameDir, start: Start, script: Option<UiScript>) -> Self {
         // `run_front_end` starts over a built `MenuScene` (`app/render`); a viewer starts over its own scene.
         let menu_in_window = !matches!(start, Start::Browse(_));

@@ -135,6 +135,7 @@ impl Kind {
         [
             (Kind::Race, screen::SAFE_HOUSE_RACE_SHEET),
             (Kind::Milestones, screen::SAFE_HOUSE_MILESTONES),
+            (Kind::Milestones, screen::IN_GAME_MILESTONES),
             (Kind::Bounty, screen::SAFE_HOUSE_BOUNTY),
         ]
         .into_iter()
@@ -166,6 +167,8 @@ struct Sheet {
     bin: u8,
     page: Box<dyn Page>,
     at: usize,
+    moved: bool,
+    race_chosen: bool,
     icons: icons::Icons,
     maps: Maps,
     zoom: Zoom,
@@ -186,6 +189,8 @@ impl Sheet {
             bin,
             page,
             at,
+            moved: false,
+            race_chosen: false,
             icons: icons::Icons::default(),
             maps: Maps::default(),
             zoom: Zoom::at(Crop::WHOLE),
@@ -208,6 +213,7 @@ impl Sheet {
             return;
         }
         self.at = walk(self.at, by, self.len());
+        self.moved = true;
         self.refresh(cx);
     }
 
@@ -224,6 +230,7 @@ impl Sheet {
             return;
         }
         self.at = next;
+        self.moved = true;
         self.refresh(cx);
     }
 
@@ -287,6 +294,9 @@ impl Sheet {
             return;
         }
         let Some(ask) = self.page.ask(self.at) else { return };
+        if self.kind == Kind::Race {
+            self.race_chosen = true;
+        }
         self.maps.release(cx.assets);
         cx.send(Command::Confirm(Confirm::new(Text::Game(ask.label), ask.then)));
     }
@@ -313,6 +323,26 @@ fn open_page(kind: Kind, bin: u8) -> Box<dyn Page> {
 }
 
 impl ScreenLogic for Sheet {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        message: u32,
+        mut cue: Option<i32>,
+    ) -> Option<i32> {
+        use crate::frontend::sound_rules::{accept, scroller_direction};
+        if self.kind != Kind::Bounty && scroller_direction(message) && !std::mem::take(&mut self.moved) {
+            cue = None;
+        }
+        if accept(message) && self.args.pause && matches!(self.kind, Kind::Milestones | Kind::Bounty) {
+            return None;
+        }
+        match self.kind {
+            Kind::Race if accept(message) && !self.race_chosen => Some(7),
+            _ => cue,
+        }
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.screen_list_look(ListScreen::RepSheets);
         self.at = cx.memory.get(&self.memory_key()).copied().unwrap_or(self.at).min(self.len().saturating_sub(1));
@@ -330,6 +360,7 @@ impl ScreenLogic for Sheet {
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
+        self.moved = false;
         let vertical = cx.screen_list_look(ListScreen::RepSheets);
         if self.vertical != vertical {
             self.vertical = vertical;

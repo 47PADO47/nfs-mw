@@ -250,7 +250,7 @@ impl ContactPlayback {
                 32767,
                 (wet * 32767.0) as i32,
             ];
-            scrape.module.update(&mut EffectSampler(audio, Group::Sfx), dt, &params)
+            scrape.module.update(&mut EffectSampler(audio, Group::World), dt, &params)
         });
     }
 }

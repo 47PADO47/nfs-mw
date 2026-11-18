@@ -192,7 +192,7 @@ impl Emitter {
         }
         if let Some(module) = &mut self.engine {
             let params = engine_params(self.state, levels);
-            if !module.update(&mut DelayedSampler(audio, Group::Sfx, delay), dt, &params) {
+            if !module.update(&mut DelayedSampler(audio, Group::World, delay), dt, &params) {
                 self.engine = None;
             }
         }
@@ -201,7 +201,7 @@ impl Emitter {
             horn.age += dt;
             let fade = selection::horn_fade(horn.age, horn.duration);
             let params = horn_params(self.state.profile.horn.unwrap_or(0), levels, fade);
-            end_horn = !horn.module.update(&mut DelayedSampler(audio, Group::Sfx, delay), dt, &params) || fade <= 0.0;
+            end_horn = !horn.module.update(&mut DelayedSampler(audio, Group::World, delay), dt, &params) || fade <= 0.0;
         }
         if end_horn {
             self.horn = None;
@@ -209,7 +209,8 @@ impl Emitter {
         }
         self.whoosh.retain_mut(|piece| {
             let params = piece.params(levels);
-            piece.module.update(&mut DelayedSampler(audio, Group::Sfx, delay), dt, &params) && !piece.module.finished()
+            piece.module.update(&mut DelayedSampler(audio, Group::World, delay), dt, &params)
+                && !piece.module.finished()
         });
     }
 }

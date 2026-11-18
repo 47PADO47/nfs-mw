@@ -241,11 +241,12 @@ pub struct InboxLogic {
     entries: Vec<ListEntry>,
     /// A message opened from the list stands over it: the list is out and draws no hints.
     reading: bool,
+    moved: bool,
 }
 
 impl InboxLogic {
     fn new(args: Args) -> Self {
-        Self { args, tab: InboxTab::Story, at: 0, first: 0, entries: Vec::new(), reading: false }
+        Self { args, tab: InboxTab::Story, at: 0, first: 0, entries: Vec::new(), reading: false, moved: false }
     }
 
     /// Brings the tabs, the rows and the footer in.
@@ -305,7 +306,9 @@ impl InboxLogic {
 
     fn move_highlight(&mut self, cx: &mut Cx, delta: i32) {
         self.sync(cx);
+        let previous = self.at;
         (self.at, self.first) = moved(self.at, self.first, delta, self.entries.len());
+        self.moved = self.at != previous;
         self.refresh(cx);
     }
 
@@ -339,6 +342,19 @@ impl InboxLogic {
 }
 
 impl ScreenLogic for InboxLogic {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        if crate::frontend::sound_rules::vertical(message) && !std::mem::take(&mut self.moved) {
+            return None;
+        }
+        cue
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.show_tab(cx);
         self.refresh(cx);
@@ -372,6 +388,7 @@ impl ScreenLogic for InboxLogic {
 
     /// A message deleted from the list (the question answered Yes) leaves it on the next frame.
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
+        self.moved = false;
         if self.read().0 != self.entries {
             self.refresh(cx);
         }
