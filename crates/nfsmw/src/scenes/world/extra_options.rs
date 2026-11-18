@@ -218,6 +218,11 @@ impl WorldScene {
         None
     }
     pub(super) fn prepare_extra(&mut self) {
+        // A stock run has no testing override (`parity/stock.rs`).
+        if crate::parity::stock_rules() && self.extra.testing.active() {
+            crate::parity::stock::force_testing(&mut self.extra.testing);
+            self.extra.message = Some("Testing overrides are off in a stock-rules run".into());
+        }
         self.extra.local_allowed = self.extra_options_allowed();
         if !self.extra.local_allowed {
             if self.extra.testing.active() {

@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use serde_json::json;
 
 use super::{WorldScene, space};
+use crate::parity::header::{RunHeader, WorldState};
 
 mod diff;
 mod records;
@@ -74,7 +75,8 @@ impl WorldScene {
         let (stamp, iso) = session::utc(unix_ms() / 1000);
         let dir = root.join(format!("{stamp}-remake"));
         let writer = Writer::start(dir.clone()).context("The trace writer could not start")?;
-        let meta = session::Session::new(iso, self.dir.root().display().to_string(), self.trace_settings());
+        let game_dir = self.dir.root().display().to_string();
+        let meta = session::Session::new(iso, game_dir, self.trace_settings(), self.run_header());
         writer.send(Record::Session(Box::new(meta.clone())));
         log::info!("pursuit trace: recording into {}", dir.display());
         crate::audio::radio_trace::open_recording(true);
@@ -124,6 +126,22 @@ impl WorldScene {
                 "lock_heat": testing.lock_heat, "heat": testing.heat, "paused": testing.paused,
                 "career_bin": testing.career_bin},
         })
+    }
+
+    /// The run header the session records: the run's options and the world's settings as it runs them.
+    pub(super) fn run_header(&self) -> RunHeader {
+        let lead = self.players.lead();
+        RunHeader::of_run(Some(WorldState {
+            track: &self.track,
+            player_car: lead.map(|drive| drive.car_name.as_str()),
+            transmission: lead.map(|drive| drive.transmission()),
+            rules: self.rules,
+            tuning: &self.tuning,
+            traffic: self.traffic_setting,
+            traffic_manual: self.traffic_manual,
+            rain: self.rain.setting(),
+            testing: &self.extra.testing,
+        }))
     }
 
     /// A reference jump landed: the session records the place, the pose and the heat.

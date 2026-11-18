@@ -197,6 +197,7 @@ impl WorldScene {
             false => (prep.config.countdown * 60.0).ceil().max(0.0) as u32,
         };
         session.engine = Some(Race::new(prep.course, prep.config, &grid));
+        self.trace_race_begins(session);
         // A session's race waits on the grid for the server to release the countdown (`hold.rs`).
         if std::mem::take(&mut self.race_hold) {
             session.stage = Stage::Staged { lead };

@@ -5,6 +5,7 @@ use kira::track::TrackBuilder;
 use super::random::Rng;
 use super::{Context, Files, KiraSink, Outcome, Speech, SpeechParams};
 use crate::audio::Audio;
+use crate::parity::seed::Stream;
 
 /// The speech of an [`Audio`]: not loaded yet, failed to load, or ready; and the volume it will have.
 pub struct SpeechSlot {
@@ -86,12 +87,18 @@ impl Audio {
         let index = self.dir.read(INDEX).map_err(|e| format!("{INDEX}: {e}"))?;
         let evt = self.dir.read(EVT).map_err(|e| format!("{EVT}: {e}"))?;
         let big = self.dir.resolve(BIG).ok_or_else(|| format!("{BIG} is not in the install"))?;
-        let files = Files::open(&index, &evt, big, Rng::from_clock())?;
+        let files = Files::open(&index, &evt, big, Rng::for_run(Stream::SpeechFiles))?;
         let track = match self.output.as_mut() {
             Some(out) => Some(out.manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?),
             None => None,
         };
-        let mut speech = Speech::new(events, tune, Box::new(files), Box::new(KiraSink::new(track)), Rng::from_clock());
+        let mut speech = Speech::new(
+            events,
+            tune,
+            Box::new(files),
+            Box::new(KiraSink::new(track)),
+            Rng::for_run(Stream::SpeechEvents),
+        );
         speech.set_volume(self.speech.volume);
         Ok(speech)
     }

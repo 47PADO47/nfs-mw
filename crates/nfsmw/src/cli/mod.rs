@@ -67,6 +67,9 @@ mod net_args;
 #[cfg(all(test, feature = "multiplayer"))]
 mod net_tests;
 mod parse;
+mod race_args;
+#[cfg(test)]
+mod race_tests;
 #[cfg(test)]
 mod tests;
 mod view_args;

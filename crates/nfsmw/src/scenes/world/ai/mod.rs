@@ -35,7 +35,7 @@ mod model_loader;
 mod models;
 mod moment_driver;
 mod moment_feed;
-pub(in crate::scenes::world) use moment_driver::MomentDriver;
+pub(in crate::scenes::world) use moment_driver::{MomentDriver, PilotCar, RaceAim};
 mod net_export;
 mod nis_poses;
 mod original_camera;

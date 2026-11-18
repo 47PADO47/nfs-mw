@@ -144,11 +144,21 @@ pub fn end_of_frame(
     mut host: NonSendMut<Host>,
     mut window: Single<&mut Window, With<PrimaryWindow>>,
     mut exit: MessageWriter<AppExit>,
+    errors: Res<super::host::ErrorSlot>,
     settings: Res<Settings>,
     on_monitor: Query<&OnMonitor, With<PrimaryWindow>>,
     monitors: Query<(Entity, &Monitor, Has<PrimaryMonitor>)>,
 ) {
     let _trace = blackbox_trace::scope("Frame: title / benchmark / limiter");
+    // An unattended race run ends the process when its race is over (`parity/race_run.rs`).
+    match crate::parity::race_run::take_exit() {
+        Some(Ok(())) => drop(exit.write(AppExit::Success)),
+        Some(Err(why)) => {
+            errors.set(anyhow::anyhow!(why));
+            exit.write(AppExit::error());
+        }
+        None => {}
+    }
     let host = &mut *host;
     let Some(renderer) = host.renderer.as_ref() else { return };
     // The measured frames start after the UI's background loads (`ui/loading.rs`), as they did when those loads ran before

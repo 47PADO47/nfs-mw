@@ -25,6 +25,7 @@ mod modding;
 mod movie;
 #[cfg(feature = "multiplayer")]
 mod net;
+mod parity;
 mod preset_store;
 mod save_format;
 mod saves;

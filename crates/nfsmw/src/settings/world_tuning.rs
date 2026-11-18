@@ -67,6 +67,8 @@ impl Default for WorldTuning {
 
 impl From<&Settings> for WorldTuning {
     fn from(s: &Settings) -> Self {
+        // A stock run keeps the original's values whatever a menu changed since the start (`parity/stock.rs`).
+        let s = &crate::parity::stock::effective(s);
         Self {
             game_speed: s.game_speed,
             physics_rate_hz: s.physics_rate_hz,

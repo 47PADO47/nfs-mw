@@ -105,7 +105,7 @@ mod scene_space;
 mod scenery_groups;
 mod session_rules;
 mod status_line;
-use session_rules::ViewSource;
+pub(crate) use session_rules::{SessionRules, ViewSource};
 mod shadow_feed;
 mod simulation;
 mod sky;
@@ -262,6 +262,9 @@ pub struct WorldScene {
     race: Option<race::RaceSession>,
     /// The fade to black of the prologue's breakdown (`race/chase_fade.rs`).
     screen_fade: race::chase_fade::ScreenFade,
+    /// An unattended race run: the race the command line asked for, the autopilot, the race trace and the tick count
+    /// (`race/unattended.rs`). It does nothing unless the run was started with its options.
+    unattended: race::Unattended,
     /// A race to start as soon as the car is there (a quick race asked for it, `queue_race`).
     queued_race: Option<(String, race::RaceOptions)>,
     /// The race, options and course `queued_race` runs again when the post-race screen's Restart queued it: it starts as

@@ -354,6 +354,14 @@ pub struct ViewArgs {
     /// A second folder of mods to load, besides the mods folder in the config directory.
     #[arg(long, value_name = "PATH")]
     pub mods_dir: Option<PathBuf>,
+    /// Seed the random choices single player takes from the clock (opponent names, grid slot, radio lines, police
+    /// speech, playlist, quick picks), for repeatable runs; it sets no multiplayer session rule [env NFSMW_SEED].
+    #[arg(long, value_name = "U64")]
+    pub seed: Option<u64>,
+    /// Force every mechanics-changing setting to the original game's behaviour for this run, whatever the config
+    /// file, the mod-style ini files and the saved options say; nothing is saved [env NFSMW_STOCK_RULES=1].
+    #[arg(long)]
+    pub stock_rules: bool,
 }
 
 impl ViewArgs {
@@ -382,6 +390,11 @@ impl ViewArgs {
             #[cfg(feature = "multiplayer")]
             net: None,
         }
+    }
+
+    /// The run's seed and stock-rules switch: the command line over the environment (`parity/mod.rs`).
+    pub fn parity_options(&self) -> crate::parity::ParityOptions {
+        crate::parity::ParityOptions::resolve(self.seed, self.stock_rules, |name| std::env::var(name).ok())
     }
 
     /// The command-line layer of the settings: the top layer, above the environment and the config file.

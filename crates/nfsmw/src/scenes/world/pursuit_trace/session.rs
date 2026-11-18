@@ -5,6 +5,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::writer::{Counters, MAX_BYTES};
+use crate::parity::header::RunHeader;
 
 /// The sample rate, Hz.
 pub(super) const SAMPLE_HZ: u32 = 20;
@@ -28,6 +29,9 @@ pub(super) struct Session {
     pub remake: Value,
     pub options: Value,
     pub settings: Value,
+    /// The run header every trace shares (`parity/header.rs`): the seed, the stock rules, the effective settings, the
+    /// mod-style ini files and the mods.
+    pub run: RunHeader,
     /// The bounty place jumped to and the heat used, once a reference jump has landed.
     pub reference: Option<Value>,
     pub schema_notes: Value,
@@ -36,7 +40,7 @@ pub(super) struct Session {
 }
 
 impl Session {
-    pub fn new(created_utc: String, game_dir: String, settings: Value) -> Session {
+    pub fn new(created_utc: String, game_dir: String, settings: Value, run: RunHeader) -> Session {
         let exe = std::env::current_exe().map(|p| p.display().to_string()).ok();
         Session {
             schema: 1,
@@ -52,6 +56,7 @@ impl Session {
             options: serde_json::json!({"game_dir": game_dir, "sample_hz": SAMPLE_HZ, "max_mb": MAX_BYTES >> 20,
                 "fixture": false}),
             settings,
+            run,
             reference: None,
             schema_notes: serde_json::json!({
                 "space": "physics space as the original's: x right, y up, z forward; metres, m/s",
@@ -111,6 +116,22 @@ pub(super) fn utc(secs: u64) -> (String, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_session_records_the_run_header_beside_the_settings() {
+        use crate::parity::ParityOptions;
+        let options = ParityOptions { seed: Some(9), stock_rules: true };
+        let run = RunHeader::new(options, Vec::new(), Default::default(), None, None);
+        let settings = serde_json::json!({"physics_rate_hz": 60});
+        let session = Session::new("2026-11-18T00:00:00Z".into(), "install".into(), settings.clone(), run);
+        let json = serde_json::to_value(&session).unwrap();
+        assert_eq!(json["schema"], 1, "the run header is an added key: the layout is otherwise unchanged");
+        assert_eq!(json["settings"], settings);
+        assert_eq!(
+            (&json["run"]["seed"], &json["run"]["stock_rules"]),
+            (&serde_json::json!(9), &serde_json::json!(true))
+        );
+    }
 
     #[test]
     fn utc_stamps_follow_the_calendar() {

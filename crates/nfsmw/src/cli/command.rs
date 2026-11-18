@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 
 use super::Cli;
 use super::parse::parse_xy;
+use super::race_args::RaceRunArgs;
 use super::view_args::ViewArgs;
 
 #[derive(Subcommand)]
@@ -88,6 +89,8 @@ pub enum Command {
         /// A scripted pad for tests and screenshots, e.g. "wait 1;right;accept" (replaces the input and the clock).
         #[arg(long, hide = true, value_name = "SCRIPT")]
         ui_script: Option<String>,
+        #[command(flatten)]
+        race_run: RaceRunArgs,
         #[command(flatten)]
         view: ViewArgs,
     },
@@ -210,11 +213,47 @@ pub enum Command {
         #[arg(long, value_name = "SCRIPT", hide = true, requires = "drive")]
         drive_script: Option<String>,
         #[command(flatten)]
+        race_run: RaceRunArgs,
+        #[command(flatten)]
         view: ViewArgs,
     },
 }
 
 impl Command {
+    /// The viewer options of a command that opens a window.
+    pub fn view_args(&self) -> Option<&ViewArgs> {
+        match self {
+            Self::ViewCar { view, .. }
+            | Self::AssetViewer { view, .. }
+            | Self::ViewAssets { view, .. }
+            | Self::PlayMovie { view, .. }
+            | Self::Play { view, .. }
+            | Self::ViewScreen { view, .. }
+            | Self::FengViewer { view, .. }
+            | Self::SoundViewer { view, .. }
+            | Self::ViewAnim { view, .. }
+            | Self::ViewWorld { view, .. } => Some(view),
+            Self::CheckInstall
+            | Self::Setup
+            | Self::Keys
+            | Self::ListCars
+            | Self::ListAssets
+            | Self::ListMovies
+            | Self::ListScreens
+            | Self::Strings { .. }
+            | Self::DumpScreen { .. }
+            | Self::DumpAnim { .. } => None,
+        }
+    }
+
+    /// The unattended race run's options of a command that drives.
+    pub fn race_run(&self) -> Option<&RaceRunArgs> {
+        match self {
+            Self::Play { race_run, .. } | Self::ViewWorld { race_run, .. } => Some(race_run),
+            _ => None,
+        }
+    }
+
     /// What running `nfsmw` with no command does: `play` with every option left to the settings.
     pub fn play() -> Self {
         let Some(play) = Cli::parse_from(["nfsmw", "play"]).command else { unreachable!("play is a command") };

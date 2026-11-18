@@ -110,7 +110,8 @@ impl ChaseRadio {
     pub fn reset_session(&mut self) {
         let ids = self.ids.take();
         let tune = self.tune;
-        *self = Self::new(crate::audio::speech::random::Rng::from_clock().next_seed());
+        *self =
+            Self::new(crate::audio::speech::random::Rng::for_run(crate::parity::seed::Stream::ChaseRadio).next_seed());
         self.ids = ids;
         self.tune = tune;
         self.machine.set_tune(tune);

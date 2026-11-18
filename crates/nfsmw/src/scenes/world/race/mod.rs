@@ -3,6 +3,7 @@
 //! computer-driven racers, the minimap, the card and the career. Specs: `docs/specs/race-mode.md`,
 //! `docs/specs/ai-racers.md`, `docs/specs/ai-racers-route.md`, `docs/specs/ai-racers-catchup.md`.
 
+mod autopilot;
 mod barriers;
 #[cfg(test)]
 mod blacklist_tests;
@@ -46,6 +47,7 @@ mod startable;
 #[cfg(test)]
 pub(in crate::scenes::world) mod test_roads;
 mod traffic;
+mod unattended;
 mod wrong_way;
 
 pub(super) use command::race_command;
@@ -54,6 +56,7 @@ pub(super) use restart::Kit as RestartKit;
 pub(in crate::scenes::world) use setup::Opponent;
 pub use setup::RaceOptions;
 pub use split::SplitSetup;
+pub(in crate::scenes::world) use unattended::Unattended;
 
 /// The story's own races, which player 1 drives alone in co-op: the scripted chase and the final race.
 pub(in crate::scenes::world) fn is_story_race(race: &nfsmw_data::gameplay::Race) -> bool {
