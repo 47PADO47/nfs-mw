@@ -95,6 +95,7 @@ pub fn run(cli: Cli) -> Result<()> {
             career_run.skip_cinematics,
             first_lot,
         );
+        crate::parity::nis_capture::init_from_env();
     }
     match command {
         Command::CheckInstall => install::check(game_dir),

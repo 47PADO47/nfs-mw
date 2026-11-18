@@ -216,6 +216,9 @@ pub(super) struct RaceSession {
     pub heat_chase: Option<heat::HeatChase>,
     /// The scenery groups the race's `Barriers` list switched on, put back when the race ends (`barriers.rs`).
     pub walls: barriers::RaceWalls,
+    /// The `Barriers` list of a race whose intro plays a NIS: switched on when the intro ends, as the original's
+    /// `StartRace` does after the intro (`docs/specs/race-wrongway.md`), so the walls are not in the scene.
+    pub deferred_walls: Vec<String>,
     /// How many times the player ran into traffic since GO, for the post-race statistics.
     pub collisions: u32,
     /// The race and course this session was started from, for a restart.

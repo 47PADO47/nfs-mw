@@ -19,14 +19,19 @@ impl WorldScene {
         // `None` would show the viewer's idle HUD, so a playing scene answers with a hidden one.
         if self.cutscene_playing() {
             // An arrest keeps the busted overlay up for the whole scene, and its overlay events cue the package.
+            // A camera key with overlay 3 puts the same police-camera overlay up in another scene: every key of every
+            // arrest's track has it, and the D-Day start's first shot (install data); the original shows the overlay
+            // over exactly that shot (reference frames).
             let arrest = self.nis.arrest_playing();
-            let cue = self.nis.screen().overlay_cue(crate::hud::OVERLAY_PACKAGE).filter(|_| arrest);
+            let camera = self.nis.camera_overlay() == Some(POLICE_CAMERA_OVERLAY);
+            let cue = self.nis.screen().overlay_cue(crate::hud::OVERLAY_PACKAGE).filter(|_| arrest || camera);
             let summary = self.traffic.as_ref().filter(|_| arrest).map(super::hud_pursuit::chase_summary);
             return Some(crate::hud::HudState {
                 visible: false,
-                busted_overlay: arrest,
+                busted_overlay: arrest || camera,
                 busted_overlay_cue: cue,
                 busted_summary: summary,
+                busted_overlay_text: (camera && !arrest).then_some(POLICE_CAMERA_CRAWL),
                 ..Default::default()
             });
         }
@@ -93,3 +98,10 @@ impl WorldScene {
         Some(feed)
     }
 }
+
+/// The camera key overlay byte of the police-camera look (`BUSTED_OVERLAY.fng`).
+const POLICE_CAMERA_OVERLAY: u8 = 3;
+/// The crawl of the police camera outside an arrest: "STATUS: CODE 3 PURSUIT – DISTRICT: ROCKPORT POLICE DEPARTMENT –
+/// CONDITION: 3 – SUSPECTS: 2 VEHICLES", the string after the five arrest crawls (`hud/busted_line.rs`); the original's
+/// D-Day start shows it (reference frames).
+const POLICE_CAMERA_CRAWL: u32 = 0x626A_C047;

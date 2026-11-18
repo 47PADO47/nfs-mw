@@ -187,7 +187,10 @@ While the state is ready to play, each tick the activity:
    clock moving.
 
 The tick is the world's fixed frame task. So the settle is 31 frames of the frame task, roughly one second at 30 frames
-per second **[unconfirmed rate]**.
+per second **[unconfirmed rate]**. In the original's `IntroNisDD` the picture runs a steady 0.5 s behind the scene's
+own time against the game clock (the camera cut at 8.0 s shows at about 8.5 s, and every later shot matches the scene
+half a second late) **[reference frames]**, which fits 31 ticks at 60 Hz. The rewrite holds a scene's first pose for
+31/60 s of real time before its clock runs **[ours]** (`nis/player.rs`).
 
 ## 5. The scene frame and the placement **[decomp: `AnimLocator.cpp`, `AnimScene::Init`, `NISActivity::StartLocation`;
 derived for the axes]**
@@ -332,7 +335,16 @@ What the rewrite does **[ours]** (`nis/car_world.rs`, `nis/car_memory.rs`, `nis/
   ground the car stood on. A race's start scene leaves the player's car on its grid slot at its end instead of standing it
   where the clip left it.
 - **Wheels.** Each wheel turns by the distance the scene moves the car along its nose over the wheel's radius, from the
-  physics car's wheels on the scene's first frame; a jump of more than 5 m (a cut) turns nothing.
+  physics car's wheels on the scene's first frame; a jump of more than 5 m (a cut) turns nothing. The wheels stand at
+  their rest travel: the frozen physics under a placed but never stepped police car hung them at full droop.
+- **Clearance.** The model's origin stands on the ground by the car's frozen tyre contacts when that height is 0 to
+  1.5 m, else 0.35 m: a racer frozen on a grid that has not streamed in reported 12 to 136 m, which stood the
+  prologue's racers and police cars far above the road.
+- **Police cars.** A cop channel's police car is placed at the channel's pose on the ground there, with none of the
+  pursuit's spawn rules (cop road, gap to other cars, no-spawn zones, distance window). A channel whose ground has not
+  streamed in waits for it (60 s at most).
+- **Streaming.** While a scene plays the world streams around the scene's camera, not the player's car: a race's start
+  scene leaves the car on its grid slot while it plays across the city.
 - **Engine and body motion.** Read the installed rev curves and authored per-car pitch, roll and burnout events.
   Body pulses end at rest and apply to body parts; wheel instances retain their road poses. The fixed stationary
   rocking loop is removed. Each model uses its frozen tyre contacts to determine ground clearance, rather than a

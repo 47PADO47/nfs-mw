@@ -142,7 +142,8 @@ impl WorldScene {
                     self.traffic.as_ref().and_then(|traffic| traffic.nis_ground_lift(index))
                 }
             }
-            .unwrap_or(0.0);
+            .filter(|lift| CLEARANCE_RANGE.contains(lift))
+            .unwrap_or(DEFAULT_CLEARANCE);
             let spot = cars::lifted(spot, ground, clearance);
             self.set_nis_car(target, Some(spot), dt);
         }
@@ -250,13 +251,21 @@ pub(super) fn actor_grid_slot(player: usize, channel: usize) -> usize {
 
 /// A wheel radius for a car whose physics is not there, metres.
 const DEFAULT_RADIUS: f32 = 0.33;
+/// The heights of a model's origin above its tyre contacts that are taken as they are, metres [ours]. A car whose wheels
+/// have not found the ground (a racer frozen on a grid whose world has not streamed in) reports contacts metres away,
+/// which stood the scene's car 12 m in the air in the `IntroNisDD` capture; such a car takes [`DEFAULT_CLEARANCE`].
+const CLEARANCE_RANGE: std::ops::RangeInclusive<f32> = 0.0..=1.5;
+const DEFAULT_CLEARANCE: f32 = 0.35;
 
-/// A car's pose from its spot and its base pose: the spot's position and rotation, the base's steering and suspension,
-/// and the wheels turned to `spin`.
+/// A car's pose from its spot and its base pose: the spot's position and rotation, the base's steering, the wheels at
+/// their rest travel and turned to `spin`. The physics under a scene's car is frozen, often in a pose it never settled
+/// in (a police car the scene placed and never stepped hung its wheels at full droop), so its suspension is not used
+/// [ours].
 fn posed(spot: CarSpot, base: CarPose, spin: [f32; 4]) -> CarPose {
     let mut wheels = base.wheels;
     for (wheel, spin) in wheels.iter_mut().zip(spin) {
         wheel.spin = spin;
+        wheel.travel = 0.0;
     }
     CarPose { position: spot.position, rotation: spot.rotation, wheels }
 }

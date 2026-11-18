@@ -13,6 +13,7 @@
 #[cfg(test)]
 mod arrest_scene_tests;
 mod camera;
+mod capture;
 mod car_events;
 mod car_memory;
 mod car_world;

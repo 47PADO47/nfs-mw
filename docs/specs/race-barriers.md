@@ -61,6 +61,12 @@ of the race (`basicrace` graph, state `done`) clears every group (each switched-
 state 0; every barrier line is disabled; the segment barrier and race-route flags are cleared), switches
 `SCENERY_GROUP_DOOR` on again without the star, then switches the stage's bin list on again. **[decomp]**
 
+When a race's intro plays a NIS scene, the walls go up when the intro ends: the prerace state's `loadingcomplete` runs
+`StartRace`, which switches the list on ([race-wrongway.md](race-wrongway.md)), and the intro NIS plays before
+prerace ([story-flow.md](story-flow.md) section 1.1). The rewrite raises the list when the race is set up, builds the
+race's route with it up (the route's shortcut search reads the walls), and for such a race lowers it again until the
+countdown **[ours, from those specs]** (`race/start.rs`, `race/intro.rs`).
+
 ## 3. The turn **[decomp + verified]**
 
 When an override changes bit `0x400` of an instance whose flag word has bit `0x800000` (**turnable**), the engine

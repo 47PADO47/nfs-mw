@@ -133,6 +133,7 @@ mod tests {
             restarted: false,
             map: crate::hud::MapSource::default(),
             walls: Default::default(),
+            deferred_walls: Vec::new(),
             collisions: 0,
         }
     }

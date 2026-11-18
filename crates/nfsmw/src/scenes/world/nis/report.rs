@@ -110,7 +110,8 @@ pub struct SceneReport {
     /// The NIS stream take the scene plays, `None` when it plays none; `exact` false when it is a stand-in take.
     pub audio_take: Option<String>,
     pub audio_exact: bool,
-    /// Frames the player ran before the scene ended, and how it ended.
+    /// Real frames (30 a second) the player ran before the scene ended, and how it ended. They are more than the scene's
+    /// own frames by the settle and by the camera's slow-motion keys.
     pub frames_played: u32,
     pub outcome: String,
     pub events: Vec<EventReport>,
@@ -166,7 +167,7 @@ pub fn run(dir: &GameDir, scene: &str, kind: NisKind, track: u32, seating: &Seat
     let (frames, outcome) = play_out(&mut player, seconds);
     report.frames_played = frames;
     report.outcome = outcome.map_or_else(|| "never ended".to_owned(), |outcome| format!("{outcome:?}"));
-    if outcome != Some(NisOutcome::Completed) || frames.abs_diff(header.vanish_frame.max(0) as u32) > 1 {
+    if outcome != Some(NisOutcome::Completed) || frames + 1 < header.vanish_frame.max(0) as u32 {
         report.problems.push(format!("the scene ran {frames} of its {} frames ({outcome:?})", header.vanish_frame));
     }
     if let Some(package) = sequence {

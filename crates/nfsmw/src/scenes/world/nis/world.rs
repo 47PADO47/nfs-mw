@@ -127,7 +127,8 @@ impl WorldScene {
         if skip || crate::parity::career_trace::skip_cinematics() {
             self.nis.skip();
         }
-        let events = self.nis.advance(dt);
+        let ending = self.nis.playing_name().map(str::to_owned);
+        let events = self.nis.advance(self.nis_capture_step(dt));
         self.apply_nis_events(events);
         if let Some(outcome) = self.nis.take_outcome() {
             log::info!("NIS scene ended: {outcome:?}");
@@ -141,6 +142,9 @@ impl WorldScene {
                 self.screen_fade.set_black();
             }
             self.finish_nis_cars();
+            if let Some(name) = ending.filter(|_| crate::parity::nis_capture::enabled()) {
+                self.note_nis_capture_end(&name);
+            }
         }
         if self.nis.is_playing() {
             self.link_nis_cars();
