@@ -116,9 +116,9 @@ reload forgot every race won and every rival state.
 
 ## 7. From the pause menu and in the Remastered look **[ours]**
 
-The original opens twin packages (`InGameReputationOverview`, `InGameRaceSheet`, `InGameMilestones`, `InGameBounty`, whose
-objects differ from the safe house ones; not bound). The rewrite lists "Blacklist N" in the pause menu while the career is
-played outside a race and opens the safe house packages over the frozen world, with no room behind them. Back goes to the
+The original opens in-game twins for the reputation overview, race sheet, milestones, and bounty [exe]. The remake opens
+`InGameMilestones.fng` for the milestone sheet from Pause, with its own cursor objects and scripts. The overview, race
+sheet, and bounty still use the safe-house packages over the frozen world [ours]. Back goes to the
 pause menu. A Yes on a race starts it in the running world (`Scene::start_career_event`) and a Yes on a jump moves the car
 (`Scene::jump_player`), then the game goes on.
 

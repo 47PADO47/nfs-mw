@@ -118,6 +118,8 @@ impl Page for FixturePage {
 
 fn sheet(kind: Kind) -> Sheet {
     Sheet {
+        moved: false,
+        race_chosen: false,
         kind,
         bin: 15,
         page: Box::new(FixturePage),

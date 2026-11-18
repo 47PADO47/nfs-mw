@@ -64,7 +64,15 @@ impl MenuPlayer {
             logical_ms: audio.trace.now_ms(),
             ..Default::default()
         });
-        self.active.push(Running { module, words, age: 0.0, released: false, group: Group::Sfx, hold: true });
+        self.active.push(Running {
+            module,
+            words,
+            age: 0.0,
+            released: false,
+            group: Group::Sfx,
+            hold: true,
+            rap_sheet: false,
+        });
         Ok(())
     }
 }

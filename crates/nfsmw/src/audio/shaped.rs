@@ -96,6 +96,7 @@ impl Audio {
         let wet = out.wet.sender(group);
         let track = match group {
             Group::Sfx => &mut out.sfx,
+            Group::World => &mut out.world,
             Group::Music => &mut out.music,
             Group::Engine => &mut out.engine,
             Group::Hud => &mut out.hud,

@@ -144,7 +144,7 @@ impl TyrePlayback {
         }
         let words = params(input, frame, levels);
         let module = self.module.as_mut().expect("loaded tyre module");
-        if module.update(&mut EffectSampler(audio, Group::Sfx), dt, &words) {
+        if module.update(&mut EffectSampler(audio, Group::World), dt, &words) {
             return true;
         }
         self.module = None;

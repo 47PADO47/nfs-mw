@@ -61,10 +61,10 @@ impl ScreenLogic for LoginScreen {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match message {
-            // The skip plays the page's UI sound, `0x67` or `0x68`, once.
+            // Stop the login cue that's already playing for this page.
             PAD_ACCEPT | MOUSE_LEFT_RELEASED => {
                 let Some(sound) = self.page.accept() else { return };
-                crate::audio::menu::request_trigger(i32::from(sound));
+                crate::audio::menu::stop_rap_sheet(i32::from(sound));
             }
             PAD_BACK => self.page.back(),
             EXIT_COMPLETE => self.exit(cx),

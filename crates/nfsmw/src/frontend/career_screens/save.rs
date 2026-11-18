@@ -221,6 +221,16 @@ impl SavePromptLogic {
 }
 
 impl ScreenLogic for SavePromptLogic {
+    fn sound_trigger(
+        &mut self,
+        runtime: &blackbox_feng::Runtime,
+        package: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        crate::frontend::sound_rules::memcard_sound(runtime, package, message, cue)
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         post_opening(cx, &[MC_MAIN_PREPARE, INITIALIZE_SCREEN]);
         self.alias = CareerHandle::shared().with(|career| career.alias.clone());
@@ -346,6 +356,16 @@ impl AliasListLogic {
 }
 
 impl ScreenLogic for AliasListLogic {
+    fn sound_trigger(
+        &mut self,
+        runtime: &blackbox_feng::Runtime,
+        package: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        crate::frontend::sound_rules::memcard_sound(runtime, package, message, cue)
+    }
+
     fn footer(&self) -> Footer {
         Footer::BackOnly
     }

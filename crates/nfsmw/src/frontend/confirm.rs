@@ -163,11 +163,12 @@ pub struct ConfirmLogic {
     /// the focus.
     vertical: bool,
     yes: bool,
+    last_sound_button: Option<u32>,
 }
 
 impl ConfirmLogic {
     pub fn new(confirm: Confirm) -> Self {
-        Self { confirm, vertical: false, yes: false }
+        Self { confirm, vertical: false, yes: false, last_sound_button: None }
     }
 
     fn answer(&self, cx: &mut Cx, yes: bool) {
@@ -213,6 +214,20 @@ fn focus(cx: &mut Cx, guid: u32) {
 }
 
 impl ScreenLogic for ConfirmLogic {
+    fn sound_trigger(
+        &mut self,
+        runtime: &blackbox_feng::Runtime,
+        package: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        use super::sound_rules::{dialog_choice_changed, horizontal};
+        if horizontal(message) && !dialog_choice_changed(&mut self.last_sound_button, runtime, package) {
+            return None;
+        }
+        cue
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.list_look();
         cx.hide(UNUSED_BUTTON, true);
@@ -357,6 +372,7 @@ impl Alert {
 pub struct AlertLogic {
     alert: Alert,
     vertical: bool,
+    last_sound_button: Option<u32>,
 }
 
 /// Sets `Dialog.fng` up as a notice: the middle button alone, labelled Continue, with the focus on it.
@@ -374,7 +390,7 @@ pub(super) fn prepare_notice(cx: &mut Cx) {
 
 impl AlertLogic {
     pub fn new(alert: Alert) -> Self {
-        Self { alert, vertical: false }
+        Self { alert, vertical: false, last_sound_button: None }
     }
 
     fn close(&self, cx: &mut Cx) {
@@ -386,6 +402,20 @@ impl AlertLogic {
 }
 
 impl ScreenLogic for AlertLogic {
+    fn sound_trigger(
+        &mut self,
+        runtime: &blackbox_feng::Runtime,
+        package: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        use super::sound_rules::{dialog_choice_changed, horizontal};
+        if horizontal(message) && !dialog_choice_changed(&mut self.last_sound_button, runtime, package) {
+            return None;
+        }
+        cue
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.list_look();
         prepare_notice(cx);
@@ -442,46 +472,5 @@ impl ScreenLogic for AlertLogic {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn an_alert_without_a_follow_up_closes_to_nothing() {
-        let a = Alert::new(Text::Literal("Load complete.".into()));
-        assert_eq!(a.on_close, None);
-    }
-
-    #[test]
-    fn an_alert_remembers_what_to_run_when_closed() {
-        let a = Alert::then(Text::Literal("Saved.".into()), Command::Resume);
-        assert_eq!(a.on_close.as_deref(), Some(&Command::Resume));
-    }
-
-    #[test]
-    fn game_answers_are_the_original_labels() {
-        let c = Confirm::quit_to(QuitTo::Main, false);
-        assert_eq!(c.message, Text::Game(QUIT_MESSAGE));
-        assert_eq!(c.yes, Text::Game(YES));
-        assert_eq!(c.no, Text::Game(NO));
-        assert_eq!(*c.on_yes, Command::QuitTo(QuitTo::Main));
-    }
-
-    #[test]
-    fn the_restart_question_is_the_attention_dialog_with_ok_and_cancel() {
-        let c = Confirm::restart_race(Command::RestartRace);
-        assert_eq!(c.message, Text::Game(0x4d33_99a8));
-        assert_eq!((c.yes, c.no), (Text::Game(0x417b_2601), Text::Game(0x1a29_4dad)));
-        assert_eq!(c.title, Some(Text::Game(0x6fd9_1524)), "the attention header");
-        assert_eq!(c.look, Some(Look::Attention));
-        assert!(!c.focus_yes, "Cancel has the focus");
-        assert_eq!(*c.on_yes, Command::RestartRace);
-        assert_eq!(c.on_no, None, "Cancel only closes the dialog");
-    }
-
-    #[test]
-    fn custom_text_stays_as_given() {
-        let c = Confirm::new(Text::Literal("Delete car?".into()), Command::QuitGame);
-        assert_eq!(c.message, Text::Literal("Delete car?".into()));
-        assert_eq!(*c.on_yes, Command::QuitGame);
-    }
-}
+#[path = "confirm_tests.rs"]
+mod tests;

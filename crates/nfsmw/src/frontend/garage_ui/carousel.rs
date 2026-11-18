@@ -239,6 +239,29 @@ impl Carousel {
 }
 
 impl ScreenLogic for Carousel {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        _: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        use crate::garage::menu_rows::Row;
+        use nfsmw_data::car::physics::PerformanceCategory::*;
+        let Page::Choices { row: Row::Performance(category), .. } = self.page else { return cue };
+        if cue != Some(4) {
+            return cue;
+        }
+        Some(match category {
+            Engine => 49,
+            Transmission => 53,
+            Chassis | Brakes => 50,
+            Nitrous => 52,
+            Tires => 54,
+            Induction => 51,
+        })
+    }
+
     fn accepts_input(&self) -> bool {
         !self.leaving
     }

@@ -81,7 +81,7 @@ impl Trace {
                 Outgoing::Game { message, package, from } => {
                     self.emit("game_message", json!({"message": message, "package_id": package.0, "from_guid": from}))
                 }
-                Outgoing::Sound { message, package, from } => {
+                Outgoing::Sound { message, package, from, .. } => {
                     self.emit("sound_request", json!({"message": message, "package_id": package.0, "from_guid": from}))
                 }
                 Outgoing::Package { kind, name, from } => self.emit(

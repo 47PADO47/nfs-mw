@@ -6,6 +6,7 @@ use kira::Decibels;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Group {
     Sfx,
+    World,
     Music,
     Engine,
     /// The HUD's own cues (`hud/notify`): `[custom_hud] hud_volume`.
@@ -33,7 +34,7 @@ impl Volumes {
     #[cfg(test)]
     pub fn level(&self, group: Group) -> f32 {
         match group {
-            Group::Sfx => self.sfx,
+            Group::Sfx | Group::World => self.sfx,
             Group::Music => self.music,
             Group::Engine => self.engine,
             Group::Hud => self.hud,

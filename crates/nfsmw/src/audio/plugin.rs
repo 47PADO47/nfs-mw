@@ -50,7 +50,7 @@ impl Plugin for AudioPlugin {
                 play_preview.in_set(FrameSet::Ui),
                 play_one_shots.in_set(FrameSet::Ui),
                 play_cell_calls.in_set(FrameSet::Ui),
-                play_menu_sounds.in_set(FrameSet::Ui),
+                play_menu_sounds.after(drive_car).in_set(FrameSet::Ui),
             ),
         );
         super::speech::add_systems(app);
@@ -108,9 +108,12 @@ pub(super) fn drive_car(
 ) {
     let _trace = blackbox_trace::scope("Audio: car / traffic / music update");
     // A scene that went away takes its soundtrack with it, even when the next one has none.
-    if audio.follow_scene_change(host.scene_changes) {
+    let scene_changed = audio.follow_scene_change(host.scene_changes);
+    if scene_changed {
         *music = MusicInput::default();
     }
+    let photo = frontend.as_ref().and_then(|frontend| frontend.photo_audio_state());
+    audio.set_presentation_mix(photo == Some(true), host.scene.clip_playing());
     let car = host.scene.car_sound();
     // Pause retains the gameplay soundtrack; an explicit EA Trax preview belongs to its menu.
     let paused = host.scene.paused();
@@ -122,10 +125,16 @@ pub(super) fn drive_car(
             audio.set_volumes(wanted);
         }
     }
-    audio.drive_car(car.as_ref(), time.delta_secs());
+    // A presentation can cover the running world. Keep its continuous emitters across the mute.
+    let retain_world = (audio.world_muted || photo.is_some()) && car.is_none() && !scene_changed;
+    if !retain_world {
+        audio.drive_car(car.as_ref(), time.delta_secs());
+    }
     // Player 2's engine in a co-op session is a voice of its own, heard through the same listener.
     let second_car = host.scene.second_car_sound();
-    audio.drive_second_car(second_car.as_ref(), time.delta_secs());
+    if !retain_world {
+        audio.drive_second_car(second_car.as_ref(), time.delta_secs());
+    }
     // HUD sync samples this on the next scene frame. No voice must clear a previous voice's value.
     host.scene.note_car_visual_rpm(0, audio.car_visual_rpm(0));
     host.scene.note_car_visual_rpm(1, audio.car_visual_rpm(1));
@@ -138,20 +147,22 @@ pub(super) fn drive_car(
     if let Some(state) = &car {
         audio.update_traffic(traffic, state.view);
     }
-    if car.is_none() {
+    if car.is_none() && !retain_world {
         audio.stop_traffic();
     }
     // The helicopter's rotor follows the same car: it stops with the pause (no car state) and when the car is gone.
     let heli = host.scene.rotor_frame(time.delta_secs());
     match &car {
         Some(state) => audio.update_heli(heli, state.view),
-        None => audio.stop_heli(),
+        None if !retain_world => audio.stop_heli(),
+        None => {}
     }
     // The police sirens follow the same car and stop with it.
     let sirens = host.scene.siren_frame(time.delta_secs());
     match &car {
         Some(state) => audio.update_sirens(sirens, state.view),
-        None => audio.stop_sirens(),
+        None if !retain_world => audio.stop_sirens(),
+        None => {}
     }
     // Each petrol-station blast of this frame plays its explosion.
     let view = car.as_ref().map(|state| state.view).unwrap_or(audio.speedbreaker.view);

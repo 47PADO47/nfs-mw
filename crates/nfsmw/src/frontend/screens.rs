@@ -6,8 +6,7 @@ use std::sync::Arc;
 
 #[cfg(test)]
 use blackbox_feng::ObjectRef;
-use blackbox_feng::ids::BUTTON_PRESSED;
-use blackbox_feng::{Outgoing, PackageId, Runtime};
+use blackbox_feng::{PackageId, Runtime};
 use glam::Vec2;
 
 use super::confirm::{AlertLogic, ConfirmLogic};
@@ -272,24 +271,7 @@ impl Screens {
         if let Some(trace) = self.trace.as_mut() {
             trace.outgoing(&outgoing);
         }
-        crate::audio::menu::request_batch(outgoing.iter().filter_map(|out| match out {
-            Outgoing::Sound { message, package, .. } if self.sound_allowed(*package, *message) => {
-                Some((*package, *message))
-            }
-            _ => None,
-        }));
-        for out in outgoing {
-            match out {
-                Outgoing::Game { message, package, .. } => self.deliver(package, message, env, &mut commands),
-                Outgoing::Package { kind, name, .. } => commands.extend(command::package_command(kind, name)),
-                // A button that answers BUTTON_PRESSED announces the press to the sound system with its GUID. Only the
-                // logic that asks for it hears it (`ScreenLogic::pressed`): some packages post nothing to the game.
-                Outgoing::Sound { message: BUTTON_PRESSED, package, from: Some(button) } => {
-                    self.deliver_press(package, button, env, &mut commands)
-                }
-                Outgoing::Sound { .. } => {}
-            }
-        }
+        self.dispatch_outgoing(outgoing, env, &mut commands);
         let ids: Vec<PackageId> = self.stack.iter().map(|s| s.id).collect();
         for id in ids {
             self.deliver_tick(id, dt, env, &mut commands);

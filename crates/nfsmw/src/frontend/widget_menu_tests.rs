@@ -8,6 +8,18 @@ use crate::settings::{Partial, Settings};
 use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
 
 #[test]
+fn selected_widget_feedback_requires_a_value_change() {
+    let runtime = Runtime::new();
+    let package = blackbox_feng::PackageId(0);
+    let mut menu = WidgetMenu::new(Args::default());
+    assert_eq!(menu.sound_trigger(&runtime, package, 0x4AC5_E165, Some(2)), Some(2));
+    menu.rows = options::rows(super::super::logic::Category::Audio, &crate::settings::test_caps::native());
+    assert_eq!(menu.sound_trigger(&runtime, package, 0x4AC5_E165, Some(2)), None);
+    menu.changed_value = true;
+    assert_eq!(menu.sound_trigger(&runtime, package, 0x4AC5_E165, Some(2)), Some(2));
+}
+
+#[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn installed_scrollbar_pointer_follows_inherited_visibility_and_transforms() {
     let dir = GameDir::open(std::path::PathBuf::from(std::env::var_os("NFSMW_GAME_DIR").unwrap())).unwrap();

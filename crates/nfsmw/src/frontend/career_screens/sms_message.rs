@@ -110,6 +110,16 @@ impl MessageLogic {
 }
 
 impl ScreenLogic for MessageLogic {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        replay_sound(self.view.as_ref(), message, cue)
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         let Some(id) = opened() else {
             leave(cx, self.args);
@@ -141,4 +151,21 @@ impl ScreenLogic for MessageLogic {
     fn footer(&self) -> Footer {
         self.view.as_ref().map_or(Footer::SmsMessage { replay: false }, MessageView::footer)
     }
+}
+
+pub(super) fn replay_sound(view: Option<&MessageView>, message: u32, cue: Option<i32>) -> Option<i32> {
+    if (message == 0x610F_B237 || message == REPLAY) && !view.is_some_and(|view| is_story(view.id)) {
+        return None;
+    }
+    cue
+}
+
+#[cfg(test)]
+#[test]
+fn sms_replay_cue_uses_the_message_voice_type() {
+    let story = MessageView::new(105);
+    let tip = MessageView::new(110);
+    assert_eq!(replay_sound(Some(&story), 0x610F_B237, Some(7)), Some(7));
+    assert_eq!(replay_sound(Some(&tip), 0x610F_B237, Some(7)), None);
+    assert_eq!(replay_sound(Some(&tip), 0x480C_9A58, Some(5)), Some(5));
 }

@@ -3,24 +3,62 @@
 //! published as a [`MenuList`], and a click or the pointer picks a row.
 
 use super::options::{self, Control, Data, Row, Title};
-use super::{Cx, Pick, Way, WidgetMenu, mod_options};
+use super::{Command, Cx, Pick, Way, WidgetMenu, mod_options};
 use crate::i18n::t;
 use crate::ui::Text;
 use crate::ui::theme::remastered::menu::layout::{MAX_ROWS, window_start};
 use crate::ui::theme::{DEFAULT_ASPECT, MenuEntry, MenuList, MenuNudge, MenuStyle, MenuValue};
 
 impl WidgetMenu {
+    /// Left or right on the selected row changes its setting; the new value is in effect at once.
+    pub(super) fn change(&mut self, cx: &mut Cx, forward: bool) {
+        let Some(row) = self.rows.get(self.selected) else { return };
+        let setting = row.setting;
+        let before = (*cx.settings, data_of(cx, setting), cx.commands.len());
+        self.apply_change(cx, forward);
+        self.changed_value = before != (*cx.settings, data_of(cx, setting), cx.commands.len());
+        if self.changed_value
+            && self.args.category == super::super::logic::Category::Audio
+            && let Control::Slider(value) = setting.control(cx.settings)
+        {
+            crate::audio::menu::preview_common_level(f32::from(value) / 100.0);
+        }
+    }
+
+    fn apply_change(&mut self, cx: &mut Cx, forward: bool) {
+        let Some(row) = self.rows.get(self.selected).copied() else { return };
+        if self.leaving {
+            return;
+        }
+        self.nudge = Some((self.selected, forward, self.clock));
+        if row.setting == options::Setting::AdvancedGraphics {
+            cx.send(Command::OpenGraphics);
+            return;
+        }
+        if let options::Setting::Mod(_) | options::Setting::ModManaged(_) | options::Setting::GameplayOption(_) =
+            row.setting
+        {
+            mod_options::change(cx.mods, row.setting, forward);
+            self.draw_visible(cx);
+            return;
+        }
+        if row.setting == options::Setting::Autosave {
+            options::autosave::change(cx);
+            self.draw_visible(cx);
+            return;
+        }
+        row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
+        self.draw_visible(cx);
+    }
+
     /// Pointer edits have no FEng pad announcement. Play feedback only when the edit succeeds.
     pub(super) fn change_from_pointer(&mut self, cx: &mut Cx, forward: bool) {
         let Some(row) = self.rows.get(self.selected).copied() else { return };
         if self.leaving || !row.setting.enabled_in(cx.settings, &cx.caps) {
             return;
         }
-        let before = *cx.settings;
-        let data = data_of(cx, row.setting);
-        let commands = cx.commands.len();
         self.change(cx, forward);
-        if before != *cx.settings || data != data_of(cx, row.setting) || commands != cx.commands.len() {
+        if std::mem::take(&mut self.changed_value) {
             let message = match row.setting {
                 options::Setting::AdvancedGraphics => blackbox_feng::ids::BUTTON_PRESSED,
                 _ => blackbox_feng::ids::PAD_RIGHT,

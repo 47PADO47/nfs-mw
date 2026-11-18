@@ -233,7 +233,7 @@ impl Overview {
         }
         match entry {
             Entry::Sheet(sheet) => {
-                let Some(name) = sheet.screen() else { return };
+                let Some(name) = sheet.in_context(self.args.pause) else { return };
                 let selected = SHEETS.iter().position(|&candidate| candidate == sheet).unwrap_or(0);
                 let args = Args { overview_sheet: selected, ..super::blacklist::carry(self.args, self.shown, true) };
                 cx.send(Command::Switch(name.to_string(), args));
@@ -270,7 +270,7 @@ impl Overview {
     }
 
     fn accept(&self, cx: &mut Cx) {
-        let Some(name) = SHEETS[self.sheet].screen() else { return };
+        let Some(name) = SHEETS[self.sheet].in_context(self.args.pause) else { return };
         let args = Args { overview_sheet: self.sheet, ..super::blacklist::carry(self.args, self.shown, true) };
         cx.send(Command::Switch(name.to_string(), args));
     }
@@ -287,6 +287,19 @@ impl Overview {
 }
 
 impl ScreenLogic for Overview {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        if super::super::sound_rules::accept(message) && read(self.shown).is_some_and(|panel| panel.defeated) {
+            return None;
+        }
+        cue
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.screen_list_look(ListScreen::Blacklist);
         self.row.start(cx, self.sheet);

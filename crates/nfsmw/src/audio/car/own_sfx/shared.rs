@@ -163,7 +163,7 @@ impl SharedSfx {
             .volume(decibels(impact_volume(event.magnitude)))
             .start_time(delayed(delay));
         self.gap = IMPACT_GAP;
-        if let Err(e) = audio.play(Group::Sfx, data) {
+        if let Err(e) = audio.play(Group::World, data) {
             log::debug!("a body hit: {e}");
         }
         true
@@ -195,7 +195,7 @@ impl SharedSfx {
         let data = self.scrapes[variant].clone();
         self.clock.started(data.duration().as_secs_f32());
         let data = data.volume(decibels(volume)).start_time(delayed(delay));
-        match audio.play(Group::Sfx, data) {
+        match audio.play(Group::World, data) {
             Ok(handle) => self.scrape_voice = Some(handle),
             Err(e) => log::debug!("a scrape: {e}"),
         }

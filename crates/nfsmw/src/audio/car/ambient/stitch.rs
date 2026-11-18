@@ -118,7 +118,7 @@ impl StitchRoad {
             params[4] = i32::from((params[4] as u16).wrapping_add(azimuth as u16));
             params[7] = wet;
             piece.last_params = params;
-            let usable = piece.module.update(&mut EffectSampler(audio, Group::Sfx), dt, &params);
+            let usable = piece.module.update(&mut EffectSampler(audio, Group::World), dt, &params);
             failed |= !usable;
             usable && !piece.module.finished()
         };
@@ -127,7 +127,7 @@ impl StitchRoad {
         }
         self.failed |= failed;
         self.retired.retain_mut(|piece| {
-            piece.module.update(&mut EffectSampler(audio, Group::Sfx), dt, &piece.last_params)
+            piece.module.update(&mut EffectSampler(audio, Group::World), dt, &piece.last_params)
                 && !piece.module.finished()
         });
         let Some(profile) = &self.profile else { return };

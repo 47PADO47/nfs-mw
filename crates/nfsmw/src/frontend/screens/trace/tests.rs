@@ -42,7 +42,7 @@ fn trace_preserves_message_order_and_labels_sound_as_a_request() {
     let mut trace = Trace::new(writer);
     trace.begin_frame(1.0 / 60.0, 8, 4, false);
     trace.outgoing(&[
-        Outgoing::Sound { message: 42, package: PackageId(2), from: Some(9) },
+        Outgoing::Sound { message: 42, package: PackageId(2), from: Some(9), authored: true },
         Outgoing::Game { message: 43, package: PackageId(2), from: None },
         Outgoing::Package { kind: PackageCommandKind::Pop, name: String::new(), from: PackageId(2) },
     ]);

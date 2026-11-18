@@ -223,6 +223,10 @@ fn speed_number(mps: f32, units: SpeedUnits) -> String {
 }
 
 impl ScreenLogic for PhotoLogic {
+    fn holds_photo_audio_pause(&self) -> bool {
+        self.faded
+    }
+
     fn accepts_input(&self) -> bool {
         self.elapsed >= INPUT_AT
     }
