@@ -123,7 +123,8 @@ impl WorldScene {
     /// Reads the player's skip and plays the scene on real frame time. Runs before the world reads the frame's input,
     /// so the world can freeze while a scene plays.
     pub(in crate::scenes::world) fn update_nis(&mut self, input: &ActionState, dt: f32) {
-        if input.just_pressed(Action::MenuAccept) || input.just_pressed(Action::MenuStart) {
+        let skip = input.just_pressed(Action::MenuAccept) || input.just_pressed(Action::MenuStart);
+        if skip || crate::parity::career_trace::skip_cinematics() {
             self.nis.skip();
         }
         let events = self.nis.advance(dt);

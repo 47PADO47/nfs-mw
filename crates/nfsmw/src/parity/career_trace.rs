@@ -45,6 +45,9 @@ static TRACE: Mutex<Option<Writer>> = Mutex::new(None);
 static CLOCK: Mutex<Clock> = Mutex::new(Clock { ticks: 0, sim_time: 0.0 });
 static ON: AtomicBool = AtomicBool::new(false);
 static EXIT_AFTER_FIRST_CAR: AtomicBool = AtomicBool::new(false);
+static EXIT_AFTER_FIRST_VISIT: AtomicBool = AtomicBool::new(false);
+static SKIP_CINEMATICS: AtomicBool = AtomicBool::new(false);
+static START_AT_FIRST_CAR_LOT: AtomicBool = AtomicBool::new(false);
 
 /// The trace file: the command line's over the environment's, read through `get`. An empty value is no file.
 pub fn path_of(flag: Option<PathBuf>, get: impl Fn(&str) -> Option<String>) -> Option<PathBuf> {
@@ -121,6 +124,33 @@ pub fn record(kind: &str, fields: Value) {
 /// Asks the run to end once the first car of the career is bought (`--exit-after-first-car`).
 pub fn set_exit_after_first_car(on: bool) {
     EXIT_AFTER_FIRST_CAR.store(on, Ordering::Relaxed);
+}
+
+/// The run's other options: `--exit-after-first-visit`, `--skip-cinematics` and `--career-start first-car-lot`.
+pub fn set_run_options(exit_after_first_visit: bool, skip_cinematics: bool, start_at_first_car_lot: bool) {
+    EXIT_AFTER_FIRST_VISIT.store(exit_after_first_visit, Ordering::Relaxed);
+    SKIP_CINEMATICS.store(skip_cinematics, Ordering::Relaxed);
+    START_AT_FIRST_CAR_LOT.store(start_at_first_car_lot, Ordering::Relaxed);
+}
+
+/// Whether movies and NIS scenes end as soon as they start (`--skip-cinematics`).
+pub fn skip_cinematics() -> bool {
+    SKIP_CINEMATICS.load(Ordering::Relaxed)
+}
+
+/// Whether a new career starts in the prologue's car lot (`--career-start first-car-lot`).
+pub fn start_at_first_car_lot() -> bool {
+    START_AT_FIRST_CAR_LOT.load(Ordering::Relaxed)
+}
+
+/// The first safe house visit handed the career to the safe house menu: a run that asked for it ends now.
+pub fn first_visit_done() {
+    if !EXIT_AFTER_FIRST_VISIT.load(Ordering::Relaxed) {
+        return;
+    }
+    record("run_end", json!({"reason": "first_visit_done"}));
+    log::info!("career run: the first safe house visit is over, the process ends");
+    super::race_run::request_exit(Ok(()));
 }
 
 /// The first car of the career was bought: a run that asked for it ends now.

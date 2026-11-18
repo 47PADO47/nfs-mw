@@ -193,3 +193,12 @@ wired yet. The limits (10 purchased cars, 25 records, 20 customs) are values in 
 2. Whether the car lot lists locked cars with a lock icon or hides them in the retail UI.
 3. Where the per-car "tab" filter of the Car Select screen (six tabs) maps to class bits.
 4. How the default stable decides the flag combinations seen in saves (`career-save.md` open question 3).
+5. The order of the lot's list and the car it opens on. Not in this spec or the data's order of collections: the
+   installed `FE_ATTRIB.bin` keeps the `frontend` collections in key order (elise, gallardo, caymans, fordgt, ...), which
+   the rewrite lists (`carlot::listed`) and opens on the first available row (the GTI at stage 16). The default stable is
+   built one slot per vehicle collection ([career-save.md](../formats/career-save.md) 4.1, **[exe]**), whose order in
+   `attributes.bin` is again key order (a3, clio, db9, monaro, gallardo, eclipsegt, slr, 911turbo, ...); whether the lot
+   screen walks the stable in slot order or sorts (by availability, unlock rank, price or maker) is not read. To settle:
+   in the original's first car lot after the prologue, step through the list with Right and log each car's name, price
+   and lock state and the car shown first; the stable's slot order in a save written right after tells whether the
+   screen sorts.

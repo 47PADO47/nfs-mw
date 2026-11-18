@@ -70,7 +70,7 @@ mod look;
 mod pointer;
 mod wheel;
 pub use args::Args;
-pub use look::ListScreen;
+pub use look::{ListScreen, screen_list_look_of};
 pub use wheel::wheel_as_rows;
 /// Something a screen asks the front end to do.
 #[derive(Clone, Debug, PartialEq)]

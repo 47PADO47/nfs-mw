@@ -113,7 +113,9 @@ impl WorldScene {
     /// Reads the skip and plays the movie on real frame time. Runs before the world reads the frame's input, so the
     /// world can freeze while a movie plays.
     pub(in crate::scenes::world) fn update_story_movie(&mut self, input: &ActionState, dt: f32) {
-        let skip = input.just_pressed(Action::MenuAccept) || input.just_pressed(Action::MenuStart);
+        let skip = input.just_pressed(Action::MenuAccept)
+            || input.just_pressed(Action::MenuStart)
+            || crate::parity::career_trace::skip_cinematics();
         self.story_movie.update(skip, dt);
     }
 

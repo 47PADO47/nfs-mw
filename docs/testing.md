@@ -243,8 +243,11 @@ car is bought in the car lot the prologue ends in, or a time limit. The options 
 |---|---|
 | `--new-career <ALIAS>` | Starts a new career under the alias at once, as Start New Career on the career menu does (`Command::CareerNew`), with no boot flow and no menus. Set `BLACKBOX_PROFILE_DIR` to an empty folder so no real profile or config is read or written |
 | `--career-trace <FILE>`, `NFSMW_CAREER_TRACE=<FILE>` | Writes the career-flow trace (below) to this file, replacing it; the flag wins |
+| `--career-start first-car-lot` | With `--new-career`: the career starts in the car lot the prologue ends in, with the state the prologue leaves (its six events won, the cash their data pays; the three markers of `16.2.3` are not granted). The default `prologue` starts at `16.1.0` |
 | `--exit-after-first-car` | Ends the process when the first car is bought in the first-car lot |
-| `--autopilot` | As in a race run: the opponents' driver has the player's car in every race of the career, from the green light |
+| `--exit-after-first-visit` | Ends the process when the first safe house visit hands over to the safe house menu (after `blacklist_15`) |
+| `--skip-cinematics` | Every movie (over the world and over the menus) and every NIS scene ends as soon as it starts, as a skip does |
+| `--autopilot` | As in a race run: the opponents' driver has the player's car in every race of the career, from the green light. On the drive to the first safe house it drives the car to the safe house's respawn marker along its own race route (`career/drive_pilot.rs`), not the GPS |
 | `--ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right"` | The scripted pad: the steps after `loop` repeat for the whole run. Accept goes on from whatever front-end screen is up (the win photo, the results). In the first-car lot Accept asks to buy the car shown, Left moves the question's focus from No (where it opens) to Yes, and Accept buys it. The lot opens on a car the prologue's cash does not pay for (the GTI at 35,000 against 31,000): Accept then shows the notice, the next press closes it, and the two Rights step to the next car |
 
 ```sh
@@ -260,8 +263,15 @@ nfsmw --game-dir "<install>" play --new-career CAREERRUN --autopilot \
 `N` seconds are the time limit. The movies and NIS scenes play at their own length: the world skips them only on a
 real Accept, which the scripted pad does not send to the world. The run needs a graphics adapter.
 
-What the run does not drive: the free-roam drive to the first safe house (after the purchase) has no driver, so the
-run ends at the purchase. A run takes about 25 minutes, most of it the movies and scenes at their own length.
+A full prologue takes about 21 minutes, most of it the movies and scenes at their own length; `--skip-cinematics` cuts
+that to the races, and `--career-start first-car-lot` skips the prologue. A short loop from the lot to the first visit:
+
+```sh
+nfsmw --game-dir "<install>" play --new-career CAREERRUN --career-start first-car-lot --skip-cinematics --autopilot   --career-trace out/career.jsonl --exit-after-first-visit   --ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right; wait 1; back"   --seed 1 --stock-rules --no-sound --backend vulkan --bench-seconds 900 --offscreen --max-fps 60
+```
+
+The drive's message 15 opens `SMS_Message.fng`, which closes on Back (Accept only with its Done button in focus), hence
+the `back` at the end of the loop; Back is refused in the first-car lot, and in the bio it goes on as Accept does.
 
 ### Career-flow trace
 
@@ -294,5 +304,10 @@ lines in a row can share a `sim_time`.
 | `handoff` | `to`: `car_lot` (`zone`, `first_car`), `drive_to_safe_house`, `first_safe_house_visit`, `safe_house` |
 | `blacklist_step` | a step of the safe house's Blacklist sequence: `action`, `stage` |
 | `car_lot_action` | a confirmed purchase or sale: `action`, `first_drive`, `outcome` |
+| `car_lot_list` | the lot as it opens: `tab`, `first_car`, `cursor` (the row shown first) and `rows` (`car`, `price`, `locked`) in list order |
+| `pad` | a pad button a screen received: `screen`, `button` (what answered or closed it) |
+| `gps_route`, `gps_end` | a GPS route set (`target`, `car`, `segments`, `polyline`: the route's road every 25 m, render space) or ended (`why`: `finished`, `lost`, `cleared`) |
+| `gps_sample` | once a second while a route is set: `car`, `heading`, `speed`, `state`, `aim` (the arrow's look-ahead point) and `aim_dir`, `bearing_wanted`, `bearing_drawn`, `arrow_yaw`, `arrow_tip` (where the drawn model's point goes), `arrow_shown`, `road_dir` and `off_road_m` (the route's road nearest the car), `to_target_m`, `next_turn`. Angles in degrees on the render ground plane |
+| `career_start` | `--career-start first-car-lot` set the prologue's end state: `at`, `cash` |
 | `career_state` | when any of these changed since the last such line: `playing`, `alias`, `stage` (the bin), `cash`, `car_handle`, `car`, `cars_owned`, `flags` (settings flags, hex), `won_in_career` (event ids), `unlocked_in_career` (a count), `rival_beaten` |
-| `run_end` | `reason`: `first_car_bought` with `--exit-after-first-car` |
+| `run_end` | `reason`: `first_car_bought` with `--exit-after-first-car`, `first_visit_done` with `--exit-after-first-visit` |

@@ -1,18 +1,20 @@
 //! The drive to the first safe house in the world (`docs/specs/story-flow.md` section 2.5). After the car lot the front end
 //! starts free roam with the car the player picked, and the rules of `nfsmw_career::story::drive_to_target` run on it:
-//! the cops are kept off, the GPS navigates to the safe house, message 15 comes and message 121 after 120 s. Arriving at
-//! the safe house respawn marker calls the safe house intro, which is a request to the front end
+//! the cops are kept off, message 15 comes, the GPS navigates to the activity's `gpstarget` box a quarter second in, and
+//! message 121 comes after 120 s. Entering the box calls the safe house intro, which is a request to the front end
 //! ([`CareerRequest::SafeHouse`], the same one a safe house entry sends).
 
 use glam::Vec3;
-use nfsmw_career::story::drive_to_target::{DriveEvent, DriveState, DriveToSafeHouse, skip_career_intro};
+use nfsmw_career::story::drive_to_target::{
+    DriveEvent, DriveState, DriveToSafeHouse, SAFE_HOUSE_AUTO_GPS, skip_career_intro,
+};
 use nfsmw_data::gameplay::BoxTrigger;
 
 use crate::career::CareerRequest;
 use crate::scenes::world::{WorldScene, space};
 
 /// The safe house's activity zone. Its `respawn` marker is where the drive ends (`DoSafeHouseIntro`, F-17).
-const SAFE_HOUSE_ZONE: &str = "menu_gate_safehouse/zone_safehouse_1";
+pub(super) const SAFE_HOUSE_ZONE: &str = "menu_gate_safehouse/zone_safehouse_1";
 /// The end of the `gpstarget` trigger's name: the child of the drive's activity, `race_bin_16/drive_to_safe_house/gpstarget`.
 const GPS_TARGET_SUFFIX: &str = "drive_to_safe_house/gpstarget";
 /// How near the respawn marker the car must be to arrive, when the activity's trigger is not in the data (metres).
@@ -30,6 +32,10 @@ pub(in crate::scenes::world) struct SafeHouseDrive {
     pub gps_wanted: bool,
     /// Seconds until the next try at the route.
     pub gps_retry: f32,
+    /// The largest deviation from the route the GPS was asked for, metres (0 for the GPS's default).
+    pub gps_deviation: f32,
+    /// The unattended driver's route to the safe house (`drive_pilot.rs`), built when it first takes the car.
+    pub pilot_route: Option<std::sync::Arc<blackbox_roads::Route>>,
 }
 
 /// Seconds between the tries at the GPS route.
@@ -78,13 +84,13 @@ impl WorldScene {
         self.apply_safe_house_drive(events);
     }
 
-    /// Starts the drive's machine: cops off, the GPS to the safe house, and message 15 unless the career intro is skipped.
-    /// The GPS is taken as set to auto (the setting is not read yet).
+    /// Starts the drive's machine: cops off, and message 15 unless the career intro is skipped; the activity's
+    /// `AutoActivateGPS` is false in the install, so the GPS comes from the driving state's timer.
     fn begin_safe_house_drive(&mut self) {
         let skip = self.career.handle.with(|career| skip_career_intro(false, career.settings.flags)).unwrap_or(false);
         log::info!("drive: the drive to the first safe house starts (career intro skipped: {skip})");
-        let (machine, events) = DriveToSafeHouse::start(true, skip);
-        self.career.safe_house_drive.machine = Some(machine);
+        let (machine, events) = DriveToSafeHouse::start(SAFE_HOUSE_AUTO_GPS, skip);
+        self.career.safe_house_drive.machine = (machine.state() != DriveState::Done).then_some(machine);
         self.apply_safe_house_drive(events);
     }
 
@@ -96,12 +102,11 @@ impl WorldScene {
                 DriveEvent::CopsOff => self.bar_drive_cops(true),
                 DriveEvent::CopsOn => self.bar_drive_cops(false),
                 DriveEvent::AddSms(id) => self.deliver_drive_sms(id),
-                DriveEvent::GpsNavigate { .. } => {
+                DriveEvent::GpsNavigate { max_deviation_m, .. } => {
+                    self.career.safe_house_drive.gps_deviation = max_deviation_m;
                     self.career.safe_house_drive.gps_wanted = !self.route_to_safe_house();
                     self.career.safe_house_drive.gps_retry = GPS_RETRY_SECS;
                 }
-                // The hint at an offset from the target is not drawn yet; the route set at the start stays.
-                DriveEvent::GpsShow { .. } => {}
                 DriveEvent::GpsOff => {
                     self.career.safe_house_drive.gps_wanted = false;
                     self.route_to(None);
@@ -128,14 +133,25 @@ impl WorldScene {
         log::info!("drive: message {id} sent: {outcome:?}");
     }
 
-    /// Sets the GPS route to the safe house's respawn marker. `false` when there is no route yet.
+    /// Sets the GPS route to the drive's target: the activity's `gpstarget` box, or the safe house's respawn marker when the
+    /// data has no box. `false` when there is no route yet.
     fn route_to_safe_house(&mut self) -> bool {
-        let Some(placement) = self.gameplay.as_ref().and_then(|data| data.zone_respawn(SAFE_HOUSE_ZONE)) else {
-            log::warn!("drive: {SAFE_HOUSE_ZONE} has no respawn marker, so the GPS has no route");
+        let Some(target) = self.safe_house_target() else {
+            log::warn!("drive: {SAFE_HOUSE_ZONE} has no target, so the GPS has no route");
             return true;
         };
-        let marker = space::to_render(placement.position.to_array());
-        self.route_to(Some([marker.x, marker.y]))
+        let at = space::to_render(target.to_array());
+        let deviation = self.career.safe_house_drive.gps_deviation;
+        self.route_to_within(Some([at.x, at.y]), deviation)
+    }
+
+    /// The drive's target in physics space: the `gpstarget` box's centre, else the respawn marker.
+    fn safe_house_target(&self) -> Option<Vec3> {
+        let data = self.gameplay.as_ref()?;
+        let gps_target = data.triggers.iter().find(|zone| zone.name.ends_with(GPS_TARGET_SUFFIX));
+        gps_target
+            .map(|zone| zone.position)
+            .or_else(|| data.zone_respawn(SAFE_HOUSE_ZONE).map(|marker| marker.position))
     }
 
     /// Tries the GPS route again while it is wanted and not set, once a second.

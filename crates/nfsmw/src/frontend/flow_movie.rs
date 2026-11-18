@@ -39,7 +39,8 @@ impl Frontend {
         let skip = actions.just_pressed(Action::MenuAccept)
             || actions.just_pressed(Action::MenuStart)
             || actions.just_pressed(Action::MenuBack)
-            || actions.just_pressed(Action::Click);
+            || actions.just_pressed(Action::Click)
+            || crate::parity::career_trace::skip_cinematics();
         if host.scene.finished() || skip {
             let how = if skip { "skipped" } else { "finished" };
             crate::parity::career_trace::record("movie_end", serde_json::json!({"player": "front_end", "how": how}));

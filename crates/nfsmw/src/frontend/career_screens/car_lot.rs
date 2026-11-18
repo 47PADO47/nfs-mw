@@ -342,6 +342,21 @@ impl CarLotLogic {
         self.fill(cx);
     }
 
+    /// The career-flow trace's line for the lot as it opens: every row of the tab in order, and the one shown first.
+    fn trace_list(&self) {
+        if !crate::parity::career_trace::enabled() {
+            return;
+        }
+        let rows: Vec<serde_json::Value> = self
+            .rows()
+            .iter()
+            .map(|row| serde_json::json!({"car": row.name, "price": row.price, "locked": row.locked}))
+            .collect();
+        let line = serde_json::json!({"tab": format!("{:?}", self.tab), "first_car": self.first_car,
+            "cursor": self.cursor, "rows": rows});
+        crate::parity::career_trace::record("car_lot_list", line);
+    }
+
     /// Switches between the Lot and Owned tabs, starting at the tab's first car.
     fn switch_tab(&mut self, cx: &mut Cx) {
         self.tab = self.tab.other();
@@ -406,6 +421,7 @@ impl ScreenLogic for CarLotLogic {
             None => self.cursor = self.rows().iter().position(|item| !item.locked).unwrap_or(0),
         }
         self.clamp();
+        self.trace_list();
         self.fill(cx);
     }
 

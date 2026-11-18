@@ -2,15 +2,16 @@
 //! start the prologue race the chain is at, as a career race in the car that race forces. The car lot that the scripted
 //! chase of `16.2.1` opens picks the car the drive to the first safe house is made in.
 
+use nfsmw_career::blacklist::{EventResult, apply_event_result};
 use nfsmw_career::carlot;
 use nfsmw_career::safehouse::resume::PROLOGUE_END_EVENT;
 use nfsmw_career::settings::{NodeStates, PROLOGUE_STAGE};
-use nfsmw_career::story::prologue::{PrologueResume, resume_point};
+use nfsmw_career::story::prologue::{PROLOGUE_CHAIN, PrologueResume, resume_point};
 use nfsmw_data::car::{CarTables, list, pick_folder};
 use nfsmw_data::gameplay::GameplayData;
 
 use crate::app::Host;
-use crate::career::race_event_id;
+use crate::career::{Career, race_event_id};
 use crate::frontend::ids::screen;
 use crate::frontend::logic::{Args, Env, QuitTo};
 use crate::frontend::look::{CarLook, DEFAULT_CAR};
@@ -58,7 +59,58 @@ pub(super) fn prologue_resume(nodes: &NodeStates, stage: u8) -> Option<&'static 
     }
 }
 
+/// The state the prologue leaves a new career in, for an unattended run that starts in its car lot
+/// (`--career-start first-car-lot`): each event of the chain won in the career, with the cash its data pays on a win. The
+/// rewards of the races (the three markers of `16.2.3`) are not granted. Returns the cash the career then holds.
+pub(super) fn finish_prologue(career: &mut Career) -> u32 {
+    for event in PROLOGUE_CHAIN {
+        let cash_value = career
+            .data
+            .gameplay
+            .races
+            .iter()
+            .find(|race| race_event_id(race) == event)
+            .map_or(0.0, |race| race.params.cash_value);
+        let result = EventResult {
+            event: event.to_owned(),
+            placing: 1,
+            cash_value,
+            is_challenge: false,
+            bin: 0,
+            career: true,
+            bounty_total: None,
+            challenge_series_complete: false,
+        };
+        apply_event_result(
+            &mut career.settings,
+            &mut career.blacklist,
+            &mut career.milestones,
+            &mut career.traps,
+            &mut career.stable,
+            &result,
+        );
+        let mut nodes = career.settings.nodes();
+        if let Err(e) = nodes.set_won_in_career(event) {
+            log::warn!("career run: the race record of {event} is not written: {e}");
+        }
+        career.settings.set_nodes(&nodes);
+    }
+    career.settings.cash
+}
+
 impl Frontend {
+    /// A new career of an unattended run that starts in the prologue's car lot: the prologue is marked done and the career
+    /// resumes where it then stands, the first car's lot (`resume_first_car`). `false` when the run did not ask for it.
+    pub(super) fn start_at_first_car_lot(&mut self, host: &mut Host, env: &mut Env) -> bool {
+        if !crate::parity::career_trace::start_at_first_car_lot() {
+            return false;
+        }
+        let cash = self.career.with(finish_prologue);
+        crate::parity::career_trace::record("career_start", serde_json::json!({"at": "first_car_lot", "cash": cash}));
+        self.origin = QuitTo::Career;
+        self.resume_first_car(host, env)
+    }
+
     /// Starts the career race `event` behind the loading screen (a prologue race, or the final race on a resume): the world
     /// is queued with it and the car the race forces, and the race's own chain takes over from its `PostRaceActivity`.
     pub(super) fn start_career_race(&mut self, event: &str, host: &mut Host, env: &mut Env) {

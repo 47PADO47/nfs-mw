@@ -14,7 +14,7 @@ use crate::career::{Career, CareerData, CareerHandle};
 use crate::frontend::flow::Stage;
 use crate::frontend::flow::flow_movie::AfterMovie;
 use crate::frontend::flow_movie_tests::{Rig, install_rig};
-use crate::frontend::ids::screen::{MAIN_MENU_SUB, SAFE_HOUSE_RIVAL_BIO};
+use crate::frontend::ids::screen::{SAFE_HOUSE_REPUTATION_OVERVIEW, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE};
 use crate::frontend::logic::Command;
 
 #[test]
@@ -81,7 +81,7 @@ fn the_first_visit_plays_the_intro_and_the_bio_enters_bin_15() {
 }
 
 #[test]
-fn the_bio_accept_plays_the_rival_movie_then_ends_at_the_safe_house_with_the_opening_seen() {
+fn the_bio_accept_plays_the_rival_movie_then_opens_the_blacklist_page_with_the_opening_seen() {
     let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(mut rig) = prologue_rig() else { return };
     rig.with(|fe, host, _| fe.first_visit_intro(host));
@@ -93,7 +93,11 @@ fn the_bio_accept_plays_the_rival_movie_then_ends_at_the_safe_house_with_the_ope
         rig.fe.stage
     );
     rig.with(|fe, host, env| fe.end_movie(host, env));
-    assert_eq!(rig.fe.screens.top(), Some(MAIN_MENU_SUB), "the safe house menu stands in for the overview");
+    let top = rig.fe.screens.top();
+    assert!(
+        matches!(top, Some(SAFE_HOUSE_REPUTATION_OVERVIEW | SAFE_HOUSE_RIVAL_CHALLENGE)),
+        "step 6 opens the Blacklist page of the safe house: {top:?}"
+    );
     assert!(rig.fe.in_safe_house, "leaving the menu autosaves and starts the world");
     assert!(career_flags().contains(Flags::OPENING_SEEN), "step 6 sets the opening seen flag");
     assert!(CareerHandle::shared().is_prelude(), "the world is gone: the menu stands before it");

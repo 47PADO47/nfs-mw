@@ -60,7 +60,7 @@ impl Cli {
     }
 }
 
-mod career_args;
+pub(crate) mod career_args;
 mod command;
 mod hud_demo;
 #[cfg(feature = "multiplayer")]

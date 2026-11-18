@@ -6,6 +6,7 @@
 
 mod arrow;
 mod hud;
+mod trace;
 
 use std::f32::consts::{PI, TAU};
 
@@ -46,6 +47,8 @@ pub struct Guide {
     /// The route's bearing from the car's straight ahead, radians, positive to the right.
     bearing: f32,
     guests: Vec<(PlayerId, Guide)>,
+    /// Seconds since the career-flow trace's last sample of the arrow (`trace.rs`).
+    sample_clock: f32,
 }
 
 impl Guide {
@@ -63,21 +66,30 @@ impl WorldScene {
     /// `None`. Every co-op guest gets the same target from their own car. Returns whether the lead's route is now set: a
     /// point with no road or no way to it sets nothing.
     pub(super) fn route_to(&mut self, target: Option<[f32; 2]>) -> bool {
+        self.route_to_within(target, 0.0)
+    }
+
+    /// [`WorldScene::route_to`] with the largest deviation from the route before it is lost, metres; below 0.1 the
+    /// GPS's default (`blackbox_roads::MAX_DEVIATION`).
+    pub(super) fn route_to_within(&mut self, target: Option<[f32; 2]>, max_deviation: f32) -> bool {
         let Some(target) = target else {
-            self.guide.route = None;
+            if self.guide.route.take().is_some() {
+                Self::trace_gps_end("cleared");
+            }
             self.guide.guests.clear();
             return true;
         };
         let (Some(lead), Some(traffic)) = (self.players.lead(), self.traffic.as_ref()) else {
             return false;
         };
-        if !engage(&mut self.guide, lead, traffic, target) {
+        if !engage(&mut self.guide, lead, traffic, target, max_deviation) {
             return false;
         }
+        self.trace_gps_route(target);
         for player in self.players.guests() {
             let guide = guest_slot(&mut self.guide.guests, player.id);
             // A guest with no way to the point keeps no route, but the lead's answer stands.
-            engage(guide, &player.drive, traffic, target);
+            engage(guide, &player.drive, traffic, target, max_deviation);
         }
         true
     }
@@ -94,6 +106,7 @@ impl WorldScene {
             let Some(drive) = self.players.get(*id) else { continue };
             follow(guide, drive, traffic, dt);
         }
+        self.trace_gps_sample(dt);
     }
 
     /// The minimap blip of the route's target, if a route is set.
@@ -136,13 +149,13 @@ impl WorldScene {
 
 /// Routes `guide` from `drive`'s car to the render-space point `target`. Returns whether the route is now set; a failed
 /// search leaves the guide's route as it was.
-fn engage(guide: &mut Guide, drive: &Drive, traffic: &ai::TrafficWorld, [x, y]: [f32; 2]) -> bool {
+fn engage(guide: &mut Guide, drive: &Drive, traffic: &ai::TrafficWorld, [x, y]: [f32; 2], max_deviation: f32) -> bool {
     let pose = drive.physics_pose();
     let (net, index) = traffic.road_graph();
     // The target is taken at the car's height; the route's own search puts it on the road.
     let goal = physics_point(Vec3::new(x, y, pose.position.z));
-    let route =
-        Gps::engage(net, index, physics_point(pose.position), physics_direction(pose.rotation * Vec3::X), goal, 0.0);
+    let heading = physics_direction(pose.rotation * Vec3::X);
+    let route = Gps::engage(net, index, physics_point(pose.position), heading, goal, max_deviation);
     let Some(route) = route else {
         log::info!("gps: no route to ({x:.0}, {y:.0})");
         return false;
@@ -167,6 +180,7 @@ fn follow(guide: &mut Guide, drive: &Drive, traffic: &ai::TrafficWorld, dt: f32)
             GpsEnd::Lost => "lost",
         };
         log::info!("gps: route {text}");
+        WorldScene::trace_gps_end(text);
         guide.route = None;
         return;
     }

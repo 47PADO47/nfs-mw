@@ -332,6 +332,7 @@ impl Screens {
         if !input_gate::deliver_to_owner(self.stack.last().map(|screen| screen.id), package, message) {
             return;
         }
+        self.trace_pad(package, message);
         self.with_logic(package, env, out, |logic, cx| logic.message(cx, message));
     }
 

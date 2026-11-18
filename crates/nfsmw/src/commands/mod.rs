@@ -89,6 +89,12 @@ pub fn run(cli: Cli) -> Result<()> {
             crate::parity::career_trace::path_of(career_run.career_trace.clone(), |name| std::env::var(name).ok());
         crate::parity::career_trace::init(path.as_deref());
         crate::parity::career_trace::set_exit_after_first_car(career_run.exit_after_first_car);
+        let first_lot = career_run.career_start == crate::cli::career_args::CareerStart::FirstCarLot;
+        crate::parity::career_trace::set_run_options(
+            career_run.exit_after_first_visit,
+            career_run.skip_cinematics,
+            first_lot,
+        );
     }
     match command {
         Command::CheckInstall => install::check(game_dir),

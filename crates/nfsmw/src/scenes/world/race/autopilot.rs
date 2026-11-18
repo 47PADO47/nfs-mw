@@ -55,6 +55,8 @@ impl WorldScene {
             self.race.as_ref().filter(|session| session.challenge.is_none()).and_then(|session| {
                 pilot_aim(&session.stage, session.engine.as_ref(), session.route.as_ref(), autopilot)
             });
+        // Out of a race, an unattended career run's drive to the first safe house (`career/drive_pilot.rs`).
+        let aim = aim.or_else(|| self.drive_pilot_aim(autopilot.skill));
         let Some(aim) = aim else { return self.release_autopilot() };
         let Some(drive) = self.players.lead() else { return };
         let Some(view) = drive.sim().map(|sim| sim.driver_view()) else { return };

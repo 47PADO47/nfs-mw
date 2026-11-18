@@ -1,19 +1,46 @@
-//! The scripted chase of race `16.2.1` as a state machine (`docs/specs/story-flow.md` section 2.4;
-//! `docs/specs/career-scripts-events.md` section 2.2; F-15 and F-16 in `docs/specs/story-flow-2.md` section 6).
+//! The scripted triggers of the two D-Day races, `16.1.0` and `16.2.1`, as a state machine (`docs/specs/story-flow.md`
+//! section 2.4; `docs/specs/career-scripts-events.md` section 2.2; F-15 and F-16 in `docs/specs/story-flow-2.md` section
+//! 6). Each race has its own copy of the trigger handler, so the rules differ by [`ChaseScript`]:
 //!
 //! The caller feeds one [`ChaseInput`] per frame and plays the [`ChaseEvent`]s it gets back. The machine owns the
-//! timers that the spec starts on each trigger, and each event is emitted once:
+//! timers that the scripts start on each trigger, and each event is emitted once:
 //!
-//! - the call trigger requests phone call 10 and waits for it to load; the backup sabotage comes 15 s after the trigger
-//!   (`secs_since_call_trigger` is the caller's clock from that trigger);
+//! - the call trigger requests phone call 10. In `16.1.0` it waits for the call to load (`WaitForCallLoad`); in `16.2.1`
+//!   it starts the backup sabotage instead, 15 s after the trigger (`secs_since_call_trigger` is the caller's clock from
+//!   that trigger);
 //! - the kill trigger sabotages at once, if the engine is not sabotaged yet;
-//! - when the call starts, an 8 s fade timer starts; when it fires the screen fades on, and 3 s later the race ends
-//!   (11 s after the call started, F-16);
+//! - when a waited-for call starts, an 8 s fade timer starts; when it fires the screen fades on, and 3 s later the race
+//!   ends (11 s after the call started, F-16);
 //! - when the engine blows, a 1 s timer ends the race (F-16). Whichever end fires first ends the race, and nothing is
 //!   emitted after it.
 //!
 //! The timers on the call and the engine count the frames' `dt`. A clock starts on the frame of its event, so the
 //! event's own frame adds no time and the next frames do.
+
+/// What a race's copy of the trigger handler does at the call trigger **[verified]** (the Lua chunks of `gameplay.bin`:
+/// `16.1.0`'s copy sets `WaitForCallLoad` and calls `ECellCall(10)`; `16.2.1`'s copy starts the `backup` timer and calls
+/// `ECellCall(10)`, and only it handles `kill_engine`, `cop_spawn_trigger` and `bail_trigger`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChaseScript {
+    /// The call is waited for: its start runs the fade and kill timers that end the race.
+    pub call_ends_race: bool,
+    /// The call trigger starts the 15 s backup sabotage.
+    pub backup_sabotage: bool,
+}
+
+/// `16.1.0`: the call from Mia ends the race 11 s after it starts. No sabotage.
+pub const OPENING_SCRIPT: ChaseScript = ChaseScript { call_ends_race: true, backup_sabotage: false };
+/// `16.2.1`: the call from Mia comes with the backup sabotage; the blown engine ends the race.
+pub const CHASE_SCRIPT: ChaseScript = ChaseScript { call_ends_race: false, backup_sabotage: true };
+
+/// The script of the race with event id `event`, for the two races that have one.
+pub fn script_of(event: &str) -> Option<ChaseScript> {
+    match event {
+        "16.1.0" => Some(OPENING_SCRIPT),
+        "16.2.1" => Some(CHASE_SCRIPT),
+        _ => None,
+    }
+}
 
 /// The sabotage level of both sabotage paths (section 2.4).
 pub const SABOTAGE_LEVEL: u8 = 5;
@@ -99,9 +126,10 @@ pub enum ChaseEvent {
     PostRace,
 }
 
-/// The chase's state. Build it with [`Chase::new`] and call [`Chase::update`] once per frame.
-#[derive(Debug, Clone, Default, PartialEq)]
+/// The chase's state. Build it with [`Chase::for_script`] and call [`Chase::update`] once per frame.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Chase {
+    script: ChaseScript,
     sabotaged: bool,
     call_placed: bool,
     waiting_for_call: bool,
@@ -115,10 +143,32 @@ pub struct Chase {
     finished: bool,
 }
 
+impl Default for Chase {
+    fn default() -> Chase {
+        Chase::new()
+    }
+}
+
 impl Chase {
-    /// The chase before any trigger.
+    /// The chase of `16.2.1` before any trigger.
     pub fn new() -> Chase {
-        Chase::default()
+        Chase::for_script(CHASE_SCRIPT)
+    }
+
+    /// The race's triggers under `script`, before any trigger.
+    pub fn for_script(script: ChaseScript) -> Chase {
+        Chase {
+            script,
+            sabotaged: false,
+            call_placed: false,
+            waiting_for_call: false,
+            call_clock: None,
+            faded_on: false,
+            blow_clock: None,
+            cops_on: false,
+            bailed: false,
+            finished: false,
+        }
     }
 
     /// True once the race has gone to postrace. No later update emits anything.
@@ -156,10 +206,11 @@ impl Chase {
         }
         if input.secs_since_call_trigger.is_some() && !self.call_placed {
             self.call_placed = true;
-            self.waiting_for_call = true;
+            self.waiting_for_call = self.script.call_ends_race;
             out.push(ChaseEvent::PlaceCall { id: CHASE_CALL_ID });
         }
-        if input.secs_since_call_trigger.is_some_and(|secs| secs >= BACKUP_SABOTAGE_SECS) {
+        let backup_due = input.secs_since_call_trigger.is_some_and(|secs| secs >= BACKUP_SABOTAGE_SECS);
+        if self.script.backup_sabotage && backup_due {
             self.sabotage(out);
         }
         if input.at_cop_spawn {
