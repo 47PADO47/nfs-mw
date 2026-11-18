@@ -1,7 +1,10 @@
 //! An AI racer's think: path to the next checkpoint, steer point past traffic, speed from the car's limits and the
 //! skill. Specs: `docs/specs/ai-racers.md`, `docs/specs/ai-racers-route.md`, `docs/specs/ai-driver-speed-skill.md`.
 
-use blackbox_driver::{CarLimits, SpeedGovernor, StuckDetector, potential_acceleration, potential_speed, ramp};
+use blackbox_driver::{
+    CarLimits, NitrousLimits, NitrousTimer, NitrousView, SpeedGovernor, StuckDetector, potential_acceleration,
+    potential_speed, ramp,
+};
 use blackbox_roads::{
     PathState, PathType, RandomSource, RoadNav, RoadNetwork, SegmentIndex, trail_curvature, update_occluded_position,
 };
@@ -87,6 +90,12 @@ pub struct RacerState {
     /// A person drives this racer (split screen): the pedals they hold this frame. The think, the driver, the emulation
     /// and the catch-up leave the racer alone (`docs/specs/split-screen.md` section 3).
     pub human: Option<crate::scenes::world::drive::DriveInput>,
+    /// The nitrous the racer may use, its on/off timer, the button it holds, and its speed at the last think (for its
+    /// acceleration), `docs/specs/ai-driver-speed-skill.md` section 7.1.
+    nitrous: NitrousLimits,
+    nitrous_timer: NitrousTimer,
+    nitrous_on: bool,
+    last_speed: Option<f32>,
 }
 
 /// What a racer's think decided.
@@ -94,6 +103,13 @@ pub struct RacerState {
 pub struct RacerThink {
     pub target: Vec3,
     pub speed: f32,
+}
+
+/// The car's nitrous as the think sees it: the tank level (0..1) and whether the button is held.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct TankView {
+    pub tank: f32,
+    pub held: bool,
 }
 
 impl RacerState {
@@ -114,8 +130,13 @@ impl RacerState {
         bias: f32,
         base_skill: f32,
         speed: f32,
+        nitrous: NitrousLimits,
     ) -> Self {
         Self {
+            nitrous,
+            nitrous_timer: NitrousTimer::default(),
+            nitrous_on: false,
+            last_speed: None,
             id,
             limits: matched_limits(&performance, &ai, &player, bias),
             performance,
@@ -166,10 +187,16 @@ impl RacerState {
         Some(0.23 + (0.5 - 0.23) * self.cheat())
     }
 
-    fn action_acceleration(&self, speed: f32, slope_forward_y: f32) -> f32 {
+    fn action_acceleration(&self, speed: f32, slope_forward_y: f32, burning: bool) -> f32 {
         let table = self.performance.acceleration_at(speed).min(self.player.acceleration_at(speed));
         let scale = CATCH_UP_ACCELERATION.lookup(self.cheat());
-        potential_acceleration(table * scale, &self.limits, self.skill(), None, slope_forward_y)
+        let nos = burning.then_some(self.nitrous.boost);
+        potential_acceleration(table * scale, &self.limits, self.skill(), nos, slope_forward_y)
+    }
+
+    /// The nitrous button the racer holds (its last think's choice).
+    pub fn nitrous(&self) -> bool {
+        self.nitrous_on
     }
 
     /// Where the racer drives to (physics space). `None` once it has finished.
@@ -204,6 +231,7 @@ impl RacerState {
         traffic: impl IntoIterator<Item: Into<blackbox_roads::Neighbour>>,
         check_off_path: bool,
         slope_forward_y: f32,
+        tank: TankView,
     ) -> RacerThink {
         let (net, index, rng) = (ctx.net, ctx.index, &mut *ctx.rng);
         let Some(goal) = self.goal else {
@@ -250,7 +278,12 @@ impl RacerState {
             nav.advance_with_lookahead(net, (look - gap).max(0.0), toward, look, rng);
         }
         // Staging on the grid: a walking-pace request at the plain road point (`ai-driver-speed-skill.md` section 1).
+        let burning = tank.held && tank.tank > 0.0;
+        let acceleration = self.last_speed.map_or(0.0, |last| (car.forward_speed - last) / self.think_delta.max(1e-3));
+        self.last_speed = Some(car.forward_speed);
         if self.held {
+            self.nitrous_on = false;
+            self.nitrous_timer.seconds = (self.nitrous_timer.seconds - self.think_delta).min(0.0);
             let speed = self.governor.stage(car.forward_speed, self.skill());
             return RacerThink { target: nav.position, speed };
         }
@@ -267,8 +300,20 @@ impl RacerState {
         let skill = self.skill();
         let potential = potential_speed(&self.limits, curvature, skill, None);
         let reference = speed.abs().max(self.governor.speed_limit);
-        let accel = self.action_acceleration(reference, slope_forward_y);
+        let accel = self.action_acceleration(reference, slope_forward_y, burning);
         let wanted = self.governor.update(speed, potential, accel, skill, self.think_delta);
+        let view = NitrousView {
+            speed,
+            speed_limit: wanted,
+            potential_speed: potential,
+            potential_accel: accel,
+            acceleration,
+            skill,
+            burning,
+            tank: tank.tank,
+            barred: occlusion.as_ref().is_some_and(|o| o.occluded()),
+        };
+        self.nitrous_on = self.nitrous_timer.decide(&self.nitrous, &view, self.think_delta);
         let target = occlusion.map_or(nav.position, |o| o.position);
         log::trace!(
             "racer {}: at ({:.0}, {:.0}) segment {} on_route {} target ({:.0}, {:.0}) speed {wanted:.1}",
@@ -350,100 +395,4 @@ pub fn stand_in_speed(current: f32, wanted: f32, accel: f32, top_speed: f32, ski
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_stand_in_speeds_up_by_skill_and_brakes_hard() {
-        assert!((stand_in_speed(10.0, 50.0, 4.0, 80.0, 1.0, 0.5) - 12.0).abs() < 1e-5);
-        assert!((stand_in_speed(10.0, 50.0, 4.0, 80.0, 0.0, 0.5) - 11.0).abs() < 1e-5, "half the pull");
-        assert_eq!(stand_in_speed(49.0, 50.0, 4.0, 80.0, 1.0, 1.0), 50.0, "never past the wanted speed");
-        assert_eq!(stand_in_speed(50.0, 20.0, 4.0, 80.0, 1.0, 0.5), 35.0, "30 m/s² of braking");
-        assert_eq!(stand_in_speed(50.0, 49.0, 4.0, 80.0, 1.0, 0.5), 49.0);
-    }
-
-    #[test]
-    fn a_stand_in_never_beats_its_skills_share_of_the_top_speed() {
-        assert_eq!(stand_in_speed(70.0, 90.0, 4.0, 80.0, 0.0, 1.0), 60.0);
-        assert_eq!(stand_in_speed(70.0, 90.0, 40.0, 80.0, 1.0, 1.0), 80.0);
-        assert_eq!(stand_in_speed(0.0, -5.0, 4.0, 80.0, 1.0, 1.0), 0.0, "it does not reverse");
-    }
-
-    fn performance(top: f32, grip: f32) -> Performance {
-        Performance {
-            top_speed: top,
-            acceleration: [5.0; blackbox_vehicle::performance::TABLE_SIZE],
-            start_grip: grip,
-            end_grip: grip,
-        }
-    }
-
-    #[test]
-    fn a_bias_of_zero_matches_the_racer_down_to_the_player() {
-        let racer = performance(90.0, 1.4);
-        let player = performance(70.0, 1.0);
-        let limits = matched_limits(&racer, &AiVehicle::default(), &player, 0.0);
-        assert_eq!((limits.top_speed, limits.start_grip), (70.0, 1.0));
-    }
-
-    #[test]
-    fn a_bias_of_one_keeps_the_racers_own_numbers() {
-        let racer = performance(90.0, 1.4);
-        let player = performance(70.0, 1.0);
-        let limits = matched_limits(&racer, &AiVehicle::default(), &player, 1.0);
-        assert_eq!((limits.top_speed, limits.start_grip), (90.0, 1.4));
-    }
-
-    #[test]
-    fn a_weaker_racer_is_never_raised() {
-        let racer = performance(60.0, 0.9);
-        let player = performance(70.0, 1.0);
-        for bias in [0.0, 0.5, 1.0] {
-            let limits = matched_limits(&racer, &AiVehicle::default(), &player, bias);
-            assert_eq!((limits.top_speed, limits.start_grip), (60.0, 0.9), "bias {bias}");
-        }
-    }
-
-    #[test]
-    fn the_skill_adds_the_catch_up_and_stays_in_range() {
-        let mut state =
-            RacerState::new(1, performance(80.0, 1.2), AiVehicle::default(), performance(80.0, 1.2), 1.0, 0.8, 0.0);
-        state.glue = 0.5;
-        assert_eq!(state.skill(), 1.0);
-        assert!((state.cheat() - 0.15).abs() < 1e-6);
-        state.human = Some(Default::default());
-        assert_eq!(state.cheat(), 0.0);
-        state.human = None;
-        state.glue = -1.0;
-        assert_eq!(state.skill(), 0.0);
-        assert_eq!(state.cheat(), 0.0);
-    }
-
-    #[test]
-    fn catch_up_increases_level_road_acceleration_and_does_not_become_a_grade() {
-        let mut state =
-            RacerState::new(1, performance(80.0, 1.2), AiVehicle::default(), performance(80.0, 1.2), 0.0, 1.0, 0.0);
-        let ordinary = state.action_acceleration(40.0, 0.0);
-        state.glue = 0.75;
-        let boosted = state.action_acceleration(40.0, 0.0);
-        assert!(boosted > ordinary);
-        assert!((boosted / ordinary - 1.37125).abs() < 1e-5);
-        assert!(state.action_acceleration(40.0, 0.1) < boosted, "only the actual road slope subtracts gravity");
-        state.human = Some(Default::default());
-        assert_eq!(state.action_acceleration(40.0, 0.0), ordinary);
-    }
-
-    #[test]
-    fn native_steering_drag_applies_to_non_drag_computer_racers_only() {
-        let mut state =
-            RacerState::new(1, performance(80.0, 1.2), AiVehicle::default(), performance(80.0, 1.2), 0.0, 1.0, 0.0);
-        assert_eq!(state.steering_drag(), Some(0.23));
-        state.glue = 0.75;
-        assert!((state.steering_drag().unwrap() - 0.33125).abs() < 1e-6);
-        state.drag = true;
-        assert_eq!(state.steering_drag(), None);
-        state.drag = false;
-        state.human = Some(Default::default());
-        assert_eq!(state.steering_drag(), None);
-    }
-}
+mod tests;

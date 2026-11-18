@@ -43,6 +43,9 @@ pub struct Controls {
     pub gear: i32,
     /// Engine revolutions per minute.
     pub rpm: f32,
+    /// The engine's drive torque this step, N m, and the wheels touching the ground.
+    pub drive_torque: f32,
+    pub wheels_on_ground: u32,
 }
 
 /// What the AI driver of a racer asked for in the tick of a sample: an opponent's driver, or the autopilot's in the
@@ -62,6 +65,8 @@ pub struct DriverRow {
     pub catch_up_force: f32,
     /// The racer moves on its off-world stand-in, not by physics; `controls` are then those of its last physics step.
     pub stand_in: bool,
+    /// The car's nitrous is burning (false for the player's car).
+    pub nitrous: bool,
 }
 
 /// One racer in a sample.

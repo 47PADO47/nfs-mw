@@ -94,6 +94,10 @@ with the car's heading. Racers that have been knocked out or have finished are n
   think asks for the staging speed at the plain road point ([ai-driver-speed-skill.md](ai-driver-speed-skill.md)
   section 1) **[decomp]**, `ai/car/stepping.rs`, `ai/racer.rs` (rolling starts are not held and start
   at `InitialPlayerSpeed`, unit assumed m/s). They are exempt from the traffic's removal rules and count in its budget.
+- Nitrous: each opponent's boost, usable share and tank are matched to the player's car when it is created, and its think
+  presses the button by [ai-driver-speed-skill.md](ai-driver-speed-skill.md) section 7.1; the player's autopilot never
+  does **[decomp + PC binary, observed]**. What an opponent is built from in the original (behaviours, observed) is in
+  [provenance/ai-racers-composition.md](../provenance/ai-racers-composition.md).
 - Far racers are emulated: [ai-racers-route.md](ai-racers-route.md) section 6.
 
 ## Open questions

@@ -94,6 +94,7 @@ impl WorldScene {
         let Some(drive) = self.players.lead_mut() else { return };
         let player_physics = Vec3::from(space::to_physics(session.plan[0].spawn.position));
         let player_perf = drive.ai_performance();
+        let player_nitrous = drive.nitrous_hardware();
         if !session.options.career {
             session.player_top_speed_rating = nfsmw_data::car::physics::ratings::RatingBook::load(&self.dir)
                 .ok()
@@ -136,6 +137,7 @@ impl WorldScene {
                     model,
                     spawn: plan.spawn,
                     player: player_perf,
+                    player_nitrous,
                     bias: plan.bias,
                     base_skill: plan.skill,
                     speed,

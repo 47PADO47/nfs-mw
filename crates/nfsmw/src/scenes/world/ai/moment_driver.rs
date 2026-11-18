@@ -109,7 +109,16 @@ impl TrafficWorld {
             }
             nav.enable_trail(&self.network);
             let skill = aim.map_or(0.5, |aim| aim.skill);
-            let mut racer = RacerState::new(0, performance, ai, performance, 1.0, skill, view.forward_speed);
+            let mut racer = RacerState::new(
+                0,
+                performance,
+                ai,
+                performance,
+                1.0,
+                skill,
+                view.forward_speed,
+                blackbox_driver::NitrousLimits::default(),
+            );
             racer.held = false;
             match aim {
                 Some(aim) => racer.route = aim.route.clone(),
@@ -164,6 +173,7 @@ impl TrafficWorld {
                 neighbours,
                 state.ticks.is_multiple_of(4),
                 view.forward.y,
+                super::racer::TankView::default(),
             );
             state.request = DriveRequest { target: think.target, speed: think.speed, flags: DriveFlags::FULL };
         }
