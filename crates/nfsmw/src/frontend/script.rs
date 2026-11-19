@@ -2,7 +2,8 @@
 //!
 //! The script replaces the real input and the real clock: every frame takes one step of 1/60 s. A button name
 //! presses it for 4 frames and releases it for 4 frames, `hold NAME SECONDS` keeps it down, `wait SECONDS`
-//! does nothing. `console COMMAND` runs a console command (`console story race 16.2.1`), to drive a world from a script.
+//! does nothing, `until SCREEN` waits (input released) until that screen file is on top. `console COMMAND` runs a
+//! console command (`console story race 16.2.1`), to drive a world from a script.
 //! `loop` repeats the steps after it for as long as the run lasts (`loop; wait 2; accept` presses accept every two
 //! seconds), for unattended runs that press through whatever screen comes up.
 
@@ -27,7 +28,13 @@ struct Step {
     text: Option<String>,
     /// A console command run on the frame this step starts on (`console COMMAND`), for scripts that drive the world.
     console: Option<String>,
+    /// `until SCREEN`: no input until this screen file is on top (`frames` then counts down the time limit), so a
+    /// script can follow a boot flow whose movies take a different number of frames on each run.
+    until: Option<String>,
 }
+
+/// How long an `until` step waits for its screen before the script goes on anyway: two minutes of frames.
+const UNTIL_LIMIT: u32 = 7200;
 
 /// The keys a script can press: the letters, Space, Enter, Numpad Enter and Escape (Space, Enter and Numpad Enter press Start for
 /// the split-screen Press Start screens: the keyboard's, and the arrow block's).
@@ -140,6 +147,7 @@ impl UiScript {
                     pointer: None,
                     text: None,
                     console: None,
+                    until: None,
                 }),
                 ["hold", name, s] => steps.push_back(Step {
                     mask: button(name)?,
@@ -148,6 +156,7 @@ impl UiScript {
                     pointer: None,
                     text: None,
                     console: None,
+                    until: None,
                 }),
                 ["key", name] => steps.push_back(Step {
                     mask: 0,
@@ -156,6 +165,7 @@ impl UiScript {
                     pointer: None,
                     text: None,
                     console: None,
+                    until: None,
                 }),
                 ["pointer", x, y] => {
                     let at = Vec2::new(number(x)?, number(y)?);
@@ -166,6 +176,7 @@ impl UiScript {
                         pointer: Some(at),
                         text: None,
                         console: None,
+                        until: None,
                     });
                 }
                 ["console", ref command @ ..] if !command.is_empty() => steps.push_back(Step {
@@ -175,6 +186,16 @@ impl UiScript {
                     pointer: None,
                     text: None,
                     console: Some(command.join(" ")),
+                    until: None,
+                }),
+                ["until", screen] => steps.push_back(Step {
+                    mask: 0,
+                    frames: UNTIL_LIMIT,
+                    key: None,
+                    pointer: None,
+                    text: None,
+                    console: None,
+                    until: Some(screen.to_owned()),
                 }),
                 ["type", text] => {
                     steps.push_back(Step {
@@ -184,6 +205,7 @@ impl UiScript {
                         pointer: None,
                         text: Some(text.to_owned()),
                         console: None,
+                        until: None,
                     });
                 }
                 [name] => {
@@ -194,8 +216,17 @@ impl UiScript {
                         pointer: None,
                         text: None,
                         console: None,
+                        until: None,
                     });
-                    steps.push_back(Step { mask: 0, frames: 4, key: None, pointer: None, text: None, console: None });
+                    steps.push_back(Step {
+                        mask: 0,
+                        frames: 4,
+                        key: None,
+                        pointer: None,
+                        text: None,
+                        console: None,
+                        until: None,
+                    });
                 }
                 _ => return Err(format!("cannot read the script step {part:?}")),
             }
@@ -226,6 +257,26 @@ impl UiScript {
     /// Where a `pointer` step put the pointer, in FEng units; `None` until one has run.
     pub fn pointer(&self) -> Option<Vec2> {
         self.pointer
+    }
+
+    /// The pad mask of the next frame with `top` the screen on top, or none when the script is over.
+    pub fn next_mask_on(&mut self, top: Option<&str>) -> Option<u32> {
+        if self.steps.is_empty() {
+            self.steps.extend(self.repeat.iter().cloned());
+        }
+        let step = self.steps.front_mut()?;
+        if let Some(screen) = &step.until {
+            let reached = top.is_some_and(|top| top.eq_ignore_ascii_case(screen));
+            step.frames = step.frames.saturating_sub(1);
+            if reached || step.frames == 0 {
+                if !reached {
+                    log::warn!("ui script: {screen} did not come up; the script goes on");
+                }
+                self.steps.pop_front();
+            }
+            return Some(0);
+        }
+        self.next_mask()
     }
 
     /// The pad mask of the next frame, or none when the script is over.
@@ -325,5 +376,13 @@ mod tests {
         assert!(UiScript::parse("jump").unwrap_err().contains("jump"));
         assert!(UiScript::parse("wait soon").is_err());
         assert!(UiScript::parse("").unwrap().is_over());
+    }
+    #[test]
+    fn until_holds_the_script_until_its_screen_is_on_top() {
+        let mut s = UiScript::parse("until MainMenu.fng; accept").unwrap();
+        assert_eq!(s.next_mask_on(None), Some(0));
+        assert_eq!(s.next_mask_on(Some("WS_MW_LS_Splash.fng")), Some(0));
+        assert_eq!(s.next_mask_on(Some("mainmenu.fng")), Some(0), "the screen came up: the wait ends");
+        assert_eq!(s.next_mask_on(Some("MainMenu.fng")), Some(pad::ACCEPT));
     }
 }

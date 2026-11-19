@@ -163,10 +163,10 @@ pub fn run(cli: Cli) -> Result<()> {
             let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
-        Command::Play { skip_boot, drive, aliases, ui_script, career_run, view, .. } => {
+        Command::Play { skip_boot, drive, aliases, ui_script, boot_flow, career_run, view, .. } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let settings = Settings::load(view.settings_layer());
-            let scripted = skip_boot || ui_script.is_some();
+            let scripted = skip_boot || (ui_script.is_some() && !boot_flow);
             let start = match career_run.new_career {
                 Some(alias) => crate::frontend::Start::NewCareer(alias),
                 None => start::of(drive || session_starts(&launch), aliases, scripted, settings.skip_intro),

@@ -22,6 +22,11 @@ pub trait ScreenLogic: Send + Sync {
     ) -> Option<i32> {
         cue
     }
+    /// The screen logic's type, naming its sound gate in the audio trace.
+    fn sound_gate_name(&self) -> &'static str {
+        let name = std::any::type_name::<Self>();
+        name.rsplit("::").next().unwrap_or(name)
+    }
     fn holds_photo_audio_pause(&self) -> bool {
         false
     }

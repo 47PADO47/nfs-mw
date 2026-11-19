@@ -84,3 +84,12 @@
   as Pathfinder music, speech and NIS/SFX pause ownership.
   The generic in-game constructor at `0x0058F180` has no direct FMV state
   call. Its caller-dependent pause ownership still requires comparison.
+- Icon scroller and slider sound flags (2026-11-19, read in the PC 1.3 binary,
+  SHA-256 80774c2e…): the icon panel constructor at `0x00592AE0` sets the
+  flag the icon scroller's sound filter reads; the panel and scroller scroll
+  routines (`0x00587390`, `0x00587450`, `0x005879F0`, `0x00587AB0`) set it
+  and the scroller update at `0x0059BB00` clears it. The slider update at
+  `0x00574BC0` sets its flag only when the value moved. The remake's own
+  per-tick scroll flag and value-change check express the same conditions.
+- Movie state source (2026-11-19, ours): only a scene playing a movie with
+  sound counts as a movie for the front-end cue mute (AUDIO-030).

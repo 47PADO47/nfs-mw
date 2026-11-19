@@ -23,6 +23,7 @@ pub use siren::{SirenFrame, SirenSource};
 pub mod environment;
 pub mod environment_context;
 mod filter;
+mod output;
 #[cfg(test)]
 mod replay;
 mod shaped;
@@ -54,6 +55,7 @@ pub mod preview_play;
 mod radio;
 mod refs;
 mod scene_sound;
+mod silent;
 mod siren;
 mod speech;
 mod streams;
@@ -71,10 +73,11 @@ use std::sync::Arc;
 use blackbox_attrib::Database;
 use ea_audio::abk::Bank;
 use game_install::GameDir;
+use kira::Tween;
 use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle};
-use kira::track::{TrackBuilder, TrackHandle};
-use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
+use kira::track::TrackHandle;
 use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
+use output::OutputManager;
 
 pub use car::{
     CarAudioTelemetry, CarContact, CarEvent, CarSoundState, CarSoundTick, ContactSource, ContactVehicle, RoadContext,
@@ -84,6 +87,7 @@ pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
 pub use interactive::{MusicInput, PursuitFeed};
 pub use plugin::AudioPlugin;
 pub use radio::NowPlaying;
+pub use silent::request_silent_output;
 pub use volume::{Group, Volumes};
 
 struct Output {
@@ -96,29 +100,6 @@ struct Output {
     /// The HUD's cues (`Group::Hud`).
     hud: TrackHandle,
     wet: wet::Bus,
-}
-
-enum OutputManager {
-    Device(Box<AudioManager<DefaultBackend>>),
-    #[cfg(test)]
-    Replay(Box<AudioManager<replay::ReplayBackend>>),
-}
-
-impl OutputManager {
-    fn add_sub_track(&mut self, builder: TrackBuilder) -> Result<TrackHandle, String> {
-        match self {
-            Self::Device(manager) => manager.add_sub_track(builder).map_err(|e| e.to_string()),
-            #[cfg(test)]
-            Self::Replay(manager) => manager.add_sub_track(builder).map_err(|e| e.to_string()),
-        }
-    }
-    fn volume(&mut self, volume: kira::Decibels, tween: Tween) {
-        match self {
-            Self::Device(manager) => manager.main_track().set_volume(volume, tween),
-            #[cfg(test)]
-            Self::Replay(manager) => manager.main_track().set_volume(volume, tween),
-        }
-    }
 }
 
 pub struct Audio {
@@ -229,7 +210,7 @@ impl Audio {
     /// Open the default output device. When there is none, or it fails, the returned value is silent and says
     /// why in the log.
     pub fn new(dir: GameDir, volumes: Volumes) -> Self {
-        let output = match Output::open() {
+        let output = match Output::open(silent::wanted()) {
             Ok(output) => Some(output),
             Err(e) => {
                 log::warn!("no sound: {e}");
@@ -291,6 +272,8 @@ impl Audio {
         {
             log::warn!("{error}");
         }
+        let kind = audio.output.as_ref().map_or("none", |output| output.manager.kind());
+        audio.trace.note("output", kind);
         audio.set_volumes(volumes);
         audio
     }
@@ -444,35 +427,6 @@ impl Audio {
         let handle = output.engine.play(voice).map_err(|e| e.to_string())?;
         handle.set_wet_sender(output.wet.sender(Group::Engine));
         Ok(handle)
-    }
-}
-
-impl Output {
-    fn open() -> Result<Self, String> {
-        let mut main = kira::track::MainTrackBuilder::new();
-        let wet = main.add_effect(wet::Bus::builder());
-        let mut manager = AudioManager::<DefaultBackend>::new(AudioManagerSettings {
-            main_track_builder: main,
-            ..Default::default()
-        })
-        .map_err(|e| e.to_string())?;
-        let sfx = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
-        let world = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
-        let mut music_builder = TrackBuilder::new();
-        let music_filter = music_builder.add_effect(filter::MusicFilterBuilder);
-        let music = manager.add_sub_track(music_builder).map_err(|e| e.to_string())?;
-        let engine = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
-        let hud = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
-        Ok(Self {
-            manager: OutputManager::Device(Box::new(manager)),
-            sfx,
-            world,
-            music,
-            music_filter,
-            engine,
-            hud,
-            wet,
-        })
     }
 }
 

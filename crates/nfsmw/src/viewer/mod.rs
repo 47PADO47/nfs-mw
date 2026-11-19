@@ -432,10 +432,10 @@ pub trait Scene {
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         None
     }
-    /// Whether the sound handed over by [`Scene::take_clip`] still belongs to what plays: false once its movie has run
-    /// out, was skipped or was stopped, so the audio stops it while the scene stays.
+    /// Whether a movie whose sound [`Scene::take_clip`] hands over is playing: false once it has run out, was skipped or
+    /// was stopped (the audio then stops its sound) and for a scene with no movie (the menu mutes no cue for it).
     fn clip_playing(&self) -> bool {
-        true
+        false
     }
     /// The one-shot sounds the traffic cars asked for since the last call (horns, near-miss whooshes).
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {

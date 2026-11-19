@@ -235,6 +235,44 @@ What this does not give:
 - `play --drive` takes the same options, but opens the front end, whose post-race screen freezes the world; use
   `view-world` for batch runs.
 
+### Silent audio output and the front-end cue trace
+
+`--no-sound` removes the audio system, so nothing about sound can be seen in such a run. `--silent-audio` (or
+`NFSMW_AUDIO_OUTPUT=silent`) keeps the whole audio system and its mixer running at the real sample rate, discards the
+samples and opens no output device (`crates/nfsmw/src/audio/silent.rs`). Sounds start, run and end on time, so the
+audio trace (`NFSMW_AUDIO_TRACE=<file>`, JSON lines) shows what a player would have heard. Its `output` record names the
+output: `device`, `silent` or `none`.
+
+Every front-end sound message a screen sends is one `fe_cue` record (`crates/nfsmw/src/audio/menu/cue_log.rs`).
+`trigger` is the cue, `success` whether a voice started, and `detail` holds:
+
+| Field | Content |
+|---|---|
+| `screen`, `message` | the package that sent the message and its hash (`-` for a cue screen code requests directly) |
+| `source` | `authored` (a package script or response targets the sound system), `input` (the host's pad feedback) or `direct` |
+| `candidate` | the trigger the message maps to before the screen's gates |
+| `result` | `played` with `voice=started instance=N`, or `voice=dropped: ...`/`failed: ...` when no voice started; `suppressed` with `gate=...` |
+| `gate` | `frame: ...` (the same cue already came this frame), `screen gate: <logic>` (the screen's own filter), `no trigger: <logic>`, `unmapped input`, `orbit footer: direction`, `rival bio: input back` |
+| `bus`, `effective` | the effects bus: `master`, `sfx`, their product as the cue meets it, and the `movie_active` and `world_muted` presentation state |
+
+A started voice also has its `menu_trigger` record with the same instance.
+
+### Menu sound walk
+
+`play --boot-flow --ui-script ...` runs the whole boot flow (movies, title, profile step) under a script, as an
+unscripted start does; without `--boot-flow` a script starts at the main menu. The script step `until SCREEN` releases
+the pad until that screen file is on top (two minutes at most), so a script can follow the boot movies, whose length in
+frames differs between runs. The install-backed test `crates/nfsmw/tests/menu_walk_audio.rs` walks the boot flow, the
+main menu, Challenge Series, Quick Race, an Options slider and the career menu in a hidden, silent session and fails
+when a cue the walk must start is missing from the trace:
+
+```sh
+NFSMW_GAME_DIR=<install> NFSMW_WALK_EXE=<release nfsmw.exe> cargo test -p nfsmw --test menu_walk_audio -- --ignored
+```
+
+It needs a display (the window stays hidden and off-screen) and runs for about two minutes. Without `NFSMW_WALK_EXE`
+it runs the test build of the binary.
+
 ## Unattended career run
 
 One command starts a new career on an empty profile folder and plays it with nobody at the controls until the first

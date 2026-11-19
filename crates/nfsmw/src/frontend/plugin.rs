@@ -184,7 +184,8 @@ fn update(
     host.flow_driven = true;
 
     // A script replaces the input and the clock.
-    let scripted = fe.script.as_mut().and_then(UiScript::next_mask);
+    let top = fe.screens.top().map(str::to_owned);
+    let scripted = fe.script.as_mut().and_then(|script| script.next_mask_on(top.as_deref()));
     // A screenshot waits for the world while the loading screen is up (the world is not in the window until it is built).
     host.hold_capture = fe.script.as_ref().is_some_and(|s| !s.is_over()) || fe.stage == Stage::Loading;
     let dt = if scripted.is_some() { script::STEP } else { time.delta_secs().min(MAX_STEP) };

@@ -10,9 +10,12 @@ use blackbox_feng::ids::*;
 use super::aems::{EffectModule, EffectSampler};
 use super::{Audio, Group};
 
+mod cue_log;
 #[cfg(test)]
 mod inventory_tests;
 mod messages;
+#[cfg(test)]
+mod movie_gate_tests;
 mod photo;
 #[cfg(test)]
 mod tests;
@@ -23,10 +26,15 @@ use blackbox_feng::runtime::Outgoing;
 
 use messages::stock_trigger;
 
+pub(crate) use cue_log::CueNote;
+
 const LAST_COMMON_BUTTON: u32 = PAD_BUTTON0 + 5;
 
 enum Request {
-    Play(i32),
+    /// A cue to start; the note says where the front end decided it, `None` for a direct request.
+    Play(i32, Option<CueNote>),
+    /// A front-end cue a gate suppressed, kept for the audio trace.
+    Suppressed(CueNote),
     StopRapSheet(i32),
 }
 
@@ -78,7 +86,22 @@ pub fn request(message: u32) {
 /// Requests a trigger directly, for a sound the original's screen code plays by id (the original's routine: ids below 23 are
 /// common samples, the rest front-end samples, the same split as [`target`]).
 pub fn request_trigger(id: i32) {
-    QUEUE.with(|queue| queue.borrow_mut().push(Request::Play(id)));
+    QUEUE.with(|queue| queue.borrow_mut().push(Request::Play(id, None)));
+}
+
+/// Requests a front-end cue the screens let through, with its decision for the audio trace.
+pub(crate) fn request_cue(id: i32, note: CueNote) {
+    QUEUE.with(|queue| queue.borrow_mut().push(Request::Play(id, Some(note))));
+}
+
+/// Records a front-end cue a gate suppressed. Only the audio trace reads it; a run without audio keeps a bounded queue.
+pub(crate) fn note_suppressed(note: CueNote) {
+    QUEUE.with(|queue| {
+        let mut queue = queue.borrow_mut();
+        if queue.len() < 4096 {
+            queue.push(Request::Suppressed(note));
+        }
+    });
 }
 
 /// Stops the held rap-sheet cue if it matches this login page.
@@ -105,15 +128,29 @@ impl FrameSounds {
     }
 
     /// An outer None marks redundant input; an inner None leaves the decision to the screen.
+    #[cfg(test)]
     pub(crate) fn candidate(&mut self, package: PackageId, message: u32, authored: bool) -> Option<Option<i32>> {
+        self.decide(package, message, authored).ok()
+    }
+
+    /// The candidate trigger, or why this frame drops the message before any screen sees it.
+    pub(crate) fn decide(
+        &mut self,
+        package: PackageId,
+        message: u32,
+        authored: bool,
+    ) -> Result<Option<i32>, &'static str> {
         if authored {
-            return Some(stock_trigger(message));
+            return Ok(stock_trigger(message));
         }
-        let id = trigger(message)?;
-        if self.authored.contains(&(package, id)) || !self.input.insert((package, id)) {
-            return None;
+        let id = trigger(message).ok_or("unmapped input")?;
+        if self.authored.contains(&(package, id)) {
+            return Err("frame: authored post has this cue");
         }
-        Some(Some(id))
+        if !self.input.insert((package, id)) {
+            return Err("frame: input already gave this cue");
+        }
+        Ok(Some(id))
     }
 }
 
@@ -126,8 +163,8 @@ pub(crate) fn take() -> Vec<i32> {
     take_requests()
         .into_iter()
         .filter_map(|request| match request {
-            Request::Play(id) => Some(id),
-            Request::StopRapSheet(_) => None,
+            Request::Play(id, _) => Some(id),
+            Request::Suppressed(_) | Request::StopRapSheet(_) => None,
         })
         .collect()
 }
@@ -174,18 +211,23 @@ pub(super) struct MenuPlayer {
 }
 
 impl MenuPlayer {
+    #[cfg(test)]
     fn start(&mut self, audio: &mut Audio, id: i32) {
         self.start_in(audio, id, Group::Sfx);
     }
 
-    /// Starts trigger `id` in the mixer group `group`.
-    fn start_in(&mut self, audio: &mut Audio, id: i32, group: Group) {
-        if !(0..160).contains(&id) || audio.output.is_none() {
-            return;
+    /// Starts trigger `id` in the mixer group `group` and says what became of it, for the audio trace.
+    fn start_in(&mut self, audio: &mut Audio, id: i32, group: Group) -> String {
+        if !(0..160).contains(&id) {
+            return "dropped: trigger out of range".into();
+        }
+        if audio.output.is_none() {
+            return "dropped: no output".into();
         }
         let (bank, class, index) = target(id);
+        // A boot or story movie mutes the front-end effects (FMV sound state, `docs/specs/frontend-audio.md`).
         if audio.movie_active && group == Group::Sfx {
-            return;
+            return "dropped: movie playing".into();
         }
         let rap_sheet = class == "PlayFrontEndSample_RS";
         if rap_sheet {
@@ -213,14 +255,15 @@ impl MenuPlayer {
                 logical_ms: audio.trace.now_ms(),
                 ..Default::default()
             });
-            return;
+            return "failed: cached unavailable".into();
         }
         self.seed = self.seed.wrapping_add(1);
         match EffectModule::load(audio, bank, class, self.seed) {
             Ok(module) => {
+                let instance = module.trace_instance();
                 audio.trace.record(super::trace::Record {
                     event: "menu_trigger",
-                    instance: module.trace_instance(),
+                    instance,
                     trigger: Some(id),
                     group: Some(group_name),
                     bank,
@@ -238,7 +281,8 @@ impl MenuPlayer {
                     group,
                     hold: false,
                     rap_sheet,
-                })
+                });
+                format!("started instance={instance}")
             }
             Err(error) => {
                 audio.trace.record(super::trace::Record {
@@ -255,6 +299,7 @@ impl MenuPlayer {
                 });
                 self.unavailable.insert(id);
                 log::warn!("menu sound {id}: {error}");
+                format!("failed: {error}")
             }
         }
     }
@@ -287,7 +332,11 @@ impl MenuPlayer {
         }
         for request in take_requests() {
             match request {
-                Request::Play(id) => self.start(audio, id),
+                Request::Play(id, note) => {
+                    let voice = self.start_in(audio, id, Group::Sfx);
+                    cue_log::played(audio, id, note.as_ref(), &voice);
+                }
+                Request::Suppressed(note) => cue_log::suppressed(audio, &note),
                 Request::StopRapSheet(id) => self.active.retain(|cue| !cue.rap_sheet || cue.words[0] + 23 != id),
             }
         }

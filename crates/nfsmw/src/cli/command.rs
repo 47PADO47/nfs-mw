@@ -90,6 +90,9 @@ pub enum Command {
         /// A scripted pad for tests and screenshots, e.g. "wait 1;right;accept" (replaces the input and the clock).
         #[arg(long, hide = true, value_name = "SCRIPT")]
         ui_script: Option<String>,
+        /// With --ui-script: run the whole boot flow (movies, title screen, profile step) as an unscripted start does.
+        #[arg(long, hide = true, requires = "ui_script", conflicts_with_all = ["skip_boot", "drive", "aliases"])]
+        boot_flow: bool,
         #[command(flatten)]
         race_run: RaceRunArgs,
         #[command(flatten)]

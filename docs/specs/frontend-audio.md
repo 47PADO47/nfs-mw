@@ -169,11 +169,16 @@ remain available during the photo. The movie soundtrack plays independently
 of the world mute. The original's pre-shutter fade and individual stream
 pause/resume timing still need separate implementation.
 
+**[ours]** "Movie active" means a scene is playing a movie whose sound it hands over (a boot movie, a world story
+movie). A scene with no movie, such as the main menu's backdrop or the garage, never counts as one: before this was
+fixed, the scenes' default answer made every menu session count as a movie and dropped all front-end cues (AUDIO-030).
+
 **[ours] Diagnostic correlation.** An opt-in trace records one `menu_trigger` per serviced trigger, with its global
 ID, mixer group, bank, class and class words. A successful load records the actual module instance; failed or cached
 unavailable loads have no successful instance. An authored zero recording emits `voice_silent` for that instance.
 Its `success: false` records the existing no-voice return, not a decoder or backend failure.
-These events do not identify the UI request that queued a trigger, isolate mixed PCM, or establish perceptual parity.
+`fe_cue` records name the UI request: the screen, message, source, candidate, the gate that suppressed it or the voice it
+started, and the effects bus level (`docs/testing.md`). They do not isolate mixed PCM or establish perceptual parity.
 
 ## Scope and limits
 

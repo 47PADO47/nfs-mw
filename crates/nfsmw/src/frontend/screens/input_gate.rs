@@ -42,10 +42,24 @@ impl Screens {
         message: u32,
         authored: bool,
     ) {
-        if let Some(candidate) = sounds.candidate(package, message, authored)
-            && let Some(id) = self.sound_trigger(package, message, candidate)
-        {
-            crate::audio::menu::request_trigger(id);
+        let screen =
+            self.stack.iter().find(|screen| screen.id == package).map_or_else(|| "?".into(), |s| s.name.clone());
+        let source = if authored { "authored" } else { "input" };
+        let mut note = crate::audio::menu::CueNote { screen, message, source, candidate: None, gate: None };
+        let candidate = match sounds.decide(package, message, authored) {
+            Ok(candidate) => candidate,
+            Err(gate) => {
+                note.gate = Some(gate.into());
+                return crate::audio::menu::note_suppressed(note);
+            }
+        };
+        note.candidate = candidate;
+        match self.sound_trigger(package, message, candidate) {
+            Ok(id) => crate::audio::menu::request_cue(id, note),
+            Err(gate) => {
+                note.gate = Some(gate);
+                crate::audio::menu::note_suppressed(note);
+            }
         }
     }
 
@@ -60,7 +74,8 @@ impl Screens {
         !self.await_release && self.stack.last().is_some_and(|top| top.logic.accepts_input())
     }
 
-    pub(super) fn sound_trigger(&mut self, package: PackageId, message: u32, cue: Option<i32>) -> Option<i32> {
+    /// The trigger to play, or the name of the gate that suppressed the message.
+    pub(super) fn sound_trigger(&mut self, package: PackageId, message: u32, cue: Option<i32>) -> Result<i32, String> {
         // An input fallback cannot add Back to the stock rival bio.
         if message == ids::PAD_BACK
             && self.stack.iter().any(|screen| {
@@ -68,14 +83,20 @@ impl Screens {
                     && screen.name.eq_ignore_ascii_case(crate::frontend::ids::screen::SAFE_HOUSE_RIVAL_BIO)
             })
         {
-            return None;
+            return Err("rival bio: input back".into());
         }
         // Showcase directions operate its camera. Its authored responses do not request navigation sounds.
-        let Some(screen) = self.stack.iter_mut().find(|screen| screen.id == package) else { return cue };
+        let Some(screen) = self.stack.iter_mut().find(|screen| screen.id == package) else {
+            return cue.ok_or_else(|| "no trigger (no screen)".into());
+        };
         if screen.logic.footer() == Footer::Orbit && direction(message) {
-            return None;
+            return Err("orbit footer: direction".into());
         }
-        screen.logic.sound_trigger(&self.runtime, package, message, cue)
+        let Some(id) = screen.logic.sound_trigger(&self.runtime, package, message, cue) else {
+            let gate = if cue.is_some() { "screen gate" } else { "no trigger" };
+            return Err(format!("{gate}: {}", screen.logic.sound_gate_name()));
+        };
+        Ok(id)
     }
 }
 
