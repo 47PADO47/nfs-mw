@@ -158,6 +158,11 @@ impl Renderer {
     /// World to clip space for the frame being drawn to the window: `frame`'s own projection, shifted by
     /// this frame's jitter when it is a temporal one. Views of the scene from elsewhere (reflections) use
     /// `frame.view_proj()` itself.
+    /// Whether this frame is drawn jittered for a temporal upscaler.
+    pub(super) fn jittered(&self) -> bool {
+        self.temporal.frame.is_some()
+    }
+
     pub(super) fn world_to_clip(&self, frame: &FrameParams) -> Mat4 {
         match &self.temporal.frame {
             Some(temporal) => temporal.jitter_matrix * frame.view_proj(),

@@ -273,6 +273,11 @@ impl TrafficWorld {
             let at = self.next_spawn_focus(focus);
             self.manage(activation::PERIOD, at, collision, surfaces);
         }
+        // The cars asked for by name (`traffic spawn`, a mod's `bb.traffic`) are served by `manage`; with the traffic and
+        // the patrols off it never runs, so they are served here. Nothing is asked for in play without a console or a mod.
+        if !enabled && !self.world_moment && crate::traffic_requests::waiting() {
+            self.serve_asked_cars(self.step_delta, focus, collision, surfaces);
+        }
     }
 }
 

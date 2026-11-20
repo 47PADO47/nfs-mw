@@ -47,7 +47,16 @@ pub fn execute(
         console.wait_until = None;
     }
     let mut lines = std::mem::take(&mut console.pending).into_iter();
-    while let Some(line) = lines.next() {
+    while let Some((line, scripted)) = lines.next() {
+        // `wait ready` holds itself and the lines after it until the scene has what its first view needs (the world
+        // streamed in, the driven car on the road): the moment a screenshot waits for.
+        if line.trim() == "wait ready" {
+            if host.scene.ready() {
+                continue;
+            }
+            console.pending = std::iter::once((line, scripted)).chain(lines).collect();
+            return;
+        }
         // `wait <seconds>` holds the lines after it until that many seconds have passed since start.
         if let Some(seconds) = line.trim().strip_prefix("wait ")
             && let Ok(seconds) = seconds.trim().parse::<f32>()
@@ -84,6 +93,9 @@ pub fn execute(
             }
             Err(e) => Err(e),
         };
+        if scripted {
+            print_reply(&line, &result);
+        }
         match result {
             Ok(text) if text.is_empty() => {}
             Ok(text) => logbuf::output(&text),
@@ -214,7 +226,17 @@ fn help(scene: &[(&str, &str)], mods: &[(String, String)]) -> String {
 impl Console {
     /// Queue lines for the next frames, as `--exec` does. The mods' `bb.commands.run` uses this.
     pub(crate) fn queue_lines(&mut self, lines: Vec<String>) {
-        self.pending.extend(lines);
+        self.pending.extend(lines.into_iter().map(|line| (line, true)));
+    }
+}
+
+/// A script's line and the console's reply go to stdout too, as the screenshot's `wrote` line does: a headless run
+/// (`--exec` with a screenshot) has no console to read them in, and release builds drop info-level log lines.
+fn print_reply(line: &str, result: &Result<String, String>) {
+    match result {
+        Ok(text) if text.is_empty() => println!("console> {line}"),
+        Ok(text) => println!("console> {line}: {text}"),
+        Err(e) => println!("console> {line}: error: {e}"),
     }
 }
 

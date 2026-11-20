@@ -34,7 +34,8 @@ use a smooth compression curve to limit hotspots. Existing baked/prelit illumina
 The car-relative headlight upper fade spans roughly 6 to 17 degrees. Nearby traffic beams use the
 same markers and damage flags; up to eight traffic cars can be selected (default four), within 150 metres, and fade near their selection
 boundary. Local specular highlights are an artistic, shadow-aware approximation. No indirect bounce
-is introduced.
+is introduced. A receiver walks its light list once: the diffuse term, the highlight and a wet
+road's glint share each light's cone, attenuation and shadow lookup (taken along the surface normal).
 
 ## Shadow controls
 
@@ -42,16 +43,36 @@ is introduced.
 - Shadowed lights: 0, 2, 4, 8 or 16. Default 8; player headlights and up to four nearby traffic beams take priority over tunnel fixtures. Additional traffic beams use remaining shadow slots after tunnel fixtures.
 - Local shadow resolution: 512, 1024 or 2048. Default 1024.
 - Local shadow softness: comparison filter radius, 0 to 3 texels.
+
+The softness filter is a 3x3 tent of hardware bilinear comparisons spaced `radius` texels apart, weights (1,2,1)
+per axis. It is taken as four bilinear comparisons: up to one texel the 3x3 pattern covers four texels per axis, and
+each pair of texels becomes one tap at its weighted centre, so the result is the same filter (at radius 1 the per-axis
+texel weights are (1-f, 2-f, 1+f, f)/4 for the subtexel position f). Above one texel the pattern spans more texels;
+there two taps per axis at ±radius/√2 keep the old filter's variance, a smooth edge instead of the nine-tap
+pattern's separate copies. Measured on an RTX 3070 at 2560x1440 (synthetic street, 64 lamps, 16 shadowed at 2048,
+120-frame batches): 2.00 ms to 1.92 ms per frame dry and 4.57 ms to 4.48 ms wet at radius 1 (the filter's own cost,
+against radius 0, from 0.30 ms to 0.22 ms); radius 2 and 3 from 2.01 ms to 1.85 ms. Radius 0.5 and 1 differ from the
+nine taps by at most 3/255 and 1/255; radius 2 and 3 differ visibly on surfaces with shadow acne (by up to 12/255 and
+23/255), and at radius 2 the four taps show less of that acne. With 8 lamps at 1024 no difference was measurable.
 - Local shadow distance: 20 to 240 metres, default 80 m. Lights outside it remain unshadowed.
 - Local highlight strength: 0 to 1, default 0.15. Zero skips extra specular shading.
 
 Illumination continues when the shadow budget is zero. Unshadowed lights can illuminate through
 occluding geometry; this is a quality/performance tradeoff, not indirect lighting. Nearby fixtures
 get the remaining shadow slots; their shadow strength fades as they approach the budget boundary.
-This smooths selection changes but does not provide a temporal shadow cache.
+This smooths selection changes.
 
-Every selected map refreshes each frame. Depth storage is count * resolution squared * 4 bytes,
-plus instance buffers and other resources. Default eight 1024 maps use 32 MiB of depth storage;
+A light that keeps its projection from one frame to the next (a street lamp, a tunnel fixture, a parked car's
+beam) keeps the depth of its resting casters in an image of its own. A frame copies that image into the light's map
+and draws only the moving casters (cars, swaying trees, props in motion) over it; a map with no moving caster in its
+cone is left untouched. The kept image is named by the exact casters, meshes, cutout textures and projection it holds,
+so its pixels are those of a full redraw. A caster that starts or stops moving, or leaves, redraws it once. Moving
+lights (headlights) redraw in full every frame, as do casters without a persistent key.
+`BLACKBOX_LAMP_SHADOW_CACHE=0` disables the kept images for comparison; the "Local lamp shadows" trace counter
+reports `reused_maps` and `kept_mib`.
+
+Depth storage is count * resolution squared * 4 bytes for the maps, and up to as much again for the kept images
+of still lights, plus instance buffers and other resources. Default eight 1024 maps use 32 MiB of map storage;
 sixteen 2048 maps use 256 MiB. A disabled shadow budget uses only a tiny placeholder.
 Raster local shadows reuse material/alpha coverage and dynamic caster poses. They do not require RT.
 
@@ -139,6 +160,56 @@ tail-light spill uses intact rear markers and follows engine, headlights and bra
 and consumes the shared light budget. With enhanced lamp surfaces, the player's outer brake-lamp ON
 textures act as running tails when available; the centre brake lamp still follows the brake.
 
+## Police light-bar spill
+
+F8 > Lighting > Local lights > Police light bar spill (off by default, persisted with a strength from 0 to 5,
+default 1) lets the flashing roof bars of nearby police and roadblock cars light the road and the cars around them.
+It is an artistic enhancement with untuned values; it was written without the game install and has not been seen
+in the game or measured.
+
+- What lights it: the bar's own siren lamp markers (`COPLIGHT*`) and the flash level the authored emergency flares
+  already use (`car_light_flares::intensity::samples`, from the car's lamp state and lamp clock). Light and flare
+  pulse together; there is no second timer. Only cars whose bar runs (`emergency_lights`) cast light. The
+  simulation, AI, pursuit and audio state are only read.
+- Shape: per car, one light per colour lit this frame (red, blue, white), not one per bulb, so at most three. It
+  sits 0.15 m above the lit lamps of that colour (weighted by their level) and points down the car's own up axis in
+  a wide cone (outer cosine 0.1, inner 0.55) with a 14 m reach, so the road out to about 14 m and the sides of
+  neighbouring cars receive it. Its colour is scaled by the brightest lamp's level, the strength, and the same
+  night fade as traffic beams.
+- Budget: the four nearest such cars within 150 m of the camera, nearest first, faded over the last 24 m before the
+  distance or count boundary like traffic beams. The lights are unshadowed (they never take a shadow slot and do not
+  make the shadow casters needed), and come out of the shared active-light limit after the player's lamps and the
+  traffic beams, before the fixtures.
+- What it does not do: the flare sprites themselves are still not mirrored in screen-space road reflections. The
+  moving coloured highlights on wet roads, puddles and car paint come only from the local-light diffuse, highlight
+  and wet glint terms. Being unshadowed, the light can leak through geometry, and the bar's own car is lit from
+  above.
+
 Only the listed streetlight variants are covered. Park and iron-lamp fixtures were identified from the original installed meshes; their light parameters are independent approximations. Their physical lights and sprites can be disabled independently of tunnel fixtures;
 not all original lamp artwork illuminates itself. Baked daylight, an incomplete streetlight catalog,
 unshadowed-light leakage, light-budget transitions, and 4K driving performance remain limitations.
+
+## Where the local-light time goes (4K, 2026-11-16)
+
+Measured in game on an RTX 3070 (Vulkan) at 3840x2160, night rain at the street lamp (2298,3415), the user's night
+settings (8 lamp shadows at 1024, tail lights, fog), by switching one part off at a time (median frame time, two
+12 s benches each; base 27.9 ms before the wet-road change of `weather-gpu-tuning.md`):
+
+| Off | Saving |
+| --- | --- |
+| The per-pixel light walk (`local_lights` returns at once) | about 1.3 ms |
+| Only its lamp-shadow lookups | about 0.5 ms |
+| Street lights (`local_street_lights = false`) | 0.85 ms |
+| Car lights (head, tail, traffic) | 0.45 ms |
+| Lamp shadows (`local_shadow_count = 0`) | 0.6 ms |
+| Light fog (`local_light_fog = 0`) | 0.7 ms; by timestamp 0.62 ms: volume build 0.13, half-resolution integrate 0.06, full-resolution composite 0.17, the rest tile masks, column integration and uploads |
+| Street haze volumes | nothing measurable |
+
+`local_lamps = false` alone does not switch the lamps off at night with the night lighting on, and cutting the light
+limit to 16 or the fog count to 2 changed nothing: few lights reach any one pixel. A street-light reach of 20 m
+instead of 35 m saved 0.5 ms, so the cost is the lit area times the lights on it, not the light list walk.
+
+Tried and not kept, as they did not pay: leaving the walk as soon as a light's cone is zero (no change), skipping the
+shadow lookup when a light's contribution is under 0.002 (0.15 ms, within the noise, and it changes how lights
+outside their shadow frustum are culled). Fog quality 1 instead of 2 changed nothing measurable. No change was made
+to the lamps.

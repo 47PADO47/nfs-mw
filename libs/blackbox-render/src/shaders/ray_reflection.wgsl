@@ -6,7 +6,12 @@ struct RtVertex { position: vec4<f32>, normal: vec4<f32>, colour: vec4<f32>, uv:
 @group(0) @binding(5) var rt_sampler: sampler;
 struct RtControl { scene: vec4<u32>, tuning: vec4<f32> };
 @group(0) @binding(6) var<uniform> rt_control: RtControl;
+// Per TLAS instance: bit 0 baked winding flip, bits 1.. the triangle index where the mesh's second
+// (opaque) BLAS geometry starts.
 @group(0) @binding(7) var<storage,read> rt_winding: array<u32>;
+fn rt_triangle_index(custom:u32,instance:u32,geometry:u32,primitive:u32)->u32 {
+    return custom+primitive+select(0u,rt_winding[instance]>>1u,geometry!=0u);
+}
 @group(0) @binding(9) var rt_detail_textures: texture_2d_array<f32>;
 
 fn rt_tex(triangle:vec4<u32>,bary:vec3<f32>,lod:f32)->vec4<f32> {
@@ -64,10 +69,12 @@ struct RtHit { radiance: vec3<f32>, position: vec3<f32>, distance: f32, found: b
 fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,range:f32)->RtHit {
     let origin=world+normal*bias;
     var query:ray_query;
-    rayQueryInitialize(&query,rt_scene,RayDesc(0u,1u,0.025,range,origin,ray));
+    // Force no-opaque (2): every candidate, including the opaque geometry, takes the sidedness,
+    // live-material and alpha tests below.
+    rayQueryInitialize(&query,rt_scene,RayDesc(2u,1u,0.025,range,origin,ray));
     while rayQueryProceed(&query) {
         let candidate=rayQueryGetCandidateIntersection(&query);
-        let triangle=rt_triangles[candidate.instance_custom_data+candidate.primitive_index];
+        let triangle=rt_triangles[rt_triangle_index(candidate.instance_custom_data,candidate.instance_index,candidate.geometry_index,candidate.primitive_index)];
         if (triangle.w&(1u<<25u))!=0u {
             // Match raster sidedness in object space. A mirrored transform cancels
             // raster winding reversal; only the explicit baked-winding flag remains.
@@ -76,7 +83,7 @@ fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,ran
             let c=rt_vertices[triangle.z].position.xyz;
             let local_ray=candidate.world_to_object*vec4(ray,0.0);
             let front=dot(cross(b-a,c-a),local_ray)<0.0;
-            if front==(rt_winding[candidate.instance_index]!=0u) { continue; }
+            if front==((rt_winding[candidate.instance_index]&1u)!=0u) { continue; }
         }
         let family=((triangle.w>>16u)&255u)|((triangle.w>>26u)<<8u);
         if family>=3u && rt_materials[family-3u].live.x<0.5 { continue; }
@@ -91,7 +98,7 @@ fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,ran
     // Resolve it before texture/normal/shadow work that would be overwritten by screen reuse.
     let screen=rt_screen_radiance(position);
     if screen.w>=1.0 { return RtHit(screen.rgb,position,hit.t,true); }
-    let triangle=rt_triangles[hit.instance_custom_data+hit.primitive_index];
+    let triangle=rt_triangles[rt_triangle_index(hit.instance_custom_data,hit.instance_index,hit.geometry_index,hit.primitive_index)];
     let bary=vec3(1.0-hit.barycentrics.x-hit.barycentrics.y,hit.barycentrics);
     let a=rt_vertices[triangle.x]; let b=rt_vertices[triangle.y]; let c=rt_vertices[triangle.z];
     let colour=a.colour*bary.x+b.colour*bary.y+c.colour*bary.z;

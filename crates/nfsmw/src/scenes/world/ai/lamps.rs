@@ -125,6 +125,16 @@ impl TrafficWorld {
         }
     }
 
+    /// Every car whose light bar runs this frame: its key, lamps, frame and lamp state (see `AiCar::light_bar`).
+    pub(in crate::scenes::world) fn light_bars(
+        &self,
+    ) -> impl Iterator<Item = crate::scenes::world::local_lights::LightBar<'_>> + '_ {
+        self.cars.iter().filter_map(|car| {
+            let (lamps, transform, state) = car.light_bar(self.alpha)?;
+            Some(crate::scenes::world::local_lights::LightBar { key: car.key(), lamps, transform, state })
+        })
+    }
+
     /// The colour the lamp of an approach is shown in: its own, or the one `signals force` asks for.
     fn signal_light(&self, index: usize) -> Light {
         self.signal_force.unwrap_or_else(|| self.signals.state(index, self.signal_time))

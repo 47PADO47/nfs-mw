@@ -56,6 +56,11 @@ impl Cache {
         self.hashes.clear();
         self.hashes.resize(casters.len(), 0);
     }
+    /// Starts a frame of `casters` casters for `fingerprint` alone, without the stability pass of `prepare`.
+    pub fn begin(&mut self, casters: usize) {
+        self.hashes.clear();
+        self.hashes.resize(casters, 0);
+    }
     /// Identity of the selected static casters and the cascade matrix. Each caster is hashed once per
     /// frame, however many cascades select it.
     pub fn fingerprint(&mut self, renderer: &Renderer, matrix: Mat4, selected: &[usize], casters: &[Instance]) -> u64 {

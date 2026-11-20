@@ -13,6 +13,10 @@ mod foliage_tests;
 mod grid;
 pub(super) mod local;
 #[cfg(test)]
+mod local_cache_tests;
+#[cfg(test)]
+mod local_filter_tests;
+#[cfg(test)]
 mod local_tests;
 pub(in crate::gpu) mod maps;
 #[cfg(test)]

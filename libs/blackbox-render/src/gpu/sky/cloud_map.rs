@@ -74,10 +74,11 @@ impl CloudMap {
         encoder: &mut wgpu::CommandEncoder,
         shader: &wgpu::ShaderModule,
         bindings: [(&wgpu::BindGroupLayout, &wgpu::BindGroup); 2],
-        frame: (&Globals, blackbox_gfx::SkyState, [f32; 4]),
+        frame: (&Globals, blackbox_gfx::SkyState, [f32; 4], bool),
         mut timing: Option<&mut super::super::timing::Timing>,
     ) {
-        let (globals, state, pano) = frame;
+        // `primary`: the frame's own view, the only one that marches a band (see `Schedule::plan`).
+        let (globals, state, pano, primary) = frame;
         let (sun, light) = sun_key(state.celestial_sun, globals.to_sun, globals.light_dir[..3].try_into().unwrap());
         let key = Key {
             scroll: state.scroll * state.sky_wind_speed,
@@ -92,7 +93,7 @@ impl CloudMap {
         // first nearby eye; large moves/teleports rebuild immediately, even at frozen time.
         // Wind and slow sun drift refresh one band of rows per call (see `cloud_schedule`).
         let distance_squared: f32 = origin.iter().zip(self.origin).map(|(a, b)| (a - b).powi(2)).sum();
-        let Some(rebuild) = self.schedule.plan(key, distance_squared >= 32.0 * 32.0) else {
+        let Some(rebuild) = self.schedule.plan(key, distance_squared >= 32.0 * 32.0, primary) else {
             return;
         };
         let _trace = blackbox_trace::scope("Renderer CPU: cloud map rebuilt");
@@ -156,9 +157,8 @@ impl CloudMap {
         if let Some(timing) = timing {
             timing.stamp(encoder, 9);
         }
-        if rebuild == Rebuild::Full {
-            self.origin = origin;
-        }
+        // Every pass marches from this eye, so the distance moved is measured from the last pass of any kind.
+        self.origin = origin;
         self.updates += 1;
     }
 }

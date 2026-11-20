@@ -36,7 +36,7 @@ impl Renderer {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         size: (u32, u32),
-        frame: &FrameParams,
+        (frame, mip_bias): (&FrameParams, f32),
         instances: &[Instance],
         depth: &wgpu::TextureView,
     ) {
@@ -49,8 +49,9 @@ impl Renderer {
             self.surfaces = None;
             return;
         }
-        let reuse_depth =
-            self.reuse_prepass_depth && self.upscale.texture_lod_bias == 0.0 && !self.experiments.screen_reflections;
+        // The prepass samples cutouts with the colour pass's LOD bias (`mip_bias`), so it keeps no fragment the
+        // colour pass discards and the main view can test against its depth whatever the bias.
+        let reuse_depth = self.reuse_prepass_depth && !self.experiments.screen_reflections;
         let make_targets = || match reuse_depth {
             true => targets::Targets::with_depth(&self.device, size, depth.clone()),
             false => targets::Targets::new(&self.device, size),
@@ -72,7 +73,7 @@ impl Renderer {
         if !reuse_depth && surfaces.targets.depth == *depth {
             surfaces.targets = targets::Targets::new(&self.device, size);
         }
-        surfaces.prepass.encode(self, encoder, &surfaces.targets, frame, instances);
+        surfaces.prepass.encode(self, encoder, &surfaces.targets, (frame, mip_bias), instances);
         self.surfaces = Some(surfaces);
     }
 }

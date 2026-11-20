@@ -22,8 +22,10 @@ fn flake_variation(uv: vec2<f32>) -> f32 {
 }
 
 fn layered_material(n: vec3<f32>, v: vec3<f32>, sun: vec3<f32>, base: vec3<f32>,
-    albedo: vec3<f32>, opacity: f32, visibility: f32, occlusion: f32,
+    albedo: vec3<f32>, opacity: f32, visibility: f32, occlusion: f32, specular_ao: f32,
     uv: vec2<f32>, sharp: vec3<f32>, world: vec3<f32>) -> vec4<f32> {
+    // Every environment term below scales with this; highlights do not.
+    let intensity = material.surface.z * specular_ao;
     let kind = u32(material.surface.w + 0.1);
     if kind == 10u { return vec4<f32>(base, opacity); }
     let roughness = material.surface.x;
@@ -50,13 +52,13 @@ fn layered_material(n: vec3<f32>, v: vec3<f32>, sun: vec3<f32>, base: vec3<f32>,
     if kind == 9u { f0 = vec3<f32>(0.025); }
     let fresnel = layer_fresnel(f0, nv, roughness);
     let highlight = visibility * rig.color[0].xyz * surface_brdf(n, v, sun, roughness, f0);
-    let reflection = environment * fresnel * material.surface.z;
+    let reflection = environment * fresnel * intensity;
     if kind == 6u {
         // Existing tint/opacity controls absorption. Reflections grow towards grazing
         // angles, independently of tint, with no second clearcoat on the glass.
         let glass_f = 0.04 + 0.96 * pow(1.0 - nv, 5.0);
         let alpha = clamp(opacity + (1.0 - opacity) * glass_f, 0.0, 1.0);
-        let reflected_rgb = paint_encoded((environment * glass_f * material.surface.z + highlight) * occlusion);
+        let reflected_rgb = paint_encoded((environment * glass_f * intensity + highlight) * occlusion);
         let transmitted_rgb = paint_encoded(body * (1.0 - glass_f));
         return vec4<f32>((transmitted_rgb * opacity + reflected_rgb) / max(alpha, 0.01), alpha);
     }
@@ -75,7 +77,7 @@ fn layered_material(n: vec3<f32>, v: vec3<f32>, sun: vec3<f32>, base: vec3<f32>,
         let flake_env = layer_environment(reflected, flake_roughness, sharp);
         let flake_sun = visibility * rig.color[0].xyz * surface_brdf(n, v, sun, flake_roughness, flake_color);
         color += flake_strength * occlusion * (flake_env * layer_fresnel(flake_color, nv, flake_roughness)
-            * material.surface.z + flake_sun);
+            * intensity + flake_sun);
     }
     if coat > 0.0 {
         let coat_roughness = select(0.12, 0.18, kind == 7u || kind == 8u);
@@ -83,7 +85,7 @@ fn layered_material(n: vec3<f32>, v: vec3<f32>, sun: vec3<f32>, base: vec3<f32>,
         let coat_env = layer_environment(reflected, coat_roughness, sharp);
         let coat_sun = visibility * rig.color[0].xyz * surface_brdf(n, v, sun, coat_roughness, vec3<f32>(0.04));
         color = color * (vec3<f32>(1.0) - coat_f) + occlusion
-            * (coat_env * coat_f * material.surface.z + coat_sun * coat);
+            * (coat_env * coat_f * intensity + coat_sun * coat);
     }
     return vec4<f32>(paint_encoded(color), opacity);
 }

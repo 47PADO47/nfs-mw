@@ -2,7 +2,10 @@
 use super::emergency;
 use crate::scenes::world::car_lights::{CarLights, Kind, Lamp, LampState};
 
-pub(super) fn samples(lamps: &CarLights, state: LampState) -> impl Iterator<Item = (&Lamp, f32)> + Clone {
+pub(in crate::scenes::world) fn samples(
+    lamps: &CarLights,
+    state: LampState,
+) -> impl Iterator<Item = (&Lamp, f32)> + Clone {
     let live = state.emergency & !state.broken;
     let colors = [emergency::RED, emergency::BLUE].map(|mask| f32::from(u8::from(live & mask != 0)));
     let pulse = emergency::colour_pulse(state.time);

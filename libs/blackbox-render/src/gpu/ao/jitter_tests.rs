@@ -31,3 +31,35 @@ fn temporal_ao_contacts_survive_switching_upscalers_and_their_jitter() {
         println!("{upscaler:?}: temporal AO contacts preserved");
     }
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn spatial_ao_steps_its_sample_phases_under_a_temporal_upscaler_and_keeps_contacts() {
+    let _serial = test_support::serial();
+    let size = (319, 237);
+    let mut r = test_support::headless(size).expect("GPU adapter required");
+    let (frame, instances) = scene_shading(&mut r, size, true, Shading::Prelit);
+    let method = AoMethod::XeGtao;
+    {
+        for upscaler in [Upscaler::Off, Upscaler::Fsr3] {
+            r.apply_graphics(&GraphicsSettings {
+                upscaler,
+                upscale_quality: UpscaleQuality::Native,
+                ao: AoSettings { method, quality: AoQuality::Medium, ..Default::default() },
+                ..Default::default()
+            });
+            let mut spins = Vec::new();
+            for _ in 0..4 {
+                r.render(&frame, &instances).unwrap();
+                spins.push(r.ao.as_ref().unwrap().spin);
+            }
+            match upscaler {
+                Upscaler::Off => assert_eq!(spins, [0; 4], "{method}: fixed phases without an upscaler"),
+                _ => assert!(spins.windows(2).all(|pair| pair[0] != pair[1]), "{method}: phases must step: {spins:?}"),
+            }
+            let mask = r.read_raw_texture(r.shared.shadows.ambient.texture(), size, 1).unwrap();
+            assert!(mask.iter().filter(|&&v| v < 240).count() > 100, "{method}/{upscaler:?}: AO contacts were lost");
+            assert!(mask[..size.0 as usize].iter().all(|&v| v >= 254), "{method}/{upscaler:?}: sky is not occluded");
+        }
+    }
+}

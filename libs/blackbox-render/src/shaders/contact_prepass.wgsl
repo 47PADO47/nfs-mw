@@ -1,4 +1,7 @@
-@group(0) @binding(0) var<uniform> camera: mat4x4<f32>;
+// `bias.x`: the colour pass's texture LOD bias. Cutouts the colour pass samples with that bias take it too, so
+// with a shared depth buffer the prepass never keeps a fragment the colour pass discards.
+struct Camera { matrix: mat4x4<f32>, bias: vec4<f32> };
+@group(0) @binding(0) var<uniform> camera: Camera;
 @group(1) @binding(0) var image: texture_2d<f32>;
 @group(1) @binding(1) var image_sampler: sampler;
 struct In {
@@ -21,7 +24,7 @@ struct Out { @invariant @builtin(position) clip: vec4<f32>, @location(0) normal:
     var out: Out;
     let model = instance_model(placed);
     let world = model * vec4<f32>(v.position, 1.0);
-    out.clip = camera * world;
+    out.clip = camera.matrix * world;
     out.world = world.xyz;
     out.normal = cross(model[1].xyz, model[2].xyz) * v.normal.x + cross(model[2].xyz, model[0].xyz) * v.normal.y + cross(model[0].xyz, model[1].xyz) * v.normal.z;
     out.uv = v.uv; out.alpha = v.color.a;
@@ -32,13 +35,19 @@ fn encoded(n: vec3<f32>) -> vec4<f32> {
     return vec4<f32>(normalize(n) * 0.5 + 0.5, 1.0);
 }
 @fragment fn fs_opaque(in: Out) -> @location(0) vec4<f32> { return encoded(in.normal); }
+fn biased(uv: vec2<f32>) -> f32 { return textureSampleBias(image, image_sampler, uv, camera.bias.x).a; }
 @fragment fn fs_cutout(in: Out) -> @location(0) vec4<f32> {
-    if textureSample(image, image_sampler, in.uv).a * in.alpha < 0.5 { discard; }
+    if biased(in.uv) * in.alpha < 0.5 { discard; }
     return encoded(in.normal);
 }
 @fragment fn fs_glossy_cutout(in: Out) -> @location(0) vec4<f32> {
-    // Match the glossy colour shader: vertex alpha is not the texture-alpha cutoff.
+    // Match the glossy colour shader: vertex alpha is not the texture-alpha cutoff, and it takes no LOD bias.
     if textureSample(image, image_sampler, in.uv).a < 0.5 { discard; }
+    return encoded(in.normal);
+}
+@fragment fn fs_window_cutout(in: Out) -> @location(0) vec4<f32> {
+    // Original windows cut on texture alpha alone, like glossy cutouts, but sample with the LOD bias.
+    if biased(in.uv) < 0.5 { discard; }
     return encoded(in.normal);
 }
 
@@ -46,16 +55,16 @@ fn encoded(n: vec3<f32>) -> vec4<f32> {
     // Leaf lighting normals are deliberately bent away from their card planes.
     // AO/contact rays need the visible geometric plane; evaluate before discard.
     let plane = -cross(dpdx(in.world), dpdy(in.world));
-    if textureSample(image, image_sampler, in.uv).a < 0.5 { discard; }
+    if biased(in.uv) < 0.5 { discard; }
     return encoded(plane);
 }
 
 @fragment fn fs_prelit_cutout(in: Out) -> @location(0) vec4<f32> {
-    if 2.0 * textureSample(image, image_sampler, in.uv).a * in.alpha <= 0.375 { discard; }
+    if 2.0 * biased(in.uv) * in.alpha <= 0.375 { discard; }
     return encoded(in.normal);
 }
 
 @fragment fn fs_world_cutout(in: Out) -> @location(0) vec4<f32> {
-    if textureSample(image, image_sampler, in.uv).a * in.alpha <= 0.375 { discard; }
+    if biased(in.uv) * in.alpha <= 0.375 { discard; }
     return encoded(in.normal);
 }

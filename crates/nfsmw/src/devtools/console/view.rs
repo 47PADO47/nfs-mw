@@ -78,7 +78,7 @@ fn command_line(ui: &mut egui::Ui, console: &mut Console) {
             if console.history.last() != Some(&line) {
                 console.history.push(line.clone());
             }
-            console.pending.push(line);
+            console.pending.push((line, false));
         }
         console.history_at = None;
     }

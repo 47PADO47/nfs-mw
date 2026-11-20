@@ -4,7 +4,7 @@ struct AoParams {
     projection: vec4<f32>, // inverse projection X/Y scale, reverse-Z near, unused
     effect: vec4<f32>, // radius, intensity, distance fade start/end
     sampling: vec4<u32>, // resolution divisor, slices, steps per side, comparison
-    fog: vec4<f32>, // retained uniform layout
+    fog: vec4<f32>, // frames of stepped sample phases (zero: fixed), unused, XeGTAO depth weights, temporal phase
     view: mat4x4<f32>,
     tuning: vec4<f32>, // XeGTAO thin occluder compensation, shading normal guard (min cosine to the depth normal), unused
 };

@@ -48,7 +48,10 @@ fn xe_hash(value: u32) -> u32 {
 
 fn xe_phase(pixel: vec2<u32>) -> vec2<f32> {
     let seed = xe_hash(pixel.x ^ xe_hash(pixel.y) ^ (u32(params.fog.w) * 0x9e3779b9u));
-    return vec2<f32>(f32(seed & 0xffffffu), f32(xe_hash(seed) & 0xffffffu)) / 16777216.0;
+    let phase = vec2<f32>(f32(seed & 0xffffffu), f32(xe_hash(seed) & 0xffffffu)) / 16777216.0;
+    // Under a temporal upscaler each pixel's slice angle steps by the golden ratio per frame and its radial
+    // phase by the plastic number's, so the frames the upscaler accumulates cover both evenly.
+    return fract(phase + params.fog.x * vec2<f32>(0.61803398875, 0.75487766625));
 }
 
 fn xe_position(pixel: vec2<i32>, offset: vec2<i32>) -> vec3<f32> {

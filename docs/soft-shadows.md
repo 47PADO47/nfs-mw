@@ -96,3 +96,48 @@ Otherwise periodic diagnostics must not walk thousands of objects or allocate ba
 while it is moving. Screenshot readiness still waits for the script to finish. Previously both
 used capture readiness, so a scripted benchmark accidentally measured only the final view.
 These are application frame times, not isolated GPU timings or compositor present measurements.
+
+## Native renderer: cheaper sun filter at night (tried, not adopted)
+
+The native renderer's cascade receiver (`shadow_receiver.wgsl`) runs a 32-load blocker search and a
+12- or 20-tap disk filter. Night and cloud cover were tested as a reason to spend less there: a uniform
+(a spare `debug` lane) blended the PCSS result towards a four-tap fixed PCF, reaching it at night blend 1.
+Measured on an RTX 3070 (Vulkan), synthetic street with sun casters, 2560x1440, batch timing:
+
+| Case | Shadow cost before | With the cheap night path |
+|---|---:|---:|
+| Soft, 2048, day | 1.37 ms | 1.58-1.61 ms |
+| Soft, 2048, night blend 1 | 1.35-1.37 ms | 0.26-0.31 ms |
+| Dense + wide detail, 4096, day | 1.56-1.77 ms | 2.10-2.11 ms |
+| Dense + wide detail, 4096, night blend 1 | 1.75 ms | 0.37-0.41 ms |
+
+It was reverted for two reasons. The night tint scales ambient and direct light alike, so a shadow keeps
+its daytime contrast at a third of the brightness: the cheap kernel changed the final night image by up to
+41/255 at penumbrae (lamp heads shadowing their poles, contact lines), which is visible. Cloud
+transmission never falls below 0.35 and varies across the map, so overcast skies are not a safe bound
+either. Second, carrying both paths in the receiver made daytime frames slower (the shader's other work
+included), although daytime images stayed bit-identical. A saving here needs to leave the image
+unchanged, for example cheaper depth fetches for the same blocker texels, not a reduced kernel.
+
+## Native renderer: the blocker search fades out with distance
+
+The contact-hardening blocker search (32 depth loads per pixel) widens the filter by the penumbra a blocker
+casts. Far from the camera that penumbra spans a pixel or two, so the search now fades out between 80 and
+120 m from the camera (`near` in `cascade_sample`): its added radius is scaled down through the band and the
+search is skipped beyond it, where the fixed filter width and the half-pixel antialiasing floor remain. With
+hardware RT sun shadows (receiver range 100 m by default) the cascades only show from 80 m on, so most of the
+search's work there was spent on these distant pixels.
+
+Measured in the game on an RTX 3070 at 3840x2160 (SMAA, 4096 maps, PCSS and dense filter on, 12 s medians):
+
+| Scene | Before | After |
+|---|---:|---:|
+| Clear morning, RT sun shadows | 17.3 ms | 16.1 ms |
+| Clear morning, cascades only | 16.7 ms | 15.5 ms |
+| Overcast rain by day, RT | 21.7 ms | 20.6 ms |
+| Overcast rain at night, RT | 28.7 ms | 27.8 ms |
+
+The 4K frame changes by 0.014/255 on average (two runs of the old build differ by 0.003/255); the changed
+pixels are distant shadow edges, which are slightly crisper. Two attempts at an identical-image saving in the
+same pass did not pay: gathering the blocker texels (8 gathers for 32 loads) was 1.3 to 1.5 ms slower at 4K,
+and skipping redundant surface tests in the RT reconstruction filter saved nothing measurable.

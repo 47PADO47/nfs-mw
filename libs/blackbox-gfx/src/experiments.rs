@@ -75,6 +75,10 @@ pub struct RenderExperiments {
     pub auto_player_lights: bool,
     /// Player tail and brake lights illuminate nearby surfaces.
     pub local_tail_lights: bool,
+    /// Flashing emergency light bars of nearby vehicles illuminate the surfaces around them.
+    pub local_emergency_lights: bool,
+    /// Brightness of the emergency light-bar spill.
+    pub local_emergency_strength: f32,
     /// Enhanced sky brightness during the experimental night mode.
     pub night_sky_brightness: f32,
     pub local_light_distance: f32,
@@ -128,6 +132,9 @@ pub struct RenderExperiments {
     /// Outer cascade coverage relative to the detailed range.
     pub far_shadow_scale: f32,
     pub contact_shadows: bool,
+    /// With contact shadows: long screen-space sun shadows (60 depth samples towards the sun) in place of the
+    /// short contact march.
+    pub screen_space_shadows: bool,
     pub clearcoat: bool,
     /// Opt-in surfaces use calibrated highlights and filtered environment reflections.
     pub paint_response: bool,
@@ -213,6 +220,8 @@ impl Default for RenderExperiments {
             full_day_night: false,
             auto_player_lights: true,
             local_tail_lights: false,
+            local_emergency_lights: false,
+            local_emergency_strength: 1.0,
             night_sky_brightness: 0.18,
             local_light_distance: 160.0,
             local_light_strength: 1.0,
@@ -239,6 +248,7 @@ impl Default for RenderExperiments {
             far_shadows: false,
             far_shadow_scale: 3.0,
             contact_shadows: false,
+            screen_space_shadows: false,
             clearcoat: false,
             paint_response: true,
             local_reflection_correction: true,
@@ -276,6 +286,7 @@ impl RenderExperiments {
             night_sky_brightness: finite(self.night_sky_brightness, 0.18).clamp(0.05, 0.4),
             local_light_distance: finite(self.local_light_distance, 160.0).clamp(80.0, 600.0),
             local_headlight_strength: finite(self.local_headlight_strength, 1.15).clamp(0.0, 5.0),
+            local_emergency_strength: finite(self.local_emergency_strength, 1.0).clamp(0.0, 5.0),
             local_light_limit: self.local_light_limit.clamp(8, 128),
             local_traffic_limit: self.local_traffic_limit.min(8),
             local_shadow_count: self.local_shadow_count.min(16),

@@ -165,7 +165,8 @@ impl Renderer {
             timing.stamp(encoder, 4);
         }
         let depth = targets.unwrap_or(&self.targets).depth_view().clone();
-        self.encode_surfaces(encoder, size, frame, instances, &depth);
+        let mip_bias = self.scene_mip_bias(false, targets.is_some());
+        self.encode_surfaces(encoder, size, (frame, mip_bias), instances, &depth);
         self.encode_effect_motion(encoder, frame, instances);
         self.encode_contact(encoder, size, frame);
         self.encode_ray_shadows(encoder, size, frame);
@@ -344,7 +345,8 @@ impl Renderer {
                 encoder,
                 &self.shared.bindings.globals_layout,
                 &bind_group,
-                &globals,
+                // The frame's own view (not a reflection, road or mirror capture) marches the cloud bands.
+                (&globals, !reflection && !reduced),
                 self.timing.as_mut(),
             );
         }

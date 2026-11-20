@@ -48,10 +48,13 @@ share that map, including reflection faces and mirrors. The atmosphere and sun d
 are still evaluated per pixel in each view, keeping the solar disk sharp.
 
 The map updates whenever wind time, cloud coverage or sunlight changes. Wind and
-slow sun drift rebuild one of four horizontal row bands per frame, cycling, so each
-texel is still a complete single-frame march (at most three frames old, no blending
-with history). A visible jump in coverage, sunset warmth or sun direction, or a
-camera move of 32 m, rebuilds every row at once, including at frozen time. The light
+slow sun drift rebuild one of eight horizontal row bands per frame, cycling, so each
+texel is still a complete single-frame march (at most seven frames old, no blending
+with history). Only the frame's own view marches a band; its reflection faces, mirror
+and road capture share the map. A visible jump in coverage, sunset warmth or sun
+direction rebuilds every row at once, including at frozen time. Each band is marched
+from the eye of its own frame, so the map follows a moving camera; only a held map
+(no wind) rebuilds every row after a camera move of 32 m. The light
 march through each cloud sample uses four steps. Nearby eyes share one
 origin: their cloud parallax is approximated because the cloud base is 2 km high.
 Cloud detail has a fixed angular resolution and is bilinearly reconstructed;
