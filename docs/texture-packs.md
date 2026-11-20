@@ -82,9 +82,10 @@ setting at `TexturePacks`, or copy `TexturePacks` into a mod as its `textures/` 
 
 ## Formats
 
-DXT1, DXT3 and DXT5 (also as the DX10 header's BC1 to BC3) and uncompressed A8R8G8B8, with the mip levels the file holds (levels
-it declares but does not hold are dropped). Cube maps, volumes and other formats are refused: that file is skipped and the
-texture keeps its picture. Up to 16384 pixels a side.
+DXT1, DXT3 and DXT5 (also as the DX10 header's BC1 to BC3) pass through byte for byte with the mip levels the file holds
+(levels it declares but does not hold are dropped). Uncompressed 32-bit BGRA or RGBA and the BC4, BC5 and BC7 formats are
+decoded to A8R8G8B8 with one level. Cube maps, volumes, arrays and 16 or 24-bit files are refused: that file is skipped and
+the texture keeps its picture. Up to 16384 pixels a side.
 
 The texture keeps its name, its alpha rules and its flags; it takes the file's size, format and mip chain.
 

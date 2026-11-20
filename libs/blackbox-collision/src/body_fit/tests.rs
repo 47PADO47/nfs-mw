@@ -113,7 +113,7 @@ fn children_pivots_are_the_root_pivot_plus_their_position() {
 fn the_cloud_is_a_mirrored_silhouette_inside_the_root_box() {
     let set = fitted();
     let cloud = &set.point_clouds[0];
-    assert!(cloud.len() >= 6 && cloud.len() % 2 == 0 && cloud.len() <= 16);
+    assert!(cloud.len() >= 6 && cloud.len().is_multiple_of(2) && cloud.len() <= 16);
     let root = set.root();
     for p in cloud {
         for a in 0..3 {
@@ -135,8 +135,8 @@ fn every_point_lies_inside_the_root_box() {
     let set = fitted();
     let root = set.root();
     for p in car() {
-        for a in 0..3 {
-            assert!((p[a] - root.pivot[a]).abs() <= root.half_dimensions[a] + 0.001);
+        for (a, coordinate) in p.into_iter().enumerate() {
+            assert!((coordinate - root.pivot[a]).abs() <= root.half_dimensions[a] + 0.001);
         }
     }
 }

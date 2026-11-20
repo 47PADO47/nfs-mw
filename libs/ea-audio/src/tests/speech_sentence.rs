@@ -81,7 +81,7 @@ fn record(event: u16, blocks: &[BlockDef]) -> Vec<u8> {
 fn evt(records: &[Vec<u8>]) -> Vec<u8> {
     let mut out = vec![0u8; 0x18 + 2 * records.len()];
     out[0x10..0x14].copy_from_slice(&(records.len() as u32).to_le_bytes());
-    while out.len() % 4 != 0 {
+    while !out.len().is_multiple_of(4) {
         out.push(0);
     }
     for (i, r) in records.iter().enumerate() {

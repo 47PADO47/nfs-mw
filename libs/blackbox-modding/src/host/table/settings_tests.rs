@@ -38,6 +38,7 @@ struct Stored {
     label: String,
     values: Vec<(String, String)>,
     default_on: bool,
+    section: String,
 }
 
 #[derive(Default)]
@@ -56,6 +57,7 @@ impl SettingsBackend for Fake {
             label: spec.label.to_owned(),
             values: spec.values.iter().map(|v| (v.id.to_owned(), v.label.to_owned())).collect(),
             default_on: spec.default_on,
+            section: spec.section.to_owned(),
         });
         if let Some(handler) = on_change {
             self.handlers.borrow_mut().push((handle, handler));
@@ -88,6 +90,7 @@ fn option<'a>(kind: u32, id: &'a str, values: &'a [BbSettingValue]) -> BbSetting
         value_count: values.len() as u64,
         default_on: 0,
         pad: 0,
+        section: BbStr::new(""),
     }
 }
 
@@ -128,6 +131,7 @@ fn a_list_option_is_read_and_a_change_reaches_the_mod() {
             label: "Label".into(),
             values: vec![("mw2012".into(), "NFS Most Wanted 2012".into())],
             default_on: false,
+            section: String::new(),
         }
     );
     for (_, handler) in backend.handlers.borrow().iter() {
@@ -237,4 +241,29 @@ fn a_call_outside_a_callback_is_refused() {
     let (status, _) = add(table_of(&attached), &option(BB_SETTING_LIST, "x", &values), ptr::null_mut(), None);
     assert_eq!(status, BB_ERR_NOT_IN_CALLBACK);
     assert!(backend.options.borrow().is_empty());
+}
+
+#[test]
+fn the_section_is_read_when_the_struct_has_it_and_a_struct_without_it_is_the_default_section() {
+    let _scope = callback_on_main();
+    let backend = Rc::new(Fake::default());
+    let attached = attach_settings(backend.clone(), "example.a");
+    let table = table_of(&attached);
+    let toggle = |id: &str, section: &str| BbSettingOption {
+        section: BbStr::new(section),
+        ..option(BB_SETTING_TOGGLE, id, &[])
+    };
+    assert_eq!(add(table, &toggle("in_section", "RIDE 6"), ptr::null_mut(), None).0, BB_OK);
+    // A mod built before `section` existed fills in only the first 72 bytes; what follows in its memory is not read.
+    let old = BbSettingOption {
+        size: BB_SETTING_OPTION_V0_SIZE,
+        section: BbStr::new("not read"),
+        ..option(BB_SETTING_TOGGLE, "no_section", &[])
+    };
+    assert_eq!(add(table, &old, ptr::null_mut(), None).0, BB_OK);
+    let sections: Vec<String> = backend.options.borrow().iter().map(|stored| stored.section.clone()).collect();
+    assert_eq!(sections, ["RIDE 6", ""]);
+    let too_long = "s".repeat(MAX_NAME_BYTES + 1);
+    let refused = add(table, &toggle("long", &too_long), ptr::null_mut(), None).0;
+    assert_eq!(refused, BB_ERR_ARG, "a section title the host cannot take");
 }

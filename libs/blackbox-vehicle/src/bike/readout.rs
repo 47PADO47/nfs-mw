@@ -59,6 +59,12 @@ impl Bike {
         self.powertrain.gear()
     }
 
+    /// The clutch lever as of the last step, 0 (let go) to 1 (pulled in): the handler pulls it for a gear change, for a start and
+    /// at a standstill. The rider's left hand follows it.
+    pub fn clutch_pulled(&self) -> f32 {
+        self.powertrain.clutch_pulled()
+    }
+
     pub fn wheel(&self, index: usize) -> &WheelState {
         &self.wheels[index.min(REAR)]
     }

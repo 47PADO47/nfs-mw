@@ -46,7 +46,8 @@ small state machine, section 2, and the rest of this page.
   assumed to be m/s **[unconfirmed]**.
 - **Countdown length** is not in the executable data read here (the board's timing is in the HUD package); this
   rewrite uses 3 s, one second per number **[unconfirmed]**.
-- **Grid.** The player stands at the race's `racestart` marker facing its heading. Opponents stand in two columns
+- **Grid.** A standing start whose intro plays a NIS at the start stands the racers where that scene's car channels
+  end. Otherwise the player stands at the race's `racestart` marker facing its heading and the opponents in two columns
   behind and beside it, [ai-racers-route.md](ai-racers-route.md) section 3.
 
 ## 3. Checkpoints and laps
@@ -231,7 +232,7 @@ The race HUD is the package's own (`hud/race.rs`, `HudState::race`) **[exe]** na
   message tables, objects of no package. The tollbooth icon (`Tollbooth_Icon.tga`) sits in the lap group and shows with
   it; the speed-trap points have no object.
 - The drag tachometer's face is `DRAG_RPM_<scale>_LINES` and its redline mask angle comes from the executable's drag
-  table **[exe]** (`FUN_0057c000`; `hud/state.rs` `redline_rotation_drag`). The needle's sweep is the one value still
+  table **[exe]** (`FUN_0057c000`; `hud/state/mod.rs` `redline_rotation_drag`). The needle's sweep is the one value still
   not read: the gauge class registers its update as a callback that the decompiler does not resolve, and `228.0`,
   `66.0` do not occur as constants in the HUD code range **[unconfirmed]**. `Perfect Shift!` plays for an upshift made at
   0.95 of the red line or more **[unconfirmed]**: the shift rating is not read. The second `TAC_NUMBERS` string
@@ -317,7 +318,8 @@ The player's reset key keeps working in a race. The pause menu's Resume Race and
 Differences from the original that the rules above call out: the countdown is 3 s; the lines above that have no package object are an egui card; the
 post-race flow has no outro and no losing screen of its own; a player who is busted in a race
 is not handled (the pursuit's own bust flow runs); `SharedCheckpoints`,
-`TokenValue` (cash grab), `Shortcuts` and `BarrierExemptions` are not used; the sudden-death, cash-grab, checkpoint-race
+`TokenValue` (cash grab) and `BarrierExemptions` are not used; `Shortcuts` are used (`race/shortcuts.rs`,
+[ai-racers-route.md](ai-racers-route.md) section 2; not compared with the original in a running game); the sudden-death, cash-grab, checkpoint-race
 and jump types do not occur in this install.
 
 ## 14. Pursuit challenges

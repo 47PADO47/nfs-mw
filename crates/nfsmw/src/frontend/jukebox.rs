@@ -353,6 +353,7 @@ impl ScreenLogic for JukeboxLogic {
                     enabled: true,
                     value: MenuValue::Choice { text: mode_text(entry.mode), arrows: false },
                     icon: None,
+                    flags: crate::ui::theme::EntryFlags::ROW,
                 }
             })
             .collect();

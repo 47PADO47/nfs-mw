@@ -55,3 +55,15 @@ race; 38 gameplay records resolve `BossRace` true. The CC0 reference front-end d
 adaptive value through a setter clamped to 0..1, read for understanding only.
 Unit checks cover the factor endpoints, boss interpolation and identical career and
 Medium quick-race outputs. This does not establish full career pace parity.
+
+## Medium quick-race check (2026-11-18)
+
+Install data, read through the repo's attribute reader: `16_1_1_circuit` sets
+`DifficultyLevel 50`, `CatchUpSkill "0.5"` and `CatchUpSpread "500"`, and inherits
+`CatchUp True`, `CatchUpOverride False`, 5e-5 integral and 0.001 derivative from
+`basicrace`. A one-run orchestrator observation of the original's two catch-up
+outputs in this race found the second exactly 0.75 times the first, the first
+reaching 1.0 and briefly negative. That fits the clamped normalized output and the
+built-in 0.75 early amplitude, not the race's unused 0.5 text table and not a 0..1
+factor. It does not show what the driver adds; the positive base-skill scaling below
+skill 1 remains [decomp] only. No catch-up behaviour was changed.

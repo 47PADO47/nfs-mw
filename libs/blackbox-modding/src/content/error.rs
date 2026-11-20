@@ -67,6 +67,12 @@ pub enum ContentError {
     /// The pack has no `[[place]]`.
     #[error("the pack places nothing")]
     NoPlace,
+    /// The pack says `placed = "file"` and also has `[[place]]`.
+    #[error("the pack says its file places its own objects (placed = \"file\"), so it has no [[place]]")]
+    PlacedByFile,
+    /// `placed` is not `file`.
+    #[error("placed {0:?} is not \"file\"")]
+    UnknownPlaced(String),
     /// A placement is not valid. `at` counts from 1, in file order.
     #[error("place {at}: {reason}")]
     Place { at: usize, reason: &'static str },

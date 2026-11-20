@@ -1,43 +1,14 @@
-//! Installed fixed artwork and quick finish/color controls.
+//! The appearance controls the vehicle panel hosts: vinyl colours, rim colour, gauges, plate.
 use nfsmw_data::car::customization::{Catalog, Category};
 
 use super::Model;
 use crate::settings::{Settings, UiStyle};
 
-pub(super) fn body_color(model: &Model) -> Option<[u8; 3]> {
-    let car = model.selected()?;
-    model
-        .draft
-        .color
-        .or_else(|| car.parts.as_ref()?.colors.get(&model.draft.parts.parts[Category::Paint as usize]?).copied())
-        .or(car.original_color)
-}
-
-fn finish(model: &mut Model, hash: u32) {
-    model.draft.color = body_color(model);
-    model.draft.parts.parts[Category::Paint as usize] = Some(hash);
-}
-
-pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings) {
+/// What the vehicle panel's Appearance page hosts beside the options' own selectors (paint, tint, rim paint, vinyl): the vinyl
+/// colour channels, the rim colour, the gauges, the licence plate, and a button that puts the whole appearance back to stock.
+pub(crate) fn extras(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings) {
     let Some(catalog) = model.selected().and_then(|car| car.parts.clone()) else { return };
-    ui.heading("Paint finish");
-    ui.horizontal_wrapped(|ui| {
-        for (label, hash) in &catalog.finishes {
-            let active = model.draft.parts.parts[Category::Paint as usize] == Some(*hash);
-            if ui
-                .selectable_label(active, label)
-                .on_hover_text("Keep your current color and change the finish")
-                .clicked()
-            {
-                finish(model, *hash);
-            }
-        }
-    });
-    for category in [Category::Paint, Category::WindowTint] {
-        super::parts::selector(ui, model, &catalog, category);
-    }
-    ui.collapsing("Vinyls", |ui| {
-        super::parts::selector(ui, model, &catalog, Category::Vinyl);
+    ui.collapsing("Vinyl colours", |ui| {
         let count = model.draft.parts.parts[Category::Vinyl as usize]
             .and_then(|h| catalog.vinyl_remaps.get(&h))
             .copied()
@@ -49,9 +20,11 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
                 model.draft.parts.vinyl_color_parts[i] = None;
             }
         }
-        ui.weak("Fixed artwork. Color controls appear for recolorable vinyls.");
+        if count == 0 {
+            ui.weak("Pick a recolorable vinyl to see its colour channels.");
+        }
     });
-    ui.collapsing("Rim paint", |ui| rims(ui, model, &catalog));
+    ui.collapsing("Rim colour", |ui| rims(ui, model, &catalog));
     ui.collapsing("Gauges", |ui| gauges(ui, model, &catalog, settings));
     super::plate_edit::show(ui, model, &catalog);
     if ui.button("Restore stock appearance").clicked() {
@@ -69,12 +42,11 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model, settings: &mut Settings
 fn rims(ui: &mut egui::Ui, model: &mut Model, catalog: &Catalog) {
     let eligible =
         model.draft.parts.parts[Category::Wheels as usize].is_some_and(|h| catalog.paintable_wheels.contains(&h));
-    ui.add_enabled_ui(eligible, |ui| {
-        super::parts::selector(ui, model, catalog, Category::RimPaint);
+    ui.add_enabled_ui(eligible || catalog.custom_rim_paint, |ui| {
         color(ui, "Rim color", &mut model.draft.parts.rim_color);
     });
-    if !eligible {
-        ui.weak("Fit aftermarket rims in Parts to paint them.");
+    if !eligible && !catalog.custom_rim_paint {
+        ui.weak("Fit aftermarket rims on the Parts page to paint them.");
     }
 }
 
@@ -123,29 +95,4 @@ fn color(ui: &mut egui::Ui, label: &str, value: &mut Option<[u8; 3]>) {
             }
         })
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn quick_finish_preserves_custom_or_current_preset_color() {
-        let mut catalog = Catalog::default();
-        catalog.colors.insert(42, [12, 34, 56]);
-        let mut model = Model::default();
-        model.cars.push(super::super::Car {
-            folder: "CAR".into(),
-            original_color: Some([80; 3]),
-            parts: Some(catalog.into()),
-            ..Default::default()
-        });
-        model.select("CAR".into());
-        model.draft.parts.parts[Category::Paint as usize] = Some(42);
-        finish(&mut model, 43);
-        assert_eq!(model.draft.color, Some([12, 34, 56]));
-        model.draft.color = Some([200, 10, 50]);
-        finish(&mut model, 44);
-        assert_eq!(model.draft.color, Some([200, 10, 50]));
-    }
 }

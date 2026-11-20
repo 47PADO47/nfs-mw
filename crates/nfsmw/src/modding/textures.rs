@@ -62,8 +62,10 @@ mod tests {
 
     #[test]
     fn the_settings_folder_comes_first_and_a_missing_mod_adds_nothing() {
-        let mut hd = HdContent::default();
-        hd.texture_packs = crate::settings::hd_content::texture_packs::parse("/packs").unwrap();
+        let hd = HdContent {
+            texture_packs: crate::settings::hd_content::texture_packs::parse("/packs").unwrap(),
+            ..HdContent::default()
+        };
         let (specs, mods) = plan(&["absent".to_owned()], &[], &hd);
         assert_eq!(
             specs,

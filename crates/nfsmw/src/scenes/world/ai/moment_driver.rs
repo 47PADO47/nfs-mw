@@ -1,5 +1,6 @@
 //! Temporary player ownership during a world moment. Reuses the race action and PID driver.
-//! Spec: `docs/specs/pursuit-cinematic-control.md`.
+//! Spec: `docs/specs/pursuit-cinematic-control.md`. An unattended race run's autopilot is the same driver, told where the
+//! race goes as an opponent is (`race_pilot_input_with_delta`, `race/autopilot.rs`).
 
 use blackbox_driver::{ControllerKind, DriveFlags, DriveRequest, Driver, GearRequest, VehicleView};
 use blackbox_roads::{Body, LaneType, NavKind, RoadNav, SegmentFilter};
@@ -13,6 +14,28 @@ use super::racer::{RACER_THINK_STEPS, RacerState};
 use super::traffic::CarState;
 use crate::scenes::world::drive::DriveInput;
 
+/// What a race tells the driver of the player's car, as it tells an opponent's (`race/flow.rs`, `race_goals`).
+#[derive(Debug, Clone)]
+pub(in crate::scenes::world) struct RaceAim {
+    /// The point past the next gate, in physics space; `None` once the racer has finished.
+    pub goal: Option<glam::Vec3>,
+    /// The leg of the race's route the racer is on.
+    pub leg: Option<usize>,
+    /// The race's route, without shortcuts.
+    pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
+    /// The driver's skill, 0 to 1.
+    pub skill: f32,
+}
+
+/// The player's car as the driver sees it this tick.
+pub(in crate::scenes::world) struct PilotCar {
+    pub body: Body,
+    pub view: VehicleView,
+    pub performance: Performance,
+    pub ai: AiVehicle,
+    pub mass: f32,
+}
+
 pub(in crate::scenes::world) struct MomentDriver {
     nav: RoadNav,
     racer: RacerState,
@@ -21,6 +44,14 @@ pub(in crate::scenes::world) struct MomentDriver {
     elapsed: f32,
     think_elapsed: f32,
     request: DriveRequest,
+}
+
+impl MomentDriver {
+    /// The speed the driver is asked for now (m/s), and its skill: the base, the catch-up offset (none: the race's
+    /// catch-up never reaches the player's car) and the skill it drives with.
+    pub(in crate::scenes::world) fn trace_state(&self) -> (f32, f32, f32, f32) {
+        (self.request.speed, self.racer.base_skill, self.racer.glue, self.racer.skill())
+    }
 }
 
 impl TrafficWorld {
@@ -48,6 +79,28 @@ impl TrafficWorld {
         ai: AiVehicle,
         mass: f32,
     ) -> DriveInput {
+        self.pilot_input(dt, state, PilotCar { body, view, performance, ai, mass }, None)
+    }
+
+    /// The pedals of the player's car in a race, driven as an opponent drives: to `aim`'s gate along its route.
+    pub(in crate::scenes::world) fn race_pilot_input_with_delta(
+        &mut self,
+        dt: f32,
+        state: &mut Option<MomentDriver>,
+        car: PilotCar,
+        aim: &RaceAim,
+    ) -> DriveInput {
+        self.pilot_input(dt, state, car, Some(aim))
+    }
+
+    fn pilot_input(
+        &mut self,
+        dt: f32,
+        state: &mut Option<MomentDriver>,
+        car: PilotCar,
+        aim: Option<&RaceAim>,
+    ) -> DriveInput {
+        let PilotCar { body, view, performance, ai, mass } = car;
         if state.is_none() {
             let mut nav = RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter::default());
             nav.half_width = body.half_width;
@@ -55,10 +108,14 @@ impl TrafficWorld {
                 return DriveInput::default();
             }
             nav.enable_trail(&self.network);
-            let mut racer = RacerState::new(0, performance, ai, performance, 1.0, 0.5, view.forward_speed);
+            let skill = aim.map_or(0.5, |aim| aim.skill);
+            let mut racer = RacerState::new(0, performance, ai, performance, 1.0, skill, view.forward_speed);
             racer.held = false;
-            // Keep the entry speed until the original non-race autopilot speed rule is established.
-            racer.set_cruise_speed(view.planar_speed);
+            match aim {
+                Some(aim) => racer.route = aim.route.clone(),
+                // Keep the entry speed until the original non-race autopilot speed rule is established.
+                None => racer.set_cruise_speed(view.planar_speed),
+            }
             *state = Some(MomentDriver {
                 nav,
                 racer,
@@ -70,6 +127,10 @@ impl TrafficWorld {
             });
         }
         let state = state.as_mut().expect("the road navigation was acquired");
+        if let Some(aim) = aim {
+            state.racer.set_goal(aim.goal);
+            state.racer.set_leg(aim.leg);
+        }
         if state.ticks.is_multiple_of(RACER_THINK_STEPS) {
             let bodies: Vec<(Body, bool)> = self.cars.iter().map(|car| (car.avoidable(), car.is_cop())).collect();
             let mut ctx = Ctx {

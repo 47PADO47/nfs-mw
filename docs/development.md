@@ -58,6 +58,29 @@ cargo run --release -p nfsmw -- view-car BMWM3GTR
 cargo run --release -p nfsmw -- view-world
 ```
 
+## Building without the Bevy renderer
+
+The Bevy renderer is a default feature of `nfsmw` (`renderer-bevy`, with `fsr3` on top of it). To build and test the
+game on the native renderer alone, turn the defaults off and name the other three default features:
+
+```sh
+cargo test -p nfsmw --no-default-features --features mimalloc,multiplayer,native-dlss
+cargo test --workspace --exclude nfsmw --exclude blackbox-bevy-render   # every other crate
+```
+
+`cargo build` and `cargo run` take the same flags. Use `-p nfsmw`: `--workspace` always builds the
+`blackbox-bevy-render` member. `native-dlss` may be left out; on Windows it warns without `STREAMLINE_SDK`
+([native-dlss.md](native-dlss.md)). The feature names are from `crates/nfsmw/Cargo.toml`; the two test commands were
+written from the manifest and have not been run.
+
+## Developer tools
+
+The game has developer panels: **F12** the console (`help` lists its commands), **F8** the [graphics lab](graphics-lab.md), **F5** the
+[extra options](extra-options.md), **F6** the [garage overlay](garage-overlay.md), **F9 / F10** the performance trace and **F11** the vehicle
+panel. Every panel can be reached and closed with a controller: L3 + R3 open the devtools menu. The vehicle panel, the `vehicle` and
+`gear` commands (the options of the vehicle on show, read from its components or its categories, and the rider's gear) and the controller
+navigation are in [devtools-vehicle.md](devtools-vehicle.md). Panels can be opened in a screenshot run with `--exec "devtools vehicle"`.
+
 ## Editor setup
 
 The workspace uses `rustfmt.toml` for formatting and `.cargo/config.toml` for build

@@ -78,3 +78,13 @@ fn the_grade_is_neutral_without_colour_keys_and_mixes_with_the_level_otherwise()
     assert!(grade.edge.iter().zip([0.1, 0.2, 0.3]).all(|(a, b)| (a - b).abs() < 1e-6));
     assert!(grade_for(&screen(), 0.0).is_neutral(), "no level, no grade, so the pass leaves the chain");
 }
+
+#[test]
+fn a_widened_camera_keeps_its_own_near_plane() {
+    // The helmet camera's near plane is 10 cm: the chase camera's 30 would cut the bike's instrument panel off.
+    let helmet = Lens::look_at(Vec3::ZERO, Vec3::X, 80.0, 0.1, 16.0 / 9.0);
+    let nudged = CameraNudge { fov: 8.0, ..Default::default() }.apply(helmet, 16.0 / 9.0, false);
+    assert_eq!(nudged.fov_y_degrees, 88.0);
+    let Projection::PerspectiveInfiniteReverse { near, .. } = nudged.projection else { panic!("a perspective") };
+    assert_eq!(near, 0.1);
+}

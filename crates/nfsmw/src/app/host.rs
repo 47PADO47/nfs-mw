@@ -76,10 +76,16 @@ pub struct Host {
 
 impl Host {
     pub fn new(mut scene: Box<dyn Scene>, settings: &Settings, screenshot: Option<super::screenshot::Plan>) -> Self {
+        settings.speed_units.make_current();
         scene.set_tire_effects(settings.tire_smoke, settings.skid_marks);
         scene.set_smoke_quality(settings.smoke_quality);
         scene.set_rain(settings.always_rain, settings.rain_amount.amplitude());
         scene.set_world_tuning(settings.into());
+        crate::garage::rider_gear::set_enabled(settings.rider_gear);
+        crate::scenes::world::bike_assist::set_easy_wheelie(settings.easy_wheelie);
+        crate::scenes::world::bike_assist::set_air_control(settings.air_control);
+        crate::scenes::world::bike_assist::set_live_dash(settings.live_dash);
+        crate::scenes::world::drive::rider::set_choices(settings);
         scene.set_detail(settings.detail);
         scene.set_car_shading(settings.effective_car_shading());
         scene.set_vehicle_effects(settings.collision_sparks, settings.speed_trails);
@@ -167,6 +173,7 @@ impl Host {
         renderer.set_colour_treatment(None, None);
         renderer.set_focus_mask(None);
         renderer.set_focus_filter(Default::default());
+        renderer.set_colour_grade(None);
         renderer.set_reflection_scene(None);
         renderer.set_projected_reflection_scene(None);
         let mut old = std::mem::replace(&mut self.scene, menu);
@@ -195,6 +202,7 @@ impl Host {
         renderer.set_colour_treatment(None, None);
         renderer.set_focus_mask(None);
         renderer.set_focus_filter(Default::default());
+        renderer.set_colour_grade(None);
         // A local environment belongs to the old scene; menus and viewers must not inherit its capture.
         renderer.set_reflection_scene(None);
         renderer.set_projected_reflection_scene(None);

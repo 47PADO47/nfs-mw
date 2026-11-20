@@ -42,9 +42,15 @@ impl WorldScene {
     pub(super) fn scene_set_effect_variants(&mut self, variants: &crate::effect_variants::EffectVariants) {
         self.scene_set_nitrous_fx(variants.nitrous.clone());
         self.tire_smoke_variant = variants.tire_smoke.clone();
+        self.skid_marks_variant = variants.skid_marks.clone();
+        self.rain_splash.set_wanted(variants.rain_splash.clone());
+        self.wet_road.set_profile(variants.wet_road.clone());
         self.wind_fx = variants.wind.clone();
+        self.grading.set_look(variants.grading.clone());
+        self.panorama_profile = variants.sky.clone();
         if let Some(drive) = self.players.lead_mut() {
             drive.effects.set_variant(variants.tire_smoke.clone());
+            drive.effects.set_marks_variant(variants.skid_marks.clone());
             drive.vehicle_effects.set_spark_variant(variants.xenon_sparks.clone());
         }
         // Each spark variant plays in its own spark style: the collision sparks replace the install's particle groups of the

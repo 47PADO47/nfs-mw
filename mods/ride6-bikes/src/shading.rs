@@ -14,6 +14,7 @@
 //! given to the bright, neutral metals only; a dark or coloured metal keeps its texture under a material that draws the
 //! texture and adds a gloss.
 
+use crate::grade::metal_floor;
 use crate::partfile::Kind;
 use crate::textures::{Picture, interior_points};
 
@@ -22,7 +23,11 @@ pub const RUBBER: &str = "RUBBER";
 pub const BRAKE_DISC: &str = "BRAKEDISC";
 pub const CHROME: &str = "CHROME";
 pub const POLISHED_METAL: &str = "MAGSILVER";
-pub const ROUGH_METAL: &str = "ALUMINUM";
+/// A bright metal of roughness from [`POLISHED_ROUGHNESS`] (satin and brushed steel and aluminium, most of an engine atlas). It was
+/// `ALUMINUM`, a conductor class that draws the reflection of the environment alone, so every satin metal took the colour of the
+/// sky (the frames and engines of the Honda CRF 450 R and the KTM RC 390 rendered blue-white where RIDE 6 shows neutral silver);
+/// it is now the painted-metal response of [`DARK_METAL`], which keeps the neutral colour of the texture and adds a weak reflection.
+pub const ROUGH_METAL: &str = DARK_METAL;
 /// A metal of middle brightness: the texture under a painted-metal response with a weak reflection.
 pub const DARK_METAL: &str = "MAGGUNMETAL";
 pub const GLOSS: &str = "SHINYPLASTIC";
@@ -32,7 +37,8 @@ pub const MATTE: &str = "DULLPLASTIC";
 pub const METAL_THRESHOLD: f32 = 0.5;
 /// Roughness below which bare metal is chrome, and below which a dielectric is glossy.
 pub const CHROME_ROUGHNESS: f32 = 0.2;
-pub const POLISHED_ROUGHNESS: f32 = 0.4;
+/// Roughness below which a bright bare metal is polished silver (`MAGSILVER`); from it up it is satin ([`ROUGH_METAL`]).
+pub const POLISHED_ROUGHNESS: f32 = 0.3;
 pub const GLOSS_ROUGHNESS: f32 = 0.4;
 /// Linear luminance of the base colour below which a metal reflects too little to be told from a dark paint.
 pub const DARK_METAL_LUMINANCE: f32 = 0.08;
@@ -126,7 +132,11 @@ pub fn triangle_response(pictures: Pictures<'_>, ao_floor: Option<f32>, uvs: [[f
     let mut colour = [0.0f32; 3];
     for &uv in &points {
         let texel = base.sample(uv);
-        let factor = ao_floor.map_or(1.0, |floor| floor + (1.0 - floor) * f32::from(pbr.sample(uv)[3]) / 255.0);
+        let packed = pbr.sample(uv);
+        let factor = ao_floor.map_or(1.0, |floor| {
+            let floor = metal_floor(floor, f32::from(packed[2]) / 255.0);
+            floor + (1.0 - floor) * f32::from(packed[3]) / 255.0
+        });
         for (sum, &byte) in colour.iter_mut().zip(&texel[..3]) {
             *sum += crate::bake::srgb_to_linear(byte) * factor / count;
         }
@@ -177,7 +187,8 @@ mod tests {
     #[test]
     fn bright_neutral_metal_steps_from_chrome_to_rough_and_dielectrics_from_gloss_to_matte() {
         assert_eq!(light_material(Kind::Body, steel(0.1)), CHROME);
-        assert_eq!(light_material(Kind::Rim, steel(0.3)), POLISHED_METAL);
+        assert_eq!(light_material(Kind::Rim, steel(0.25)), POLISHED_METAL);
+        assert_eq!(light_material(Kind::Rim, steel(0.45)), ROUGH_METAL);
         assert_eq!(light_material(Kind::Body, steel(0.8)), ROUGH_METAL);
         assert_eq!(light_material(Kind::Body, response(0.0, 0.2, 0.5, 0.0)), GLOSS);
         assert_eq!(light_material(Kind::Body, response(0.2, 0.9, 0.5, 0.0)), MATTE);
@@ -250,8 +261,12 @@ mod tests {
         let open = flat([128, 20, 255, 255]);
         let shut = flat([128, 20, 255, 0]);
         assert_eq!(classify(Kind::Body, both(&base, &open), Some(0.3), uv), CHROME);
-        // 0.5 * 0.3 = 0.15: between the dark and the bright limit.
-        assert_eq!(classify(Kind::Body, both(&base, &shut), Some(0.3), uv), DARK_METAL);
+        // The floor of a metal is raised by the relief (0.3 + 0.7 * 0.8 = 0.86): 0.5 * 0.86 stays above the bright limit,
+        // so a fully occluded polished metal is still chrome; a texel that is not metal keeps the plain floor.
+        assert_eq!(classify(Kind::Body, both(&base, &shut), Some(0.3), uv), CHROME);
+        let rough = flat([128, 20, 128, 0]);
+        // Half metal: floor 0.3 + 0.7 * 0.5 * 0.8 = 0.58, luminance 0.29, which is a dark metal.
+        assert_eq!(classify(Kind::Body, both(&base, &rough), Some(0.3), uv), DARK_METAL);
         assert_eq!(
             classify(Kind::Body, both(&base, &shut), None, uv),
             CHROME,

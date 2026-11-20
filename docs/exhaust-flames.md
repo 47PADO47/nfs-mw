@@ -90,7 +90,11 @@ Cars are unchanged.
 
 - **Where.** At the markers `LEFT_EXHAUST`, `RIGHT_EXHAUST` or `EXHAUST` of the bike's body solid, one for each silencer, which
   the importer writes at the silencer's outlet ([ride6-bikes.md](modding/ride6-bikes.md#the-exhaust-flames)). A bike with two
-  silencers flames at both; a bike whose files have no marker shows no flame.
+  silencers flames at both; a bike whose files have no marker shows no flame. **With an aftermarket exhaust fitted** (the shop's exhaust
+  slot) the pipes are the fitted silencer's own outlet(s), written in the binding of its part (`markers`), and the body's stock
+  ones are not used: the flames, the pops and the shift flicks start where the fitted exhaust ends, a twin at both cans
+  ([modding/ride6-bike-upgrades.md](modding/ride6-bike-upgrades.md#what-the-importer-writes)). An exhaust with no recorded outlet (a bike
+  imported before) keeps the stock pipes. The flames are reloaded when the garage changes the model (`replace_model`).
 - **How big.** The group's orange emitters at 0.4 of their size (`BIKE_FLAME_SCALE`): the sprites, the speed they leave the pipe at, the
   accelerations that bend them and the volume they start from. The enhanced exhaust draws its burst at 0.4 as well (a car's pop
   burst is 0.28 m long and 0.14 m wide, a bike's about 0.11 and 0.06 m). The factor is a choice: a motorcycle's outlet is far

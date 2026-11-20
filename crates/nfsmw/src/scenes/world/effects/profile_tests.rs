@@ -36,6 +36,8 @@ fn contact(x: f32, smoke: f32) -> Contact {
         skid: 1.0,
         smoke,
         width: 0.24,
+        loose: false,
+        slide: 0.0,
     }
 }
 

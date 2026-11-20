@@ -134,7 +134,8 @@ impl TexturePacks {
             }
             let file = &source.files[&texture.name_hash];
             let image = std::fs::read(file).map_err(|error| error.to_string());
-            let image = image.and_then(|bytes| blackbox_tpk::read_dds(&bytes).map_err(|error| error.to_string()));
+            let image = image
+                .and_then(|bytes| blackbox_tpk::read_dds(&texture.name, &bytes).map_err(|error| error.to_string()));
             let mut image = match image {
                 Ok(image) => image,
                 Err(error) => {
@@ -143,7 +144,7 @@ impl TexturePacks {
                 }
             };
             image.limit_size(self.max_size);
-            texture.replace_image(image);
+            texture.take_pixels(image);
             source.replaced.fetch_add(1, Ordering::Relaxed);
             replaced += 1;
         }

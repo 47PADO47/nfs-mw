@@ -33,11 +33,14 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     );
     let loaded: Vec<String> = mods.loaded().into_iter().map(|summary| summary.id).collect();
     let refused: Vec<String> = mods.rejected().iter().filter_map(|rejected| rejected.id.clone()).collect();
+    crate::parity::header::record_mods(settings.mode, &loaded);
     mods.set_manager(ModManager::new(settings, config_file.clone(), &loaded, &refused));
     // The runtime found the mods once, when it started; their folders come from it, not from a second scan.
     let candidates = mods.loaded_candidates();
     layers::apply(&mut dir, &layers::plan(&loaded, &candidates));
-    content::register(&dir, &content::plan(&loaded, &candidates));
+    let planned = content::plan(&loaded, &candidates);
+    content::register(&dir, &planned);
+    mods.declare_replacements(&planned);
     let game_settings = Settings::load(view.settings_layer());
     // The replacement textures: the mods' `textures/` folders and the settings' folder, before any scene loads.
     let (sources, folders) = textures::plan(&loaded, &candidates, &game_settings.hd_content);
@@ -45,5 +48,8 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     // The language packs are mod content: the language is chosen once the mods' folders are known.
     crate::i18n::start(&dir, game_settings.language);
     mods.set_install(&dir);
+    // The replacements the saved choices make are in effect before the world's first section loads: a viewer or a drive that starts at
+    // once would otherwise load the shared library (where most signs, lamps and props are) with the game's own models for good.
+    mods.publish_replacements();
     Ok((dir, mods))
 }

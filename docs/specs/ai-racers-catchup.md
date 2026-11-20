@@ -99,6 +99,13 @@ conversion in quick races uses the normalized garage rating of the human's actua
 performance package; career keeps a rating of one until the PC rating source for
 career races is confirmed. Override tables are not implemented.
 
+The driver-side positive scaling of section 8.2 of the speed spec is not PC-confirmed
+below base skill 1. The Hard capture has a positive scale of one, so it cannot show it.
+At Medium, base 0.4, a saturated offset of 0.75 becomes 0.446 (skill 0.846, no force);
+unscaled, skill would clamp to 1 with a force of 0.075. Reading the driver's skill on
+a saturated Medium rival decides it. Amplitude falls after 50 percent rival completion;
+a Medium raw/normalized ratio of 0.625 at 75 percent confirms the progress tables.
+
 ## 6. Checks
 
 Check finite-history expiry, derivative averaging, all difficulty endpoints,

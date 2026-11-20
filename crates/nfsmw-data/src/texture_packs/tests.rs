@@ -26,6 +26,7 @@ fn dds(side: u32, fill: u8) -> Vec<u8> {
     }
     let mut out = vec![0u8; 128];
     out[..4].copy_from_slice(b"DDS ");
+    out[4..8].copy_from_slice(&124u32.to_le_bytes());
     out[12..16].copy_from_slice(&side.to_le_bytes());
     out[16..20].copy_from_slice(&side.to_le_bytes());
     out[28..32].copy_from_slice(&levels.to_le_bytes());

@@ -7,6 +7,7 @@ mod chrome;
 mod details;
 mod finance;
 mod gauge_preview;
+mod gear_page;
 mod inspection;
 mod numbers;
 mod pages;
@@ -195,6 +196,7 @@ impl GarageUi {
             Page::Numbers => Box::new(numbers::Numbers::new(self.clone())),
             Page::Plate => Box::new(plate::PlateEntry::new(self.clone())),
             Page::PlateDesign => Box::new(plate_design::PlateDesigns::new(self.clone())),
+            Page::Rider { part } => Box::new(gear_page::GearPage::new(self.clone(), part)),
             Page::Paint { .. } | Page::GaugeColors { .. } => Box::new(palette::Palette::new(self.clone(), page)),
             Page::Tuning
             | Page::Cart { .. }

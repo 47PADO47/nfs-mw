@@ -1,6 +1,7 @@
 //! The streamed city: a free-fly camera, or a car to drive with a chase camera.
 mod ai;
 pub(crate) mod ambient_fx;
+pub(crate) mod bike_assist;
 mod breaker_icons;
 mod breaker_visuals;
 mod camera_bike;
@@ -13,11 +14,12 @@ mod car_loader;
 mod career;
 mod cargo;
 mod commands;
+mod dash_feed;
 mod day;
 mod detail;
 #[cfg(test)]
 mod determinism_tests;
-mod drive;
+pub(crate) mod drive;
 mod drive_input;
 mod effects;
 mod entry;
@@ -73,8 +75,10 @@ pub(crate) use ai::{ArrestFixture, handbrake, open_arrest_fixture};
 use car_loader::load_car;
 mod focus;
 mod focus_feed;
+mod grading_feed;
 mod object_geometry;
 mod open;
+mod open_packs;
 pub use open::WorldLoad;
 mod damage_effects;
 mod environment_lights;
@@ -105,10 +109,11 @@ mod scene_space;
 mod scenery_groups;
 mod session_rules;
 mod status_line;
-use session_rules::ViewSource;
+pub(crate) use session_rules::{SessionRules, ViewSource};
 mod shadow_feed;
 mod simulation;
 mod sky;
+mod sky_panorama;
 mod sound;
 mod space;
 mod state_hash;
@@ -262,6 +267,9 @@ pub struct WorldScene {
     race: Option<race::RaceSession>,
     /// The fade to black of the prologue's breakdown (`race/chase_fade.rs`).
     screen_fade: race::chase_fade::ScreenFade,
+    /// An unattended race run: the race the command line asked for, the autopilot, the race trace and the tick count
+    /// (`race/unattended.rs`). It does nothing unless the run was started with its options.
+    unattended: race::Unattended,
     /// A race to start as soon as the car is there (a quick race asked for it, `queue_race`).
     queued_race: Option<(String, race::RaceOptions)>,
     /// The race, options and course `queued_race` runs again when the post-race screen's Restart queued it: it starts as
@@ -297,6 +305,8 @@ pub struct WorldScene {
     /// The effects of the nitrous variant the player chose, if it is a mod's (`scene_effects.rs`), and the follower of the
     /// burn that fades its screen effects.
     nitrous_fx: Option<std::sync::Arc<blackbox_modding::content::NitrousProfile>>,
+    /// The colour grading of the variant the player chose and what picks its grade each frame (`grading_feed.rs`).
+    grading: grading_feed::GradingFeed,
     /// The loops of the wind variant the player chose, if it is a mod's (`scene_effects.rs`): the car's sound plays them.
     wind_fx: Option<std::sync::Arc<blackbox_modding::content::WindProfile>>,
     nitrous_screen: nitrous_screen::NitrousScreen,
@@ -324,6 +334,13 @@ pub struct WorldScene {
     smoke_quality: crate::settings::SmokeQuality,
     /// The tire smoke variant the player chose, if it is a mod's (`scene_effects.rs`).
     tire_smoke_variant: Option<std::sync::Arc<blackbox_modding::content::TireSmokeProfile>>,
+    /// The skid mark variant the player chose, if it is a mod's (`scene_effects.rs`).
+    skid_marks_variant: Option<std::sync::Arc<blackbox_modding::content::SkidMarksProfile>>,
+    /// The splashes of the rain on the road, when the player chose a mod's variant (`effects/rain_splash.rs`).
+    rain_splash: effects::rain_splash::RainSplash,
+    /// The panoramic sky of the sky variant the player chose, if it is a mod's (`sky_panorama.rs`).
+    panorama: sky_panorama::PanoramaSky,
+    panorama_profile: Option<std::sync::Arc<blackbox_modding::content::SkyProfile>>,
     rain: crate::weather::rain::Rain,
     /// The wind each player view hands to the scenery sway (`docs/specs/scenery-sway.md`).
     wind: crate::weather::wind::Wind,

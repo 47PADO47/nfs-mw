@@ -21,6 +21,7 @@ impl Capabilities {
             tonemaps: TonemapSet::all(),
             bloom: true,
             scene_treatment: true,
+            colour_cube: true,
             local_reflections: true,
             ambient_occlusion: true,
             soft_shadows: true,

@@ -75,6 +75,12 @@ fn index(blend: BlendMode, shading: Shading, face: Face) -> usize {
     (face.index() * BLEND_ORDER.len() + b) * SHADINGS.len() + s
 }
 
+/// Whether a draw may read the screen-space sun masks: only the draws the depth prepass covers (opaque and alpha-tested)
+/// are the surface those masks were made for. A blended draw keeps the shadow maps (`SCREEN_SHADOW_MASK`).
+pub(super) fn reads_screen_shadow_mask(blend: BlendMode) -> bool {
+    matches!(blend, BlendMode::Opaque | BlendMode::AlphaTest)
+}
+
 /// Pipelines in one set: every blend mode and shading, for every face setting.
 const SET_LEN: usize = FACES.len() * BLEND_ORDER.len() * SHADINGS.len();
 
@@ -304,6 +310,7 @@ impl Pipelines {
             _ => 0.0,
         };
         let clip_plane = f64::from(u8::from(clip));
+        let screen_mask = f64::from(u8::from(reads_screen_shadow_mask(blend_mode)));
         let constants = [
             ("MASKED_EMISSIVE", f64::from(u8::from(shading == Shading::WorldEmissive))),
             ("PRELIT", f64::from(u8::from(prelit))),
@@ -313,9 +320,10 @@ impl Pipelines {
             ("DISTANT_SCENERY", f64::from(u8::from(matches!(shading, Shading::WorldDistant | Shading::PrelitDistant)))),
             ("NIGHT_OPAQUE", f64::from(u8::from(blend_mode == BlendMode::Opaque))),
             ("CLIP_PLANE", clip_plane),
+            ("SCREEN_SHADOW_MASK", screen_mask),
         ];
-        // The glossy shader has its own module and layout, and only the clip override.
-        let glossy_constants = [("CLIP_PLANE", clip_plane)];
+        // The glossy shader has its own module and layout, and only the clip and screen mask overrides.
+        let glossy_constants = [("CLIP_PLANE", clip_plane), ("SCREEN_SHADOW_MASK", screen_mask)];
         let glossy = self.glossy.as_ref().filter(|_| matches!(shading, Shading::Glossy(_)));
         let (module, constants, instances): (_, &[(&str, f64)], _) = match glossy {
             Some(glossy) => (glossy, &glossy_constants, INSTANCE_LAYOUT),
@@ -399,6 +407,14 @@ mod tests {
         assert_eq!(slots, (0..SHADINGS.len()).collect::<Vec<_>>(), "no two shadings share a pipeline slot");
         assert_eq!(index(BlendMode::Opaque, Shading::Character, Face::Both), SHADINGS.len() - 2);
         assert!(matches!(SHADINGS[SHADINGS.len() - 1], Shading::Glossy(_)));
+    }
+
+    #[test]
+    fn only_prepass_draws_read_the_screen_shadow_masks() {
+        assert!(reads_screen_shadow_mask(BlendMode::Opaque) && reads_screen_shadow_mask(BlendMode::AlphaTest));
+        for blend in [BlendMode::AlphaBlend, BlendMode::Subtractive, BlendMode::Additive] {
+            assert!(!reads_screen_shadow_mask(blend), "{blend:?} is not in the depth prepass");
+        }
     }
 
     #[test]

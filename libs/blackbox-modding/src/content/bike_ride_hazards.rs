@@ -82,7 +82,7 @@ fn bike_square_stick() {
                 let mut fallen = Vec::new();
                 for (name, spec) in &bikes {
                     let wave = move |t: f32, bike: &Bike| {
-                        let side = if (t * hz * 2.0) as usize % 2 == 0 { amplitude } else { -amplitude };
+                        let side = if ((t * hz * 2.0) as usize).is_multiple_of(2) { amplitude } else { -amplitude };
                         let v = bike.body().linear_velocity.length();
                         BikeInput { throttle: held_throttle(speed, v), steer: side, ..Default::default() }
                     };

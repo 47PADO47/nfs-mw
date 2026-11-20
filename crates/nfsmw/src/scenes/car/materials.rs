@@ -18,6 +18,11 @@ use crate::settings::CarShading;
 
 const WINDSHIELD: u32 = blackbox_hash::bstring_hash("WINDSHIELD");
 
+/// The hemispheric ambient floor of a converted bike's materials (Custom and original shading)
+/// (docs/formats/ride6-materials.md, "Panels that face away from the lights"): the rig's fill colours, spread over the sphere.
+/// A choice, tuned on the offscreen renders of five bikes; the stock cars take none.
+const BIKE_AMBIENT_FLOOR: f32 = 1.2;
+
 fn lamp_surface_allowed(name: &str) -> bool {
     !name.contains("HEADLIGHT_GLASS") && !name.contains("BRAKELIGHT_GLASS")
 }
@@ -91,6 +96,7 @@ impl CarMaterials {
             _ => GlossyModel::Custom,
         };
         let window_tint = model.window_tint_material;
+        let is_bike = nfsmw_data::car::mods::bike::is_bike(&model.name);
         let used: HashSet<u32> = model
             .solids
             .values()
@@ -132,12 +138,16 @@ impl CarMaterials {
                     }
                 }
                 material.background_actor = background_actor && shading == CarShading::Glossy;
+                if is_bike {
+                    material.ambient_floor = BIKE_AMBIENT_FLOOR;
+                }
                 Some((hash, renderer.create_glossy_material(&material)))
             })
             .collect();
         let fallback = Some(renderer.create_glossy_material(&GlossyMaterial {
             model: model_kind,
             background_actor: background_actor && shading == CarShading::Glossy,
+            ambient_floor: if is_bike { BIKE_AMBIENT_FLOOR } else { 0.0 },
             ..Default::default()
         }));
         let enabled = shading == CarShading::GlossyLamps;

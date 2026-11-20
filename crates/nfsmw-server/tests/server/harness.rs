@@ -127,7 +127,7 @@ impl<W: WorldControl> Harness<W> {
             }
             let code = pilot(index, client);
             client.drive(next + INPUT_LEAD, code);
-            if (self.tick + index as u64) % 30 == 0 {
+            if (self.tick + index as u64).is_multiple_of(30) {
                 client.ping(self.tick as u8, now_ms as u32);
             }
         }

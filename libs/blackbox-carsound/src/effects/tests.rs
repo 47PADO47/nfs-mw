@@ -260,6 +260,37 @@ fn a_single_wheel_cannot_complete_a_landing_and_front_intensity_ignores_rear_com
     assert!(rig.landings[0].magnitude < 0.1, "front landing must use the front axle's own compression");
 }
 
+/// A fast run in which, once, the vehicle leans hard with every wheel off the ground for a few ticks (a crest taken in a corner), and then
+/// the road flickers under it: the wheels leave for a tick and touch again, ten times.
+fn leaned_over_a_crest_then_flickering(two_wheeler: bool) -> Vec<Landing> {
+    let mut rig = Rig::new(tuning());
+    let ground = CarInput { two_wheeler, ..driving(70.0) };
+    let air = [WheelInput { on_ground: false, ..wheel(0.0, 0.0, 0.0) }; 4];
+    let leaned = CarInput { up_dot: 0.5, wheels: air, ..ground };
+    let flicker = CarInput { wheels: air, ..ground };
+    rig.run(0.3, ground);
+    rig.run(3.0 * TICK_SECONDS, leaned);
+    rig.run(3.0 * TICK_SECONDS, ground);
+    rig.landings.clear();
+    for _ in 0..10 {
+        rig.run(TICK_SECONDS, flicker);
+        rig.run(3.0 * TICK_SECONDS, ground);
+    }
+    rig.landings
+}
+
+#[test]
+fn a_car_that_was_tipped_lands_hard_each_time_a_pair_touches_again() {
+    // The original's latched state, kept for a car.
+    assert!(!leaned_over_a_crest_then_flickering(false).is_empty());
+}
+
+#[test]
+fn a_two_wheeler_leaning_hard_over_a_crest_is_not_tipped_and_a_flickering_road_makes_no_landing() {
+    let landings = leaned_over_a_crest_then_flickering(true);
+    assert!(landings.is_empty(), "{} landings from a road that flickers at speed", landings.len());
+}
+
 #[test]
 fn an_empty_impact_level_ends_the_authored_level_range() {
     let mut fx = EffectsMixer::new(&tuning());

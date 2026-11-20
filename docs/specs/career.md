@@ -74,12 +74,15 @@ Status of each item (the code is in `crates/nfsmw-career`, `crates/nfsmw-data`, 
    ([`scenes/world/career/pursuit.rs`](../../crates/nfsmw/src/scenes/world/career/pursuit.rs),
    [`bust.rs`](../../crates/nfsmw/src/scenes/world/career/bust.rs)).
 3. **Done for the rules and the wiring to the pursuit end and the save.** The milestone tracker and the bin state
-   machine (`milestones`, `blacklist` in `nfsmw-career`) are fed by the install's `gameplay.bin` data. Not wired yet:
-   the races (race mode is not run).
+   machine (`milestones`, `blacklist` in `nfsmw-career`) are fed by the install's `gameplay.bin` data. The career's
+   races are wired too: a race result goes to `apply_event_result`
+   ([`scenes/world/career/events.rs`](../../crates/nfsmw/src/scenes/world/career/events.rs); [roadmap](../roadmap.md#career-open-items-milestone-7)).
+   Implemented is not compared: no career playthrough against the original is recorded.
 4. **Done.** The safe house entry and menu ([`scenes/world/career/safehouse.rs`](../../crates/nfsmw/src/scenes/world/career/safehouse.rs),
    [`career_screens/safehouse_menu.rs`](../../crates/nfsmw/src/frontend/career_screens/safehouse_menu.rs)) and the car
    lot ([`career_screens/car_lot.rs`](../../crates/nfsmw/src/frontend/career_screens/car_lot.rs)) on the existing front end.
-   Open: the customization shop.
+   The customization shop is implemented with installed prices and checkout ([garage-parity.md](../garage-parity.md));
+   its playtest reports are open and it is not signed off against the original.
 
 ## Open questions (all pages)
 

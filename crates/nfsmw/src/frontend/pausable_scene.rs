@@ -28,6 +28,9 @@ impl Scene for Pausable {
     fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.inner.apply_garage(renderer, selection)
     }
+    fn vehicle(&mut self) -> Option<&mut dyn crate::viewer::VehicleScene> {
+        self.inner.vehicle()
+    }
     fn set_garage_open(&mut self, open: bool) {
         self.inner.set_garage_open(open);
     }
