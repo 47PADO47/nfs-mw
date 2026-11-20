@@ -104,12 +104,12 @@ fn fixed(longitudinal: f32, spin: f32) -> TyreResult {
     }
 }
 
-fn throttle() -> InputState {
+pub(super) fn throttle() -> InputState {
     InputState { throttle: 1.0, ..Default::default() }
 }
 
 /// An example car in `integration` mode, settled on flat ground (the mode is set before it settles, as the game does).
-fn parked_in(integration: TireIntegration) -> Vehicle {
+pub(super) fn parked_in(integration: TireIntegration) -> Vehicle {
     let mut car = Vehicle::new(VehicleSpec::example());
     car.set_tire_integration(integration);
     assert!(car.place_on_ground(&flat(), 0.0, 0.0, 5.0, 0.0));
@@ -126,7 +126,7 @@ fn hooked(integration: TireIntegration, answer: Answer) -> (Vehicle, Rc<Log>) {
 }
 
 /// The position and the wheel spins of a car, as bits, for a comparison that must be exact.
-fn fingerprint(car: &Vehicle) -> Vec<u32> {
+pub(super) fn fingerprint(car: &Vehicle) -> Vec<u32> {
     let p = car.position();
     let mut bits =
         vec![p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), car.forward_speed().to_bits(), car.rpm().to_bits()];
@@ -134,7 +134,7 @@ fn fingerprint(car: &Vehicle) -> Vec<u32> {
     bits
 }
 
-fn drive(car: &mut Vehicle, input: &InputState, steps: usize) {
+pub(super) fn drive(car: &mut Vehicle, input: &InputState, steps: usize) {
     let ground = flat();
     for _ in 0..steps {
         car.step(FIXED_STEP, input, &ground);

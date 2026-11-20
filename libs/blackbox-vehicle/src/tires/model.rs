@@ -99,6 +99,9 @@ pub struct TyreQuery {
     pub ambient_temperature_c: f32,
     /// Road surface temperature (degrees Celsius): [`ROAD_TEMPERATURE_C`].
     pub road_temperature_c: f32,
+    /// The camber of the wheel this tick (rad, positive when the top of the wheel leans away from the centre line of the car,
+    /// on either side), as the suspension model of the vehicle answered for it; 0 when no suspension model answered.
+    pub camber_rad: f32,
 }
 
 /// What a model answers for one wheel.

@@ -51,13 +51,18 @@ impl Vehicle {
         self.tires.get(i).map_or(0.0, |tire| tire.aligning_torque)
     }
 
-    /// Whether the installed model is asked in this vehicle's current configuration.
-    pub fn tyre_model_applies(&self) -> bool {
-        self.tyre_hook.is_set()
-            && integration_takes_model(self.tire_integration)
+    /// Whether the vehicle has the standard chassis: the one that takes external models of the tyres, the suspension and the
+    /// controls. The rolling chassis, the coasting tyres and the simple police tyres keep their own rules.
+    pub fn takes_external_models(&self) -> bool {
+        integration_takes_model(self.tire_integration)
             && self.rolling_chassis.is_none()
             && self.coasting_tires.is_none()
             && !self.simple_tires_on()
+    }
+
+    /// Whether the installed model is asked in this vehicle's current configuration.
+    pub fn tyre_model_applies(&self) -> bool {
+        self.tyre_hook.is_set() && self.takes_external_models()
     }
 
     /// Drop a model that retired itself (see [`TyreModel::retired`]). Called at the start of each wheel loop.
@@ -92,6 +97,7 @@ impl Vehicle {
             tyre_condition: condition,
             ambient_temperature_c: AMBIENT_TEMPERATURE_C,
             road_temperature_c: ROAD_TEMPERATURE_C,
+            camber_rad: self.hook_memory.camber[i],
         }
     }
 

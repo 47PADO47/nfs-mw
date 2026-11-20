@@ -74,6 +74,22 @@ impl Steering {
         *self = Self::default();
     }
 
+    /// Take the inside-wheel target angle (degrees, + = right) from outside instead of shaping an input: the range, rate and
+    /// counter-steer rules are skipped, the post-collision limit still scales the angle, and the result is at most 45 degrees.
+    /// Returns the angle.
+    pub fn follow_target(&mut self, target_deg: f32, dt: f32, forward_speed: f32) -> f32 {
+        self.collision_timer = (self.collision_timer - dt).max(0.0);
+        let mut target = target_deg;
+        if self.collision_timer > 0.0 {
+            let secs = 1.0 - self.collision_timer;
+            let speed_term = 1.0 - (forward_speed / (mph_to_ms(170.0) * 0.7)).clamp(0.0, 1.0);
+            let blend = graph(&COLLISION_BLEND, secs);
+            target *= speed_term * (1.0 - blend) + blend;
+        }
+        self.prev_angle = target.clamp(-ABSOLUTE_MAX_STEERING, ABSOLUTE_MAX_STEERING);
+        self.prev_angle
+    }
+
     /// Returns the inside-wheel target angle in degrees (+ = right), at most 45.
     pub fn update(&mut self, i: &SteeringInput) -> f32 {
         let u = i.steer.clamp(-1.0, 1.0);

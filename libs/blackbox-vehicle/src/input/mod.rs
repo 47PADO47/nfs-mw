@@ -2,6 +2,12 @@
 //! the brake pedal, the idle auto-brake, handbrake priority and shift requests. Spec section 8 of
 //! `docs/specs/vehicle-input-induction-brakes.md`.
 
+mod model;
+
+pub use model::{
+    ControlsHook, ControlsModel, ControlsQuery, ControlsReject, ControlsResult, MAX_STEER_TARGET_RAD, MAX_WHEEL_BRAKE,
+};
+
 use crate::drivetrain::GEAR_REVERSE;
 use crate::math::{finite_or, ramp};
 use crate::steering::SteeringDevice;

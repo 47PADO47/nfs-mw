@@ -6,7 +6,7 @@ use glam::Vec3;
 use super::Vehicle;
 use crate::ground::Ground;
 use crate::rigid_body::transform_vector;
-use crate::suspension::{Side, SpringInput, WheelContact, compression, probe, spring_force};
+use crate::suspension::{Compression, Side, SpringInput, WheelContact, compression, probe, spring_force};
 use crate::tires::LoadedInput;
 
 fn reference_forward_speed(velocity: Vec3, direction: Vec3) -> f32 {
@@ -26,6 +26,29 @@ fn query_tolerance(velocity: Vec3, dt: f32, radius: f32, height: f32, reference:
     }
 }
 
+/// What the ground probe found under one wheel in this tick, before any spring or tyre runs.
+#[derive(Clone, Copy)]
+pub(super) struct WheelProbe {
+    /// Velocity of the body point above the wheel (m/s, world frame).
+    pub point_vel: Vec3,
+    pub contact: Option<WheelContact>,
+    pub comp: Option<Compression>,
+}
+
+impl WheelProbe {
+    const NONE: WheelProbe = WheelProbe { point_vel: Vec3::ZERO, contact: None, comp: None };
+
+    /// The compression of the wheel (m); 0 when it found no ground.
+    pub(super) fn compression(&self) -> f32 {
+        self.comp.map_or(0.0, |c| c.value)
+    }
+
+    /// Whether the wheel presses on the ground: its spring and tyre act.
+    pub(super) fn loaded(&self) -> bool {
+        self.comp.is_some_and(|c| c.loaded)
+    }
+}
+
 /// Sum over the four wheels.
 pub(super) struct WheelOutput {
     pub force: Vec3,
@@ -39,6 +62,7 @@ impl Vehicle {
     /// torque about the centre of gravity (not yet applied to the body).
     pub(super) fn wheel_forces(&mut self, dt: f32, ground: &dyn Ground, angular_velocity: Vec3) -> WheelOutput {
         self.drop_retired_tyre_model();
+        self.drop_retired_suspension_model();
         let rot = self.body.rotation();
         let up = rot.y_axis;
         let pos = self.body.position;
@@ -52,10 +76,9 @@ impl Vehicle {
         let steer_dir = |angle: f32| transform_vector(rot, Vec3::new(angle.sin(), 0.0, angle.cos()));
         let dirs = [steer_dir(self.wheel_angles.left), steer_dir(self.wheel_angles.right), rot.z_axis, rot.z_axis];
 
-        let mut out = WheelOutput { force: Vec3::ZERO, torque: Vec3::ZERO, lift_need: 0.0 };
-        for i in 0..4 {
-            let axle = i / 2;
-            let a = &axles[axle];
+        let mut probes = [WheelProbe::NONE; 4];
+        for (i, found) in probes.iter_mut().enumerate() {
+            let a = &axles[i / 2];
             let arm_world = transform_vector(rot, self.geometry.arms[i]);
             let point = pos + arm_world;
             let point_vel = velocity + angular_velocity.cross(arm_world - cog_world);
@@ -77,8 +100,17 @@ impl Vehicle {
                 })
                 .or_else(|| probe(ground, point, tolerance));
             self.contacts[i] = contact;
-            let c_old = old_compression[i];
             let comp = contact.map(|c| compression(a.ride, a.travel, c.normal.dot(up).clamp(0.0, 1.0), c.penetration));
+            *found = WheelProbe { point_vel, contact, comp };
+        }
+        let suspension = self.suspension_answers(dt, &probes, &old_compression, &axles);
+
+        let mut out = WheelOutput { force: Vec3::ZERO, torque: Vec3::ZERO, lift_need: 0.0 };
+        for i in 0..4 {
+            let axle = i / 2;
+            let a = &axles[axle];
+            let WheelProbe { point_vel, contact, comp } = probes[i];
+            let c_old = old_compression[i];
             let c_new = comp.map_or(0.0, |c| c.value);
             if let Some(comp) = comp {
                 out.lift_need = out.lift_need.max(comp.lift_need);
@@ -90,19 +122,22 @@ impl Vehicle {
             let loaded = comp.is_some_and(|c| c.loaded);
             self.loaded[i] = loaded;
             if let (true, Some(c)) = (loaded, contact) {
-                let f_spring = spring_force(
-                    a,
-                    &SpringInput {
-                        c_old,
-                        c_new,
-                        c_left_old: old_compression[axle * 2],
-                        c_right_old: old_compression[axle * 2 + 1],
-                        side: if i % 2 == 0 { Side::Left } else { Side::Right },
-                        dt,
-                        mass,
-                        blowout: self.spec.chassis.shock_blowout,
-                    },
-                );
+                let f_spring = match suspension[i] {
+                    Some(model) => model.body_force_n,
+                    None => spring_force(
+                        a,
+                        &SpringInput {
+                            c_old,
+                            c_new,
+                            c_left_old: old_compression[axle * 2],
+                            c_right_old: old_compression[axle * 2 + 1],
+                            side: if i % 2 == 0 { Side::Left } else { Side::Right },
+                            dt,
+                            mass,
+                            blowout: self.spec.chassis.shock_blowout,
+                        },
+                    ),
+                };
                 let n = c.normal;
                 let f = dirs[i];
                 let flat = (f.cross(n)).cross(f);
@@ -113,7 +148,10 @@ impl Vehicle {
                         crate::tires::TireIntegration::Regularized => flat.dot(n),
                     },
                 };
-                let load = (4.0 * upness - 3.0).max(0.3) * f_spring;
+                let load = match suspension[i] {
+                    Some(model) => model.tyre_load_n,
+                    None => (4.0 * upness - 3.0).max(0.3) * f_spring,
+                };
                 let lat_dir = {
                     let l = n.cross(f);
                     if l.length_squared() > 1e-8 { l.normalize() } else { rot.x_axis }
@@ -152,8 +190,18 @@ impl Vehicle {
                 let drive_dir = lat_dir.cross(n);
                 let drive_dir = if drive_dir.length_squared() > 1e-8 { drive_dir.normalize() } else { rot.z_axis };
                 force = lateral + drive_dir * self.tires[i].longitudinal_force + up * f_spring;
+                if self.suspension_hook.is_set() {
+                    self.hook_memory.tyre_lateral_force[i] = fy.clamp(-fy_limit, fy_limit);
+                }
             } else {
                 self.update_unloaded_tyre(i, dt);
+                if self.suspension_hook.is_set() {
+                    self.hook_memory.tyre_lateral_force[i] = 0.0;
+                }
+                if let Some(model) = suspension[i] {
+                    // A hub that hangs from the body still has its spring and its stops.
+                    force = up * model.body_force_n;
+                }
             }
 
             // The force acts at the contact patch: the arm lowered by the unused ride height.

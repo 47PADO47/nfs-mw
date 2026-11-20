@@ -57,7 +57,7 @@ println!("{:.1} m/s in gear {}", car.forward_speed(), car.gear());
 | `drivetrain` | `TransmissionSpec`, `ShiftPoints` and the automatic box, `calc_split` (differential), `split_drive_torque`, `Powertrain` (clutch, torque loop, limiter, speedometer) |
 | `induction`, `nos` | turbo or supercharger spool and boost; nitrous tank, burn and recharge |
 | `brakes` | `BrakeSpec` in ft*lb and the per-wheel brake and handbrake commands |
-| `tires` | `Tire` state, `update_loaded` and `update_free`, the lateral force table, per-step grip and traction scales; `TyreModel`, the seam that lets an outside model answer for a wheel (`Vehicle::set_tyre_model`, contract in `tires/model.rs`) |
+| `tires` | `Tire` state, `update_loaded` and `update_free`, the lateral force table, per-step grip and traction scales; `TyreModel`, the seam that lets an outside model answer for a wheel (`Vehicle::set_tyre_model`, contract in `tires/model.rs`; `SuspensionModel` in `suspension/model.rs` and `ControlsModel` in `input/model.rs` do the same for an axle's vertical force and for the pedals and steering) |
 | `suspension` | `ChassisSpec`, wheel `Geometry`, centre of gravity, the ground probe, compression, spring, damper and anti-roll force |
 | `steering` | speed-sensitive angle and rate, counter-steer, post-collision limit, `ackermann` |
 | `aero` | drag (doubled off the throttle) and linear downforce |
