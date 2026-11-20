@@ -151,7 +151,8 @@ pub(in crate::gpu) fn create(
     clip: bool,
     cache: Option<&wgpu::PipelineCache>,
 ) -> wgpu::RenderPipeline {
-    let constants = [("CLIP_PLANE", f64::from(u8::from(clip)))];
+    let screen_mask = f64::from(u8::from(crate::gpu::pipelines::reads_screen_shadow_mask(mode)));
+    let constants = [("CLIP_PLANE", f64::from(u8::from(clip))), ("SCREEN_SHADOW_MASK", screen_mask)];
     let options = || wgpu::PipelineCompilationOptions { constants: &constants, ..Default::default() };
     let (entry, blend, depth_write) = match mode {
         BlendMode::Opaque => ("fs_opaque", None, true),
