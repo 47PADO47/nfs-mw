@@ -180,3 +180,6 @@ mod tests {
         assert!(swapped[1].environment_occlusion < 0.0);
     }
 }
+
+#[cfg(test)]
+mod installed_cost;
