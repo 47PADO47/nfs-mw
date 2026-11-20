@@ -86,6 +86,13 @@ the tire's wheel speed is then its own (the gearbox reads it and does not write 
 traffic). Unit and whole-car tests cover the slip-angle ramp, the friction circle, the locked rear skid, the walking-pace
 fade, braking to a stop and a steering pulse settling at speed.
 
+**On for race opponents.** `CarSim::configure_racer` gives computer race opponents the same simple chassis and tire.
+A racer's steering-drag share (`0.23` to `0.5` by its catch-up, [race-stock-pace.md](race-stock-pace.md)) and a
+manoeuvre's take precedence over the police value of section 1, item 5. On flat ground at full throttle on maximum hardware
+the racer tire left the rear-drive `gto` and `rx8` of `16.1.1` spinning in first gear (rear traction 0.03 to 0.13,
+engine at its limiter) where this tire puts the drive down; the four-wheel-drive `imprezawrx` is the same on both
+(`drive/sim/racer_launch_tests.rs`, [provenance](../provenance/race-play-path-parity.md)).
+
 **On for every police car.** `CarSim::configure_police` turns `simple_tires` on for cops and patrol cars (it was off
 until a play comparison on 2026-11-05; the paragraph below records why it was held back). In that heat 5 chase against
 the stock recording: sideways slides of a second or more 0 percent of cop time (stock 0, racer tire 0.16 to 0.76), cops
@@ -142,5 +149,5 @@ The stock cops also slide more than the rewrite's: a body slip above 40 m/s of 0
   and the same controller also dips 0.17 to 0.43, so the original's speed near its request must answer the pedal
   more smoothly in a way not yet found. The rewrite's cops also burn nitrous far more often than the original's on this
   run (506 of 2100 ticks; the stock recording shows nitrous in under 2 percent of full-throttle ticks).
-- Which chassis the original gives an AI racer; the rewrite gives racers the simple chassis' steering range with the racer
-  tire, and leaves that to the race work.
+- Answered: the original's behaviour selector gives race opponents the simple suspension
+  ([race-play-path-parity.md](race-play-path-parity.md), pace evidence), so they drive on this tire too (section 4).

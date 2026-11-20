@@ -42,6 +42,16 @@ impl Toml {
         let _ = writeln!(self.text, "# {line}");
     }
 
+    /// An integer value.
+    pub fn int(&mut self, key: &str, value: i64) {
+        let _ = writeln!(self.text, "{key} = {value}");
+    }
+
+    /// A line as it is (an inline table or a list the other methods do not write).
+    pub fn raw(&mut self, line: &str) {
+        let _ = writeln!(self.text, "{line}");
+    }
+
     pub fn num(&mut self, key: &str, value: f64) {
         let _ = writeln!(self.text, "{key} = {}", number(value));
     }

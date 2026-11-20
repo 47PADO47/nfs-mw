@@ -120,7 +120,7 @@ fn strip_to_triangles(indices: &[u32], restart: u32, out: &mut Vec<[u32; 3]>) {
         let n = run.len();
         let (a, b, c) = (run[n - 3], run[n - 2], run[n - 1]);
         // Every second triangle of a strip runs the other way round.
-        out.push(if n % 2 == 0 { [b, a, c] } else { [a, b, c] });
+        out.push(if n.is_multiple_of(2) { [b, a, c] } else { [a, b, c] });
     }
 }
 

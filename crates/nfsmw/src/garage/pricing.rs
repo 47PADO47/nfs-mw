@@ -1,5 +1,6 @@
 //! Shared installed prices for checkout and the original garage's financial fields.
 
+pub(crate) mod components;
 mod items;
 #[cfg(test)]
 mod tests;
@@ -42,7 +43,12 @@ impl Pricing {
         backroom: bool,
     ) -> Result<Item> {
         let (entity, level, cost, trade_in, marker) = match row {
-            Row::Part(category) => return self.visual(category, selected, installed, car, backroom),
+            Row::Part(category) => {
+                let item = self.visual(category, selected, installed, car, backroom)?;
+                return Ok(self.by_components(row, item, selected, installed, car, backroom));
+            }
+            Row::Slot(_) => return self.slot(row, selected, installed, car),
+            Row::Gear(part) => return Ok(Self::gear(part, selected)),
             Row::Color(0) => return self.visual(Category::Paint, selected, installed, car, backroom),
             Row::Color(1) => return self.visual(Category::RimPaint, selected, installed, car, backroom),
             Row::Performance(category) => {
@@ -93,7 +99,7 @@ impl Pricing {
             }
             _ => (0, 0, 0, 0, None),
         };
-        Ok(Item {
+        let item = Item {
             entity,
             level,
             cost: match backroom {
@@ -102,7 +108,8 @@ impl Pricing {
             },
             trade_in,
             marker,
-        })
+        };
+        Ok(self.by_components(row, item, selected, installed, car, backroom))
     }
 
     fn level(&self, hash: Option<u32>) -> u32 {

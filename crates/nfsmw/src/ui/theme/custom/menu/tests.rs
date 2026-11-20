@@ -281,3 +281,17 @@ fn the_text_size_spreads_the_rows_and_the_hud_scale_does_not_reach_the_menus() {
     };
     assert!(y(MenuLook::new(1.3, false)) > y(MenuLook::new(1.0, false)), "a larger text size spreads the rows");
 }
+
+#[test]
+fn a_title_entry_is_centred_on_the_plate_in_the_primary_colour_and_takes_no_plate() {
+    let entries =
+        vec![MenuEntry::plain("Career", true), MenuEntry::title("Experimental"), MenuEntry::plain("Quick Race", true)];
+    let nodes = built(ElementId::MainMenu, MenuList { entries, ..list(MenuStyle::Main, 0) });
+    let frame = MenuFrame::new(ASPECT, 1.0);
+    let (career, title, quick) =
+        (text_at(&nodes, "Career"), text_at(&nodes, "Experimental"), text_at(&nodes, "Quick Race"));
+    assert!((title.world.w_axis.y - frame.row_y(1)).abs() < 1.0, "it sits on its row");
+    assert_eq!(title.colour, career.colour, "in the primary colour the selected row has");
+    assert_ne!(title.colour, quick.colour, "and not the secondary colour of an ordinary row");
+    assert!(title.world.w_axis.x > quick.world.w_axis.x + 30.0, "centred on the plate, not at the text inset");
+}

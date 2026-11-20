@@ -34,14 +34,17 @@ pub fn show(ctx: &egui::Context, open: &mut bool, model: &mut Model, settings: &
                     ui.weak("F6 / Esc to close");
                 });
             });
-            super::presets::show(ui, model);
             model.draft.exhaust.set_style(settings.exhaust_style);
             ui.separator();
             let height = (ui.available_height() - 36.0).max(260.0);
             if model.preview {
-                egui::ScrollArea::vertical().id_salt("garage_preview_options").max_height(height).show(ui, |ui| {
-                    super::controls::show(ui, model, settings);
-                });
+                crate::devtools::pad_nav::scrolled(
+                    egui::ScrollArea::vertical().id_salt("garage_preview_options").max_height(height),
+                    ui,
+                    |ui| {
+                        super::controls::show(ui, model, settings);
+                    },
+                );
                 if let Some(Err(error)) = &model.message {
                     ui.colored_label(egui::Color32::LIGHT_RED, error);
                 }
@@ -62,9 +65,13 @@ pub fn show(ctx: &egui::Context, open: &mut bool, model: &mut Model, settings: &
                     egui::vec2(options_width, height),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
-                        egui::ScrollArea::vertical().id_salt("garage_options").max_height(height).show(ui, |ui| {
-                            super::controls::show(ui, model, settings);
-                        });
+                        crate::devtools::pad_nav::scrolled(
+                            egui::ScrollArea::vertical().id_salt("garage_options").max_height(height),
+                            ui,
+                            |ui| {
+                                super::controls::show(ui, model, settings);
+                            },
+                        );
                     },
                 );
             });

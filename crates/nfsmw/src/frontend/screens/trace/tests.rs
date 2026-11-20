@@ -54,6 +54,9 @@ fn trace_preserves_message_order_and_labels_sound_as_a_request() {
     assert_eq!(records[1]["data"]["menu_pad"], 4);
     assert_eq!(records[2]["data"]["from_guid"], 9);
     assert_eq!(records[0]["data"]["sound_evidence"], "runtime_request_not_playback");
+    let run = &records[0]["data"]["run"];
+    assert_eq!((&run["seed"], &run["stock_rules"]), (&serde_json::Value::Null, &serde_json::json!(false)));
+    assert!(run.get("world").is_none(), "the front end has no world");
     for pair in records.windows(2) {
         assert!(pair[0]["seq"].as_u64().unwrap() < pair[1]["seq"].as_u64().unwrap());
         assert!(pair[0]["elapsed_ns"].as_u64().unwrap() <= pair[1]["elapsed_ns"].as_u64().unwrap());

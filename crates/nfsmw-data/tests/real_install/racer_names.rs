@@ -124,3 +124,27 @@ fn the_language_table_has_a_leaderboard_name_for_each_rival_and_the_prologue() {
     }
     assert_eq!(table.get(label_hash("BLACKLIST_RIVAL_16_LEADERBOARD")).as_deref(), Some("ROG"));
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn every_preset_ride_a_race_character_names_builds_a_car() {
+    let Some(dir) = install() else { return };
+    let data = gameplay::load(&dir).expect("gameplay data");
+    let tables = CarTables::load(&dir).expect("car tables");
+    let folders = nfsmw_data::car::list(&dir);
+    let mut presets: Vec<&str> = data.characters.iter().filter_map(|c| c.preset_ride.as_deref()).collect();
+    presets.sort_unstable();
+    presets.dedup();
+    let mut built = Vec::new();
+    for preset in presets {
+        let Some(ride) = tables.preset(preset) else { continue };
+        let Some(folder) = nfsmw_data::car::pick_folder(&folders, &ride.car_type_name) else { continue };
+        let options = nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: Some(preset.to_owned()) };
+        if let Err(error) = nfsmw_data::car::load(&dir, folder, &options) {
+            panic!("{preset} ({folder}) does not build: {error:#}");
+        }
+        built.push(preset);
+    }
+    // 16.1.1's second opponent: its preset names a decal its body kit has no place for (`docs/specs/ai-racers.md`).
+    assert!(built.contains(&"OPM_WRX_VERSION2"), "{built:?}");
+}

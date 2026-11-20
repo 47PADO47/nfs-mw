@@ -54,11 +54,15 @@ pub struct LeanPlan {
     /// The lean limit this step (rad) and the target lean after the filters.
     pub limit: f32,
     pub target: f32,
+    /// The stick after the rider's hand filter (-1 to 1, positive right): what the turn law's path follows at a low speed.
+    pub stick: f32,
     /// The prescribed roll acceleration (rad/s^2, positive to the right) and the roll torque it needs (N m).
     pub acceleration: f32,
     pub torque: f32,
     /// The side force wanted at the front tyre (N, positive to the right).
     pub front_force: f32,
+    /// The arm (m) the front force acts on the roll with: `torque = -front_force x arm`.
+    pub arm: f32,
     /// Whether the cap held the target back.
     pub capped: bool,
 }
@@ -68,6 +72,8 @@ pub struct LeanPlan {
 pub struct Lean {
     stick: SecondOrder,
     target: SecondOrder,
+    /// The turn law's trim (m/s^2): what the assist adds for the circle's acceleration the bike lacks (`turn_law.rs`).
+    pub(super) trim: f32,
 }
 
 /// The lean limit (rad) for a front tyre of friction coefficient `lateral_grip` at this speed and slide.
@@ -78,7 +84,7 @@ pub fn lean_limit(steering: &SteeringSpec, input: &LeanInput) -> f32 {
         return limit;
     }
     let grip = input.lateral_grip.max(0.0).atan() * choices::LATERAL_GRIP_TOLERANCE;
-    let mut limit = grip.min(steering.max_lean);
+    let mut limit = grip.min(steering.max_lean) * steering.arcade.lean_limit;
     if input.speed < spec.stopped_speed {
         let share = (input.speed / spec.stopped_speed.max(1e-6)).clamp(0.0, 1.0);
         limit = spec.stopped_limit + (limit - spec.stopped_limit) * share;
@@ -111,28 +117,42 @@ impl Lean {
     /// Work out the roll motion for this step.
     pub fn plan(&mut self, steering: &SteeringSpec, input: &LeanInput) -> LeanPlan {
         let spec = &steering.lean;
-        let stick = self.stick.step(input.stick.clamp(-1.0, 1.0), spec.steer_k, spec.steer_damping_ratio, input.dt);
+        let stick = self.stick.step(
+            input.stick.clamp(-1.0, 1.0),
+            spec.steer_k * steering.arcade.stick_response.powi(2),
+            spec.steer_damping_ratio,
+            input.dt,
+        );
         let limit = lean_limit(steering, input);
         let wanted = limit * stick;
         let attenuation = 1.0 - (input.lean.abs() * spec.time_scale_attenuation).min(0.99);
         let sensitivity = 1.0 + (wanted - input.lean).abs() * spec.time_scale_sensitivity;
+        let arcade = &steering.arcade;
         let scale = attenuation
             * spec.time_scale
-            * factor(&spec.time_scale_speed, input.speed.abs())
-            * factor(&spec.time_scale_input, input.stick.clamp(-1.0, 1.0))
+            * arcade.lean_rate_at(input.speed)
+            * arcade.speed_scale(&spec.time_scale_speed, input.speed)
+            * arcade.stick_scale(&spec.time_scale_input, input.stick.clamp(-1.0, 1.0))
             * sensitivity;
         let free = self.target.step(wanted, spec.target_k, spec.target_damping_ratio, input.dt * scale);
         let target = free.clamp(-input.target_cap, input.target_cap);
         let ratio = spec.damping_ratio * spec.damping_multiplier;
         // The spec's `a = -K (theta - target) - 2 z sqrt(K) theta'`, realised over the step by its exact solution (the damping
         // term alone is unstable held over a 60 Hz step: `filter::step_acceleration`).
-        let accel = step_acceleration(input.lean - target, input.lean_rate, spec.k, ratio, input.dt);
+        let accel = step_acceleration(
+            input.lean - target,
+            input.lean_rate,
+            spec.k * arcade.roll_spring.powi(2),
+            ratio,
+            input.dt,
+        );
         let torque = input.roll_inertia * accel;
         // `arm` is the distance of the front tyre's side direction from the roll axis: the height of the centre of gravity for a
         // small lean (the binary floors it at 0.05 m). The sign is that of a force to the right: a roll to the right needs a push
         // to the left first.
-        let front_force = -torque / input.cg_height.max(0.05) / input.front_arm.max(choices::MIN_LEAN_ARM);
-        LeanPlan { limit, target, acceleration: accel, torque, front_force, capped: target != free }
+        let arm = input.cg_height.max(0.05) * input.front_arm.max(choices::MIN_LEAN_ARM);
+        let front_force = -torque / arm;
+        LeanPlan { limit, target, stick, acceleration: accel, torque, front_force, arm, capped: target != free }
     }
 }
 

@@ -116,6 +116,7 @@ fn masked_and_unmasked_presenter_uploads_apply_alpha_coverage_once() {
             input_atlas: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             discord_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             mod_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
+            rider_mark: Image { width: 0, height: 0, rgba: Vec::new(), blend: 1 },
             language_fonts: HashMap::new(),
         };
         let tree = UiTree { nodes: vec![node(0, None), node(1, Some(2))], draw_order: vec![0, 1] };
@@ -205,6 +206,7 @@ fn assets_with(texture: Texture) -> UiAssets {
         input_atlas: blank(),
         discord_mark: blank(),
         mod_mark: blank(),
+        rider_mark: blank(),
         language_fonts: HashMap::new(),
     }
 }

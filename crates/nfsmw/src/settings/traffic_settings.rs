@@ -16,6 +16,8 @@ pub struct TrafficSettings {
 
 impl From<&Settings> for TrafficSettings {
     fn from(s: &Settings) -> Self {
+        // A stock run keeps the original's values whatever a menu changed since the start (`parity/stock.rs`).
+        let s = &crate::parity::stock::effective(s);
         Self {
             cars: s.traffic,
             cop_share: s.cop_share,

@@ -5,6 +5,11 @@
 use blackbox_gfx::ColourLook;
 use nfsmw_data::visual_treatment::pursuit::{Effect, Profile};
 
+/// The share of the pursuit look's grade change, flash and radial blur that a bike's helmet camera keeps (`Frame::scaled`). A
+/// modelling choice: the effects are made for a car's outside camera, and from a rider's eyes at the start of a chase the blue
+/// flash and the blur hide the road; 0.35 keeps the start readable and still felt (`docs/specs/pursuit-look.md`).
+pub(super) const HELMET_SHARE: f32 = 0.35;
+
 /// A running effect: the seconds since it started, on its own clock.
 #[derive(Debug, Clone, Copy, Default)]
 struct Timer(Option<f32>);
@@ -34,6 +39,18 @@ pub(super) struct Frame {
     pub look: ColourLook,
     /// The strength of the pursuit's radial blur, 0 to 1.
     pub radial_blur: f32,
+}
+
+impl Frame {
+    /// The frame with its grade change, its flash and its blur at `share` of their strength (0 to 1).
+    pub fn scaled(self, share: f32) -> Self {
+        let look = ColourLook {
+            weight: self.look.weight * share,
+            brightness: 1.0 + (self.look.brightness - 1.0) * share,
+            ..self.look
+        };
+        Self { look, radial_blur: self.radial_blur * share }
+    }
 }
 
 pub(super) struct PursuitLook {

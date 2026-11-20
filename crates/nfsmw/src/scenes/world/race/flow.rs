@@ -32,7 +32,9 @@ impl WorldScene {
         frame_dt: f32,
     ) {
         self.update_race_mods();
+        self.queue_run_race();
         self.start_queued_race(renderer);
+        self.check_run_race_started();
         let Some(mut session) = self.race.take() else { return };
         let keep = match session.stage {
             Stage::Loading { .. } => self.race_loading(&mut session, frame_dt),
@@ -122,6 +124,7 @@ impl WorldScene {
         self.race_log(session, dt);
         let tick = tick_of(&events);
         self.race_events(session, events);
+        self.trace_race_sample(session, dt);
         tick
     }
 
@@ -228,6 +231,7 @@ impl WorldScene {
         for event in events {
             log::debug!("race: {event:?}");
             note_gate(session, &event);
+            self.trace_race_event(session, &event);
             self.hud_feed.race_event(&event, total_checkpoints, laps);
             match event {
                 RaceEvent::Count(n) => match Count::from_number(n) {

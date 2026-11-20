@@ -267,7 +267,19 @@ pub(super) fn resolve(
     Ok(())
 }
 
-pub(super) fn apply(dir: &GameDir, folder: &str, t: &CarTables, slots: &Slots, model: &mut CarModel) -> Result<()> {
+/// Puts the selected decals on the car. A player's selection is checked against the body kit first
+/// (`customization.rs`), so a decal that does not fit is an error. A preset ride's (`preset`) is the data's own, and a
+/// preset can name a decal at a position its body kit has no placeholder for (`OPM_WRX_VERSION2`'s right quarter
+/// panel). That decal is left off with a warning and the car keeps the rest, as a race needs the car the event names
+/// **[ours]**.
+pub(super) fn apply(
+    dir: &GameDir,
+    folder: &str,
+    t: &CarTables,
+    slots: &Slots,
+    model: &mut CarModel,
+    preset: bool,
+) -> Result<()> {
     let mut wanted = HashSet::new();
     for zone in DecalZone::ALL {
         for part in slots[zone.texture_slot(0)..zone.texture_slot(0) + 8].iter().flatten() {
@@ -306,12 +318,13 @@ pub(super) fn apply(dir: &GameDir, folder: &str, t: &CarTables, slots: &Slots, m
                 }
             }
         }
+        let placed = selected.iter().enumerate().all(|(i, part)| part.is_none() || selected_positions[i]);
+        if preset && !(found_model && placed) {
+            log::warn!("{folder}: the preset's {} decal does not fit this body kit and is left off", zone.label());
+            continue;
+        }
         ensure!(found_model, "{} decal model is unavailable for this body kit", zone.label());
-        ensure!(
-            selected.iter().enumerate().all(|(i, part)| part.is_none() || selected_positions[i]),
-            "{} decal position is unavailable for this body kit",
-            zone.label()
-        );
+        ensure!(placed, "{} decal position is unavailable for this body kit", zone.label());
     }
     model.textures.extend(textures);
     Ok(())

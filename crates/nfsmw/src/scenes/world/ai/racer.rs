@@ -235,11 +235,24 @@ impl RacerState {
             self.repath = 0.0;
         }
         if check_off_path && let Some(fresh) = off_path::candidate(net, index, nav, &car.body) {
+            log::debug!(
+                "racer {}: off its path at ({:.0}, {:.0}); segment {} -> {}",
+                self.id,
+                car.body.position.x,
+                car.body.position.z,
+                nav.segment,
+                fresh.segment
+            );
             *nav = fresh;
             self.repath_to(net, index, nav, car, goal);
             self.repath = REPATH_PERIOD;
             let gap = nav.position.distance(car.body.position);
             nav.advance_with_lookahead(net, (look - gap).max(0.0), toward, look, rng);
+        }
+        // Staging on the grid: a walking-pace request at the plain road point (`ai-driver-speed-skill.md` section 1).
+        if self.held {
+            let speed = self.governor.stage(car.forward_speed, self.skill());
+            return RacerThink { target: nav.position, speed };
         }
         let occlusion = nav.trail().and_then(|trail| {
             update_occluded_position(trail, &car.body, nav.position, nav.forward, traffic, false, nav.half_width)
@@ -256,7 +269,18 @@ impl RacerState {
         let reference = speed.abs().max(self.governor.speed_limit);
         let accel = self.action_acceleration(reference, slope_forward_y);
         let wanted = self.governor.update(speed, potential, accel, skill, self.think_delta);
-        RacerThink { target: occlusion.map_or(nav.position, |o| o.position), speed: wanted }
+        let target = occlusion.map_or(nav.position, |o| o.position);
+        log::trace!(
+            "racer {}: at ({:.0}, {:.0}) segment {} on_route {} target ({:.0}, {:.0}) speed {wanted:.1}",
+            self.id,
+            car.body.position.x,
+            car.body.position.z,
+            nav.segment,
+            self.on_route,
+            target.x,
+            target.z
+        );
+        RacerThink { target, speed: wanted }
     }
 
     /// Searches the racer's road again: along its route (`racer_route.rs`), or, on a leg with no road or with no route,

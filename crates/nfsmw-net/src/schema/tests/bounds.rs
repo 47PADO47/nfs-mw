@@ -48,8 +48,8 @@ fn positions_stay_within_a_centimetre() {
             car.position = [0, 1, 2].map(|_| uniform(&mut rng, -half_extent, half_extent));
             schema.encode(&car, None, &mut record).unwrap();
             let back = schema.decode(car.id, record.kind(), record.values()).unwrap().view.position;
-            for axis in 0..3 {
-                let error = (back[axis] - car.position[axis]).abs();
+            for (axis, decoded) in back.into_iter().enumerate() {
+                let error = (decoded - car.position[axis]).abs();
                 assert!(error <= schema.position_step() * 0.5 + half_extent * 1e-6, "error {error}");
             }
         }

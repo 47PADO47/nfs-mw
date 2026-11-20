@@ -10,13 +10,20 @@
 //!                                              write files/CARS/<ID>/RIDER/contacts.json of each bike (no meshes)
 //! cameras <source or bike folder> <mod folder> --physics <dump>
 //!                                              write the [bike.camera] tables of each bike's cars/<id>.toml (no meshes)
+//! geometry <source> <mod folder> [--max-texture N] [--threads N] [--only <text>]
+//!                                              build the car files and livery choices of imported bikes again
+//! import-all <source> <mod folder> --physics <dump> [--tyre-tables <dir>] [--sound-dir <dir>] [--max-texture N] [--threads N]
+//!            [--bike-parts <dir>]
+//!                                              import every bike of the exporter's output (what the native mod does)
 //! ```
 
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 
+use crate::bake::Options;
 use crate::batch;
 use crate::bike_table;
 use crate::camera;
@@ -24,6 +31,7 @@ use crate::manifest::{self, Tables};
 use crate::manifest_sound;
 use crate::naming;
 use crate::partfile::PartTable;
+use crate::regeometry;
 use crate::rider::contacts as rider_contacts;
 use crate::summary::Summary;
 
@@ -94,7 +102,7 @@ pub fn remanifest(args: &[String]) -> Result<()> {
         Some(dir) => Some(manifest_sound::read_tables(dir, &car)?),
         None => None,
     };
-    let tables = Tables { bike: &bike, sound: sound.as_deref() };
+    let tables = Tables { bike: &bike, sound: sound.as_deref(), fallbacks: &table.fallbacks };
     manifest::write_manifest(&args.mod_dir, &car, (&name, &manufacturer), &built, &tables)?;
     for note in &bike.notes {
         println!("{car}: note: {note}");
@@ -176,5 +184,118 @@ pub fn contacts(args: &[String]) -> Result<()> {
         }
     }
     println!("contact points written for {written} of {} bikes", found.len());
+    Ok(())
+}
+
+#[derive(Parser)]
+#[command(
+    about = "Build the car files and livery choices of already imported bikes again; nothing else of the mod is touched"
+)]
+struct Geometry {
+    /// The exporter's output: one folder per bike, each with `parts.json`, `glb/` and `tex/`.
+    source: PathBuf,
+    /// The mod folder the bikes were imported into: `files/CARS/<ID>/{GEOMETRY,TEXTURES,BOUNDS}.BIN` and the `[customization]`
+    /// table of `cars/<id>.toml` are written.
+    mod_dir: PathBuf,
+    /// The longest side of a body texture, pixels; wheels get half of it and brake discs a quarter.
+    #[arg(long, default_value_t = Options::default().max_texture)]
+    max_texture: u32,
+    /// Bikes built at the same time (default: half the cores, one to four).
+    #[arg(long)]
+    threads: Option<usize>,
+    /// Only the bikes whose vehicle id contains this text.
+    #[arg(long)]
+    only: Option<String>,
+}
+
+/// `geometry`: the meshes, textures and liveries of imported bikes built again, the manifests kept.
+pub fn geometry(args: &[String]) -> Result<()> {
+    let args = Geometry::try_parse_from(std::iter::once("geometry".to_owned()).chain(args.iter().cloned()))?;
+    let run = regeometry::Run {
+        source: &args.source,
+        mod_dir: &args.mod_dir,
+        max_texture: args.max_texture,
+        threads: args.threads.unwrap_or_else(batch::default_threads),
+        only: args.only.as_deref(),
+    };
+    let started = std::time::Instant::now();
+    let (written, failed) = regeometry::run(&run)?;
+    for (vehicle, reason) in &failed {
+        println!("{vehicle}: not written: {reason}");
+    }
+    println!(
+        "car files written for {written} bikes, {} left out, in {:.0} s",
+        failed.len(),
+        started.elapsed().as_secs_f32()
+    );
+    Ok(())
+}
+
+#[derive(Parser)]
+#[command(
+    about = "Import every bike of the exporter's output into a mod folder (the native mod's job, without the game)"
+)]
+struct ImportAll {
+    /// The exporter's output: one folder per bike, each with `parts.json`, `glb/` and `tex/`.
+    source: PathBuf,
+    /// The mod folder to write: `mod.toml`, `cars/` and `files/CARS/`.
+    mod_dir: PathBuf,
+    /// The physics dump folder.
+    #[arg(long)]
+    physics: PathBuf,
+    #[arg(long)]
+    tyre_tables: Option<PathBuf>,
+    /// The `sound-bikes` output folder: a bike with tables in it gets its own engine sound.
+    #[arg(long)]
+    sound_dir: Option<PathBuf>,
+    /// The longest side of a body texture, pixels; wheels get half of it and brake discs a quarter.
+    #[arg(long, default_value_t = Options::default().max_texture)]
+    max_texture: u32,
+    /// Bikes imported at the same time (default: half the cores, one to four).
+    #[arg(long)]
+    threads: Option<usize>,
+    /// The exporter's folder of the optional parts (`upgrades.py`, `option_export.py`): the bikes get shop options.
+    #[arg(long)]
+    bike_parts: Option<PathBuf>,
+}
+
+/// `import-all`: every bike of a source folder, with a report of the ones left out.
+pub fn import_all(args: &[String]) -> Result<()> {
+    let args = ImportAll::try_parse_from(std::iter::once("import-all".to_owned()).chain(args.iter().cloned()))?;
+    let cancel = AtomicBool::new(false);
+    let input = batch::Input {
+        source: &args.source,
+        physics: &args.physics,
+        tyre_tables: args.tyre_tables.as_deref(),
+        sound: args.sound_dir.as_deref(),
+        max_texture: args.max_texture,
+        bike_parts: args.bike_parts.as_deref(),
+        threads: args.threads.unwrap_or_else(batch::default_threads),
+        cancel: &cancel,
+    };
+    let started = std::time::Instant::now();
+    let report = batch::run(&input, &args.mod_dir)?;
+    manifest::write_mod_toml(&args.mod_dir)?;
+    for (vehicle, reason) in &report.skipped {
+        println!("{vehicle}: left out: {reason}");
+    }
+    if let Some(shop) = &report.shop {
+        println!(
+            "shop: {} bikes with options, {} components, {} part packs of {:.1} MB",
+            shop.bikes,
+            shop.components,
+            shop.packs,
+            shop.bytes as f64 / 1e6
+        );
+        for (what, reason) in &shop.failed {
+            println!("{what}: not written: {reason}");
+        }
+    }
+    println!(
+        "{} bikes imported, {} left out, in {:.0} s",
+        report.imported.len(),
+        report.skipped.len(),
+        started.elapsed().as_secs_f32()
+    );
     Ok(())
 }

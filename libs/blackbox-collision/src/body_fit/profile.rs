@@ -142,7 +142,7 @@ mod tests {
             [-0.4, 0.5, 2.0],
         ];
         let cloud = silhouette(&points, 0.0, 6, 0.3);
-        assert!(cloud.len() % 2 == 0 && cloud.len() >= 6);
+        assert!(cloud.len().is_multiple_of(2) && cloud.len() >= 6);
         let (right, left) = cloud.split_at(cloud.len() / 2);
         for (r, l) in right.iter().zip(left) {
             assert_eq!((r[1], r[2]), (l[1], l[2]));

@@ -263,7 +263,9 @@ impl Audio {
             radio_wanted: true,
             speech: speech::SpeechSlot::default(),
             chase_cues: chase::Cues::new(),
-            chase_radio: chase::ChaseRadio::new(speech::random::Rng::from_clock().next_seed()),
+            chase_radio: chase::ChaseRadio::new(
+                speech::random::Rng::for_run(crate::parity::seed::Stream::ChaseRadio).next_seed(),
+            ),
             chase_data: chase::ChaseData::default(),
             air_support: chase::AirSupport::default(),
             interactive: interactive::Interactive::default(),

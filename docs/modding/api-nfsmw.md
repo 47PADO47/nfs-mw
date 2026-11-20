@@ -51,7 +51,7 @@ Heat is a real number from 1 to 10 whose integer part picks the cop wave.
 | Cops | `pursuit.cops(out: &mut Vec<VehicleId>)` | MW | `ai/cop.rs`, `ai/manager.rs` |
 | Spawn a cop | `pursuit.spawn_cop(SpawnCop { car: CarId, pos: Option<Vec3>, behind: Option<VehicleId> }) -> Result<VehicleId>` **W**; joins the pursuit; the generic `vehicles.spawn` with role `Cop` does not | MW | `ai/spawn.rs`, `ai/cop.rs` |
 | Dismiss a cop | `pursuit.dismiss_cop(VehicleId)` **W** | MW | `ai/manager.rs` |
-| Support | `pursuit.request_support(Strategy { EBrake, CoordinatedEBrake, Ram, HeavyRoadblock, CrossFollow, CrossBrake, CrossPlusVBlock })` **W** | MW | `libs/blackbox-pursuit/src/support.rs`, `ai/pursuit.rs` |
+| Support | `pursuit.request_support(Strategy { EBrake, CoordinatedEBrake, Ram, HeavyRoadblock, CrossFollow, CrossBrake, CrossPlusVBlock })` **W** | MW | `libs/blackbox-pursuit/src/support/mod.rs`, `ai/pursuit.rs` |
 | Roadblock | `pursuit.place_roadblock(pos: Vec3, heading: f32, cars: u32) -> Result<()>` **W** | MW | `ai/roadblock.rs`, `libs/blackbox-pursuit/src/roadblock.rs` |
 | Spike strip | `pursuit.place_spikes(pos: Vec3, heading: f32)` **W** | MW | `ai/spikes.rs`, `libs/blackbox-pursuit/src/spikes.rs` |
 | Helicopter | `pursuit.helicopter() -> Option<VehicleId>`, `call_helicopter()`, `dismiss_helicopter()` **W** | MW | `ai/police/heli.rs`, `libs/blackbox-pursuit/src/helicopter/` |
@@ -100,7 +100,7 @@ Delivered like the generic events ([api.md](api.md#events)).
 | `BustedRequested` | `fraction == 1.0`, about to end the chase | **yes** | same |
 | `CooldownChanged` | `status`, `fraction` | no | `libs/blackbox-pursuit/src/cooldown.rs` |
 | `RoadblockPlaced`, `SpikesDeployed` | `pos`, `heading` | no | `ai/roadblock.rs`, `ai/spikes.rs` |
-| `SupportRequested` | `strategy` | no | `libs/blackbox-pursuit/src/support.rs` |
+| `SupportRequested` | `strategy` | no | `libs/blackbox-pursuit/src/support/mod.rs` |
 | `HelicopterArrived`, `HelicopterLeft` | `vehicle` | no | `ai/police/heli.rs` |
 | `BountyChanged` | `old`, `new`, `reason` | no | career module (new) |
 | `CashChanged` | `old`, `new`, `reason` | no | career module (new) |

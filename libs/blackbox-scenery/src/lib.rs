@@ -20,6 +20,7 @@ mod override_info;
 mod section;
 mod spawner;
 pub mod sway;
+mod write;
 
 pub use error::{Error, Result};
 pub use group::{SceneryGroup, find_group, override_group_numbers, parse_groups, read_scenery_groups};
@@ -33,3 +34,4 @@ pub use override_info::{
 };
 pub use section::{OverrideHook, ScenerySection, read_scenery_sections};
 pub use spawner::{ObjectSpawner, read_object_spawners};
+pub use write::write_section;

@@ -39,6 +39,52 @@ pub struct Target {
     pub rotation: Option<[f32; 4]>,
     /// Whether it turns with the handlebar (a grip) or stays on the frame (a peg).
     pub steers: bool,
+    /// For a grip: the place of the handlebar bone it is held on (the inboard end of the grip rubber, on its axis), in the same frame. The hand holds
+    /// the bike's grip there (`Limb::tip_anchor`), whatever distance the bike's hand socket is from it. Files written before it
+    /// have none and the hand goes to the socket.
+    #[serde(default)]
+    pub anchor: Option<[f32; 3]>,
+    /// The turn of that bone (`x, y, z, w`).
+    #[serde(default)]
+    pub anchor_rotation: Option<[f32; 4]>,
+    /// For a grip: where the grip rubber lies along its axis, `[inboard, outboard]` metres from the bone, outboard positive (measured on
+    /// the bike's mesh by the importer). The hand is centred on it ([`Target::hand_slide`]). Files without it assume [`DEFAULT_GRIP_SPAN`].
+    #[serde(default)]
+    pub grip_span: Option<[f32; 2]>,
+}
+
+/// The grip rubber's span along its axis when the file has none: from the bone to 12 cm outboard (the real bikes' are 11 to 14 cm, from
+/// 0 at the bone; `docs/specs/ride6-rider-hands.md`, section 3).
+pub const DEFAULT_GRIP_SPAN: [f32; 2] = [0.0, 0.12];
+/// Where the posed glove's middle lies along the grip, outboard of the grip bone, metres. Measured on eight bikes (the probe of
+/// `probe_tests.rs`): the glove's vertices span 4.6 cm inboard to 9.4 cm outboard of the bone on every one, because the hand is held
+/// by that bone with one `tip_anchor`; the bone sits at the inboard end of the grip rubber, so the hand sat 3.4 cm too far inboard
+/// of the rubber's middle and its cuff cut into the throttle housing and the lever perch.
+pub const GLOVE_CENTRE_M: f32 = 0.024;
+
+/// How far the hand is moved forward, along the grip bone's own x axis (across the grip, ahead of the bar), so that the palm and the knuckles sit over the
+/// rubber, metres. The hand is held by the grip bone with the wrist 12.5 cm behind it (`tip_anchor`, the same for every bike); from above the
+/// fist lay behind the grip with the rubber showing in front of its knuckles (a user's playtest: "still not on"). Renders of the CRF 450 R SMT at 0,
+/// 3, 3 and 4.5 cm forward (top, from the bar end): 3 to 4.5 cm puts the rubber under the knuckles with the bar end cap in the middle of the fist.
+/// The same shift for every bike, because the hand's `tip_anchor` is (`docs/specs/ride6-rider-hands.md`, section 3).
+pub const HAND_FORWARD_M: f32 = 0.035;
+
+impl Target {
+    /// How far the hand is moved outboard along the grip bone's axis so that the glove is centred on the grip rubber, metres
+    /// (negative inboard).
+    pub fn hand_slide(&self) -> f32 {
+        let [inboard, outboard] = self.grip_span.unwrap_or(DEFAULT_GRIP_SPAN);
+        (inboard + outboard) / 2.0 - GLOVE_CENTRE_M
+    }
+
+    /// The bone's local axis that points outboard along the grip, as a sign of its y: the right bone's y points inboard (to the left), the
+    /// left bone's outboard (the importer's bones are the exporter's, whose z is the grip's axis: y in the car's axes).
+    pub fn outboard_sign(&self) -> f32 {
+        match self.name.starts_with("left") {
+            true => 1.0,
+            false => -1.0,
+        }
+    }
 }
 
 /// A limb solved with two-bone IK: the three bones, the bone its middle joint bends towards, the target it reaches for
@@ -57,6 +103,10 @@ pub struct Limb {
     /// `tip_offset`.
     #[serde(default)]
     pub tip_frame: Option<Rigid>,
+    /// Where the tip bone is against the grip bone in the authored pose: the tip is put at the target's `anchor` (place and turn)
+    /// composed with this, so the hand holds the bike's grip as it holds the reference bike's.
+    #[serde(default)]
+    pub tip_anchor: Option<Rigid>,
 }
 
 /// The bones the body leans forward with when the arms cannot reach the grips, and the bones that turn back to keep the head up.
@@ -112,10 +162,18 @@ pub struct Attach {
     /// What rests on the seat (`None`: the rider is not sat on a surface).
     #[serde(default)]
     pub seat: Option<SeatRig>,
+    /// The right wrist at full throttle against the right grip's own frame: a turn about the grip's axis and a move
+    /// (`docs/specs/ride6-rider-hands.md`). `None`: the throttle does not roll the wrist.
+    #[serde(default)]
+    pub wrist_throttle: Option<Rigid>,
     /// The top of this bike's seat along its centre line, `[x, z]` samples in the bike skeleton's frame, x ascending (from the
     /// bike's `contacts.json`; empty: unknown).
     #[serde(default)]
     pub seat_surface: Vec<[f32; 2]>,
+    /// The cross-section of this bike's body, from its `contacts.json` (`None`: unknown): what the rider's body is kept out of
+    /// (`clearance.rs`).
+    #[serde(default)]
+    pub body_section: Option<super::clearance::Section>,
 }
 
 impl Attach {

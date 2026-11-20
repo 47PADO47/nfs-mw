@@ -23,7 +23,7 @@ was not checked. Nothing was built, run or launched. No Ghidra session was opene
 | `crates/nfsmw/src/scenes/world/car_light_flares.rs` (lines 61-132) | The world-space billboard precedent, and `focal_scale` | |
 | `crates/nfsmw/src/viewer/camera/mod.rs` (lines 22-75) | `Lens`, `Lens::view_proj`, `projection` | |
 | `crates/nfsmw/src/viewer/camera/pursuit/mod.rs` (lines 14-19, 48-151) | `CATCH_SECS` 2.5, `ARREST_SECS` 3.0, `ARREST_BLEND_SECS` 0.6, `shot`, `current_shot`, the `catch` and `arrest` fields | |
-| `crates/nfsmw/src/hud/state.rs`, `hud/pursuit.rs`, `hud/cop_blip.rs` | `HudState` fields, the pursuit board, the cop icon colour (no per-car bar exists in the HUD) | |
+| `crates/nfsmw/src/hud/state/mod.rs`, `hud/pursuit.rs`, `hud/cop_blip.rs` | `HudState` fields, the pursuit board, the cop icon colour (no per-car bar exists in the HUD) | |
 | `libs/blackbox-gfx/src/effects.rs` (lines 1-84), `mesh.rs` (lines 17-25), `backend.rs` (line 65), `libs/blackbox-scene/src/textures.rs` (line 7) | Effect layers, depth test, `BlendMode`, texture creation | |
 | `crates/nfsmw/src/settings/mod.rs`, `partial.rs`, `file.rs`, `env.rs`, `write.rs`, `saves.rs`, `cli/view_args.rs`, `devtools/console/settings_keys.rs`, `settings_cmd.rs`, `parse.rs`, `frontend/options.rs`, `options_rows.rs` | The `traffic_lights` and `rear_view_mirror` boolean paths, every surface the new setting needs | |
 | `crates/nfsmw/src/settings/fairbusts.rs`, `radio_hud.rs` | The settings module pattern, for comparison (the bool needs no module) | |

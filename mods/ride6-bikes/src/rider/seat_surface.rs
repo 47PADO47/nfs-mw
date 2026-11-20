@@ -34,7 +34,7 @@ pub type Triangle = [Vec3; 3];
 
 /// A point of the part's frame in the car frame: the part's anchor into the chassis frame (glTF axes: x forward, y up, z right)
 /// and then glTF to car.
-fn car_point(anchor: &crate::partfile::Anchor, p: [f32; 3]) -> Vec3 {
+pub(super) fn car_point(anchor: &crate::partfile::Anchor, p: [f32; 3]) -> Vec3 {
     let q = anchor.point(p);
     Vec3::new(q[0], -q[2], q[1])
 }
@@ -163,8 +163,7 @@ mod tests {
 
     #[test]
     fn a_part_is_moved_by_its_anchor_and_gltf_axes_become_the_car_frame() {
-        let anchor =
-            crate::partfile::Anchor { bone: None, translation: [0.1, 0.2, 0.3], rotation: [0.0, 0.0, 0.0, 1.0] };
+        let anchor = crate::partfile::Anchor::rigid(None, [0.1, 0.2, 0.3], [0.0, 0.0, 0.0, 1.0]);
         // glTF (x forward, y up, z right) (1, 2, 3) + (0.1, 0.2, 0.3) = (1.1, 2.2, 3.3) is car (1.1, -3.3, 2.2).
         assert!(car_point(&anchor, [1.0, 2.0, 3.0]).distance(Vec3::new(1.1, -3.3, 2.2)) < 1e-5);
     }

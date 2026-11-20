@@ -65,6 +65,23 @@ impl Carousel {
 
     fn refresh(&self, cx: &mut Cx) {
         self.handle.header(cx, self.page);
+        // A choice the vehicle's own rules refuse says why, in the place the shop's other refusals use.
+        if let Some(reason) = self.entries.get(self.picked).and_then(|item| item.blocked.as_deref()) {
+            cx.hide(0xebc3_e6b7, false);
+            cx.text_object(0xa629_8e25, reason);
+        }
+        if matches!(self.page, Page::Choices { row: crate::garage::menu_rows::Row::Part(Part::Spoiler), .. }) {
+            // The list of a vehicle's own exhausts has no families to step through: the spoiler screen's family bar stays hidden.
+            for hash in [0x7800_8599, 0x5363_9a10, 0x2c3c_c2d3] {
+                cx.hide(hash, true);
+            }
+        }
+        if matches!(self.page, Page::Choices { row: crate::garage::menu_rows::Row::Part(Part::Wheels), .. }) {
+            // The brand pages show a rim's size and step through sizes; the list of a bike's own rims has neither.
+            for hash in [0xe678_2841, 0x4bf6_87bf] {
+                cx.hide(hash, true);
+            }
+        }
         if self.page == Page::Showcase {
             super::inspection::refresh(cx, &self.handle.model());
             return;

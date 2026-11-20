@@ -210,3 +210,29 @@ fn hidden_benchmarks_accept_an_explicit_4k_target() {
     assert_eq!(view.bench_seconds, Some(5.0));
     assert!(view.screenshot.is_none());
 }
+
+#[test]
+fn the_seed_and_the_stock_rules_are_run_flags_and_no_settings() {
+    let cli = Cli::try_parse_from(["nfsmw", "view-world", "--drive", "--seed", "42", "--stock-rules"]).unwrap();
+    let command = cli.command.expect("a command");
+    let view = command.view_args().expect("view-world opens a window");
+    assert_eq!((view.seed, view.stock_rules), (Some(42), true));
+    let plain = Command::play();
+    let plain = plain.view_args().expect("play opens a window");
+    assert_eq!((plain.seed, plain.stock_rules), (None, false));
+    assert_eq!(view.settings_layer(), plain.settings_layer(), "neither is a setting, so neither can be saved");
+    assert!(Cli::try_parse_from(["nfsmw", "play", "--seed", "7"]).is_ok());
+    assert!(Cli::try_parse_from(["nfsmw", "view-world", "--seed", "-1"]).is_err());
+    assert!(Cli::try_parse_from(["nfsmw", "check-install"]).unwrap().command.unwrap().view_args().is_none());
+}
+
+#[test]
+fn a_command_line_vehicle_budget_reaches_the_run_options() {
+    let budget = |args: &[&str]| {
+        let cli = Cli::try_parse_from(["nfsmw", "view-world"].iter().chain(args)).unwrap();
+        cli.command.expect("a command").view_args().expect("view-world opens a window").parity_options().traffic
+    };
+    assert_eq!(budget(&["--stock-rules", "--no-traffic"]), Some(0));
+    assert_eq!(budget(&["--stock-rules", "--traffic", "6"]), Some(6));
+    assert_eq!(budget(&["--stock-rules"]), None, "the stock budget applies");
+}

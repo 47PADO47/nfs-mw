@@ -71,6 +71,13 @@ impl WorldScene {
             // Keep the preview visible and the cart open so the player can retry or discard.
             return Err(error).context("Garage purchase was not saved; cash and installed parts were restored");
         }
+        // The gear in the cart is paid for and saved with the purchase: the profile keeps it, one choice for every bike.
+        if selection.gear != session.baseline.gear
+            && let Err(error) = crate::garage::rider_gear::purchase(&selection.gear)
+        {
+            log::error!("the rider's gear is paid for but not kept: {error:#}");
+        }
+        self.garage.applied.gear = selection.gear.clone();
         self.career.garage = None;
         self.garage.shop = false;
         self.garage.lock_car = false;

@@ -55,6 +55,38 @@ fn temporary_racer_controls_steer_down_the_road_without_player_buttons() {
     assert!(state.is_some(), "the physical player acquired a race driver");
 }
 
+/// An unattended race run's autopilot is the same driver with the race's aim: it drives off the line to the gate.
+#[test]
+fn the_race_autopilot_drives_from_a_standstill_towards_its_gate() {
+    use crate::scenes::world::ai::{PilotCar, RaceAim};
+    let mut world = TrafficWorld::new(straight_road(1000.0));
+    let body = body(Vec3::new(2.0, 0.0, -30.0), 0.0);
+    let view = VehicleView {
+        position: body.position,
+        forward: Vec3::Z,
+        forward_speed: 0.0,
+        planar_speed: 0.0,
+        speed: 0.0,
+        gear_is_reverse: false,
+        max_steer: 0.5,
+        in_shock: false,
+        staging: false,
+    };
+    let aim = RaceAim { goal: Some(Vec3::new(2.0, 0.0, 400.0)), leg: Some(0), route: None, skill: 1.0 };
+    // Grip that rises with speed: on a perfectly straight road, equal grips make the cornering limit 0 / 0.
+    let performance = Performance { end_grip: 1.2, acceleration: [8.0; TABLE_SIZE], ..player() };
+    let mut state = None;
+    let mut last = crate::scenes::world::drive::DriveInput::default();
+    // The car stands for the whole second: the driver asks for more speed each think and the pedal follows.
+    for _ in 0..60 {
+        let car = PilotCar { body, view, performance, ai: AiVehicle::default(), mass: 1500.0 };
+        last = world.race_pilot_input_with_delta(1.0 / 60.0, &mut state, car, &aim);
+        assert!(last.steer.abs() < 0.1 && !last.reset && !last.nos && !last.speedbreaker, "{last:?}");
+    }
+    assert!(state.is_some(), "the player's car acquired a race driver");
+    assert!(last.throttle > 0.0 && last.brake == 0.0, "a gate lies ahead on a straight road: {last:?}");
+}
+
 #[test]
 fn an_arrest_uses_the_road_boundary_midpoint_instead_of_the_players_lane() {
     let mut net = straight_road(1000.0);

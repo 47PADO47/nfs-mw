@@ -303,6 +303,19 @@ stored, the bin counters are recomputed (3.8), and the map icons are refreshed. 
 (`InGamePhotoMaster.fng`) is shown with the speed and the bounty. In a pursuit race the call also writes the speed into
 the race's own list. A trap that is already done cannot complete again. **[exe]**
 
+**Why "too slow" is the common answer (port, `scenes/world/career/speedtraps.rs`).** Played, the message came up at most cameras. The
+numbers were checked and are right: the speed is the car's speed along its body, `telemetry.speed_mps * 3.6` km/h (the HUD's own
+conversion), judged **once, when the car enters the trap's radius** (20 m by default, 25 or 30 on three traps; at 300 km/h the car crosses
+that in 0.24 s, so the sample is within a few km/h of the speed at the camera), and compared with `ThreshholdSpeed` in km/h (130 to 320;
+in mph they would be 81 to 199, and the table's 320 would be beyond any car in miles per hour as it is nearly at the top speed of the best
+car in km/h). So the cause is the rule, not a unit: **a trap is armed only when its bin is entered** (3.7), the 39 traps are spread over
+all 15 bins, and until the player has entered a bin its cameras say "too slow" at any speed; at the start of the career one camera
+(bin 15, 130 km/h) can complete, and the others ask 145 to 320 km/h. The cameras that can complete are on the minimap.
+
+Every pass is therefore written to the game's log, which the console shows, in the units the player chose (`speed_units`):
+`speed camera: too slow, 143 km/h, target 180 km/h`, `speed camera: passed, 214 km/h, target 180 km/h`, and for a trap that cannot
+complete a reason: `(not armed: bin 9 is not entered yet)` or `(already done)`. [ours]
+
 ### 3.8 Bin counters
 
 The recount (`0x006010E0`, run after every milestone bank and speed trap completion) sets two u16 counters on the bin

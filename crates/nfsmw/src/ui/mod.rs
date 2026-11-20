@@ -15,6 +15,7 @@ pub(crate) mod name_picture;
 pub mod present;
 pub(crate) mod prompts;
 mod raster_text;
+pub(crate) mod rider_icon;
 mod shared;
 mod strings;
 mod system_fonts;

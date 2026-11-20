@@ -116,7 +116,13 @@ fn rival(rank: u8, status: RivalStatus) -> MenuEntry {
         bounty: format!("{rank},000"),
         status,
     };
-    MenuEntry { label: format!("Rival {rank}"), enabled: true, value: MenuValue::Rival(info), icon: None }
+    MenuEntry {
+        label: format!("Rival {rank}"),
+        enabled: true,
+        value: MenuValue::Rival(info),
+        icon: None,
+        flags: crate::ui::theme::EntryFlags::ROW,
+    }
 }
 
 fn blacklist(selected: usize, aspect: f32) -> MenuList {

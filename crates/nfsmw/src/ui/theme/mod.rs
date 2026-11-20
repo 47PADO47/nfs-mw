@@ -43,8 +43,8 @@ pub use compose::{hud_layer, slot_layer};
 pub use element::ElementId;
 pub use lan::{LanCell, LanHud, LanLine, LanLineKind, LanPage, LanSpectator};
 pub use menu_list::{
-    DEFAULT_ASPECT, MenuEntry, MenuHint, MenuIcon, MenuList, MenuListCell, MenuNudge, MenuStyle, MenuValue, RivalInfo,
-    RivalStatus,
+    DEFAULT_ASPECT, EntryFlags, MenuEntry, MenuHint, MenuIcon, MenuList, MenuListCell, MenuNudge, MenuStyle, MenuValue,
+    RivalInfo, RivalStatus,
 };
 
 use bevy_ecs::prelude::*;

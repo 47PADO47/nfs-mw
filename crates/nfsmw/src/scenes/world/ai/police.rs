@@ -122,6 +122,9 @@ pub struct Police {
     reset_penalty: ResetPenalty,
     /// Seconds of the post-reset blink left (`busted::RESET_BLINK` after a manual reset); 0 when not flashing.
     reset_blink: f32,
+    /// The player cannot be busted now: a bike's rider is off the bike or has just been put back on it (`drive/rider_cam.rs`,
+    /// set by the world every step).
+    bust_grace: bool,
     /// A cinematic moment plays: the busted meter holds its value (`moment_feed.rs`).
     busted_hold: bool,
     /// The game camera for the helicopter's `AvoidCamera`, physics space (set by the world each step).
@@ -201,6 +204,7 @@ impl Default for Police {
             configured_max_cops: BartenderSettings::default().max_cops,
             reset_penalty: FairBustsSettings::default().penalty(BartenderSettings::default().busted.reach),
             reset_blink: 0.0,
+            bust_grace: false,
             busted_hold: false,
             heli_camera: None,
             heli_wait: 0.0,

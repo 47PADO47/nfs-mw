@@ -1,8 +1,10 @@
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use nfsmw_career::economy::shop::Item;
 use nfsmw_data::car::{customization::Category, physics::PerformanceCategory};
 
 use super::{Car, Pricing, Row, Selection};
+use crate::garage::options::{Store, VehicleOptions};
+use crate::garage::rider_gear;
 
 pub(super) fn performance_marker(category: PerformanceCategory) -> u32 {
     match category {
@@ -93,6 +95,41 @@ impl Pricing {
         if installed.gauges != selected.gauges {
             result.push(self.item(Row::Gauge, selected, installed, car, backroom)?);
         }
+        self.component_items(car, installed, selected, backroom, &mut result)?;
         Ok(result)
+    }
+}
+
+impl Pricing {
+    /// The items only a vehicle's components and the rider's gear make: a component slot the garage has no category for, and each
+    /// part of the gear that differs. Neither is sold in the backroom (a marker is a model category's or a level's).
+    fn component_items(
+        &self,
+        car: &Car,
+        installed: &Selection,
+        selected: &Selection,
+        backroom: bool,
+        result: &mut Vec<Item>,
+    ) -> Result<()> {
+        if backroom {
+            ensure!(installed.gear == selected.gear, "The backroom does not sell rider gear");
+            ensure!(installed.parts.slots == selected.parts.slots, "The backroom does not sell component parts");
+            return Ok(());
+        }
+        let before = VehicleOptions::of_selection(car, installed);
+        let after = VehicleOptions::of_selection(car, selected);
+        if let (Some(before), Some(after)) = (&before, &after) {
+            for (at, slot) in after.slots.iter().enumerate().filter(|(_, slot)| slot.store == Store::Session) {
+                if before.slots.get(at).is_some_and(|old| old.current == slot.current) {
+                    continue;
+                }
+                let at = u8::try_from(at).context("A vehicle has too many component slots")?;
+                result.push(self.item(Row::Slot(at), selected, installed, car, backroom)?);
+            }
+        }
+        for (part, _) in rider_gear::price::changes(&installed.gear, &selected.gear, rider_gear::owns) {
+            result.push(self.item(Row::Gear(part), selected, installed, car, backroom)?);
+        }
+        Ok(())
     }
 }
