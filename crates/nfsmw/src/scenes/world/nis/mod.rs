@@ -28,8 +28,10 @@ mod kind;
 mod light;
 mod loading;
 mod player;
+mod race_grid;
 mod skin;
 mod world;
 
 pub(super) use command::nis_command;
 pub(super) use player::NisPlayer;
+pub(super) use race_grid::intro_grid;

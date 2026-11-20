@@ -74,6 +74,11 @@ impl Police {
         self.busted_hold = hold;
     }
 
+    /// Whether the player cannot be busted now (the world says every step, `TrafficWorld::note_bust_grace`).
+    pub fn set_bust_grace(&mut self, grace: bool) {
+        self.bust_grace = grace;
+    }
+
     /// A manual reset (the player's reset key) starts the post-reset blink.
     pub fn note_manual_reset(&mut self) {
         self.reset_blink = RESET_BLINK;

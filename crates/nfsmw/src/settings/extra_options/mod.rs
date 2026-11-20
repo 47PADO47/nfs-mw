@@ -43,6 +43,10 @@ pub(crate) fn active() -> ExtraOptions {
 }
 
 fn read_active() -> Option<ExtraOptions> {
+    // A stock run has no such file (`parity/stock.rs`).
+    if crate::parity::stock::ini_absent(FILE_NAME) {
+        return None;
+    }
     let path = Settings::config_path()?.parent()?.join(FILE_NAME);
     let text = std::fs::read_to_string(path).ok()?;
     Some(ExtraOptions::parse(&text).options)

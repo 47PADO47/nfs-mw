@@ -14,21 +14,22 @@ impl Settings {
         Ok(path)
     }
 
-    /// Resolve the settings: `cli` over the process environment over the config file over the defaults.
+    /// Resolve the settings: `cli` over the process environment over the config file over the defaults. A stock run
+    /// (`--stock-rules`, `parity/stock.rs`) reads no mod-style ini file and forces the original's mechanics on the
+    /// result; the config file is not written.
     pub fn load(cli: Partial) -> Self {
+        use crate::parity::stock;
         let env = env::read(|name| std::env::var(name).ok());
         let config = game_install::config_file_path(&nfsmw_data::game::SPEC);
         let file = config.as_deref().map(file::read).unwrap_or_default();
-        let extra = match config.as_deref().and_then(std::path::Path::parent) {
-            Some(dir) => extra_options::read(&dir.join(extra_options::FILE_NAME)),
-            None => Partial::default(),
+        let ini = |name: &str| {
+            let dir = config.as_deref().and_then(std::path::Path::parent)?;
+            (!stock::ini_absent(name)).then(|| dir.join(name))
         };
-        let speedbreaker = match config.as_deref().and_then(std::path::Path::parent) {
-            Some(dir) => speedbreaker::read(&dir.join(speedbreaker::FILE_NAME)),
-            None => SpeedbreakerTuning::default(),
-        };
+        let extra = ini(extra_options::FILE_NAME).map(|path| extra_options::read(&path)).unwrap_or_default();
+        let speedbreaker = ini(speedbreaker::FILE_NAME).map(|path| speedbreaker::read(&path)).unwrap_or_default();
         let mut settings: Self = cli.or(env).or(file).or(extra).into();
         settings.speedbreaker = speedbreaker;
-        settings
+        stock::effective(&settings)
     }
 }

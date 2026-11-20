@@ -130,7 +130,11 @@ impl IntroEnv {
         Self {
             track: u32::try_from(story.intro_camera_track).unwrap_or(0),
             tutorial: tutorial_of(session.kind, session.options.career).filter(|t| seen_tutorials & t.bit == 0),
-            spawn: session.plan.iter().find(|plan| plan.grid_slot == 0).unwrap_or(&session.plan[0]).spawn,
+            // The start marker, not a racer's spawn: an intro grid stands the racers off it (`nis_grid.rs`).
+            spawn: session.origin.race.start.as_ref().map_or_else(
+                || session.plan.iter().find(|plan| plan.grid_slot == 0).unwrap_or(&session.plan[0]).spawn,
+                super::start::start_spawn,
+            ),
             nis_shell: story.nis_shell,
         }
     }

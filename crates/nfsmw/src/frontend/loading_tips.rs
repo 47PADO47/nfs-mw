@@ -24,9 +24,16 @@ const TIP_IN: u32 = 0xB237_48F4;
 fn next_key() -> &'static str {
     static START: OnceLock<usize> = OnceLock::new();
     static LOADS: AtomicUsize = AtomicUsize::new(0);
-    let start =
-        *START.get_or_init(|| SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.subsec_nanos() as usize));
+    let start = *START.get_or_init(first_tip);
     TIPS[(start + LOADS.fetch_add(1, Ordering::Relaxed)) % TIPS.len()]
+}
+
+/// Where the tips start: the run's seed when it has one (`--seed`, `parity/seed.rs`), else the clock.
+fn first_tip() -> usize {
+    if let Some(seed) = crate::parity::seed::fixed(crate::parity::seed::Stream::LoadingTips) {
+        return (seed % TIPS.len() as u64) as usize;
+    }
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.subsec_nanos() as usize)
 }
 
 /// `Loading_Tips.fng` with the tip of its load.

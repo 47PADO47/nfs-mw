@@ -89,7 +89,7 @@ fn main() -> std::io::Result<()> {
         }
         for client in &mut endpoints {
             client.send_unreliable(FRAME, frame.clone(), None);
-            if pass % 10 == 0 {
+            if pass.is_multiple_of(10) {
                 client.send_reliable(1, message.clone());
             }
             while let Some(event) = client.poll_event() {

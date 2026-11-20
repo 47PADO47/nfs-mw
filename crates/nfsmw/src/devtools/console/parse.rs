@@ -1,5 +1,6 @@
 //! Turning a typed line into a [`Command`]. Pure text in, plain data out.
 
+use super::dev_parse::{self, DEV_COMMANDS, DevCommand};
 use super::net_parse::{self, NET_COMMANDS, NetCommand};
 
 /// A console command. Scene-specific ones (`car`, `freecam`…) are passed on by name.
@@ -7,6 +8,8 @@ use super::net_parse::{self, NET_COMMANDS, NetCommand};
 pub enum Command {
     /// A `net.*` command of LAN play (`net_parse.rs`).
     Net(NetCommand),
+    /// A `vehicle`, `gear` or `devtools` command (`dev_parse.rs`).
+    Dev(DevCommand),
     Help,
     Clear,
     Quit,
@@ -42,7 +45,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 70] = [
+pub const BUILT_IN: [(&str, &str); 71] = [
     ("trace start [seconds]|stop|mark [label]|status", "performance trace; F9 record/stop, F10 bookmark"),
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
@@ -86,6 +89,7 @@ pub const BUILT_IN: [(&str, &str); 70] = [
     ("post_aa <off|fxaa|smaa|taa>", "anti-aliasing of the 3D scene (smaa, taa: bevy renderer)"),
     ("motion_blur <on|off>", "motion blur at high speed"),
     ("motion_blur_strength <0-2>", "strength of the high-speed motion blur; 1 is the default"),
+    ("grading_strength <0-1>", "how far a mod's colour grading goes from the frame's own colour; 1 is the default"),
     ("visual_treatment <off|low|high>", "installed midday colour look (native renderer)"),
     ("reflections <off|low|medium|high>", "local car reflections; off restores the static sky"),
     ("reflection_cube_size <auto|25%-400%|pixels>", "size of the car reflection capture"),
@@ -128,7 +132,7 @@ pub const BUILT_IN: [(&str, &str); 70] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 40] = [
+const SET_SHORTHANDS: [&str; 49] = [
     "fps",
     "renderer",
     "vsync",
@@ -155,6 +159,15 @@ const SET_SHORTHANDS: [&str; 40] = [
     "ui-style",
     "speed_units",
     "speed-units",
+    "riding_style",
+    "riding-style",
+    "riding_style_road",
+    "riding_style_motard",
+    "riding_style_offroad",
+    "brake_fingers",
+    "clutch_fingers",
+    "bike_steering",
+    "bike-steering",
     "radio_hud",
     "radio-hud",
     "post_tonemap",
@@ -182,6 +195,9 @@ pub fn parse(line: &str) -> Result<Option<Command>, String> {
     }
     if let Some(net) = net_parse::parse(&name, &args) {
         return net.map(|command| Some(Command::Net(command)));
+    }
+    if let Some(dev) = dev_parse::parse(&name, &args) {
+        return dev.map(|command| Some(Command::Dev(command)));
     }
     Ok(Some(match name.as_str() {
         "help" | "?" => Command::Help,
@@ -248,6 +264,7 @@ pub fn complete(prefix: &str, scene_commands: &[(&str, &str)]) -> Vec<String> {
     let mut names: Vec<String> = BUILT_IN
         .iter()
         .chain(&NET_COMMANDS)
+        .chain(&DEV_COMMANDS)
         .map(|(u, _)| first(u))
         .chain(scene_commands.iter().map(|(u, _)| first(u)))
         .collect();

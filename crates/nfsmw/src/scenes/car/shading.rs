@@ -29,6 +29,7 @@ pub fn glossy_material(m: &LightMaterial) -> GlossyMaterial {
     GlossyMaterial {
         model: GlossyModel::Custom,
         background_actor: false,
+        ambient_floor: 0.0,
         surface: None,
         diffuse_min,
         diffuse_range,

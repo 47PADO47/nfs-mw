@@ -35,6 +35,8 @@ blinks: hidden 0.05 s, shown 0.07 s. Only a manual reset brings the pursuit's re
 - **Flipped:** not every wheel on the ground, and the car's up axis more than 60 degrees from world up and from the
   ground's normal, for **more than 4 s** without a break. It uses the same path as a manual reset, but a running grace
   does not refuse it.
+- **Flipped, a bike with its rider off it:** no reset. A fallen bike lies on its side by design while its rider gets up, walks to it and
+  stands it up ([the get-up spec](ride6-rider-getup.md)); the timer does not run until he is back on it **[ours]**.
 - **Off the world:** the car's own surface missing and two or more wheels without a surface, for a human driver. It
   resets at once.
 - There is no stuck, water or road-distance test. Track zones in the map data can reset the car to a set point.
@@ -55,7 +57,12 @@ physics step; `drive_input.rs` serves a reset's placement; `career/jump_fade.rs`
 - the blink runs on simulation time;
 - the off-world test is the rewrite's own fall watch (no wheels for 0.75 s with nothing below, or far below the last
   road), which now resets to the trail;
-- the jump's fade times (0.3 s out, 0.5 s in).
+- the jump's fade times (0.3 s out, 0.5 s in);
+- a bike, and its thrown rider, are also watched for being **under the map** (`drive/under_map.rs`): nothing below them and, for a bike, a
+  surface just above it or the body 0.5 m under the last place that held it up, for a rider only the first, for 0.1 s. It resets as above
+  (the trail's oldest place, else the last road). A state that is not a number or a speed over 150 m/s resets at once. The rider is on the
+  bike's seat at the next step when the reset puts the bike more than 25 m from where he was
+  ([ride6-feel-round14.md](ride6-feel-round14.md), section 4).
 
 Before this, a reset put the car on the road nearest where it ended up, any placement granted the grace, a car on its
 roof stayed there, and a jump was seen.

@@ -30,13 +30,19 @@ pub(super) fn refresh(cx: &mut Cx, model: &Model, row: Row, option: usize, basel
     status(cx, installed, in_cart, locked);
 
     let Some(car) = model.selected() else { return };
+    // A slot of the vehicle's own components is named by its components: the original's package texts are the 2005 cars'.
+    let own = crate::garage::menu_slots::label(model, row).is_some();
     let details = match row {
+        Row::Performance(_) if own => None,
         Row::Performance(category) => car.performance_details.packages[category as usize].get(option),
         Row::Junkman(category) => Some(&car.performance_details.junkman[category as usize]),
         _ => None,
     };
     if let Some(details) = details {
         performance(cx, &reward_details(model, row, *details));
+    }
+    if own && matches!(row, Row::Performance(_)) {
+        no_package_texts(cx);
     }
     if let Some((labels, _)) = details.is_none().then(|| row.options(model)) {
         cx.text_object(0x5e7b_09c9, labels.get(option).map_or("", String::as_str));
@@ -128,6 +134,17 @@ fn reward_details(model: &Model, row: Row, mut details: PackageDetails) -> Packa
     details.brands[2] = 0x0b95_d4df;
     details.descriptions[2] = fe_hash_upper("PD_ENGINE_4_3_CASTROL");
     details
+}
+
+/// The package's description lines and brand pictures are the original's: a vehicle's own component has none.
+fn no_package_texts(cx: &mut Cx) {
+    for line in 0..3 {
+        cx.hide(fe_hash_upper(&format!("DETAIL_TEXT_LINE{}", line + 1)), true);
+        cx.hide(fe_hash_upper(&format!("PERFORMANCE_DETAILS_ICON{}", line + 1)), true);
+        if let Some(object) = cx.named(&format!("BRAND_ICON_{}", line + 1)) {
+            cx.rt.set_hidden(object, true);
+        }
+    }
 }
 
 fn performance(cx: &mut Cx, details: &PackageDetails) {

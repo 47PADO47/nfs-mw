@@ -5,13 +5,110 @@
 | Unit tests on synthetic bytes | `#[cfg(test)]` / `tests` modules in every crate | no | yes |
 | Real-install tests | [`crates/nfsmw-data/tests/real_install/`](../crates/nfsmw-data/tests/real_install) (`#[ignore]`) | yes | no |
 | Real-save tests | [`crates/nfsmw-career/tests/real_saves.rs`](../crates/nfsmw-career/tests/real_saves.rs) (runs only when `NFSMW_SAVE_DIR` points at the profile folder of the game under Documents, or at a folder of profile files; returns at once without it) | yes (saves) | no |
-| GPU tests (renderer) | `#[ignore = "needs a GPU"]` in `blackbox-render`, scenes from [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit); the passes' own in [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | no | no (optional job) |
+| Installed-game tests of the game itself | `#[ignore = "..."]` tests inside [`crates/nfsmw/src`](../crates/nfsmw/src), beside the code they check | yes | no |
+| Installed-data tests of the libraries and mods | `#[ignore]` tests in `libs/` and `mods/` | yes (this game, the 2012 game or RIDE 6 data, by test) | no |
+| GPU tests (renderer) | `#[ignore = "needs a GPU"]` in `blackbox-render`, scenes from [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit); the passes' own in [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | no | no |
 | Leak + size checks | `cargo xtask check` | no | yes, first job |
 | Python tool tests | [`tests/`](../tests) | no | yes |
 
+The CI workflow ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) starts on manual dispatch only. Its test
+step is `cargo test --workspace`, which skips every `#[ignore]` test; it has no GPU job and no game data.
+
 ```sh
 NFSMW_GAME_DIR="<your-install>" cargo test --release -p nfsmw-data -- --ignored
+NFSMW_GAME_DIR="<your-install>" cargo test -p nfsmw <name filter> -- --ignored --nocapture
 ```
+
+`nfsmw` is a binary crate, so its tests take no `--lib`. Run its ignored tests by name filter: some need more than
+the install (see below).
+
+## Ignored tests
+
+`#[ignore]` attributes counted in the sources on 2026-11-17:
+
+| Where | Ignored tests |
+|---|---|
+| `crates/nfsmw` | 624 |
+| `crates/nfsmw-data` | 210 |
+| `libs/` | 468 |
+| `mods/` | 56 |
+| `crates/nfsmw-career`, `nfsmw-modding`, `nfsmw-net`, `nfsmw-server`, `nfsmw-sim`, `xtask` | 0 |
+
+The 624 in `crates/nfsmw` all carry a reason string; there are 284 different strings and no shared vocabulary. The
+most common is `needs the game (set NFSMW_GAME_DIR)` (131 tests). Counting by words in the reason, with overlap:
+
+| Reason mentions | Tests | Examples |
+|---|---|---|
+| the installed game or its files | 618 | `requires installed original garage packages`, `requires installed audio banks; set NFSMW_GAME_DIR` |
+| a GPU, Vulkan, DX12 or rendering | 54 | `requires installed world and GPU`, `requires a Vulkan GPU` |
+| a run time or a benchmark | 22 | `needs the installed game; set NFSMW_GAME_DIR (about a minute)`, `CPU benchmark; run explicitly with --nocapture` |
+| a private capture, trace or fixture | 12 | `needs installed world and NFSMW_RACER_TRACE player trajectory JSON` |
+| a mod folder or converted mod data | 11 | `renders the converted Tesla offline (NFSMW_GAME_DIR, NFSMW_MEASURE_MOD)` |
+
+A reason does not always name every variable the test reads. Read the test before relying on it.
+
+### Tests that pass without checking
+
+Two patterns make a test pass when its data is missing:
+
+- **Plain `#[test]`s that return early.** Some tests are not ignored; they look for the install and return at once
+  without it, so `cargo test --workspace` and CI report them as passed without running a check. Examples:
+  `every_look_builds_draws_and_frees_what_it_uploaded` in
+  [`frontend/backdrop_tests.rs`](../crates/nfsmw/src/frontend/backdrop_tests.rs) and the tests of
+  [`audio/aems/tests.rs`](../crates/nfsmw/src/audio/aems/tests.rs), whose header says "passes without checking
+  otherwise". A script that looked for an early `return` on an environment lookup in the first statements of a
+  non-ignored test found 78 such tests in 22 files of `crates/nfsmw` (15 of them in `frontend/tests.rs`). That is a
+  lower bound: it only follows helpers defined in the same file. The real-save tests of `nfsmw-career` do the same
+  without `NFSMW_SAVE_DIR`. The comment in `ci.yml` ("Tests that need the game are `#[ignore]`d and skipped here")
+  does not cover these.
+- **Ignored tests that return early.** Some `#[ignore]` tests also return when a variable is unset (the
+  `nfsmw-data` real-install tests do), so `-- --ignored` without `NFSMW_GAME_DIR` passes them. Others `expect` the
+  variable and fail.
+
+A passed run is evidence only when the variables were set and the test's own output shows it ran.
+
+### Environment variables tests read
+
+| Variable | Used by | Value |
+|---|---|---|
+| `NFSMW_GAME_DIR` | the installed-game tests of `crates/nfsmw`, `crates/nfsmw-data`, several libs and the 2012 content mod | the install folder of the 2005 game |
+| `NFSMW_SAVE_DIR` | `crates/nfsmw-career/tests/real_saves.rs` | a folder of profile files |
+| `CHAMELEON_GAME_DIR` | tests of `libs/chameleon-*` and one in `mods/nfsmw-2012-content` | the install folder of the 2012 game |
+| `MW2012_GAME_DIR` | tests of `mods/nfsmw-2012-content`, `libs/chameleon-*` and `libs/ea-audio` | the install folder of the 2012 game; the two names are not unified |
+| `RIDE6_CARS`, `RIDE6_CAR`, `RIDE6_MOD_DIR` | bike tests in `libs/blackbox-modding` and `mods/ride6-bikes` | converted RIDE 6 bike data, which is the user's own |
+| `NFSMW_MEASURE_MOD`, `NFSMW_MOD_DIR` | car-sound measurement tests in `crates/nfsmw/src/audio/car/` | a built mod folder |
+| `BLACKBOX_TEST_API`, `BLACKBOX_GPU_FALLBACK`, `BLACKBOX_UPDATE_DIGESTS` | GPU tests (below) | graphics API, software adapter, digest regeneration |
+| `NFSMW_RACER_TRACE`, `NFSMW_RACER_CATCHUP_TRACE`, `NFSMW_PURSUIT_TARGET_TRACE`, `NFSMW_JUMP_REPLAY`, `NFSMW_CREEP_REPLAY`, `NFSMW_CAPTURE` | comparison tests against private recordings | an input file; formats in [parity-tracing.md](parity-tracing.md#test-inputs-and-outputs-named-by-environment-variables) |
+| `NFSMW_*_CAPTURE_DIR`, `NFSMW_*_EVIDENCE_DIR`, `NFSMW_TEST_OUTPUT_DIR`, `NFSMW_SHOT_DIR`, `NFSMW_LAMP_OUT`, `NFSMW_PERF_OUT` | tests that can save pictures, sound or reports | an output folder or file; unset, nothing is saved |
+
+Many more `RIDE6_*`, `MW2012_*` and `NFSMW_MEASURE_*` variables tune single measurement tests; each is documented
+at its test.
+
+### Known intermittent test
+
+`a_free_roam_drive_gives_the_same_state_hash_every_second_twice`
+([`scenes/world/determinism_tests.rs`](../crates/nfsmw/src/scenes/world/determinism_tests.rs)) runs the installed world
+twice under session rules and compares the state hash every simulated second. It has failed on the first run after a
+build, with a cold disk cache: twice in about twelve runs before lockstep streaming, and once in six runs on
+2026-10-22 after the support-tile fix. The cause is open
+([specs/multiplayer/determinism.md](specs/multiplayer/determinism.md), step 5). Run it again before treating a
+failure as a regression, and record both results.
+
+### Proposed convention
+
+**A proposal, not current practice.** No test uses these strings today. New ignored tests could start their reason
+with one fixed tag, so a run can be filtered and a skipped check is recognisable:
+
+| Tag | Meaning |
+|---|---|
+| `needs-game` | reads the installed game through `NFSMW_GAME_DIR` |
+| `needs-gpu` | needs a graphics adapter |
+| `needs-capture` | reads a private recording or fixture named by a variable |
+
+For example `#[ignore = "needs-game needs-gpu: renders the highway at dusk"]`. A test with such a tag would fail,
+not return, when its variable is unset.
+
+## Real-install tests of `nfsmw-data`
 
 The real-install tests check:
 
@@ -75,3 +172,161 @@ native one through `compare` against the plan's tolerances (max 4, mean 0.5, p99
 numbers (`--nocapture`) and skip without an adapter. `BLACKBOX_GPU_FALLBACK=1` runs them on lavapipe; where the
 environment restricts Vulkan drivers (`VK_LOADER_DRIVERS_SELECT=*intel*`), also set it to `'*lvp*'`. Results and
 how to compare the real city: [bevy-backend.md](bevy-backend.md) (`cargo xtask img-diff`).
+
+## Repeatable comparison runs
+
+Two per-run options make a run repeatable and comparable with the original game. They are on every command that opens
+a window (`play`, `view-world` and the viewers), are never saved, and are off unless given
+(`crates/nfsmw/src/parity/`).
+
+| Option | Environment | Effect |
+|---|---|---|
+| `--seed <u64>` | `NFSMW_SEED` | Seeds what single player otherwise seeds from the clock: race opponent names and the player's grid slot, chase radio lines, police speech, the radio playlist, quick play picks, the marker cards and the first loading tip. It switches on none of the multiplayer session rules (`session on <seed>` does). The traffic streams keep their fixed seed |
+| `--stock-rules` | `NFSMW_STOCK_RULES=1` | Forces every mechanics-changing setting to the original's behaviour, whatever `config.toml`, the mod-style ini files and the saved options say. The config file is not written |
+
+The command line wins over the environment. Without `--seed` the choices above differ from run to run, as before.
+
+`--stock-rules` forces, in one list (`crates/nfsmw/src/parity/stock.rs`):
+
+- traffic lights off, the traffic budget 20 (unless the command line sets one) and the Reference traffic policy;
+- `[pursuit_options]`: `enhanced` off, `bounty_fixes` off, the other values at their defaults;
+- physics rate 60 Hz, game speed 1.0, animation speed 1.0, the rev limiter on, car scale 1.0, rain amount 100 %;
+- every kind of game moment on (the main Game Moment Camera switch stays the player's);
+- `NFSMWSpeedFixerSettings.ini`, `NFSMWExtraOptionsSettings.ini`, `NFSMWBartenderSettings.ini`,
+  `NFSMWFairBustsSettings.ini` and `NFSMWHelicopterSettings.ini` treated as absent;
+- no native mods (`mods = off`);
+- the F5 testing overrides off.
+
+The world applies the forced values where it takes its settings, so a change made in a menu during a stock run does
+not reach the simulation. An explicit `--traffic <N>` or `--no-traffic` on the command line wins over the forced
+budget, since the original can also run a race without traffic; the environment and `config.toml` do not. Not forced, because the original's value is not stated or the original has the same player
+option: `cop_share`, `always_rain`, `transmission`, the Game Moment Camera switch, the control deadzones and
+sensitivities, the wheel options and `eatrax_jukebox.toml` (music only).
+
+### Run header
+
+The pursuit trace's `session.json` records the run under `run`, next to the existing `settings` (which keeps its
+layout); the UI trace's `header` record carries the same struct under `data.run`, without the `world` part
+(`crates/nfsmw/src/parity/header.rs`).
+
+| Key | Content |
+|---|---|
+| `seed`, `stock_rules` | the run's options; `seed` is `null` when the clock seeds the run |
+| `ini_files` | each mod-style ini file: `name`, `present` (it exists next to the config file), `applied` (the run read it) |
+| `extra_options` | the Extra Options pursuit keys in use: `heat_bounds`, `speeding_limit_mps`, `reckless_limit_mps` |
+| `mods` | `mode` and the `loaded` mod ids; `null` when the run started no mods |
+| `world` | `track`, `player_car`, `transmission`, `physics_rate_hz`, `game_speed`, `animation_speed`, `no_rev_limiter`, `car_scale`, `always_rain`, `rain_amount`, `traffic` (`cars`, `cop_share`, `manual`, `lights`, `policy`), `pursuit_options`, `game_moments`, `speedbreaker`, `session_rules` and the F5 `testing` overrides, each as the world runs it |
+
+The header is taken when the recording starts. The audio trace records no header.
+
+## Unattended race runs
+
+One command runs a whole race with nobody at the controls and writes a record of it, to compare with the same race run
+unattended in the original game. The options are on the commands that drive, `view-world --drive` and `play --drive`;
+they are never saved, and without them nothing changes (`crates/nfsmw/src/parity/race_run.rs`,
+`crates/nfsmw/src/cli/race_args.rs`, `crates/nfsmw/src/scenes/world/race/unattended.rs`).
+
+| Option | Effect |
+|---|---|
+| `--race <EVENT>` | Starts in this race, skipping the menus: a career event id (`16.1.1`) or a race name, as the console's `race start` takes it. The race is queued as a quick race is and starts when the car stands, through the same start path. It needs `--drive` |
+| `--race-opponents <N>`, `--race-laps <N>` | The opponents and the laps; left out, the event's own. `race start <race> opponents=N laps=N` in the console does the same |
+| `--race-difficulty <LEVEL>` | The quick-race difficulty: `easy`, `medium` or `hard` (the levels 33, 66 and 100 the quick race writes) or a `DifficultyLevel` of 0 to 100. Left out, the event's own `DifficultyLevel`: 100, hard, in 250 of the 255 races ([gameplay-races.md](formats/gameplay-races.md) section 3.3). It sets the opponents' skills and the catch-up's class; a `--race` run is a quick race |
+| `--autopilot` | In a race, the opponents' AI driver drives the player's car from the green light |
+| `--autopilot-after <SECS>` | The driver takes the car this many seconds of race time after the green light; until then the car gets the real input, which is none with nobody at the controls |
+| `--autopilot-skill <0-1>` | The driver's skill on the opponents' scale, default 1. The catch-up never changes it |
+| `--race-trace <FILE>`, `NFSMW_RACE_TRACE=<FILE>` | Writes the race trace to this file, replacing it; the flag wins |
+| `--exit-after-race` | Ends the process when a race is over, or is taken down without a result. A race asked for with `--race` that cannot start ends it with a failure |
+
+The autopilot (`scenes/world/race/autopilot.rs`) is the driver a game moment lends the player's car to
+(`scenes/world/ai/moment_driver.rs`): the opponents' think and PID controller, given what the race gives an opponent
+each tick, which is the point past the next gate, the leg and the race's route without shortcuts. Its pedals go into the
+car's own input step, and that step gives the car the control set-up the computer's cars use (AI steering, the simple
+chassis and tires, an automatic gearbox) while the driver has it. The car is never placed or moved by hand. The driver
+has no reverse-and-recover rule of its own beyond the controller's, and a game moment's camera takes the car for its
+length as in any race.
+
+### Race trace
+
+JSON lines (`crates/nfsmw/src/parity/race_trace.rs`), written and flushed as they happen. Every line has `kind`, `tick`
+(the physics tick it was raised in, counted from 1 since the world opened), `sim_time` (simulated seconds since the world
+opened, the sum of the ticks' deltas) and `wall_ms` (monotonic milliseconds since the file was opened). Racer 0 is the
+player; laps and checkpoints count from 1; `race_time`, `lap_time` and `total_time` are seconds since the green light.
+A gate is tested once a tick, so a time is that of the tick the car crossed in.
+
+| `kind` | Fields |
+|---|---|
+| `header` | `schema` (`nfsmw-race-trace-v1`), `created_unix_ms`, `run` (the [run header](#run-header), with the world part), `build`, `event`, `race`, `race_type`, `mode`, `difficulty`, `catch_up`, `traffic`, `cops`, `opponents` and `laps` as the race runs them, `checkpoints_per_lap`, `finish_line`, `rolling_start`, `racers` (`racer`, `name`, `car`, `human`, `skill`, `grid`), `autopilot` (`after_secs`, `skill`, or `null`). Written at the green light, just before `timer_start` (see below) |
+| `timer_start` | `race_time` 0: the green light, or the start of a rolling race |
+| `autopilot` | `race_time` at which the driver took the car |
+| `checkpoint` | `racer`, `lap`, `checkpoint`, `race_time` |
+| `lap` | `racer`, `lap`, `lap_time`, `race_time`; the last lap too |
+| `racer_finished` | `racer`, `place`, `total_time` |
+| `knocked_out` | `racer`, `race_time` |
+| `sample` | `race_time`, `racers`: per racer on the road `racer`, `position`, `speed`, `controls` (`throttle`, `brake`, `steering`, `gear`, `rpm`) and, for a racer an AI driver drives, `driver` (`target_speed`, `base_skill`, `catch_up`, `skill`, `catch_up_force`, `stand_in`) |
+| `race_finished` | `race_time`, `results` (`racer`, `place`, `finished`, `total_time` per racer) |
+
+- The finish line is not a checkpoint: crossing it writes `lap`, and no `checkpoint`. A race with no finish line closes
+  the lap at its last checkpoint.
+- The race is over when the player has finished or is out, or the time ran out. The opponents still on the road are not
+  timed after that: they are in `results` with `finished` false and no `lap` or `racer_finished` line follows.
+- A restart of the race writes a new `header`.
+- The `header` is the race's identity, read from the running race when the light turns green
+  (`crates/nfsmw/src/parity/race_trace/header.rs`, `crates/nfsmw/src/scenes/world/race/trace_rows.rs`); nothing in it is
+  copied from the command line. A race taken down before its green light writes no header.
+  - `build`: `git_commit` (the commit the binary was built from, `null` without Git at compile time) and `git_dirty`
+    (tracked files had changes when the build script last ran, `crates/nfsmw/build.rs`).
+  - `mode`: `quick` or `career`, the rule set the race runs under (the skills, the catch-up's context, the result).
+  - `difficulty`: the quick-race difficulty in effect, `level` (0 to 100) and `name` (`easy` below 34, `medium` to 66,
+    `hard` above); `null` in a career race, which does not use it.
+  - `catch_up`: whether the catch-up (rubber band) is on.
+  - `traffic`: `level`, the event's traffic density in percent as the world applies it (0 in a drag race), `pattern`
+    (`drag`, or `null`) and `cars`, the most traffic cars the world keeps.
+  - `cops`: whether police may enter the race (false when the race bars them or the F5 police switch is off).
+  - per racer `skill`: the base skill its AI driver uses (an opponent's from its car, the player's the autopilot's;
+    `null` for a racer no AI drives), before the catch-up offsets it; and `grid`: where it stands at the green light,
+    in the frame of `sample.position`.
+- `sample` lines (`crates/nfsmw/src/parity/race_trace/sample.rs`) come every 0.1 s of race time from the green light
+  until the race is over, on the first tick whose race time reaches the next multiple of 0.1 s (to half a tick; at 60 Hz
+  every sixth tick, the first on the green light's tick, after its `timer_start`). None is written during the countdown.
+  `position` is in the game's world coordinates, metres: x and y on the ground, z up, the axes of the data's `Position`
+  (the physics space's `(x, y, z)` is `(-y, z, x)` of it). `speed` is the speed along the car in m/s, without its sign.
+  `controls` are what each car stepped with in its last step after the input shaping, whoever drove it: `throttle`
+  and `brake` 0 to 1, `steering` -1 to 1 (positive to the right), `gear` -1 reverse, 0 neutral, 1 and up forward, and
+  `rpm` the engine speed after the step. The player's are those of the sample's tick; an opponent's are read after the
+  world's step of that tick.
+- `driver` (`crates/nfsmw/src/scenes/world/race/trace_rows.rs`) is what the AI driver asked for in that tick: the
+  opponents' drivers, and the autopilot's while it has the player's car (absent before it takes the car). `target_speed`
+  is the speed in m/s it is asked to reach (the think's, or the recovery speed while it reverses). `base_skill` is the
+  character's skill, `catch_up` the offset the catch-up added this tick, and `skill` the sum in 0..1 that the driver uses
+  ([ai-driver-speed-skill.md](specs/ai-driver-speed-skill.md) section 8). `catch_up_force` is the catch-up force budget,
+  0 to 0.5, which scales the car's positive engine torque, drag and downforce; the player's car gets neither offset nor
+  force (both 0). `stand_in` is true while the racer moves on its off-world stand-in rather than by physics; its
+  `controls` are then those of its last physics step.
+- The player's vehicle record is the car folder's own `pvehicle`: `--drive BMWM3GTR` races `bmwm3gtr`, and
+  `--drive BMWM3GTRE46` races `bmwm3gtre46`, the record the prologue's M3 GTR uses (`CAR:PRESET` adds a preset ride's
+  parts, as `BMWM3GTRE46:M3GTRCAREERSTART`). The two records differ in engine, gearing, tires, brakes, chassis and mass,
+  and only `bmwm3gtre46` has induction. The header's `world.player_car` is the folder the run drove.
+
+### Without a window and without sound
+
+A run stays off the screen with the benchmark's hidden window: `--bench-seconds <N> --offscreen` keeps the window hidden,
+unfocused and off the desktop (`crates/nfsmw/src/app/mod.rs`), and `--no-sound` opens no output device. The benchmark
+ends the process after `N` seconds of measuring and prints its frame times, so `N` is the run's time limit: choose it
+longer than the race. `--exit-after-race` ends the run first.
+
+```sh
+nfsmw view-world --drive BMWM3GTR --race 16.1.1 --race-opponents 3 --race-laps 2 \
+  --autopilot --race-trace out/16.1.1.jsonl --exit-after-race \
+  --seed 1 --stock-rules --no-sound --bench-seconds 900 --offscreen --max-fps 60
+```
+
+What this does not give:
+
+- It needs a graphics adapter: the hidden window still renders. No command runs a single-player world on the null
+  renderer (the dedicated server does, and takes no race or autopilot option).
+- `--offscreen` is accepted only with `--bench-seconds`; there is no hidden run without the benchmark's time limit and
+  its printed report.
+- The run follows the wall clock: the ticks of a frame follow the frame time, so a run takes as long as the race and two
+  runs do not put the same input on the same tick.
+- `play --drive` takes the same options, but opens the front end, whose post-race screen freezes the world; use
+  `view-world` for batch runs.

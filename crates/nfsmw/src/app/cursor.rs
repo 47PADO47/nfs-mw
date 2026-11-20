@@ -53,6 +53,7 @@ pub fn update(
     mut console: ResMut<Console>,
     mut garage: ResMut<crate::garage::Overlay>,
     mut lab: Option<ResMut<crate::devtools::GraphicsLab>>,
+    mut dev: Option<ResMut<crate::devtools::panels::DevPanels>>,
     window: Single<(&Window, &mut CursorOptions), With<PrimaryWindow>>,
     fe: Option<Res<crate::frontend::Frontend>>,
     mut was_focused: Local<bool>,
@@ -76,10 +77,6 @@ pub fn update(
         actions.capture_menu();
     }
     if garage.start_requested && !console.open && !host.scene.paused() && host.scene.garage().is_some() {
-        if let Some(model) = host.scene.garage() {
-            model.options_tab = garage.start_tab;
-            model.preview = garage.start_tab == crate::garage::OptionsTab::Parts;
-        }
         toggle_garage(&mut host, &mut garage, &mut capture, &mut focus);
         garage.start_requested = false;
         actions.consume(Action::Garage);
@@ -95,6 +92,14 @@ pub fn update(
     if garage.had_input {
         actions.capture_ui();
         actions.consume(Action::Console);
+    }
+    // Escape and the pad's Start step back out of the devtools menu and the vehicle panel, as they close the console and the garage:
+    // they must not reach the release-the-mouse-then-quit chain below.
+    if let Some(dev) = dev.as_mut().filter(|dev| dev.any())
+        && actions.just_pressed(Action::Cancel)
+    {
+        dev.request(crate::devtools::panels::Request::Back);
+        actions.consume(Action::Cancel);
     }
     if actions.just_pressed(Action::Cancel) {
         let garage_had_it = garage.open || garage.had_input;

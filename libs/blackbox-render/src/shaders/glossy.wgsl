@@ -58,7 +58,9 @@ struct Material {
     // x = specular power, y = envmap min, z = envmap range, w = envmap power
     params: vec4<f32>,
     surface: vec4<f32>, // roughness, coat scale, reflection intensity, SurfaceKind
-    lighting: vec4<f32>, // x = background actor; authored diffuse response, no local reflection correction
+    // x = background actor; authored diffuse response, no local reflection correction
+    // y = hemispheric ambient floor (converted mod cars), see `hemisphere_floor`
+    lighting: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;
@@ -83,6 +85,18 @@ fn environment_light(n: vec3<f32>) -> vec3<f32> {
     return max(light, vec3<f32>(0.0));
 }
 @group(3) @binding(0) var<uniform> material: Material;
+
+// A floor for the indirect light of a surface that no light of the rig reaches: the rig's fill colours (the world's
+// ambient light, or the viewer's cool fill) spread over the whole sphere, 40 percent weaker for a normal that faces
+// down than for one that faces up (+z). Applied with `max`, so a panel the fills already light is not brightened and
+// a black rig stays black.
+// Share of its diffuse light a converted mod car keeps in the shadow of the original shadowed family.
+const MOD_CAR_SHADOW_FLOOR: f32 = 0.55;
+
+fn hemisphere_floor(n: vec3<f32>) -> vec3<f32> {
+    let sky = n.z * 0.5 + 0.5;
+    return material.lighting.y * (rig.color[1].xyz + rig.color[2].xyz + rig.ambient.xyz) * mix(0.6, 1.0, sky);
+}
 
 struct VsIn {
     @location(0) position: vec3<f32>,
@@ -163,6 +177,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         indirect += saturate(dot(n, rig.to_light[k].xyz) + 0.1) * rig.color[k].xyz;
     }
     if shadow_data.environment.x > 0.5 { indirect = rig.ambient.xyz + environment_light(n); }
+    if material.lighting.y > 0.0 { indirect = max(indirect, hemisphere_floor(n)); }
     let direct = saturate(dot(n, rig.to_light[0].xyz) + 0.1) * rig.color[0].xyz * visibility;
     let light = direct + indirect * ao;
 
@@ -327,6 +342,8 @@ fn original_vertex(out: ptr<function, VsOut>, v: VsIn, model: mat4x4<f32>) {
     for (var k = 0; k < 3; k++) {
         light += clamp(dot(n, local_from_world * rig.to_light[k].xyz) + 0.1, 0.0, 1.0) * rig.color[k].xyz;
     }
+    // Only converted mod cars set the floor; the stock cars keep the original arithmetic.
+    if material.lighting.y > 0.0 { light = max(light, hemisphere_floor(safe_unit((*out).normal))); }
     let diff = material.diffuse_min + material.diffuse_range * facing;
     let spec_power = clamp(material.params.x, -128.0, 128.0);
     let env_power = clamp(material.params.w, -128.0, 128.0);
@@ -382,7 +399,11 @@ fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
     }
     visibility *= mix(1.0, cloud_visibility(in.world), 0.35);
     var out: Shaded;
-    var raw = (diff.rgb * tex.rgb + highlight * diff.a * spec.rgb * visibility) * visibility
+    // The shadowed family gates the whole diffuse light by the shadow, so the side of a bike the sun does not reach is
+    // black; a converted mod car (ambient floor set) keeps at least MOD_CAR_SHADOW_FLOOR of its diffuse in shadow.
+    var diffuse_gate = visibility;
+    if material.lighting.y > 0.0 { diffuse_gate = max(visibility, MOD_CAR_SHADOW_FLOOR); }
+    var raw = diff.rgb * tex.rgb * diffuse_gate + highlight * diff.a * spec.rgb * visibility * visibility
         + env * spec.a * diff.a * environment_gain;
     if material.surface.w<=11.5 { raw *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w); }
     if globals.fog_range.w < 0.5 { raw += tex.rgb*clamp(material.diffuse_min.rgb+material.diffuse_range.rgb*0.5,vec3(0.05),vec3(1.0))*local_lighting(in.world,n) + spec.rgb*local_specular(in.world,n,globals.camera_pos.xyz-in.world,32.0); }

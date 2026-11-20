@@ -15,6 +15,13 @@ impl Vehicle {
         self.body_contacts = contacts;
         count
     }
+
+    /// Forgets the body-ground observations of the last tick. [`Vehicle::begin_body_step`] does it for a car; a host that moves
+    /// the body some other way (a bike's body double, which only meets the ground when it lies) calls it at the start of its step,
+    /// or the last contact of a fall would be read again, as a new impact, in every later step.
+    pub fn clear_body_contacts(&mut self) {
+        self.body_contacts.clear();
+    }
 }
 
 #[cfg(test)]

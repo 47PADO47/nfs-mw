@@ -3,7 +3,7 @@
 
 use glam::{Quat, Vec3};
 
-use super::{Bike, BikeInput, BikeSpec, FRONT, REAR};
+use super::{Bike, BikeInput, BikeSpec, FRONT, REAR, choices};
 use crate::FIXED_STEP;
 use crate::ground::FlatGround;
 
@@ -24,8 +24,11 @@ fn run(bike: &mut Bike, ground: &FlatGround, seconds: f32, input: &BikeInput) {
 fn the_mass_is_the_bike_and_the_rider_and_the_inertia_is_the_radius_of_gyration_times_it() {
     let spec = BikeSpec::example();
     let bike = Bike::new(spec.clone());
-    let total = spec.chassis.mass + spec.chassis.rider_mass;
-    assert_eq!(spec.total_mass(), total);
+    // The bike's own mass is scaled in play (`choices::BIKE_MASS_SCALE`), the rider's is not, and the inertia follows the total.
+    let total = spec.chassis.mass * choices::BIKE_MASS_SCALE + spec.chassis.rider_mass;
+    assert_eq!(spec.total_mass(), spec.chassis.mass + spec.chassis.rider_mass);
+    assert!((bike.spec().chassis.mass - spec.chassis.mass * choices::BIKE_MASS_SCALE).abs() < 1e-4);
+    assert_eq!(bike.spec().chassis.rider_mass, spec.chassis.rider_mass);
     assert!((bike.body().mass() - total).abs() < 1e-3);
     let wanted = spec.chassis.tensor_scale * total;
     assert!((bike.body().inertia() - wanted).abs().max_element() < 1e-2, "{} {wanted}", bike.body().inertia());

@@ -10,6 +10,15 @@ use super::data::OverrunParams;
 pub struct LayerEntry {
     pub file: String,
     pub rpm: f32,
+    /// A layer played off load (the throttle closed): the manifest says `load = "off"`.
+    pub off_load: bool,
+}
+
+impl LayerEntry {
+    /// A layer under load.
+    pub fn on_load(file: impl Into<String>, rpm: f32) -> Self {
+        Self { file: file.into(), rpm, off_load: false }
+    }
 }
 
 /// The lists of `[car_sound]`.
@@ -40,7 +49,8 @@ pub fn engine_sound(idle_rpm: f32, redline_rpm: f32, layers: &[LayerEntry]) -> S
     let _ = writeln!(text, "redline_rpm = {redline_rpm:?}");
     text.push_str("layers = [\n");
     for layer in layers {
-        let _ = writeln!(text, "  {{ file = \"{}\", rpm = {:?} }},", layer.file, layer.rpm);
+        let load = if layer.off_load { ", load = \"off\"" } else { "" };
+        let _ = writeln!(text, "  {{ file = \"{}\", rpm = {:?}{load} }},", layer.file, layer.rpm);
     }
     text.push_str("]\n");
     text
@@ -122,9 +132,14 @@ mod tests {
 
     #[test]
     fn the_engine_table_lists_its_layers() {
-        let text = engine_sound(2300.0, 11000.0, &[LayerEntry { file: "CARS/X/SOUND/ENG0.WAV".into(), rpm: 3000.0 }]);
+        let layers = [
+            LayerEntry::on_load("CARS/X/SOUND/ENG0.WAV", 3000.0),
+            LayerEntry { file: "CARS/X/SOUND/ENG1.WAV".into(), rpm: 3500.0, off_load: true },
+        ];
+        let text = engine_sound(2300.0, 11000.0, &layers);
         assert!(text.starts_with("[engine_sound]\nidle_rpm = 2300.0\nredline_rpm = 11000.0\n"));
         assert!(text.contains("{ file = \"CARS/X/SOUND/ENG0.WAV\", rpm = 3000.0 },"));
+        assert!(text.contains("{ file = \"CARS/X/SOUND/ENG1.WAV\", rpm = 3500.0, load = \"off\" },"));
     }
 
     #[test]

@@ -39,7 +39,7 @@ pub(super) fn show(
                 if !matches!(lab.tab, profiles::Tab::Environment | profiles::Tab::Diagnostics) && ui.button("Reset section").on_hover_text("Restore this section to the selected style/quality defaults. Display calibration has its own reset.").clicked() { profiles::reset(lab, settings); }
             });
             ui.separator();
-            egui::ScrollArea::vertical().id_salt(("graphics_section", lab.tab as u8)).max_height((ui.available_height()-8.0).max(120.0)).show(ui, |ui| {
+            crate::devtools::pad_nav::scrolled(egui::ScrollArea::vertical().id_salt(("graphics_section", lab.tab as u8)).max_height((ui.available_height()-8.0).max(120.0)), ui, |ui| {
                 if !blackbox(lab, settings) && !matches!(lab.tab, profiles::Tab::Video | profiles::Tab::Environment | profiles::Tab::Diagnostics | profiles::Tab::Detail | profiles::Tab::Traffic) {
                     super::bevy::show(ui, lab, settings);
                     return;

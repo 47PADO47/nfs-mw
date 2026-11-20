@@ -42,9 +42,9 @@ config (`NFS_XtendedInput.default.ini`), so the remake and the original play ali
 | Handbrake | A |
 | Nitrous | B |
 | Speedbreaker | X |
-| Shift up / down | Right stick up / down (not in the free camera, where it looks) |
+| Shift up / down | Right stick up / down (not in the free camera, where it looks, nor in a bike's helmet camera, where it looks up and down) |
 | Change camera / look back | RB / LB |
-| Look around (bike helmet camera) | Right stick left / right (springs back) |
+| Look around (bike helmet camera) | Right stick left / right and up / down (springs back; 11 degrees to a side, 25 up, 30 down) |
 | Reset car | Back |
 | Engage event | D-pad up (A also does, and skips a cutscene) |
 | World map | D-pad left |
@@ -70,6 +70,16 @@ keeps the raw value outside the deadzone, matching the per-axis cutoff approach 
 [XtendedInput](https://github.com/xan1242/NFS-XtendedInput). These are per-axis settings; steering sensitivity
 affects analog steering, and camera sensitivity affects the stick independently of mouse sensitivity.
 The rewrite's default mappings remain available; a mod's ASI does not supply bindings to the rewrite.
+
+## Developer tools with a controller
+
+Every developer panel (the F12 console, the F8 graphics lab, F5 extra options, the F6 garage, the F11 vehicle panel and the devtools
+menu) can be walked and closed with a gamepad. Both stick clicks together (**L3 + R3**, a chord read from the controller itself, so it
+works whatever is rebound) open the devtools menu, or close whatever panel is up. While a panel is up the game does not read the
+controller (`UiFocus`), and these buttons are the panel's: D-pad or left stick move the focus (left and right change a slider or a
+stepper), **A** presses the focused widget, **B** closes a popup or the panel (back to the menu), **LB / RB** go to the previous / next
+widget; a line of buttons is shown at the bottom. `nfsmw keys` lists them under "Other". See
+[the developer tools page](devtools-vehicle.md#the-controller).
 
 ## Config file
 
@@ -188,6 +198,12 @@ for wheelies and stoppies (G forward and V back, Numpad 8 and 2, and the pad's *
 steers with X at the same time), and `abs_level`, a button that goes to the next lower ABS level, 1, 0.75, 0.5, 0.25, 0 and back
 to 1 (J, and the pad's left-stick click). For the weight axis the stick's circular gate is opened to a square, so a stick at
 the rim on a diagonal still reaches the full lever.
+
+`air_pitch`, `air_roll` and `air_yaw` are the air control's three axes ([the spec](specs/air-control.md)): a car or a bike with no wheel on the ground
+and the `air_control` setting on pitches (forward is the nose down), rolls and spins by them; with a wheel on the road they do nothing. They share the
+keys that drive (W and S or the arrows pitch, A and D or the arrows roll, E and Q spin), the pad's left stick (Y pitches, X rolls) and right stick (X spins),
+and the mouse while the cursor is captured or the right button is held (a stick whose deflection is its speed, 700 pixels a second for its end; right spins,
+up pitches the nose down). Rebind them like any action (`bind air_yaw key:Z`); a `[bindings]` table saved by an older build has no entry for them and gets these.
 
 `head_look_x` and `head_look_y` are two more axes of a bike's (a car and the other cameras ignore them): the look of the
 helmet camera, `--camera-mode hood` (right and up positive). The head turns up to 11 degrees to either side and 10 up or down
