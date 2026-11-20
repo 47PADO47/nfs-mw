@@ -45,7 +45,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 71] = [
+pub const BUILT_IN: [(&str, &str); 75] = [
     ("trace start [seconds]|stop|mark [label]|status", "performance trace; F9 record/stop, F10 bookmark"),
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
@@ -136,7 +136,7 @@ pub const BUILT_IN: [(&str, &str); 71] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 49] = [
+const SET_SHORTHANDS: [&str; 53] = [
     "fps",
     "renderer",
     "vsync",
