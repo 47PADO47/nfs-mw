@@ -40,6 +40,9 @@ impl Renderer {
     ) -> Result<Recorded, RenderError> {
         let _trace = blackbox_trace::scope("Renderer CPU: record / submit");
         let onscreen = scene.is_none();
+        if frame.camera_cut {
+            self.post.camera_cut();
+        }
         self.begin_temporal(onscreen, frame);
         let device = self.device.clone();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });

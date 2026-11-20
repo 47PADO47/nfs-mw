@@ -70,12 +70,41 @@ pub const MAX_BLOOM_THRESHOLD: f32 = 4.0;
 /// Bloom starts at this brightness (linear, 1.0 is white) unless the caller picks another.
 pub const DEFAULT_BLOOM_THRESHOLD: f32 = 0.8;
 
+/// Histogram correction in stops relative to the authored scene.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AutoExposure {
+    pub compensation_ev: f32,
+    pub min_ev: f32,
+    pub max_ev: f32,
+    pub brighten_rate: f32,
+    pub darken_rate: f32,
+    pub neutral_log_luminance: [f32; 2],
+}
+
+impl AutoExposure {
+    fn valid(self) -> bool {
+        let [low, high] = self.neutral_log_luminance;
+        low.is_finite()
+            && high.is_finite()
+            && low <= high
+            && self.min_ev.is_finite()
+            && self.max_ev.is_finite()
+            && self.min_ev <= self.max_ev
+            && self.compensation_ev.is_finite()
+            && self.brighten_rate.is_finite()
+            && self.brighten_rate >= 0.0
+            && self.darken_rate.is_finite()
+            && self.darken_rate >= 0.0
+    }
+}
+
 /// The post-process effects. [`Default`] runs none of them, so the frame is the plain clamped scene.
 ///
 /// The chain order is fixed: scene treatment, bloom, tone mapping, then anti-aliasing (which needs the final,
 /// display-range colours), then the renderer's own resolve (and later upscaling) pass.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PostSettings {
+    pub auto_exposure: Option<AutoExposure>,
     /// Blend with a game-supplied colour profile (0 = off, 1 = full).
     pub colour_treatment: f32,
     /// Optional parameter replacements; authored profile curves and gain are retained.
@@ -95,6 +124,7 @@ pub struct PostSettings {
 impl Default for PostSettings {
     fn default() -> Self {
         Self {
+            auto_exposure: None,
             colour_treatment: 0.0,
             colour_treatment_override: None,
             vignette: 0.0,
@@ -116,6 +146,7 @@ impl PostSettings {
             false => default,
         };
         Self {
+            auto_exposure: self.auto_exposure.filter(|tuning| tuning.valid()),
             colour_treatment: pick(self.colour_treatment, 0.0, 0.0, 1.0),
             colour_treatment_override: self.colour_treatment_override.filter(|value| value.is_valid()),
             vignette: pick(self.vignette, 0.0, 0.0, 1.0),
@@ -129,7 +160,8 @@ impl PostSettings {
     /// Whether an enabled effect needs the scene in HDR (bloom and tone mapping). Anti-aliasing works
     /// on display-range colours, so the scene can be drawn in the surface's own format without it.
     pub fn needs_hdr(&self) -> bool {
-        self.effects().iter().any(|e| matches!(e, PostEffect::Bloom | PostEffect::Tonemap))
+        self.auto_exposure.is_some()
+            || self.effects().iter().any(|e| matches!(e, PostEffect::Bloom | PostEffect::Tonemap))
     }
 
     /// The enabled effects in the order they run.

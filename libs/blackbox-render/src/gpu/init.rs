@@ -206,6 +206,7 @@ fn request_device(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue)
         // The compute limits the optional AO pass and the FSR 3 upscaler need, as far as the adapter has them.
         // Retains the GL fallback, which asks for what it has and so reports no FSR 3.
         let have = adapter.limits();
+        limits.max_compute_workgroup_storage_size = have.max_compute_workgroup_storage_size.min(256);
         let want = temporal_limits();
         limits.max_compute_workgroup_size_x = have.max_compute_workgroup_size_x.min(want.max_compute_workgroup_size_x);
         limits.max_compute_workgroup_size_y = have.max_compute_workgroup_size_y.min(want.max_compute_workgroup_size_y);

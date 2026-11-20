@@ -16,6 +16,11 @@ fn build(
     cache: Option<&wgpu::PipelineCache>,
 ) -> Vec<Box<dyn PostPass>> {
     let mut passes: Vec<Box<dyn PostPass>> = Vec::new();
+    if let Some(tuning) = settings.auto_exposure
+        && device.limits().max_compute_workgroup_storage_size >= 256
+    {
+        passes.push(Box::new(super::auto_exposure::Exposure::new(device, tuning, cache)));
+    }
     for effect in settings.effects() {
         if hdr && effect == PostEffect::Tonemap {
             continue;

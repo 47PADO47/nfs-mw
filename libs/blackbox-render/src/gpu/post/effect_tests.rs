@@ -10,6 +10,8 @@ use crate::{Antialiasing, PostSettings, Tonemap};
 
 #[path = "colour_cube_tests.rs"]
 mod colour_cube_tests;
+#[path = "auto_exposure_tests.rs"]
+mod auto_exposure_tests;
 #[path = "focus_tests.rs"]
 mod focus_tests;
 #[path = "fusion_tests.rs"]

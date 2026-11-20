@@ -11,6 +11,7 @@
 //! mapping see the upscaled image and everything after it writes the output size. It is kept apart from the
 //! other passes ([`PostChain::set_temporal`]) and skipped for a frame that has no temporal data.
 
+mod auto_exposure;
 mod bloom;
 mod colour_cube;
 pub(in crate::gpu) mod display;
@@ -102,6 +103,7 @@ pub(super) trait PostPass {
     fn active(&self) -> bool {
         true
     }
+    fn camera_cut(&mut self) {}
     fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
     /// The per-frame change of the scene's colour profile (see `RenderBackend::set_colour_look`).
     fn set_look(&mut self, _look: &blackbox_gfx::ColourLook) {}
@@ -222,6 +224,12 @@ impl PostChain {
         }
     }
 
+    pub(super) fn camera_cut(&mut self) {
+        for pass in &mut self.passes {
+            pass.camera_cut();
+        }
+    }
+
     /// Insert `pass` so it runs at `index` among the passes (0 = first). Past-the-end indices put it at the
     /// end, or right before the display pass when there is one, which always stays last. The post effects
     /// stay in front of every inserted pass, and a pass that writes the output size ignores the index and
@@ -329,14 +337,18 @@ impl PostChain {
         }
         // The temporal upscaler only runs on a frame that carries its inputs.
         let upscaler = temporal.as_mut().filter(|_| ctx.temporal.is_some() && scene.motion.is_some());
-        let temporal_last = upscaler.is_some() && !passes.iter().any(|pass| pass.active());
         let mut chain: Vec<&mut dyn PostPass> = Vec::with_capacity(passes.len() + 2);
+        let reconstructed = upscaler.is_some();
         if let Some(pass) = upscaler {
             chain.push(pass.as_mut());
         }
-        for pass in passes.iter_mut().filter(|pass| pass.active()) {
+        for pass in passes.iter_mut().filter(|p| p.active()) {
+            if ctx.secondary_view && pass.name() == "auto-exposure" {
+                continue;
+            }
             chain.push(pass.as_mut());
         }
+        let temporal_last = reconstructed && chain.len() == 1;
         fusion::fuse_tonemap(&mut chain, *fuse);
         extents.clear();
         extents.extend(chain.iter().map(|pass| pass.extent()));
