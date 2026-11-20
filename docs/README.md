@@ -1,5 +1,7 @@
 # nfs-mw docs
 
+Native volumetric lighting: [sun shafts](sun-shafts.md).
+
 Extra options: [F5 camera, testing and presets](extra-options.md).
 
 Runtime customization: [garage-overlay.md](garage-overlay.md).

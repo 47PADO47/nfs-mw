@@ -496,3 +496,4 @@ Enhanced bloom and lens flare
 Road rain-ring design reference: Sébastien Lagarde, Water drop 2b (2013).
 https://seblagarde.wordpress.com/2013/01/03/water-drop-2b-dynamic-rain-and-its-effects/
 Independent implementation; no article code or assets incorporated.
+Sun shaft volume design reference: Bart Wronski, Volumetric Fog (SIGGRAPH 2014). Original implementation.
