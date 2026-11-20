@@ -198,7 +198,7 @@ fn pooled_coverage(world:vec2<f32>, relief:f32)->f32 {
     if light.wet_tuning.y<=0.0 { return 0.0; }
     let p = world/max(light.wet_tuning.z,0.25);
     let field = 0.7*wet_noise(p)+0.3*wet_noise(p*3.7+vec2(19.0));
-    let threshold = 0.86-relief-0.48*light.water.y*light.wet_tuning.y;
+    let threshold = 0.66-relief-0.48*light.water.y*light.wet_tuning.y;
     // Widen edges when patches fall below a pixel; no screen-anchored dither or temporal history.
     let width = max(0.025,fwidth(field));
     return smoothstep(threshold-width,threshold+width,field)*light.water.y;
@@ -226,11 +226,11 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     var ripple = ripples*(0.012*light.wet_tuning.w*light.water.w*pool*ripple_fade);
     if light.reflection.w > 0.5 {
         ripple = vec2(0.0);
-        let strength = pool*light.water.w*light.wet_tuning.w*(1.0-smoothstep(0.008,0.035,footprint));
+        let strength = pool*light.water.w*light.wet_tuning.w*(1.0-smoothstep(0.015,0.08,footprint));
         if strength > 0.0 {
             let wave = drop_wave(p*1.8,light.water.z)+drop_wave(p*2.2+vec2(0.37),light.water.z*1.25);
             let tilt = vec3(wave,0.0);
-            ripple = vec2(dot(tilt,unit(in.tangent)),dot(tilt,unit(in.binormal)))*strength*0.42;
+            ripple = vec2(dot(tilt,unit(in.tangent)),dot(tilt,unit(in.binormal)))*strength*0.8;
         }
     }
     // Water smooths the road micro-normal, but keeps its geometric slope.
