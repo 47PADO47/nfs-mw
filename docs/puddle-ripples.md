@@ -29,3 +29,20 @@ evaluations on nearby rainy pool pixels. No additional rays, textures or passes.
 Visual design reference: Sébastien Lagarde,
 [Water drop 2b](https://seblagarde.wordpress.com/2013/01/03/water-drop-2b-dynamic-rain-and-its-effects/).
 The shader is independently written.
+
+## In-game comparison
+
+RTX 3070, native Vulkan release, 3840×2160, fixed highway camera
+(`goto 2423 3415 3 45 -24`), no traffic. Both cases used enhanced wet surfaces,
+RT road reflections, high sun shadows with RT soft shadows, overcast skies,
+100% rain and full accumulated wetness. At native resolution, individual rings
+are visible near the camera in the pooled reflections. Distant film stays smooth.
+
+| Median duration (ms) | Off, two runs | On, two runs |
+| --- | --- | --- |
+| GPU base render, six-second timestamp trace | 15.44, 15.50 | 15.04, 15.14 |
+| Frame time, twelve-second benchmark | 15.65, 15.70 | 15.31, 15.41 |
+
+Run order was off/on/on/off. The whole enhancement averaged 0.38 ms less GPU
+time in this view. Coverage changes and skipping mirror rays on rough film
+affect this comparison. The timings do not isolate the cost of evaluating rings.
