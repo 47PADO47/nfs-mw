@@ -22,3 +22,12 @@ and does not predict the cost of full-screen directional lighting.
 
 Algorithm reference: Bart Wronski, *Volumetric Fog: Unified Compute Shader Based Solution to Atmospheric
 Scattering*, SIGGRAPH 2014. The shader implementation is original to this project.
+
+## Verification
+
+A native Vulkan capture on an RTX 3070 in zone G15 showed subtle daylight scattering
+behind the parked car. A second pair looked toward the treeline at (2361, 3352), at
+07:00 with cloud coverage 0.8, a 130 m fog range and shaft strength 3. Switching the
+shafts on brightened the air above the distant road while leaving shadowed bands
+beneath the treetops. The GPU regression also checks the forward scattering peak
+with zero local lights and the return to a black background when switched off.
