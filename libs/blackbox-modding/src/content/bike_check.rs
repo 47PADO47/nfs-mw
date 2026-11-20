@@ -5,6 +5,7 @@
 use super::ContentError;
 use super::bike::{Bike, Chassis, Damper, Suspension, Wheel};
 use super::bike_check_parts as parts;
+use super::bike_dash::Dash;
 
 const REASON: &str = "must be a number inside the range the docs give";
 
@@ -61,6 +62,7 @@ pub(super) fn check(bike: Option<Bike>) -> Result<Option<Bike>, ContentError> {
     )?;
     bike.rider.check()?;
     bike.camera.check()?;
+    bike.dash.as_ref().map(Dash::check).transpose()?;
     bike.burnout.check()?;
     ranged(bike.gyro_roll_scale, "bike.gyro_roll_scale", 0.0, 10.0)?;
     ranged(bike.gyro_yaw_scale, "bike.gyro_yaw_scale", 0.0, 10.0)?;

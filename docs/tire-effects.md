@@ -5,6 +5,11 @@ outputs. A short projection onto resident collision faces anchors the effect to 
 No new tire physics or slip thresholds are introduced. The visual appearance is procedural
 new design, described in [the spec](specs/tire-effects.md); no original game textures are copied.
 
+A bike is the exception to "the existing outputs": a two-wheeler's tyre always slips a little at speed, so its `smoke` and `skid`
+(and the slips the tyre sound reads) come from the slide of the tyre past the peak of its force curve, not from slip speeds in
+m/s; a bike at speed makes no squeal and no marks until a tyre really skids, and its marks are thin and follow its two contact
+patches ([ride6-bike-skid](specs/ride6-bike-skid.md)).
+
 ## Controls
 
 Both effects default on. Settings resolve independently: CLI, environment, per-user TOML,
@@ -70,6 +75,16 @@ multiplies its spawn rate, so the **Tire Smoke** switch, wetness, the free camer
 come from `blackbox-particles` (up to 128 live ones for each layer at each wheel, no allocation per particle, one textured batch
 per layer), so the **Smoke Quality** setting does not change a variant. If the variant's files cannot be read the game's own smoke
 is drawn.
+
+## Skid marks variants
+
+The gameplay settings have a **Skid marks variant** option whose only value in the game is **Original**: the dark untextured strips described
+below. A mod adds values to it ([effect-variants-marks-rain.md](modding/effect-variants-marks-rain.md)); `nfsmw-2012-content` adds **NFS Most
+Wanted 2012**, the tyre mark pictures of the 2012 game's road surfaces ([chameleon-tyre-marks.md](formats/chameleon-tyre-marks.md)). With
+a variant chosen, each mark is drawn with the picture of the set for its road (paved, loose), the weather and the kind of slide (sideways or
+spinning), cut at every repeat of the picture. **Where the marks begin and end, the tread width and the bike rules are unchanged**; a
+variant changes the picture, a width factor and how long a mark stays. The **Skid Marks** switch, the free camera, the reset and
+`tire-effects clear` act on them as on the game's own.
 
 ## Lifetime and limits
 

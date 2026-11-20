@@ -7,7 +7,9 @@ use blackbox_pursuit::goals::Tuning;
 use super::Police;
 use crate::scenes::world::ai::goal_aims;
 
-/// The radio reports setup focus while it is active; formation changes wait fifteen seconds afterwards.
+/// The radio reports setup focus while it is active; formation changes wait fifteen seconds afterwards. Until the radio
+/// first reports it the time since is unknown and the changes wait too: the original's pursuit starts its setup stamp at
+/// a tick count far ahead of the clock (formation spec section 2).
 pub(super) struct SpeechGate {
     enabled: bool,
     active: bool,
@@ -16,7 +18,7 @@ pub(super) struct SpeechGate {
 
 impl Default for SpeechGate {
     fn default() -> Self {
-        Self { enabled: false, active: false, since_setup: 15.0 }
+        Self { enabled: false, active: false, since_setup: f32::NEG_INFINITY }
     }
 }
 
@@ -77,12 +79,12 @@ impl Police {
         }
     }
 
-    /// Supply whether the speech controller currently owns setup focus. Disabled speech supplies false.
+    /// Supply whether the speech runs. Disabled speech owns no setup focus and does not hold the formations; the time
+    /// since the last setup is kept, as the original keeps its stamp.
     pub fn set_speech_enabled(&mut self, enabled: bool) {
         self.formation_speech.enabled = enabled;
         if !enabled {
             self.formation_speech.active = false;
-            self.formation_speech.since_setup = 15.0;
         }
     }
 

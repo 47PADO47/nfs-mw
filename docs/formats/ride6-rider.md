@@ -138,6 +138,14 @@ u32 mesh_count, per mesh:
 The reader checks every count against the bytes left, every bone index against the skeleton and every vertex index, and
 rejects trailing bytes.
 
+## Adding clips to a rider already imported
+
+`ride6-rider-import --merge <export folder> <files/RIDER>` reads only `skeleton.json` and the animations of the export folder (`*.r6ra` and
+`acl/`) and adds the clips the pack does not have to the `rider.bbsk` already in the output folder; it writes every graph and `styles.json`
+again and adds `wrist_throttle` to `attach.json`. The export tool (`R6ToolParts`, `tools/ride6-exporter`) writes them with its modes `skeleton
+<package> <file>`, `anims <list> <file.r6ra>` (the sequences that Unreal's own codecs store, sampled at every source frame) and `acl <list> <folder>`;
+its `bp <list> <folder>` mode prints an animation blueprint class as pseudo-code and writes its functions' bytecode in `<class>.functions.txt`.
+
 ## Other files `ride6-rider-import` writes (`files/RIDER/`)
 
 | File | Content |
@@ -165,11 +173,12 @@ rider skeleton's own names. Frames are the car's (x forward, y left, z up), metr
 | `frame`, `reference_clip` | Text; the clip whose first frame the tip offsets were measured on. |
 | `rider_root_in_bike` | `{translation, rotation (x y z w)}`: the rider's root bone on the seat socket. Rider space to bike frame. |
 | `hubs` | `{front, rear}`: the hubs in the bike frame. The game moves the bike frame to its model frame (`Attach::frame_offset`: the mean difference of the hubs in x and z; the model has them from the car's `[wheels]` table or its wheelbase). |
-| `targets[]` | `{name, position, rotation, steers}` (`rotation`, x y z w: the turn of the socket's frame; older files have none): the points the limbs reach for (bike frame); `steers` grips turn about the front wheel's steering axis with the handlebar, pegs do not. |
-| `limbs[]` | `{name, root, mid, tip, pole, target, tip_offset, tip_frame}`: two-bone IK on the rider bones; `tip_frame` `{translation, rotation}` is the tip bone's place and turn in the target's own frame in the reference pose, so the tip is brought to the target's frame composed with it and takes that turn (the authored placement of the hand on the grip is kept, and follows a grip socket that another bike turns differently). Without `tip_frame`, or when the target has no `rotation`, the tip goes to the target plus `tip_offset` (rider space) and keeps the forearm's turn. The middle joint bends towards the pole bone's place in the animated pose. |
+| `targets[]` | `{name, position, rotation, steers, anchor}` (`rotation`, x y z w: the turn of the socket's frame; older files have none; `anchor` and `anchor_rotation`: a grip's handlebar bone, its place and turn in the same frame; only in `contacts.json`): the points the limbs reach for (bike frame); `steers` grips turn about the front wheel's steering axis with the handlebar, pegs do not. |
+| `limbs[]` | `{name, root, mid, tip, pole, target, tip_offset, tip_frame}`: two-bone IK on the rider bones; `tip_frame` `{translation, rotation}` is the tip bone's place and turn in the target's own frame in the reference pose, so the tip is brought to the target's frame composed with it and takes that turn (the authored placement of the hand on the grip is kept, and follows a grip socket that another bike turns differently). A hand also has `tip_anchor` `{translation, rotation}`, the hand bone against the reference bike's grip bone in the authored pose: when the target has an `anchor` too, the hand is put at the anchor composed with it (place and turn) ([ride6-rider-hands.md](../specs/ride6-rider-hands.md), section 3). Without `tip_frame`, or when the target has no `rotation`, the tip goes to the target plus `tip_offset` (rider space) and keeps the forearm's turn. The middle joint bends towards the pole bone's place in the animated pose. |
 | `inputs` | `tuck_speed_kmh` (speed from which the rider tucks), `tuck_rate`, `lean_rate`, `wheelie_rate`, `stoppie_rate` (1/s smoothing). |
 | `torso` | `{lean, head, head_share}`: the spine bones (root to tip) the body leans forward with, in equal shares, to bring the shoulders within reach of the grips, and the neck and head bones that turn back by `head_share` of the lean in all (`reach.rs`). Absent: the body does not lean. |
 | `seat` | `{bones, sink}`: the rider bones whose skin rests on the seat (the vertices that mostly follow them, carried by the first) and how far (metres) the lowest of them sinks below the seat's top. Absent: not sat on a surface. |
+| `wrist_throttle` | `{translation, rotation (x y z w)}`: the right wrist at full throttle against the right grip's own frame, metres and the car's axes. The game reads the **angle** of `rotation` only and rolls the hand that far about the grip bone's own axis, scaled by the throttle (`pose::roll_wrist`); the `translation` is not played (it took the hand off the grip). Absent: the throttle does not move the hand, [ride6-rider-hands.md](../specs/ride6-rider-hands.md). |
 | `inertia` | `bone` (the rider bone that is shifted and turned), `min`/`max` (the range the rider's displacement from the physics is held to, car axes forward, left, up, metres: the blueprint's `InertiaDisplacement_RidingMin/Max`), `rate` (1/s). `braking_m` and `full_acceleration` of older files are ignored. |
 
 Where each number comes from is in [ride6-rider-animation.md](../specs/ride6-rider-animation.md), section 8.
@@ -181,17 +190,32 @@ Written by `ride6-rider-import`, read by the game with the bike's `contacts.json
 without an entry, a rig without the file, or a file that does not parse plays `graph.json`.
 
 ```text
-{ "version": 1, "styles": { "<name>": { "bike_type": 0..5, "graph": "graph_<name>.json", "riding_style": 0..2,
-    "reverse": { "start_seconds": [from, to], "start_speed_kmh": -1, "rate_speed_kmh": [a, b], "rate": [r_a, r_b], "loop_seconds": s } } } }
+{ "version": 1, "styles": { "<name>": { "bike_type": 0..5, "graph": "graph_<name>.json",
+    "reverse": { "start_seconds": [from, to], "start_speed_kmh": -1, "rate_speed_kmh": [a, b], "rate": [r_a, r_b], "loop_seconds": s },
+    "stand": { "speed_kmh": 6, "racing_at": 0.85, "legs": [ <both feet>, <left foot>, <right foot> ] } } } }
+leg = { "start_seconds": [from, to], "stop_seconds": [from, to], "start_rate": r, "stop_rate": r,
+        "left_ik": [off ground, on peg, off peg, on ground] | null, "right_ik": [...] | null, "ik_rate": [left, right] }
 ```
 
 `graph` is a file name of the rider folder (no path). `reverse` (optional; a kind without it never walks the bike back): the start
 clip plays from `from` to `to` clip seconds once the bike's speed is below `start_speed_kmh`; the loop clip, `loop_seconds` long,
 then plays at a rate going from `r_a` at the speed `a` to `r_b` at `b` (km/h). The graph reads the walk through the parameters
-`reverse`, `reverse_start`, `reverse_loop` and `reverse_cycle`. `riding_style` (0 to 2) is the style the tree was made for; the game
-takes the inside foot off the peg in a lean when it is 2 and `bike_type` is 2 or 4 ([ride6-rider-knee-foot.md](../specs/ride6-rider-knee-foot.md)).
-The graph's parameters end with `lean_out` (which of the two lean sweeps) and `straight` (the upright pose over the sweep); a limb
-named `left_leg` or `right_leg` in `attach.json` is the one that is let off its peg.
+`reverse`, `reverse_start`, `reverse_loop` and `reverse_cycle`. Every graph carries the lean sets of all three riding styles and the game
+picks one with the parameter `riding_style` ([ride6-rider-styles.md](../specs/ride6-rider-styles.md), section 8); the game takes the inside
+foot off the peg in a lean when the style is 2 (old school) and `bike_type` is 2 or 4 ([ride6-rider-knee-foot.md](../specs/ride6-rider-knee-foot.md)).
+`stand` (optional) is the standstill: the speed above which the bike moves, where the start clip hands over to riding, and per foot choice the
+seconds of the start and stop clips that play, how fast their 0 to 1 values move and, for each foot, the four seconds that say when it leaves the
+ground, is on its peg, leaves the peg and is on the ground (`null`: the foot stays on its peg), with the rates at which the pegs' hold follows
+([ride6-rider-standstill.md](../specs/ride6-rider-standstill.md)). A file written before the riding styles existed has a `riding_style` per
+entry; the game ignores it.
+The graph's parameters, in order: `lean`, `speed_kmh`, `tuck`, `wheelie`, `stoppie`, `wheelie_alpha`, `stoppie_time`, `wheelie_direction`,
+`standing`, `steer`, `standing_entry`, `drift`, `reverse`, `reverse_start`, `reverse_loop`, `reverse_cycle`, `lean_out` (which of the two lean
+sweeps), `straight` (the upright pose over the sweep), `riding_style`, `stand`, `stand_state`, `stand_leg`, `stop_time`, `start_time`, `clutch`,
+`clutch_alpha`, `brake`, `brake_alpha`, `brake_fingers` (which brake clip: 0 one finger, 1 two, 2 four) and `clutch_fingers` (which clutch clip: 0 the
+clutch clip's index and middle fingers, 1 the four-finger clip's left hand) and, last, `rear` and `rear_alpha` (a scooter's rear brake lever and the weight of its
+layer on the left hand: only the scooter's graph has the layer; [ride6-rider-hands.md](../specs/ride6-rider-hands.md), section 1a) (the last fourteen: the riding style, the standstill and the finger layers); a graph
+that lacks a parameter reads 0 for it (a graph made before the two finger choices has one brake clip and one clutch clip, whatever the setting says; run
+`ride6-rider-import` again), and the game fills each by name. A limb named `left_leg` or `right_leg` in `attach.json` is the one that is let off its peg.
 
 ### `contacts.json` (version 1): one bike's contact points
 
@@ -205,8 +229,10 @@ everything else (`limbs`, `tip_offset`, `inertia`) from the rig: a target of the
 | `version` | `1`. Another number: the file is ignored. |
 | `vehicle`, `frame` | Text. |
 | `rider_root_in_bike`, `hubs`, `targets[]` | As in `attach.json`: seat, the two hubs, and the four targets `left_grip`, `right_grip`, `left_foot`, `right_foot` (`steers` true for the grips), in the bike skeleton's frame at rest, car axes, metres. |
+| `body_section` | Optional: the bike's cross-section around the rider, `{x0, z0, step, nx, nz, half_width_mm}`: a grid of the side view in the bike skeleton's frame (x forward, z up; corner `x0, z0`, cells `step` = 0.03 m, `nx` columns of `nz` cells, z fastest) whose values are the half width of the bike's body in whole millimetres, 0 for no body, measured by the converter from the chassis mesh (`body_section.rs`). The game keeps the rider's knees, elbows and chest out of it ([ride6-rider-clearance.md](../specs/ride6-rider-clearance.md)). A damaged grid is ignored. |
 | `seat_surface` | Optional: `[[x, z], ...]`, the top of the bike's seat along its centre line in the bike skeleton's frame (x ascending, 2 cm apart, from 30 cm behind the seat socket to 10 cm ahead), measured by the converter from the chassis mesh (`seat_surface.rs`). The game sits the rider on it (`seat`). Without it he sits at the socket. |
-| `style` | Optional: `{name, bike_type, source, input_handler}`, the kind of the bike (`race`, `naked`, `motard`, `scooter`, `enduro`), the blueprint's `BikeType`, where it came from (`correction-table`: the `EBikeTypeOverride` of the row; `input-handler`: the class of the physics asset's input handler) and that class. The game reads `name` only, to pick the graph of `styles.json`. Absent when neither source names a kind. |
+| `targets[].grip_span` | Optional, on the two grips with a bone: `[inboard, outboard]`, metres along the grip's axis from the grip bone, outboard positive: where the rubber lies on the bike's mesh (the vertices skinned to the grip bone). The game centres the glove on it; absent: 0 to 0.12 ([ride6-rider-hands.md](../specs/ride6-rider-hands.md), section 3). |
+| `style` | Optional: `{name, bike_type, source, input_handler}`, the kind of the bike (`race`, `naked`, `motard`, `scooter`, `enduro`), the blueprint's `BikeType`, where it came from (`correction-table`: the `EBikeTypeOverride` of the row; `input-handler`: the class of the physics asset's input handler) and that class. The game reads `name`, to pick the graph of `styles.json`, and `input_handler`, which with `name` says which of the player's three riding styles the bike takes (a supermoto's handler wins over an `enduro` kind: the CRF 450 R SMT; [ride6-rider-styles.md](../specs/ride6-rider-styles.md), section 8). Absent when neither source names a kind. |
 | `correction` | Optional: the bike's row of the animation correction table: `rider_max_lean`, `aero_tank`, `lean_knee`, `lean_elbow`, `knee`, `elbow`, `muffler`, `spine_1_deg`, `spine_2_deg`, `arms_ik_spine_alpha`, `pole_elbow_cm` (3), `bike_type`, `quick_shift` (text). Read and kept; the game does not apply it yet. |
 
 The game refuses a file whose numbers are not finite, whose seat has no rotation, whose front hub is not ahead of the rear one, or

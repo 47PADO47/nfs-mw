@@ -32,8 +32,9 @@ pub struct FootOut {
 }
 
 impl FootOut {
-    pub fn new(enabled: bool) -> Self {
-        Self { enabled, ..Self::default() }
+    /// Turn the inside foot's release on or off (the player changed the riding style); a foot already off its peg goes back.
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
     }
 
     /// Advance by `dt` seconds with the bike's lean `bike_lean` (-1 to 1, to the right): how far each foot is let off its peg,
@@ -54,6 +55,12 @@ mod tests {
 
     const DT: f32 = 1.0 / 60.0;
 
+    fn enabled() -> FootOut {
+        let mut foot = FootOut::default();
+        foot.set_enabled(true);
+        foot
+    }
+
     fn run(foot: &mut FootOut, lean: f32, seconds: f32) -> [f32; 2] {
         (0..(seconds / DT).round() as usize).map(|_| foot.step(lean, DT)).last().unwrap()
     }
@@ -71,7 +78,7 @@ mod tests {
 
     #[test]
     fn the_inside_foot_comes_off_beyond_30_percent_of_the_lean_and_goes_back_at_4_a_second() {
-        let mut foot = FootOut::new(true);
+        let mut foot = enabled();
         assert_eq!(run(&mut foot, 0.29, 1.0), [0.0, 0.0]);
         // To the right: the right foot, in a quarter of a second.
         let [left, right] = run(&mut foot, 0.31, 0.125);
@@ -90,13 +97,13 @@ mod tests {
 
     #[test]
     fn a_bike_that_does_not_take_the_foot_out_never_releases_it() {
-        let mut foot = FootOut::new(false);
+        let mut foot = FootOut::default();
         assert_eq!(run(&mut foot, 1.0, 1.0), [0.0, 0.0]);
     }
 
     #[test]
     fn the_override_never_moves_faster_than_its_rate() {
-        let mut foot = FootOut::new(true);
+        let mut foot = enabled();
         let mut before = [0.0; 2];
         for lean in (0..600).map(|n| if (n / 100) % 2 == 0 { 0.9 } else { -0.9 }) {
             let now = foot.step(lean, DT);

@@ -22,15 +22,23 @@ impl AiCar {
         }
     }
 
-    /// What a cop's own driving does this think, for the pursuit trace: `reverse` (a stuck reverse), `close`,
-    /// `turnaround` or `road`, with the road action's speed limit. `None` for a car that is not a chase cop.
+    /// What a cop's own driving does this think, for the pursuit trace: `reverse` (a stuck reverse), `ram` (a goal's
+    /// drive to its slot), `close`, `turnaround` or `road`, with the road action's speed limit. `None` for a car that is
+    /// not a chase cop.
     pub(in crate::scenes::world) fn cop_drive_trace(&self) -> Option<(&'static str, f32)> {
         let Role::Cop(cop) = &self.role else { return None };
-        let action = match self.driver.reverse_override_left() > 0.0 {
-            true => "reverse",
-            false => cop.trace_action(),
+        let ram = self.goal.get().command().is_some() && cop.ram_allowed;
+        let action = match (self.driver.reverse_override_left() > 0.0, ram) {
+            (true, _) => "reverse",
+            (false, true) => "ram",
+            (false, false) => cop.trace_action(),
         };
         Some((action, cop.speed_limit()))
+    }
+
+    /// Whether the car's gearbox is in reverse, for the pursuit trace.
+    pub(in crate::scenes::world) fn in_reverse_gear(&self) -> bool {
+        self.sim.driver_view().gear_is_reverse
     }
 
     /// The avoidance radius the car advertises to the other cars' neighbourhood tests (spec

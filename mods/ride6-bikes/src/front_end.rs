@@ -179,6 +179,8 @@ pub enum Take<'a> {
     All,
     /// The triangles of one class (`joints`: the class of each joint of the file).
     Of(Class, &'a [Class]),
+    /// The triangles of one silencer of a twin (`joints`: the group of each joint of the file, `silencer.rs`).
+    Group(u8, &'a [u8]),
 }
 
 impl Take<'_> {
@@ -189,6 +191,7 @@ impl Take<'_> {
                 let [frame, bars, fork] = split_triangles(primitive, joints);
                 [frame, bars, fork].into_iter().nth(class.index()).unwrap_or_default()
             }
+            Take::Group(group, joints) => crate::silencer::triangles(primitive, joints, group),
         }
     }
 }

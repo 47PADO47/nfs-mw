@@ -1,7 +1,14 @@
 use super::*;
 
 fn key() -> Key {
-    Key { scroll: 0.0, coverage: 0.5, sun: [0.0, 0.0, 1.0, 0.0], light: [0.0, 0.0, -1.0], warmth: 1.0 }
+    Key {
+        scroll: 0.0,
+        coverage: 0.5,
+        sun: [0.0, 0.0, 1.0, 0.0],
+        light: [0.0, 0.0, -1.0],
+        warmth: 1.0,
+        pano: [-1.0, 0.0, 0.0, 0.0],
+    }
 }
 
 #[test]
@@ -76,4 +83,14 @@ fn a_celestial_sun_settles_in_steps_and_freezes_once_unlit() {
     assert_eq!(at(0.0).1, [0.0; 3], "the scene light (the moon at night) never reaches the march");
     assert_ne!(at(0.0), at(12.0));
     assert_eq!(sun_key(Some([f32::NAN; 3]), scene_sun, scene_light), at(0.0), "invalid input is the unlit key");
+}
+
+#[test]
+fn new_panorama_pictures_or_a_big_blend_move_rebuild_every_row_and_a_small_one_a_band() {
+    let mut schedule = Schedule::default();
+    let on = |epoch: f32, blend: f32| Key { pano: [epoch, blend, 0.0, 0.0], ..key() };
+    assert_eq!(schedule.plan(on(1.0, 0.0), false), Some(Rebuild::Full));
+    assert_eq!(schedule.plan(on(2.0, 0.0), false), Some(Rebuild::Full), "other pictures");
+    assert_eq!(schedule.plan(on(2.0, 0.5), false), Some(Rebuild::Full), "a jump of the blend");
+    assert!(matches!(schedule.plan(on(2.0, 0.51), false), Some(Rebuild::Band(_))), "a drift of it");
 }

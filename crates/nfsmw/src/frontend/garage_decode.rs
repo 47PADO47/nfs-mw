@@ -79,6 +79,6 @@ pub(super) fn validate(state: &Model, physics: &PhysicsData, selection: &Selecti
     selection.tuning.validate()?;
     selection.exhaust.validate()?;
     ensure!(selection.color.is_none() || entry.paintable, "This car has a fixed livery");
-    let car = physics.car_with_performance(&entry.physics_name, selection.performance)?;
+    let car = physics.car_with_customization(&entry.physics_name, selection.performance, &selection.parts)?;
     Ok((car.spec.engine.max_rpm, car.spec.induction.kind() != blackbox_vehicle::induction::InductionKind::None))
 }

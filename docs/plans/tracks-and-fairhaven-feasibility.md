@@ -36,7 +36,7 @@ source and for converted RIDE 6 track packs, rather than twice.
   loaded and drawn ([visible-sections.md](../specs/visible-sections.md)).
 - A mod can **replace files** through the overlay (`TRACKS/L2RA.BUN` as a whole, which replaces Rockport) and **add** a scenery pack
   (`scenery/*.toml`: placements loaded near an anchor, optional static collision) and **interiors** (an entry zone and a place):
-  [api-content.md](../modding/api-content.md#scenery-and-map-packs), [mod-world-content.md](../specs/mod-world-content.md). The mod API says
+  [api-content.md](../modding/api-content-worlds.md#scenery-and-map-packs), [mod-world-content.md](../specs/mod-world-content.md). The mod API says
   plainly that a new district (new sections, road network, collision, nav data) is "specified but not promised", and the road
   network registry is reserved. `bb.world` reads the track and section name, sets rain and traffic, and has no world selection.
   A native mod cannot provide a scene: the `Scene` trait is the host's.

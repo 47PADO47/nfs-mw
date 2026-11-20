@@ -12,6 +12,7 @@ use glam::Vec3;
 use serde::Deserialize;
 
 use super::attach::{Attach, Hubs, Rigid, Target};
+use super::clearance::Section;
 
 /// The only version of the file this reads.
 pub const VERSION: u32 = 1;
@@ -42,10 +43,13 @@ pub struct Correction {
 }
 
 /// The kind of bike the converter found this one to be (`"style": {"name": "race", ...}`): the name of an entry of the rig's
-/// `styles.json`. The rest of the object says where the converter took it from and is not read.
+/// `styles.json`, and the class of the bike's input handler, which tells a supermoto the correction table calls an enduro bike
+/// (`choices.rs`). The rest of the object says where the converter took the kind from and is not read.
 #[derive(Debug, Clone, Deserialize)]
 pub struct StyleRef {
     pub name: String,
+    #[serde(default)]
+    pub input_handler: Option<String>,
 }
 
 /// One bike's contact points, in the bike skeleton's frame (x forward, y left, z up, metres).
@@ -63,6 +67,9 @@ pub struct Contacts {
     /// The seat's top along the centre line (`[x, z]`, x ascending), measured on the bike's mesh by the converter.
     #[serde(default)]
     pub seat_surface: Vec<[f32; 2]>,
+    /// The cross-section of the bike's body, measured on its mesh by the converter (`clearance.rs`).
+    #[serde(default)]
+    pub body_section: Option<Section>,
 }
 
 fn finite(values: &[f32]) -> bool {
@@ -95,6 +102,12 @@ impl Contacts {
         let seat = Vec3::from_array(seat.translation);
         for target in &self.targets {
             ensure!(finite(&target.position), "target {} is not finite", target.name);
+            ensure!(target.anchor.is_none_or(|a| finite(&a)), "the grip bone of target {} is not finite", target.name);
+            ensure!(
+                target.anchor_rotation.is_none_or(|q| finite(&q) && q.iter().any(|c| c.abs() > 1e-6)),
+                "the grip bone of target {} has no usable turn",
+                target.name
+            );
             ensure!(
                 target.rotation.is_none_or(|q| finite(&q) && q.iter().any(|c| c.abs() > 1e-6)),
                 "target {} has no usable turn",
@@ -114,6 +127,8 @@ impl Attach {
         self.rider_root_in_bike = contacts.rider_root_in_bike;
         self.hubs = contacts.hubs;
         self.seat_surface.clone_from(&contacts.seat_surface);
+        // A section that is not what it says it is is left out (the rider is then not kept out of the bike's body) and the rest is used.
+        self.body_section = contacts.body_section.clone().filter(Section::is_valid);
         for target in &contacts.targets {
             match self.target_index(&target.name) {
                 Some(at) => self.targets[at] = target.clone(),
@@ -129,7 +144,7 @@ impl Attach {
 
 /// `attach` with the contacts of the car `car` laid over it, if the car has a `contacts.json`, and the kind of bike the file
 /// names. A file that cannot be used is logged and the rig's own targets are kept (and the bike has no kind).
-pub fn lay_over(attach: Attach, dir: &GameDir, car: &str) -> (Attach, Option<String>) {
+pub fn lay_over(attach: Attach, dir: &GameDir, car: &str) -> (Attach, Option<StyleRef>) {
     let path = format!("{}/contacts.json", super::folders(car)[0]);
     if !dir.exists(&path) {
         log::info!("rider: {car} has no {path}; the rider reaches the rig's shared grips and pegs");
@@ -144,7 +159,7 @@ pub fn lay_over(attach: Attach, dir: &GameDir, car: &str) -> (Attach, Option<Str
         Ok((merged, contacts)) => {
             let kind = contacts.correction.as_ref().and_then(|c| c.bike_type.as_deref()).unwrap_or("unknown type");
             log::info!("rider: {car} rides on its own seat, grips and pegs ({path}, {kind})");
-            (merged, contacts.style.map(|style| style.name))
+            (merged, contacts.style)
         }
         Err(error) => {
             log::warn!("rider: {path} is not used: {error:#}");

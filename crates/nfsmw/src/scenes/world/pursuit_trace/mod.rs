@@ -77,6 +77,7 @@ impl WorldScene {
         let meta = session::Session::new(iso, self.dir.root().display().to_string(), self.trace_settings());
         writer.send(Record::Session(Box::new(meta.clone())));
         log::info!("pursuit trace: recording into {}", dir.display());
+        crate::audio::radio_trace::open_recording(true);
         self.pursuit_trace.error = None;
         self.pursuit_trace.last_session = Some(dir.clone());
         self.pursuit_trace.active = Some(Active {
@@ -96,6 +97,7 @@ impl WorldScene {
 
     fn stop_pursuit_trace(&mut self, reason: &str) {
         let Some(mut active) = self.pursuit_trace.active.take() else { return };
+        crate::audio::radio_trace::open_recording(false);
         active.session.stop_reason = Some(reason.into());
         active.writer.send(Record::Session(Box::new(active.session.clone())));
         log::info!("pursuit trace: {reason}; written to {}", active.dir.display());
@@ -214,6 +216,22 @@ impl WorldScene {
                 pursuit: pursuit.clone(),
                 state,
                 remake: found.detail,
+            })));
+        }
+        for line in crate::audio::radio_trace::take_recorded() {
+            active.sequence += 1;
+            active.writer.send(Record::Event(Box::new(Event {
+                kind: "radio_line",
+                sequence: active.sequence,
+                stamp,
+                context: LIVE,
+                id: None,
+                generation: None,
+                vehicle: None,
+                role: None,
+                pursuit: None,
+                state: None,
+                remake: records::radio_line(&line),
             })));
         }
         let pursuit = active.tracker.pursuit_id(&frame);

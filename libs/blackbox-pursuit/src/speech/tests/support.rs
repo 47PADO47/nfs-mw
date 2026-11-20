@@ -83,6 +83,8 @@ pub struct Radio {
     pub played: Vec<(f32, Request)>,
     pub effects: Vec<Effect>,
     notices: Vec<Notice>,
+    /// While set, requests wait in the queue and nothing starts (lines the real queue holds back for their rules).
+    pub stalled: bool,
 }
 
 impl Radio {
@@ -100,6 +102,7 @@ impl Radio {
             played: Vec::new(),
             effects: Vec::new(),
             notices: Vec::new(),
+            stalled: false,
         }
     }
 
@@ -148,12 +151,17 @@ impl Radio {
             self.last_sounded = self.now;
             self.notices.push(Notice::Said { line: request.line, speaker: request.speaker, params: request.params });
         }
-        if self.sounding.is_none() && !self.pending.is_empty() {
+        if self.sounding.is_none() && !self.pending.is_empty() && !self.stalled {
             let next = self.pending.remove(0);
             self.played.push((self.now, next));
             self.started.insert(next.line, self.now);
             self.sounding = Some((next, self.now + self.hold));
         }
+    }
+
+    /// Requests waiting in the queue.
+    pub fn waiting(&self) -> usize {
+        self.pending.len()
     }
 
     pub fn take_notices(&mut self) -> Vec<Notice> {
@@ -183,11 +191,11 @@ impl Radio {
 
 impl Channel for Radio {
     fn busy(&self) -> bool {
-        self.sounding.is_some() || !self.pending.is_empty()
+        self.sounding.is_some()
     }
 
     fn dead_air(&self) -> f32 {
-        match self.busy() {
+        match self.sounding.is_some() || !self.pending.is_empty() {
             true => 0.0,
             false => self.now - self.last_sounded,
         }

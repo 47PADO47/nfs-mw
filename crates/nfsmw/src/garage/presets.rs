@@ -44,6 +44,10 @@ struct Stored {
     gauges: super::GaugeSelection,
     #[serde(default)]
     exhaust: super::ExhaustSelection,
+    /// The components picked in the slots of a vehicle's own components that no model category or level holds (ADR 0014): slot
+    /// id to component id, the empty id meaning the slot was emptied on purpose. Kept with the car, as its parts are.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    slots: std::collections::BTreeMap<String, String>,
 }
 
 pub(crate) fn encode(selection: &Selection) -> Result<String> {
@@ -58,6 +62,7 @@ pub(crate) fn encode(selection: &Selection) -> Result<String> {
         vinyl_color_parts: selection.parts.vinyl_color_parts,
         gauges: selection.gauges.clone(),
         exhaust: selection.exhaust.clone(),
+        slots: selection.parts.slots.clone(),
         car: selection.car.clone(),
         color: selection.color,
         levels: selection.performance.levels,
@@ -116,6 +121,7 @@ pub(crate) fn decode(text: &str, model: &Model) -> Result<Selection> {
         ensure!(slot.is_none(), "Duplicate preset part slot");
         *slot = Some(part.hash);
     }
+    parts.slots = known_slots(&stored.car, stored.slots);
     parts.rim_color = stored.rim_color;
     parts.vinyl_colors = [stored.vinyl_color1, stored.vinyl_color2, stored.vinyl_color3];
     parts.vinyl_color_parts = stored.vinyl_color_parts;
@@ -140,7 +146,33 @@ pub(crate) fn decode(text: &str, model: &Model) -> Result<Selection> {
         parts,
         gauges: stored.gauges,
         exhaust: stored.exhaust,
+        // The rider's gear is the profile's (`rider_gear`), not the car's: a car record has none.
+        gear: Default::default(),
     })
+}
+
+/// The component picks of a saved car that its vehicle still accepts: a slot or a component the mod no longer has falls back to the
+/// stock part (the log says which), as every other saved choice of a mod car does.
+fn known_slots(
+    folder: &str,
+    saved: std::collections::BTreeMap<String, String>,
+) -> std::collections::BTreeMap<String, String> {
+    let own = nfsmw_data::car::mods::components::of(folder);
+    saved
+        .into_iter()
+        .filter(|(slot, id)| {
+            let accepted = own.and_then(|own| own.vehicle.slot(slot)).is_some_and(|slot| match id.is_empty() {
+                true => slot.can_be_empty(),
+                false => slot.offer(id).is_some(),
+            });
+            if !accepted {
+                log::warn!(
+                    "{folder}: the saved part {id:?} of {slot:?} is not offered any more; the stock part is used"
+                );
+            }
+            accepted
+        })
+        .collect()
 }
 
 pub(super) fn show(ui: &mut egui::Ui, model: &mut Model) {
@@ -159,7 +191,6 @@ pub(super) fn show(ui: &mut egui::Ui, model: &mut Model) {
                     model.category =
                         model.cars.iter().find(|c| c.folder == selection.car).expect("validated car").category;
                     model.draft = selection;
-                    model.parts_filter = Default::default();
                     model.message = None;
                     model.preset_picker.report(Ok("Car preset loaded.".into()));
                 }

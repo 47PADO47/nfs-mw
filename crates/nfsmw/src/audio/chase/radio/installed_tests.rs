@@ -285,7 +285,8 @@ impl Script {
 /// The original's off-road moments read a parameter-map layer named "Speech" under the car (the SPAM id, integer
 /// field 1 of the selected set). The installed track has it: 26 sets whose ids are 25 distinct values from 0 to 27 and
 /// the default -1. What the id means (which of the 24 named places it stands for) is the original's `GetSPAMLocation`
-/// switch, which is not available to this port, so the layer is read here but not yet used.
+/// switch, which is not available to this port, so the off-road moment does not use it; dead air reads the raw id (a
+/// location report only inside a named place).
 #[test]
 #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
 fn the_installed_track_has_the_speech_parameter_map_with_its_place_ids() {
@@ -302,6 +303,22 @@ fn the_installed_track_has_the_speech_parameter_map_with_its_place_ids() {
     assert_eq!((ids[0], ids[1], *ids.last().unwrap()), (-1, 0, 27));
     // The map answers somewhere on the track.
     assert!(layer.set_at(0.0, 0.0).is_some());
+    // The world's lookup (physics space) finds named places and the default across the map.
+    let map = crate::audio::environment_context::EnvironmentMap::read(&metadata).unwrap();
+    let [left, top, right, bottom] = layer.bounds;
+    let (mut inside, mut outside) = (0, 0);
+    for i in 0..=40 {
+        for j in 0..=40 {
+            let x = left + (right - left) * i as f32 / 40.0;
+            let y = top + (bottom - top) * j as f32 / 40.0;
+            let at = blackbox_roads::from_zone_space(glam::Vec2::new(x, y), 0.0);
+            match map.speech_place(at) {
+                crate::audio::environment_context::NO_SPEECH_PLACE => outside += 1,
+                _ => inside += 1,
+            }
+        }
+    }
+    assert!(inside > 0 && outside > 0, "named places and the default both occur: {inside} inside, {outside} outside");
 }
 
 /// The world's events at the times of a scripted chase, with the feed edits that go with them.

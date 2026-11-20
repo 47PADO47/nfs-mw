@@ -199,7 +199,7 @@ pub fn build(sources: &SoundSources, options: &SoundOptions) -> Result<BikeSound
     for (index, (rpm, pcm)) in engine_layers(sources, options)?.into_iter().enumerate() {
         let path = sound_path(options, "ENG", index)?;
         files.push(SoundFile { path: path.clone(), bytes: wav::encode16(&pcm) });
-        entries.push(LayerEntry { file: path, rpm });
+        entries.push(LayerEntry::on_load(path, rpm));
     }
     let lists = EffectLists {
         shift_up: shots(&sources.shift_up, "SHIFTUP", options, &mut files)?,

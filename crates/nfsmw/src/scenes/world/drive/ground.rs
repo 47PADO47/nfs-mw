@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 
 use blackbox_collision::{CandidateSet, CollisionWorld, GROUP_EXCLUSION, Hit, RayOptions, SURFACE_NO_GROUND};
-use blackbox_vehicle::ground::{Ground, GroundHit};
+use blackbox_vehicle::ground::{Ground, GroundHit, WallHit};
 use glam::Vec3;
 use nfsmw_data::car::physics::SurfaceTable;
 
@@ -65,6 +65,12 @@ impl Ground for WorldGround<'_> {
         self.surfaces.world_friction(surface)
     }
 
+    fn wall(&self, from: Vec3, to: Vec3) -> Option<WallHit> {
+        // The walls the player's body meets (no driver mask), as a thrown rider meets them: the edge of a road and the guard rails.
+        let hit = super::walls::world_cast_with_mask(self.collision, 0)(from, to)?;
+        Some(WallHit { point: hit.point, normal: hit.normal, surface: hit.info.map_or(0, |info| info.surface) })
+    }
+
     fn hit(&self, origin: Vec3, dir: Vec3, max_distance: f32) -> Option<GroundHit> {
         self.ground_hit(origin, dir, max_distance, |from, to, options| self.collision.ray_cast(from, to, options))
     }
@@ -88,6 +94,10 @@ impl Ground for WindowedGround<'_> {
 
     fn world_friction(&self, surface: u32) -> f32 {
         self.world.world_friction(surface)
+    }
+
+    fn wall(&self, from: Vec3, to: Vec3) -> Option<WallHit> {
+        self.world.wall(from, to)
     }
 
     fn hit(&self, origin: Vec3, dir: Vec3, max_distance: f32) -> Option<GroundHit> {

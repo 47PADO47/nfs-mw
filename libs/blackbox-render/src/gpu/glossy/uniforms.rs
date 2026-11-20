@@ -61,7 +61,7 @@ impl MaterialUniform {
         Self {
             lighting: [
                 u8::from(m.background_actor && m.model == blackbox_gfx::GlossyModel::Custom) as f32,
-                0.0,
+                m.ambient_floor.clamp(0.0, 2.0),
                 0.0,
                 0.0,
             ],
@@ -125,6 +125,23 @@ mod tests {
         // Both blocks contain seven vec4; every member is 16-byte aligned.
         assert_eq!(std::mem::size_of::<RigUniform>(), 112);
         assert_eq!(std::mem::size_of::<MaterialUniform>(), 112);
+    }
+
+    #[test]
+    fn ambient_floor_is_packed_for_every_model_and_defaults_to_none() {
+        let mut material = GlossyMaterial::default();
+        assert_eq!(MaterialUniform::new(&material, 1.0).lighting[1], 0.0);
+        material.ambient_floor = 0.8;
+        for model in [
+            blackbox_gfx::GlossyModel::Custom,
+            blackbox_gfx::GlossyModel::VertexLit,
+            blackbox_gfx::GlossyModel::Shadowed,
+        ] {
+            material.model = model;
+            assert_eq!(MaterialUniform::new(&material, 1.0).lighting[1], 0.8);
+        }
+        material.ambient_floor = -1.0;
+        assert_eq!(MaterialUniform::new(&material, 1.0).lighting[1], 0.0);
     }
 
     #[test]

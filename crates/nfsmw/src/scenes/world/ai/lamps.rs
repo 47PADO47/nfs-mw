@@ -81,6 +81,17 @@ fn glow_colour(light: Light) -> [f32; 4] {
     }
 }
 
+/// Where the lamp of `light` shows on a head: the lamp point, moved up for red and down for green by the pitch of the lenses of a three-lens
+/// head (`signal_props::HEAD_C`), so the lit lens is the one the colour belongs to. A head with no lens pitch shows it at the point.
+fn lit_position(lamp: &super::signal_props::Lamp, light: Light) -> Vec3 {
+    let lens = match light {
+        Light::Red => 1.0,
+        Light::Amber => 0.0,
+        Light::Green => -1.0,
+    };
+    lamp.position + Vec3::Z * (lamp.lens_pitch * lens)
+}
+
 /// Whether a point (render space) is within sight of the camera.
 fn near(point: Vec3, camera: Vec3) -> bool {
     (point - camera).truncate().length() <= DRAW_DISTANCE
@@ -114,6 +125,11 @@ impl TrafficWorld {
         }
     }
 
+    /// The colour the lamp of an approach is shown in: its own, or the one `signals force` asks for.
+    fn signal_light(&self, index: usize) -> Light {
+        self.signal_force.unwrap_or_else(|| self.signals.state(index, self.signal_time))
+    }
+
     /// The lamp an approach shows, if any. A matched prop that is knocked over shows nothing at all.
     fn shown(&self, index: usize, props: &PropWorld) -> Option<super::signal_props::Lamp> {
         let lamp = self.signal_lamps.lamp(index)?;
@@ -125,8 +141,16 @@ impl TrafficWorld {
     pub fn lamp_glows(&self, camera: Vec3, forward: Vec3, props: &PropWorld, out: &mut Vec<EffectVertex>) {
         for index in 0..self.signals.approaches().len() {
             let Some(lamp) = self.shown(index, props).filter(|lamp| near(lamp.position, camera)) else { continue };
-            let colour = glow_colour(self.signals.state(index, self.signal_time));
-            geometry::glow(out, lamp.position, HEAD_GLOW, geometry::color(colour, GLOW_BRIGHTNESS), camera, forward);
+            let light = self.signal_light(index);
+            let colour = glow_colour(light);
+            geometry::glow(
+                out,
+                lit_position(&lamp, light),
+                HEAD_GLOW,
+                geometry::color(colour, GLOW_BRIGHTNESS),
+                camera,
+                forward,
+            );
         }
     }
 
@@ -143,11 +167,11 @@ impl TrafficWorld {
         let up = Vec3::Z;
         for index in 0..self.signals.approaches().len() {
             let Some(lamp) = self.shown(index, props).filter(|lamp| near(lamp.position, camera)) else { continue };
-            let light = self.signals.state(index, self.signal_time);
+            let light = self.signal_light(index);
             out.push(Instance {
                 mesh: meshes.lamp(light),
                 transform: oriented_box(
-                    lamp.position - up * (HEAD_SIZE / 2.0),
+                    lit_position(&lamp, light) - up * (HEAD_SIZE / 2.0),
                     up,
                     lamp.forward,
                     Vec3::splat(HEAD_SIZE),
@@ -181,6 +205,21 @@ mod tests {
         let camera = Vec3::ZERO;
         assert!(near(Vec3::new(100.0, 0.0, 50.0), camera), "height does not count against sight");
         assert!(!near(Vec3::new(DRAW_DISTANCE + 1.0, 0.0, 0.0), camera));
+    }
+
+    #[test]
+    fn the_lit_lens_is_red_on_top_amber_in_the_middle_and_green_below() {
+        let lamp = super::super::signal_props::Lamp {
+            position: Vec3::new(1.0, 2.0, 3.0),
+            forward: Vec3::X,
+            prop: None,
+            lens_pitch: 0.4,
+        };
+        assert_eq!(lit_position(&lamp, Light::Amber), lamp.position);
+        assert!((lit_position(&lamp, Light::Red).z - 3.4).abs() < 1e-6);
+        assert!((lit_position(&lamp, Light::Green).z - 2.6).abs() < 1e-6);
+        let flat = super::super::signal_props::Lamp { lens_pitch: 0.0, ..lamp };
+        assert_eq!(lit_position(&flat, Light::Red), flat.position, "a head with no lenses lights its point");
     }
 
     #[test]

@@ -188,6 +188,25 @@ fn dispatch_asks_for_an_update_when_a_long_chase_goes_quiet() {
 }
 
 #[test]
+fn dead_air_names_the_place_only_inside_the_speech_map() {
+    // Requests after the opening (which says its own location report at a low heat).
+    let reports = |speech_map_id: i32| -> usize {
+        (0..12)
+            .map(|seed| {
+                let mut chase = running(seed, vec![cop(10, 40.0), cop(11, 70.0)]);
+                chase.snap.player.speech_map_id = speech_map_id;
+                chase.run(10.0);
+                let from = chase.radio.now;
+                chase.run(150.0);
+                chase.radio.log.iter().filter(|(t, r)| *t > from && r.line == Line::LocationReport).count()
+            })
+            .sum()
+    };
+    assert_eq!(reports(-1), 0, "outside every named place the leader gives the update reply");
+    assert!(reports(3) > 0, "inside a named place a coin flip may choose the location report");
+}
+
+#[test]
 fn a_cop_that_leaves_the_chase_says_why() {
     let mut chase = running(12, vec![formation_cop(10, 40.0), formation_cop(11, 70.0), formation_cop(12, 90.0)]);
     chase.run(50.0);

@@ -8,6 +8,8 @@ use super::{PassContext, PassIo, PostChain, PostPass, fxaa};
 use crate::gpu::targets::{FrameTargets, HDR_FORMAT};
 use crate::{Antialiasing, PostSettings, Tonemap};
 
+#[path = "colour_cube_tests.rs"]
+mod colour_cube_tests;
 #[path = "focus_tests.rs"]
 mod focus_tests;
 #[path = "fusion_tests.rs"]

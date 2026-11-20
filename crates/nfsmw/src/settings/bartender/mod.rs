@@ -9,7 +9,7 @@
 //! - `[Cops] MaxCops`: the most cop cars chasing at once.
 //! - `[Heat1]` to `[Heat10]`: per heat level `CopCap` (the cop count the wave wants; without it the install's
 //!   `FullEngagementCopCount` of the level), `TimePerLevel` (seconds of heat growth) and `BustSpeed` (km/h).
-//! - `[Heat] EvadeAdjust`: the share of the heat a chase keeps after an escape.
+//! - `[Heat] EvadeAdjust`: the share of the live heat a chase keeps after an escape (1.0, as the original).
 //! - `[Fines]`: the fine of each infraction, one key each (`Speeding`, `Racing`, `RecklessDriving`, `Assault`,
 //!   `HitAndRun`, `DamageToProperty`, `ResistingArrest`, `OffRoad`).
 //! - `[Busted] Timeout`, `Reach`, `HeightGate`: the busted timer's constants (the flashing reach is FairBusts' setting).
@@ -58,7 +58,8 @@ pub struct BartenderSettings {
     pub max_cops: u32,
     /// The heat levels 1 to 10.
     pub levels: [Level; LEVELS],
-    /// The share of the heat a chase keeps after an escape.
+    /// The share of the live heat a chase keeps after an escape (1.0 in the original; the career records are cooled
+    /// apart from it).
     pub evade_heat_adjust: f32,
     pub fines: Fines,
     pub busted: BustedRules,

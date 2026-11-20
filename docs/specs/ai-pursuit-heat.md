@@ -187,7 +187,10 @@ raise the heat cap to the requested level, and an explicit F8 heat cap can expos
 - **Pursuit start:** `heat = max(heat, base_heat)`.
 - **Forced start** (`MForcePursuitStart`/`PursueAtHeatLevel(n)`): if heat < n, heat = n and the wave is re-locked.
 - **Escape (player):** every car of the career stable gets `VehicleHeat *= EvadeSuccessHeatAdjust` from the *default*
-  collection = **0.95**; and `TimesBusted` handling of section 6. **[decomp + verified]**
+  collection = **0.95**; and `TimesBusted` handling of section 6. **[decomp + verified]** The factor cools the records,
+  not the driven car's live heat: in the original's recordings the player's heat stays at 5.0 through an escape at heat
+  5, in free roam afterwards and as the start of the next chase in the same world **[runtime]**. The live heat goes back
+  into the record when the world is torn down ([career-safehouse-2.md](career-safehouse-2.md) section 8).
 - **Event win:** stable heat x `EventWinHeatAdjust` (default 0.94); **milestone complete:** x 0.93. **[decomp + verified]**
   On PC no code reads `MilestoneCompleteHeatAdjust` ([career-milestones.md](career-milestones.md)), so the rewrite cools
   the stable on a career race won (first place, `blacklist/results.rs`) and not on a milestone.
@@ -391,7 +394,7 @@ car select screen (x0.95); get busted three times and confirm the impound.
 - **Backup values** (`FullEngagementRadius`, `NumCopsToTriggerBackup`, `BackupCallTimer`): read per level
   (`nfsmw_data::pursuit::backup_rows`) and checked against the table in 2.1 and 2.2 by an installed test.
 - **Paint cooling** (`fecooling`): read, and applied to the career car when a garage part is fitted (not a chase effect); see [career-cooling.md](career-cooling.md).
-- **Evade heat** (section 3.3): an escape multiplies the heat by 0.95 and the value carries into the next chase, as the
-  start heat (`max(heat, base)`). The rewrite has one car and no career, so this is that car's heat only
-  (`Police::carried_heat`). In a career every car of the stable is multiplied as well (`career/pursuit.rs`, through
-  `nfsmw_career::safehouse::apply_heat_factor`).
+- **Evade heat** (section 3.3): an escape keeps the live heat, which carries into the next chase as the start heat
+  (`max(heat, base)`, `Police::carried_heat`). In a career every car record of the stable is multiplied by 0.95
+  (`career/pursuit.rs`, through `nfsmw_career::safehouse::apply_heat_factor`). The tuning file's `EvadeAdjust` (default
+  1.0) can cool the live heat as well **[ours]**.

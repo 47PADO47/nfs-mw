@@ -268,14 +268,25 @@ impl ChaseRadio {
                 }
                 notices.push(Notice::Said { line, speaker, params });
             }
+            for (event, why) in d.take_dropped() {
+                let Some((line, speaker, params)) = self.sent.get(&event).copied() else { continue };
+                self.lines.push(trace::LineStage::Dropped(why), line, event, speaker, params);
+            }
         }
-        match (dispatcher.as_deref(), self.ids.as_ref()) {
+        let out = match (dispatcher.as_deref(), self.ids.as_ref()) {
             (Some(d), Some(ids)) => {
                 let channel = DispatcherChannel { dispatcher: d, ids, sent: &self.sent, last: self.last };
                 self.machine.step(dt, &snap, &notices, &channel)
             }
             _ => self.machine.step(dt, &snap, &notices, &Silent),
-        }
+        };
+        let machine = &self.machine;
+        trace::record_view(trace::MachineView {
+            focus: machine.focus(),
+            state: machine.state(),
+            los_count: machine.los_count(),
+        });
+        out
     }
 
     /// Sends the machine's output to the speech: effects first, then the lines the air-support switches allow.

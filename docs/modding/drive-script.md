@@ -17,6 +17,7 @@ A script is segments separated by `;`. Each segment is `seconds:key=value,key=va
 | `throttle`, `brake` | 0 to 1 | pedals |
 | `steer` | -1 to 1 | left to right |
 | `weight` | -1 to 1 | a bike's rider weight lever, back (-1) to forward (1), held for the segment: what V or the pad's stick pulled back give; a wheelie needs about -1; a car ignores it |
+| `air_pitch`, `air_roll`, `air_yaw` | -1 to 1 | the air control's stick (forward is the nose down, right the right side down and a spin to the right): read only for the player's vehicle, with the `air_control` setting on and no wheel on the ground ([air-control.md](../specs/air-control.md)) |
 | `handbrake`, `nos`, `speedbreaker` | 0 or 1 | held for the segment |
 | `up`, `down` | 0 or 1 | one gear shift at the start of the segment |
 | `reset` | 0 or 1 | put the car back on the nearest road at the start of the segment |

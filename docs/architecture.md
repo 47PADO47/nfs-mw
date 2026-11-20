@@ -381,6 +381,11 @@ overlay and the HUD apply at once) and record the change; the config file layer 
   widescreen title screen is not used; the attract movie and its timeout are not played; the sounds the
   screens send are ignored; the original's player, controller and credits categories are not shown.
 
+**Menu step budget.** A step of the menus (screens, the commands they ask for, the garage, the backdrop) must take under
+50 ms (`frontend/step_budget.rs`, `MENU_STEP_BUDGET`), and so must one command. A step over it logs a warning naming the
+screen it began on and the phase that took the time; a slow command logs its name. Measured steps of the installed
+screens are under 2 ms; a scene change in a screenshot run is the only front-end frame near 50 ms (the run waits for it).
+
 ## Sound
 
 `audio/` in the binary owns the output device (`kira` 0.12, cpal) and three mixer groups, effects, music and engine,
