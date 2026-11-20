@@ -68,6 +68,8 @@ pub struct Bridge {
     /// Changes to the car, the camera, the weather, the traffic and the HUD message the mods asked for, applied to the
     /// scene in order by [`Bridge::apply`].
     pub(super) world_requests: RefCell<Vec<WorldRequest>>,
+    /// The tyre hook of a mod and the car's physical summary (`bb.handling`, `bb.vehicles` 1.3 `spec`).
+    pub(super) handling: super::handling::HandlingState,
     /// The minimap blips the mods placed.
     pub(super) blips: RefCell<Vec<ModBlip>>,
     /// The rows the mods added to the Mods page of the options.
@@ -137,6 +139,7 @@ impl Bridge {
             camera: Cell::new(None),
             world: RefCell::default(),
             world_requests: RefCell::default(),
+            handling: Default::default(),
             blips: RefCell::default(),
             menu_rows: RefCell::default(),
             options: RefCell::new(OptionsModel::new(settings::builtin())),
@@ -291,6 +294,7 @@ impl Bridge {
         *self.engine.borrow_mut() = scene.engine_readout();
         self.camera.set(scene.camera_readout());
         *self.world.borrow_mut() = scene.world_info();
+        self.handling_frame(scene);
     }
 
     /// Fire the hotkeys `pressed` reports as pressed this frame. The callbacks run one by one, with no borrow of the
@@ -317,6 +321,7 @@ impl Bridge {
         world::apply(requests, scene);
         scene.set_mod_blips(&map::minimap_blips(self));
         scene.set_effect_variants(&self.effect_variants());
+        self.handling_frame(scene);
         self.publish_replacements();
         let lines = std::mem::take(&mut *self.queued_lines.borrow_mut());
         console.queue_lines(lines);

@@ -26,6 +26,18 @@ pub struct PlayerCar {
     pub on_ground: bool,
 }
 
+/// Builds the tyre model of a mod for one car (`bb.handling`). The scene calls it for each car it puts the model on.
+pub type TyreMaker = dyn Fn() -> Box<dyn blackbox_vehicle::tires::TyreModel>;
+
+/// What a scene reports for `bb.handling` (`Scene::handling_feed`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct HandlingFeed {
+    /// The scene is part of a networked session (a multiplayer client): hooks on the physics are refused.
+    pub networked: bool,
+    /// The physical summary of the player's car; `None` where no car is driven.
+    pub summary: Option<blackbox_vehicle::VehicleSummary>,
+}
+
 /// The camera the player looks through, and the gameplay view it is in.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CameraReadout {

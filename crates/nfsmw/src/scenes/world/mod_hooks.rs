@@ -6,7 +6,7 @@ use blackbox_damage::{Damage, MAX_LEVEL};
 use super::{View, WorldScene};
 use crate::settings::{Percent, TrafficSettings};
 use crate::viewer::camera::{FlyCamera, direction};
-use crate::viewer::{CameraReadout, PlayerCar, WorldInfo};
+use crate::viewer::{CameraReadout, HandlingFeed, PlayerCar, TyreMaker, WorldInfo};
 
 /// The damage of a car as a fraction: the panel, paint and glass levels of every zone over the most they can take.
 fn damage_fraction(damage: &Damage) -> f32 {
@@ -113,6 +113,21 @@ impl WorldScene {
         if let Some(drive) = self.players.lead_mut() {
             drive.set_drift_assist(on);
         }
+    }
+
+    /// For the mods' `bb.handling`: keep the tyre model of a mod on the lead player's car, and on no other car (`drive/mod_feed.rs`),
+    /// and report whether this world runs for a multiplayer client (the server owns its rules) and the lead car's summary.
+    pub(super) fn handling_feed_of(&mut self, make: Option<&TyreMaker>, out: &mut HandlingFeed) {
+        #[cfg(feature = "multiplayer")]
+        {
+            out.networked = self.net_client.is_some();
+        }
+        let Some(drive) = self.players.lead_mut() else {
+            out.summary = None;
+            return;
+        };
+        drive.keep_tyre_model(make);
+        out.summary = drive.sim_mut().map(|sim| sim.vehicle_summary());
     }
 
     /// Set the traffic count and the cop share, keeping the traffic-light setting as it is.

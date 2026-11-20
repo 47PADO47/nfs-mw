@@ -32,6 +32,24 @@ impl Drive {
         }
     }
 
+    /// Keep the tyre model of a mod on this car: `Some(make)` gives a car without one the model `make` builds, `None` removes it
+    /// (`bb.handling`). It runs at a frame boundary, between two physics ticks.
+    pub(in crate::scenes::world) fn keep_tyre_model(
+        &mut self,
+        make: Option<&dyn Fn() -> Box<dyn blackbox_vehicle::tires::TyreModel>>,
+    ) {
+        let Some(sim) = self.sim.as_mut() else {
+            return;
+        };
+        let Some(make) = make else {
+            sim.clear_tyre_model();
+            return;
+        };
+        if !sim.has_tyre_model() {
+            sim.set_tyre_model(make());
+        }
+    }
+
     /// Add `amount` of a full tank to the nitrous (a rule a mod runs pays it). Returns whether the car has a tank to fill.
     pub(in crate::scenes::world) fn add_nitrous(&mut self, amount: f32) -> bool {
         let Some(sim) = self.sim.as_mut() else {

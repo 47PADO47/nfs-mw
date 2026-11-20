@@ -32,6 +32,13 @@ pub(crate) struct Recorder {
     pub rain: Option<(bool, f32)>,
     pub traffic: Option<(u32, u8)>,
     pub spawns: Vec<([f32; 2], f32)>,
+    /// The scene is part of a networked session.
+    pub networked: bool,
+    /// The physical summary of the car the scene reports.
+    pub summary: Option<blackbox_vehicle::VehicleSummary>,
+    /// The tyre model of a mod on the car, and how many the scene has put on it.
+    pub tyre_model: Option<Box<dyn blackbox_vehicle::tires::TyreModel>>,
+    pub tyre_installs: u32,
 }
 
 impl Recorder {
@@ -136,6 +143,19 @@ impl Scene for Recorder {
 
     fn set_player_drift_assist(&mut self, on: bool) {
         self.drift_assist.push(on);
+    }
+
+    fn handling_feed(&mut self, make: Option<&crate::viewer::TyreMaker>, out: &mut crate::viewer::HandlingFeed) {
+        out.networked = self.networked;
+        out.summary = self.summary.clone();
+        match (make, self.car.is_some()) {
+            (None, _) => self.tyre_model = None,
+            (Some(make), true) if self.tyre_model.is_none() => {
+                self.tyre_model = Some(make());
+                self.tyre_installs += 1;
+            }
+            _ => {}
+        }
     }
 
     fn set_camera_mode(&mut self, mode: CameraMode) {

@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use blackbox_modding::abi::BB_ERR_NOT_READY;
-use blackbox_modding::host::{BackendResult, VehicleState, VehiclesBackend};
+use blackbox_modding::host::{BackendResult, VehicleSpecSheet, VehicleState, VehiclesBackend};
 
 use super::bridge::Bridge;
 use super::world::WorldRequest;
@@ -68,6 +68,10 @@ impl VehiclesBackend for VehiclesPort {
         self.car()?;
         self.0.world_requests.borrow_mut().push(WorldRequest::AddNos(amount));
         Ok(())
+    }
+
+    fn spec(&self, _owner: &str) -> BackendResult<VehicleSpecSheet> {
+        self.0.vehicle_sheet().ok_or(BB_ERR_NOT_READY)
     }
 
     fn set_drift_assist(&self, _owner: &str, on: bool) -> BackendResult<()> {
