@@ -104,6 +104,10 @@ pub(super) trait PostPass {
         true
     }
     fn camera_cut(&mut self) {}
+    /// The adapted exposure, when this is the auto-exposure pass, for the pass that replaces it on a rebuild.
+    fn take_exposure(&mut self) -> Option<auto_exposure::Carry> {
+        None
+    }
     fn set_focus(&mut self, _settings: blackbox_gfx::FocusFilter) {}
     /// The per-frame change of the scene's colour profile (see `RenderBackend::set_colour_look`).
     fn set_look(&mut self, _look: &blackbox_gfx::ColourLook) {}
@@ -200,6 +204,8 @@ pub(super) struct PostChain {
     cache: Option<wgpu::PipelineCache>,
     /// The display mapping (HDR output or SDR preview) the chain was given, if any. See `display.rs`.
     pub(in crate::gpu) display: Option<display::Mapping>,
+    /// A prewarm frame is being recorded: its empty scene must not move the adapted exposure.
+    warming: bool,
 }
 
 impl PostChain {
@@ -221,13 +227,24 @@ impl PostChain {
             grade_key: None,
             look: blackbox_gfx::ColourLook::default(),
             cache: cache.cloned(),
+            warming: false,
         }
     }
 
     pub(super) fn camera_cut(&mut self) {
         for pass in &mut self.passes {
+            if self.warming && pass.name() == "auto-exposure" {
+                continue;
+            }
             pass.camera_cut();
         }
+    }
+
+    /// Mark the frames recorded until the next call as prewarm frames (see `prewarm.rs`): auto exposure
+    /// neither meters them nor takes their camera cut, so warming pipelines after a settings change does not
+    /// snap the exposure to an empty black scene and fade it back.
+    pub(in crate::gpu) fn set_warming(&mut self, warming: bool) {
+        self.warming = warming;
     }
 
     /// Insert `pass` so it runs at `index` among the passes (0 = first). Past-the-end indices put it at the
@@ -323,7 +340,8 @@ impl PostChain {
         encoder: &mut wgpu::CommandEncoder,
         output: (&wgpu::TextureView, wgpu::TextureFormat),
     ) {
-        let Self { passes, resolve, temporal, scratch, scratch_idle, signature, extents, steps, fuse, .. } = self;
+        let Self { passes, resolve, temporal, scratch, scratch_idle, signature, extents, steps, fuse, warming, .. } =
+            self;
         let scene = ctx.scene;
         // A different set of passes (settings changed) frees the images; the same set with fewer passes running
         // on some frames (the mirror capture has no temporal upscaler) keeps them, see `slot_expired` below.
@@ -343,7 +361,7 @@ impl PostChain {
             chain.push(pass.as_mut());
         }
         for pass in passes.iter_mut().filter(|p| p.active()) {
-            if ctx.secondary_view && pass.name() == "auto-exposure" {
+            if (ctx.secondary_view || *warming) && pass.name() == "auto-exposure" {
                 continue;
             }
             chain.push(pass.as_mut());

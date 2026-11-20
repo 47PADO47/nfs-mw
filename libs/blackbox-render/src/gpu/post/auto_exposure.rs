@@ -4,6 +4,13 @@ use super::{PassContext, PassIo, PostPass};
 use blackbox_gfx::settings::post::AutoExposure;
 use std::time::Instant;
 
+/// The adapted exposure and its clock, handed from a pass to the one that replaces it when the chain is rebuilt
+/// (any post-setting change), so a rebuild neither resets nor re-adapts the exposure.
+pub(in crate::gpu) struct Carry {
+    history: wgpu::Buffer,
+    last: Option<Instant>,
+}
+
 pub(super) struct Exposure {
     meter: wgpu::ComputePipeline,
     history: wgpu::Buffer,
@@ -15,7 +22,12 @@ pub(super) struct Exposure {
 }
 
 impl Exposure {
-    pub(super) fn new(device: &wgpu::Device, tuning: AutoExposure, cache: Option<&wgpu::PipelineCache>) -> Self {
+    pub(super) fn new(
+        device: &wgpu::Device,
+        tuning: AutoExposure,
+        cache: Option<&wgpu::PipelineCache>,
+        carry: Option<Carry>,
+    ) -> Self {
         let label = Some("auto-exposure");
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label,
@@ -32,14 +44,17 @@ impl Exposure {
         let buffer = |size, usage| {
             device.create_buffer(&wgpu::BufferDescriptor { label, size, usage, mapped_at_creation: false })
         };
-        let history = buffer(4, wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC);
+        let (history, last) = match carry {
+            Some(carry) => (carry.history, carry.last),
+            None => (buffer(4, wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC), None),
+        };
         let params = buffer(32, wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
         let shader = filter_source(
             "@fragment fn apply(in: VsOut) -> @location(0) vec4<f32> {
             let c = textureLoad(src, vec2<i32>(in.clip.xy), 0); return vec4<f32>(c.rgb * exp2(params.a.x), 1.0); }",
         );
         let filter = Filter::new(device, "auto-exposure", &shader).with_pipeline_cache(cache.cloned());
-        Self { meter, history, params, binding: None, filter, tuning, last: None }
+        Self { meter, history, params, binding: None, filter, tuning, last }
     }
     fn bind_scene(&mut self, ctx: &PassContext<'_>) -> wgpu::BindGroup {
         if let Some((view, group)) = &self.binding
@@ -70,6 +85,9 @@ impl PostPass for Exposure {
     }
     fn camera_cut(&mut self) {
         self.last = None;
+    }
+    fn take_exposure(&mut self) -> Option<Carry> {
+        Some(Carry { history: self.history.clone(), last: self.last })
     }
     fn encode(&mut self, ctx: &PassContext<'_>, io: &PassIo<'_>, encoder: &mut wgpu::CommandEncoder) {
         let now = Instant::now();

@@ -14,12 +14,13 @@ fn build(
     profile: Option<&super::treatment::Profile>,
     hdr: bool,
     cache: Option<&wgpu::PipelineCache>,
+    carry: Option<super::auto_exposure::Carry>,
 ) -> Vec<Box<dyn PostPass>> {
     let mut passes: Vec<Box<dyn PostPass>> = Vec::new();
     if let Some(tuning) = settings.auto_exposure
         && device.limits().max_compute_workgroup_storage_size >= 256
     {
-        passes.push(Box::new(super::auto_exposure::Exposure::new(device, tuning, cache)));
+        passes.push(Box::new(super::auto_exposure::Exposure::new(device, tuning, cache, carry)));
     }
     for effect in settings.effects() {
         if hdr && effect == PostEffect::Tonemap {
@@ -52,7 +53,10 @@ impl PostChain {
     /// Rebuild the effect passes at the front of the chain from the current settings and profile, then give
     /// every pass the display mapping. Used when the effect list is invalid: a profile or a display change.
     pub(super) fn rebuild_effects(&mut self, device: &wgpu::Device) {
-        let fresh = build(device, &self.settings, self.profile.as_ref(), self.display.is_some(), self.cache.as_ref());
+        // The adapted exposure survives the rebuild: changing any post setting must not reset or re-adapt it.
+        let carry = self.passes[..self.effect_count].iter_mut().find_map(|pass| pass.take_exposure());
+        let fresh =
+            build(device, &self.settings, self.profile.as_ref(), self.display.is_some(), self.cache.as_ref(), carry);
         let count = fresh.len();
         self.passes.splice(..self.effect_count, fresh);
         self.effect_count = count;
