@@ -48,9 +48,9 @@ const ROW_GROUPS: [u32; 10] = [
 /// The strings of the tenth row (left, middle, right), and the group of the eleventh row, which stays hidden.
 const TENTH: [u32; 3] = [0x4ED8_0BD8, 0x3B19_E0B9, 0x275B_B59A];
 const ELEVENTH_GROUP: u32 = 0xB85F_9E15;
-/// The buttons this build has no screen for (the console footer's stats, the online gamer card, mute and feedback),
-/// hidden, by GUID.
-const UNUSED: [u32; 5] = [0xE690F, 0xFA5B3, 0xFD000, 0x10688A, 0x122661];
+/// The buttons this build has no screen for (the online gamer card, mute and feedback), hidden, by GUID. The pad's copy
+/// of the page button is the package footer's (`prompts/package_footer.rs`).
+const UNUSED: [u32; 3] = [0xFD000, 0x10688A, 0x122661];
 /// The footer's second button (the group of the `Stats` string and the key 2 glyph), by GUID.
 const STATS_BUTTON: u32 = 0x1062F9;
 /// The pad bit of the second button (key 2, the pad's fourth button).

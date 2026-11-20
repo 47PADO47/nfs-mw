@@ -265,7 +265,7 @@ The item handles these screen messages (the names are the pad hashes; the number
 | pad button 4 (`0xC519BFC3`) | replay: story messages only; stops other speech and plays the voice line of the id |
 | pad button 5 (`0xC519BFC4`) | opens a confirmation dialog (`InGameDialog.fng`) |
 | the dialog's "yes" (`0xD05FC3A3`) | **delete:** `slot.state = 0` and the row is refreshed |
-| screen exit (`EXIT_COMPLETE`, `0xE1FDE1D1`) | unpauses and closes the overlay |
+| screen exit (`EXIT_COMPLETE`, `0xE1FDE1D1`) | stops speech, unpauses and closes the overlay |
 
 Mapping button 4 to replay and button 5 to delete is read from the effects of the handlers. The packages name the
 keys: in `SMS_Message.fng` the PC hint groups show `PC_key_esc` beside Done, `PC_key_1` beside Delete (whose hotspot

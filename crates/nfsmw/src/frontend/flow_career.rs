@@ -165,6 +165,10 @@ impl Frontend {
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
+        // The safe house menu is a room of its own; the other screens open over the frozen game.
+        if screen != MAIN_MENU_SUB {
+            self.screens.set_in_game();
+        }
         let commands = self.screens.open(screen, args, true, env);
         self.apply(commands, host, env);
     }

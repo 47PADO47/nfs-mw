@@ -1,5 +1,5 @@
 //! One text message (`SMS_Message.fng`), opened from the inbox ([`MessageLogic`]) or over the game
-//! ([`super::sms_popup`]): the sender, the subject and the body, read from the language table.
+//! (the delivery of a message while driving, `flow_sms.rs`): the sender, the subject and the body, read from the language table.
 //!
 //! The package gives the body ten string objects, one per line, 20 units apart and each at most 620 wide
 //! (`nfsmw dump-screen SMS_Message.fng`). The body is wrapped into lines with the installed font and written top to
@@ -31,6 +31,10 @@ pub const BODY_LINES: [u32; 10] = [
 /// The sender's and the subject's values, on the rows of the `From:` and `Subject:` captions.
 const FROM: u32 = 0x000F_9301;
 const SUBJECT: u32 = 0x000E_5A97;
+/// The scroll bar's thumb and track, and the package's scripts that show and hide them (`SHOW`, `HIDE`).
+const SCROLL_BAR: [u32; 2] = [0x3FBB_7A4E, 0x688A_1551];
+const SHOW: u32 = 0x001C_A7C0;
+const HIDE: u32 = 0x0016_A259;
 
 /// The first line shown after scrolling `delta` lines (negative is up), kept so that the ten lines stay full.
 pub fn scrolled_line(first: usize, delta: i32, lines: usize) -> usize {
@@ -43,20 +47,26 @@ pub struct MessageView {
     pub id: u32,
     lines: Vec<String>,
     first: usize,
+    /// The screen showed the message: closing it stops the voice.
+    shown: bool,
 }
 
 impl MessageView {
     pub fn new(id: u32) -> Self {
-        Self { id, lines: Vec::new(), first: 0 }
+        Self { id, lines: Vec::new(), first: 0, shown: false }
     }
 
-    /// Shows the message and marks it read, as opening it does.
+    /// Shows the message. It is marked read, and an unread story message queues its voice, when the package's handler
+    /// says the screen is up (`INIT_COMPLETE`, 500 ms after the start), as the original does; speech runs while the
+    /// screen is up and the line stops when it closes (`cell_call::message_screen`).
     pub fn show(&mut self, cx: &mut Cx) {
-        open_message(self.id);
+        crate::audio::cell_call::message_screen(true);
+        self.shown = true;
         let body = lookup(&label_for(self.id));
         self.lines = wrap(cx, cx.guid(BODY_LINES[0]), &body);
         self.first = 0;
         self.fill(cx);
+        self.scroll_bar(cx);
         set_text(cx, FROM, lookup(&from_label_for(self.id)));
         set_text(cx, SUBJECT, lookup(&subject_label_for(self.id)));
     }
@@ -65,6 +75,22 @@ impl MessageView {
         for (at, guid) in BODY_LINES.into_iter().enumerate() {
             let line = self.lines.get(self.first + at).cloned().unwrap_or_default();
             set_text(cx, guid, line);
+        }
+    }
+
+    /// The original keeps the scroll bar transparent while the body fits the window (its package's `HIDE` script), and
+    /// shows it only for a body longer than the window.
+    fn scroll_bar(&self, cx: &mut Cx) {
+        let script = match self.lines.len() > BODY_LINES.len() {
+            true => SHOW,
+            false => HIDE,
+        };
+        for hash in SCROLL_BAR {
+            let Some(object) = cx.object(hash) else { continue };
+            let current = cx.rt.object(object).and_then(|s| s.current.and_then(|c| s.scripts.get(c))).map(|s| s.id);
+            if current != Some(script) {
+                cx.rt.run_script(object, script);
+            }
         }
     }
 
@@ -81,7 +107,10 @@ impl MessageView {
     /// arrows. Returns whether the message was one of them.
     pub fn message(&mut self, cx: &mut Cx, message: u32, then: Command) -> bool {
         match message {
-            INIT_COMPLETE => open_message(self.id),
+            INIT_COMPLETE => {
+                open_message(self.id);
+                self.scroll_bar(cx);
+            }
             REPLAY => replay_voice(self.id),
             DELETE => cx.send(Command::Confirm(delete_question(self.id, Some(then)))),
             PAD_UP => self.scroll(cx, -1),
@@ -97,19 +126,59 @@ impl MessageView {
     }
 }
 
-/// The message the inbox opened.
+impl Drop for MessageView {
+    fn drop(&mut self) {
+        if self.shown {
+            crate::audio::cell_call::message_screen(false);
+        }
+    }
+}
+
+/// The Done button's group in `SMS_Message.fng` (`nfsmw dump-screen SMS_Message.fng`).
+const DONE: u32 = 0x000F_A4AA;
+
+/// Whether a pad press closes the message: Accept while Done has the focus (the package's Done button).
+pub const fn closes_on_press(bits: u32, focus: Option<u32>) -> bool {
+    bits & blackbox_feng::runtime::pad::ACCEPT != 0 && matches!(focus, Some(DONE))
+}
+
+/// The message the inbox opened, from the safe house, from the inbox key in free roam, or on delivery while driving
+/// (the original opens the inbox at the delivered message, which opens it: `flow_sms.rs`).
 pub struct MessageLogic {
     args: Args,
     view: Option<MessageView>,
+    /// Done was pressed: the close is asked once (a press reaches the screen as a pad bit and as the package's message).
+    closing: bool,
 }
 
 impl MessageLogic {
     pub fn new(args: Args) -> Self {
-        Self { args, view: None }
+        Self { args, view: None, closing: false }
+    }
+}
+
+impl MessageLogic {
+    fn close(&mut self, cx: &mut Cx) {
+        if !std::mem::replace(&mut self.closing, true) {
+            leave(cx, self.args);
+        }
     }
 }
 
 impl ScreenLogic for MessageLogic {
+    fn pressed(&mut self, cx: &mut Cx, button: u32) {
+        if button == DONE {
+            self.close(cx);
+        }
+    }
+
+    fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        let focus = cx.rt.focus(cx.package);
+        if closes_on_press(bits, focus) {
+            self.close(cx);
+        }
+    }
+
     fn sound_trigger(
         &mut self,
         _: &blackbox_feng::Runtime,
@@ -133,7 +202,7 @@ impl ScreenLogic for MessageLogic {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         if message == PAD_BACK {
-            leave(cx, self.args);
+            self.close(cx);
             return;
         }
         let then = leave_command(self.args);
@@ -158,6 +227,16 @@ pub(super) fn replay_sound(view: Option<&MessageView>, message: u32, cue: Option
         return None;
     }
     cue
+}
+
+#[cfg(test)]
+#[test]
+fn accept_closes_only_on_the_done_button() {
+    use blackbox_feng::runtime::pad;
+    assert!(closes_on_press(pad::ACCEPT, Some(DONE)));
+    assert!(!closes_on_press(pad::ACCEPT, Some(0x000F_A584)), "Re-Play has the focus");
+    assert!(!closes_on_press(pad::ACCEPT, None));
+    assert!(!closes_on_press(pad::BACK, Some(DONE)), "Back is the message, not the press");
 }
 
 #[cfg(test)]

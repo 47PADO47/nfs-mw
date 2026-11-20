@@ -47,6 +47,8 @@ struct Key {
     fonts: custom_fonts::Active,
     signed_in: bool,
     covered_photo: bool,
+    /// The window's width over its height, for the dim panel's stretch (bits of the f32).
+    aspect: u32,
 }
 
 /// The last decorated tree of a screen, and what it was built from.
@@ -96,6 +98,7 @@ impl Screens {
             signed_in: CareerHandle::shared().is_loaded(),
             covered_photo: screen.name.eq_ignore_ascii_case(super::super::ids::screen::PHOTO)
                 && self.stack.last().is_some_and(|top| top.id != screen.id),
+            aspect: self.aspect.to_bits(),
         };
         let mut guard = screen.shown.lock();
         if guard.is_current(&key, bindings) {
@@ -108,12 +111,24 @@ impl Screens {
         }
         let tree = Arc::get_mut(&mut cache.tree).expect("a tree nobody else holds");
         self.runtime.tree_into(screen.id, tree);
-        cache.hints = match key.covered_photo {
-            true => {
+        if screen.name.eq_ignore_ascii_case(super::pause_background::NAME) {
+            super::pause_background::stretch_to_window(tree, self.aspect);
+        }
+        let own_footer = prompts::package_footer::owns(&screen.name, key.footer);
+        cache.hints = match (key.covered_photo, own_footer) {
+            (true, _) => {
                 prompts::race::cover_photo(tree);
                 Vec::new()
             }
-            false => prompts::decorate(tree, &screen.name, key.footer, bindings, device, &self.assets),
+            // The package's own footer, as the original draws it (`prompts/package_footer.rs`).
+            (false, true) => {
+                let def = self.runtime.package(screen.id);
+                let flags = |node: &blackbox_feng::UiNode| {
+                    def.and_then(|d| d.objects.get(node.index)).filter(|o| o.guid == node.guid).map_or(0, |o| o.flags)
+                };
+                prompts::package_footer::apply(tree, flags, &screen.name, key.footer, bindings, device)
+            }
+            (false, false) => prompts::decorate(tree, &screen.name, key.footer, bindings, device, &self.assets),
         };
         cache.key = Some(key);
         match cache.bindings.as_mut() {
@@ -198,6 +213,7 @@ mod tests {
             fonts: custom_fonts::active(),
             signed_in: false,
             covered_photo: false,
+            aspect: 0,
         }
     }
 

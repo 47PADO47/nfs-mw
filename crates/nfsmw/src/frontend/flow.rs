@@ -405,6 +405,7 @@ impl Frontend {
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
+        self.screens.set_in_game();
         let pause_ctx = self.pause_context(host);
         let commands = self.screens.open(PAUSE_MENU, Args { pause: true, pause_ctx, ..Args::default() }, true, env);
         self.apply(commands, host, env);
@@ -414,6 +415,7 @@ impl Frontend {
     pub(super) fn open_map(&mut self, logic: Box<dyn ScreenLogic>, host: &mut Host, env: &mut Env) {
         self.latch = true;
         self.paused.set(true);
+        // The original opens its world map with no dim panel under it (read live): no `set_in_game` here.
         self.stage = Stage::Map;
         let commands = self.screens.open_with(WORLD_MAP, logic, true, env);
         self.apply(commands, host, env);

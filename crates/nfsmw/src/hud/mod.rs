@@ -66,6 +66,11 @@ mod mirror_install_tests;
 mod notify;
 mod plugin;
 pub(crate) mod police;
+
+/// The HUD's presentation. The front end presents before it: each presentation goes under the ones before it, so the
+/// screens opened over the game and their dim panel sit above the HUD, as in the original.
+#[derive(bevy_ecs::schedule::SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct HudPresent;
 #[cfg(test)]
 mod police_install_tests;
 mod pursuit;

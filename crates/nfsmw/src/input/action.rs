@@ -104,6 +104,9 @@ pub enum Action {
     Garage,
     /// Button: open or close the full-screen world map, from free roam (`frontend/world_map`).
     Map,
+    /// Button: open the phone's inbox (`SMS_Mailboxes.fng`) over free roam, as the original HUD's right pad action does
+    /// (`frontend/flow_sms.rs`).
+    Inbox,
     /// Driving button: take the HUD's oldest notification off the screen (`hud/notify`).
     DismissNotification,
     /// HUD button: the Custom map's next mode: off, compact, centered, expanded, then off again
@@ -192,6 +195,7 @@ impl Action {
             "radio_previous",
             "garage",
             "map",
+            "inbox",
             "dismiss_notification",
             "map_mode",
             "map_expand",
@@ -215,7 +219,7 @@ impl Action {
             .find(|a| a.name() == name)
             .ok_or_else(|| format!("unknown action {name:?}; use keys to list actions"))
     }
-    pub const ALL: [Action; 68] = [
+    pub const ALL: [Action; 69] = [
         Action::MoveForward,
         Action::MoveRight,
         Action::MoveUp,
@@ -272,6 +276,7 @@ impl Action {
         Action::RadioPrevious,
         Action::Garage,
         Action::Map,
+        Action::Inbox,
         Action::DismissNotification,
         Action::MapMode,
         Action::MapExpand,

@@ -20,7 +20,6 @@ pub mod safehouse_menu;
 pub mod save;
 pub mod sms;
 pub mod sms_message;
-pub mod sms_popup;
 
 use super::logic::{Args, Cx, ScreenLogic};
 

@@ -36,7 +36,7 @@ struct Step {
 /// How long an `until` step waits for its screen before the script goes on anyway: two minutes of frames.
 const UNTIL_LIMIT: u32 = 7200;
 
-/// The keys a script can press: the letters, Space, Enter, Numpad Enter and Escape (Space, Enter and Numpad Enter press Start for
+/// The keys a script can press: the letters, Space, Enter, Numpad Enter, Escape and Tab (the inbox in free roam) (Space, Enter and Numpad Enter press Start for
 /// the split-screen Press Start screens: the keyboard's, and the arrow block's).
 fn key(name: &str) -> Result<KeyCode, String> {
     const LETTERS: [KeyCode; 26] = [
@@ -77,7 +77,8 @@ fn key(name: &str) -> Result<KeyCode, String> {
         "Enter" => Ok(KeyCode::Enter),
         "NumpadEnter" => Ok(KeyCode::NumpadEnter),
         "Escape" => Ok(KeyCode::Escape),
-        other => Err(format!("unknown key {other:?} (a letter, Space, Enter, NumpadEnter or Escape)")),
+        "Tab" => Ok(KeyCode::Tab),
+        other => Err(format!("unknown key {other:?} (a letter, Space, Enter, NumpadEnter, Escape or Tab)")),
     }
 }
 
@@ -357,7 +358,8 @@ mod tests {
         assert_eq!(s.take_key(), None, "taken once");
         assert_eq!(s.next_mask(), Some(0));
         assert_eq!(s.take_key(), None, "a wait presses nothing");
-        assert!(UiScript::parse("key Tab").unwrap_err().contains("Tab"));
+        assert_eq!(UiScript::parse("key Tab").unwrap().take_key(), None, "Tab is a key (the inbox)");
+        assert!(UiScript::parse("key Delete").unwrap_err().contains("Delete"));
     }
 
     #[test]

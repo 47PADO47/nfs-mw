@@ -8,7 +8,7 @@
 //! Like the one-shot queue, the requests wait in a thread-local list: the career, the front end and the audio plugin all
 //! run on the main thread.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use nfsmw_career::phone::{VoiceTake, has_recorded_take, voice_take};
 
@@ -31,6 +31,25 @@ pub struct VoiceRequest {
 thread_local! {
     /// The voices asked for since the audio plugin last took them.
     static QUEUE: RefCell<Vec<VoiceRequest>> = const { RefCell::new(Vec::new()) };
+    /// A message screen is up: the speech queue runs although the game is paused (`screen_speaks`).
+    static SCREEN: Cell<bool> = const { Cell::new(false) };
+    /// The message screen closed since the audio plugin last looked: the line that sounds stops.
+    static STOP: Cell<bool> = const { Cell::new(false) };
+}
+
+/// A message screen opens (`true`) or closes (`false`). The original's message screen leaves speech running while it is
+/// up, so the voice it queues sounds at once, and stops the line in progress when it closes
+/// (`docs/specs/fe-package-footer.md` section 3).
+pub fn message_screen(open: bool) {
+    SCREEN.with(|screen| screen.set(open));
+    if !open {
+        STOP.with(|stop| stop.set(true));
+    }
+}
+
+/// Whether the speech queue runs while the game is paused: a message screen is up.
+pub fn screen_speaks() -> bool {
+    SCREEN.with(Cell::get)
 }
 
 /// Queues the voice of message or call `id` for the speech queue.
@@ -70,6 +89,9 @@ pub fn take_params(take: VoiceTake) -> SpeechParams {
 
 /// Plays the voices queued since the last call. Called by the audio plugin every frame.
 pub(super) fn service(audio: &mut Audio) {
+    if STOP.with(|stop| stop.replace(false)) {
+        audio.silence_speech("message screen closed");
+    }
     for request in take() {
         audio.play_voice(request);
     }
@@ -87,6 +109,8 @@ impl Audio {
             log::info!("voice for {}: speech is off", request.id);
             return;
         }
+        let detail = format!("cell call {} queued (cut {})", request.id, request.cut);
+        self.trace_stream(super::streams::Event::Start, super::streams::Kind::Speech, u64::from(request.id), &detail);
         let speech = match self.speech() {
             Ok(speech) => speech,
             Err(e) => {
@@ -130,6 +154,15 @@ mod tests {
             ]
         );
         assert!(take().is_empty(), "a request is taken once");
+    }
+
+    #[test]
+    fn a_message_screen_lets_speech_run_until_it_closes() {
+        message_screen(true);
+        assert!(screen_speaks());
+        message_screen(false);
+        assert!(!screen_speaks());
+        assert!(STOP.with(|stop| stop.replace(false)), "closing stops the line in progress");
     }
 
     #[test]

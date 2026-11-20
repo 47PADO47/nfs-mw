@@ -15,6 +15,7 @@ use crate::ui::{
 
 mod career_car;
 mod legacy;
+pub(super) mod package_footer;
 pub(super) mod race;
 pub(super) mod sms;
 

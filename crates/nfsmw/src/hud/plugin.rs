@@ -118,7 +118,14 @@ impl Plugin for HudPlugin {
             .add_systems(Update, notify.in_set(FrameSet::SceneUpdate).after(sync))
             .add_systems(Update, super::notify::output.in_set(FrameSet::SceneUpdate).after(notify))
             .add_systems(Update, super::map_keys::apply.in_set(FrameSet::SceneUpdate).after(sync))
-            .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
+            .add_systems(
+                Update,
+                present
+                    .in_set(FrameSet::Hud)
+                    .in_set(super::HudPresent)
+                    .run_if(ready)
+                    .run_if(resource_exists::<SharedAssets>),
+            )
             .add_systems(
                 Update,
                 present_lan.in_set(FrameSet::Hud).after(present).run_if(ready).run_if(resource_exists::<SharedAssets>),
@@ -354,6 +361,7 @@ fn present(
             let screen =
                 Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
             presenter.0.present(&hud.runtime.tree(overlay), &assets.0, screen, &mut out);
+            crate::parity::fe_dump::note_drawn("BUSTED_OVERLAY.fng", 1); // drawn (its object count is not taken)
             return;
         }
         drawn.hidden(&mut out, window.scale_factor());
@@ -455,6 +463,10 @@ fn present(
     });
     let [radio_layer, hud_composed, busted_layer] = layers;
     let hud_tree = source.as_deref().or_else(|| (!static_hud).then_some(hud_composed));
+    if hud_tree.is_some_and(|t| !t.nodes.is_empty()) {
+        let drawn = hud_tree.map_or(0, |t| t.draw_order.len());
+        crate::parity::fe_dump::note_drawn(if state.drag { DRAG_PACKAGE } else { HUD_PACKAGE }, drawn);
+    }
     for layer in [Some(radio_layer), hud_tree, Some(busted_layer)].into_iter().flatten() {
         if layer.nodes.is_empty() {
             continue;

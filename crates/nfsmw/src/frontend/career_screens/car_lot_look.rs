@@ -29,15 +29,13 @@ const LOCKED_TEXT: u32 = 0x2D25_B2C4;
 /// The car name strings (the model-name picture names the car instead; one shares its name with the debug label) and the heat
 /// meter, which belongs to the career's own car select.
 const HIDDEN: [u32; 3] = [0xD6D3_2016, 0x79D6_E45C, 0xBDE6_E3BA];
-/// The package's own Back, Accept and Showcase buttons, which the footer's hints replace (they answer a click as an Accept).
-const OWN_BUTTONS: [u32; 3] = [0xC0A3_2823, 0x73DC_B662, 0x4B89_0CDB];
 /// Posted to the package when the lot opens: the `Funds:` and `Cost:` lines and the Showcase button appear (the groups answer it
 /// with their own scripts).
 pub(super) const LOT_MODE: u32 = 0x5415_E304;
-/// The car name strings the package fills with sample text, and the "Showcase" string the footer's hint replaces: blanked as
-/// well as hidden, since the package's own scripts show a hidden string again.
+/// The car name strings the package fills with sample text: blanked as well as hidden, since the package's own scripts show a
+/// hidden string again. The package's own footer buttons (Back, Accept, Showcase) are drawn (`prompts/package_footer.rs`).
 const DEBUG_LABEL: u32 = 0x000F_04B1;
-const BLANKED: [u32; 3] = [0xD6D3_2016, 0x79D6_E45C, 0xC5E1_D8A4];
+const BLANKED: [u32; 2] = [0xD6D3_2016, 0x79D6_E45C];
 const SCRIPT_SHOW: u32 = 0x001C_A7C0;
 const SCRIPT_HIDE: u32 = 0x0016_A259;
 /// The `Funds:`/`Cost:` values and the Sell button.
@@ -72,9 +70,6 @@ pub(super) fn pool_car(name: &str) -> Option<(PoolCar, std::sync::Arc<CarPool>)>
 /// bars, the lock notice, and the cost and funds lines; the heat meter of the career's car select stays hidden.
 pub(super) fn draw(cx: &mut Cx, shown: &Shown<'_>) {
     for name in HIDDEN {
-        cx.hide(name, true);
-    }
-    for name in OWN_BUTTONS {
         cx.hide(name, true);
     }
     identity(cx, shown);

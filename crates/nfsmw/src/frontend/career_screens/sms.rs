@@ -20,7 +20,7 @@ use nfsmw_career::settings::SmsInbox;
 use crate::audio::cell_call;
 use crate::career::CareerHandle;
 use crate::frontend::confirm::Confirm;
-use crate::frontend::ids::{INPUT_ENABLE, screen};
+use crate::frontend::ids::{INIT_COMPLETE, INPUT_ENABLE, screen};
 use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic};
 use crate::ui::Text;
 
@@ -59,6 +59,11 @@ const HIDE: u32 = 0x0016_A259;
 const LIST_IN: u32 = 0x775C_E5DF;
 const PANEL_IN: u32 = 0x9310_7F76;
 const LIST_OUT: u32 = 0x293E_75E8;
+/// The inbox's EVENT HANDLER and its `READ` script, which the original's inbox runs when it opens a message by itself (the
+/// delivery of a message while driving): it switches the buttons off and, 500 ms later, takes the list out (`LIST_OUT`)
+/// with the header staying.
+const EVENT_HANDLER: u32 = 0x47FF_4E7C;
+const READ_SCRIPT: u32 = 0x001C_0CBB;
 /// The tab group's pulse (the selected tab) and its still look (the other): `HIGHLIGHT` and `UNHIGHLIGHT`.
 const TAB_SELECTED: u32 = 0x249D_B7B7;
 const TAB_IDLE: u32 = 0x7AB5_521A;
@@ -77,6 +82,19 @@ pub(super) fn opened() -> Option<u32> {
 
 fn set_opened(id: u32) {
     *OPENED.lock().unwrap_or_else(|e| e.into_inner()) = Some(id);
+}
+
+/// The message the next inbox opens at once (the delivery of a message while driving): the original pushes the inbox with
+/// that message's slot, and the inbox opens the message over itself (`docs/specs/fe-package-footer.md` section 4).
+static OPEN_AT: Mutex<Option<u32>> = Mutex::new(None);
+
+/// Makes the next inbox open message `id`.
+pub fn open_at(id: u32) {
+    *OPEN_AT.lock().unwrap_or_else(|e| e.into_inner()) = Some(id);
+}
+
+fn take_open_at() -> Option<u32> {
+    OPEN_AT.lock().unwrap_or_else(|e| e.into_inner()).take()
 }
 
 /// The logic for `name` (lower case) when it is one of the inbox screens.
@@ -220,13 +238,18 @@ pub fn delete_question(id: u32, then: Option<Command>) -> Confirm {
 /// What leaving the message screen does: back to the safe house menu when the inbox was opened there, otherwise the screen
 /// pops.
 pub fn leave_command(args: Args) -> Command {
+    // The inbox opened over free roam (`flow_sms.rs`) goes back to driving.
+    if args.from_world {
+        return Command::Resume;
+    }
     if !args.safehouse {
         return Command::Pop;
     }
     Command::Switch(screen::MAIN_MENU_SUB.to_string(), Args { safehouse: true, ..Args::default() })
 }
 
-/// Back: to the safe house menu when the inbox was opened there, otherwise the screen pops.
+/// Back: to the safe house menu when the inbox was opened there, to the game when it was opened over free roam, otherwise
+/// the screen pops.
 pub(super) fn leave(cx: &mut Cx, args: Args) {
     cx.send(leave_command(args));
 }
@@ -242,11 +265,22 @@ pub struct InboxLogic {
     /// A message opened from the list stands over it: the list is out and draws no hints.
     reading: bool,
     moved: bool,
+    /// The message the inbox opens once its package reports it is up (`INIT_COMPLETE`): the delivery while driving.
+    open_on_init: Option<u32>,
 }
 
 impl InboxLogic {
     fn new(args: Args) -> Self {
-        Self { args, tab: InboxTab::Story, at: 0, first: 0, entries: Vec::new(), reading: false, moved: false }
+        Self {
+            args,
+            tab: InboxTab::Story,
+            at: 0,
+            first: 0,
+            entries: Vec::new(),
+            reading: false,
+            moved: false,
+            open_on_init: None,
+        }
     }
 
     /// Brings the tabs, the rows and the footer in.
@@ -330,14 +364,20 @@ impl InboxLogic {
     /// otherwise the list goes out under the message and comes back when the message closes.
     fn open_focused(&mut self, cx: &mut Cx) {
         let Some(entry) = self.focused(cx) else { return };
-        set_opened(entry.id);
+        self.open_message(cx, entry.id);
+    }
+
+    /// Opens message `id` over the list (or in its place from the safe house).
+    fn open_message(&mut self, cx: &mut Cx, id: u32) {
+        set_opened(id);
         if self.args.safehouse {
             cx.send(Command::Switch(screen::SMS_MESSAGE.to_string(), self.args));
             return;
         }
         self.reading = true;
         cx.rt.post_to_package(cx.package, LIST_OUT);
-        cx.send(Command::Push(screen::SMS_MESSAGE.to_string(), self.args));
+        // The message closes back to this list, also over free roam.
+        cx.send(Command::Push(screen::SMS_MESSAGE.to_string(), Args { from_world: false, ..self.args }));
     }
 }
 
@@ -356,20 +396,46 @@ impl ScreenLogic for InboxLogic {
     }
 
     fn start(&mut self, cx: &mut Cx) {
+        let open = take_open_at();
+        if let Some(id) = open {
+            self.tab = match nfsmw_career::phone::is_story(id) {
+                true => InboxTab::Story,
+                false => InboxTab::Tips,
+            };
+        }
         self.show_tab(cx);
         self.refresh(cx);
         self.list_in(cx);
         cx.rt.post_to_package(cx.package, INPUT_ENABLE);
+        let Some(id) = open else { return };
+        if let Some(at) = self.entries.iter().position(|entry| entry.id == id) {
+            (self.at, self.first) = moved(at, self.first, 0, self.entries.len());
+            self.refresh(cx);
+        }
+        self.open_on_init = Some(id);
     }
 
     fn resume(&mut self, cx: &mut Cx) {
         self.refresh(cx);
         if self.reading {
             self.list_in(cx);
+            // READ switched the buttons off.
+            cx.rt.post_to_package(cx.package, INPUT_ENABLE);
         }
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
+        // The original's inbox opened at a message pushes it once its package is up: READ on the event handler (no row
+        // was pressed), then the message.
+        if message == INIT_COMPLETE
+            && let Some(id) = self.open_on_init.take()
+        {
+            if let Some(handler) = cx.object(EVENT_HANDLER) {
+                cx.rt.run_script(handler, READ_SCRIPT);
+            }
+            self.open_message(cx, id);
+            return;
+        }
         match message {
             PAD_BACK => leave(cx, self.args),
             ROW => self.open_focused(cx),

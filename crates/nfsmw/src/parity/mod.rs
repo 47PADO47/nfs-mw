@@ -7,6 +7,7 @@
 //! saves them.
 
 pub mod career_trace;
+pub mod fe_dump;
 pub mod header;
 pub mod nis_capture;
 pub mod race_run;

@@ -20,9 +20,6 @@ const RIVAL_GROUP: u32 = 0x895E_5289;
 const TOLL_BOOTH_GROUP: u32 = 0xC591_84C1;
 const SPEEDTRAP_GROUP: u32 = 0xFBE6_5EB3;
 const APPEAR: u32 = 0x5079_C8F8;
-/// The package's SHOW script, used by its footer after INIT_COMPLETE.
-const SHOW: u32 = 0x001C_A7C0;
-const FOOTER: u32 = 0x37AC_A28C;
 /// The package's event handler string (`EVENT HANDLER`) and its entrance script (500 ms: `0xBDFD2DF9` to the parts,
 /// `INIT_COMPLETE`, and the message that switches the buttons on).
 const EVENT_HANDLER: u32 = 0x47FF_4E7C;
@@ -119,11 +116,12 @@ impl PhotoLogic {
     fn fill(&self, cx: &mut Cx) {
         let p = &self.photo;
         let units = cx.settings.speed_units;
-        let cash = format!("{} {}", i18n::game_or_error(CASH_WORD), p.cash);
+        // `CASH: 10,000`, as the original writes it (read live on its win photo).
+        let cash = format!("{}: {}", i18n::game_or_error(CASH_WORD), grouped(i64::from(p.cash)));
         match p.kind {
             PhotoKind::Sprint => {
                 cx.text_object(SPRINT_CASH, &cash);
-                cx.text_object(SPRINT_TIME, &format!("{} @ {}", clock(p.time), speed(p.speed, units)));
+                cx.text_object(SPRINT_TIME, &format!("{} @ {}", race_clock(p.time), speed(p.speed, units)));
             }
             PhotoKind::Drag => {
                 cx.text_object(RIVAL_CASH, &cash);
@@ -199,6 +197,12 @@ fn clock(secs: f32) -> String {
     format!("{}:{:02}:{:02}", hundredths / 6000, (hundredths / 100) % 60, hundredths % 100)
 }
 
+/// The race time of the win photo as the original writes it: `m:ss.cc` with the minutes two wide (` 1:27.88`, read live).
+fn race_clock(secs: f32) -> String {
+    let hundredths = (secs.max(0.0) * 100.0).round() as u64;
+    format!("{:2}:{:02}.{:02}", hundredths / 6000, (hundredths / 100) % 60, hundredths % 100)
+}
+
 /// `m:ss`, for the tollbooth bonus.
 fn clock_short(secs: f32) -> String {
     let whole = secs.max(0.0).round() as u64;
@@ -261,11 +265,7 @@ impl ScreenLogic for PhotoLogic {
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
         match (message, self.report.is_some()) {
-            (crate::frontend::ids::INIT_COMPLETE, _) if self.faded => {
-                if let Some(footer) = cx.object(FOOTER) {
-                    cx.rt.run_script(footer, SHOW);
-                }
-            }
+            // The footer keeps its first script: the original plays no other on it (read live on the win photo).
             (PAD_ACCEPT, true) => cx.send(Command::RaceAnswer(RaceAnswer::Exit)),
             (PAD_ACCEPT, false) => cx.send(Command::Resume),
             (STATS, true) => self.show_stats(cx),
@@ -274,8 +274,9 @@ impl ScreenLogic for PhotoLogic {
         }
     }
 
-    /// The footer's Race Stats and Restart buttons answer the pad's second button and key 1 whichever footer button has the
-    /// focus, as the results screen's do; the package's own message for the same press is passed over.
+    /// The footer's Race Stats and Restart buttons answer pad button 4 (key 2) and button 5 (key 1) whichever footer button
+    /// has the focus, as the results screen's do and as the original's keys are (2 opens the results, 1 the Restart
+    /// question, read live); the package's own message for the same press is passed over.
     fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
         if bits & STATS_BIT != 0 {
             self.show_stats(cx);
@@ -295,6 +296,12 @@ mod tests {
         assert_eq!(clock(80.5), "1:20:50");
         assert_eq!(clock(0.0), "0:00:00");
         assert_eq!(clock_short(35.0), "0:35");
+    }
+
+    #[test]
+    fn the_win_photo_time_reads_like_the_originals() {
+        assert_eq!(race_clock(87.88), " 1:27.88");
+        assert_eq!(race_clock(605.0), "10:05.00");
     }
 
     #[test]

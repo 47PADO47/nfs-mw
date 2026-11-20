@@ -36,6 +36,7 @@ impl Frontend {
             self.latch = true;
             self.paused.set(true);
             self.stage = Stage::Paused;
+            self.screens.set_in_game();
             let logic = super::rewards::RewardsLogic::new(rewards);
             let commands = self.screens.open_with(MILESTONE_REWARDS, Box::new(logic), true, env);
             self.apply(commands, host, env);
@@ -67,12 +68,14 @@ impl Frontend {
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
+        self.screens.set_in_game();
         let commands = self.screens.open_with(name, logic, true, env);
         self.apply(commands, host, env);
     }
 
     /// The standings of a race, from the photo's Race Stats button.
     pub(super) fn show_results(&mut self, report: RaceReport, host: &mut Host, env: &mut Env) {
+        self.screens.set_in_game();
         let commands = self.screens.open_with(POST_RACE_RESULTS, Box::new(PostRaceLogic::new(report)), false, env);
         self.apply(commands, host, env);
     }
@@ -81,6 +84,7 @@ impl Frontend {
     pub(super) fn show_pursuit_results(&mut self, report: PursuitReport, host: &mut Host, env: &mut Env) {
         log::info!("chase: the pursuit statistics are up");
         let logic = super::pursuit_results::PursuitResultsLogic::new(report);
+        self.screens.set_in_game();
         let commands = self.screens.open_with(POST_RACE_PURSUIT, Box::new(logic), true, env);
         self.apply(commands, host, env);
     }

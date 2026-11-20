@@ -379,3 +379,32 @@ NFSMW_NIS_CAPTURE_SIZE=960x540 nfsmw --game-dir "<install>" play --new-career CA
   --ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right" \
   --seed 1 --stock-rules --no-sound --backend vulkan --bench-seconds 3000 --offscreen --screenshot-size 960x540
 ```
+
+### Front-end screen dump
+
+`NFSMW_FE_DUMP=<file>` writes what the front end hands the presenter for each screen as JSON lines, once the screen has
+settled (`crates/nfsmw/src/parity/fe_dump.rs`, rows in `crates/nfsmw/src/frontend/screens/dump_rows.rs`). It works on any
+command that shows FEng screens (`play`, `view-screen`). `NFSMW_FE_DUMP_SCREENS=SMS_Message,InGamePhotoMaster` limits it
+to some screens. A screen has settled when it has been drawn for 1.5 s without a break and none of its objects plays a
+play-once script that has not ended; a screen still animating after 2.5 s gets its first snapshot then anyway, with
+`settled: false`. A screen gets up to three snapshots 2 s apart. Each line (`schema`
+`fe-screen-dump-v1`) names the screen, the screens drawn in the same frame and the build, and holds one row per package
+object: `name_hash`, `guid`, `type` (the package file's type number), `parent`, `flags`, `hidden`, `colour` (RGBA),
+`pos`, `pivot`, `rot`, `size`, `uv`, `texture`, `label`, `text`, `script` (`id`, `time` in runtime ticks, `length`,
+`mode`), `visible`, `drawn` (in the presented tree's draw order), `in_tree` and `world` (the tree's screen point), and for a
+node in the tree `world_colour`, `z` and a coloured image's `corners`. `frame_drawn` gives, per package of the frame, the
+number of objects it drew (0 for a package walked but drawing nothing, as the original's HUD under an in-game screen);
+the comparer counts a package in the frame only when it drew something. A screen covered by another screen (the inbox
+under a message) starts a new set of snapshots. Nodes
+the host added to the tree (footer hints) follow with `host_added: true`. An object the presented tree does not hold has
+`in_tree: false`. Nothing drawn outside the package trees (egui panels, the 3D backdrop) is in the dump.
+
+```sh
+NFSMW_FE_DUMP=out/fe_dump.jsonl nfsmw --game-dir "<install>" play --new-career CAREERRUN --career-start first-car-lot \
+  --skip-cinematics --autopilot --exit-after-first-visit \
+  --ui-script "loop; wait 6; accept; wait 1; left; wait 0.5; accept; wait 6; right; wait 0.5; right; wait 6; back" \
+  --seed 1 --stock-rules --silent-audio --backend vulkan --bench-seconds 900 --offscreen --max-fps 60
+```
+
+The scripted pad must leave a screen up for longer than the settle time: the shorter loop of "Unattended career run"
+closes the drive's message after less than a second.

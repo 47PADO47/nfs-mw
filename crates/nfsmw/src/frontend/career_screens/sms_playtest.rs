@@ -19,8 +19,9 @@ const STORY_NEW: u32 = 0x000F_321F;
 const TIPS_NEW: u32 = 0x000F_337E;
 const TAB_FRAME: u32 = 0x000F_45EE;
 const FIRST_ROW_TEXT: u32 = 0x000F_319B;
-/// Both copies of the inbox's own hints: the console's (inside the footer group) and the keyboard's three groups.
-const PACKAGE_HINTS: [u32; 6] = [0x000F_46A8, 0x000F_46AB, 0x000F_4714, 0x0012_2503, 0x0010_6663, 0x0010_6659];
+/// The inbox's own footer buttons, by name: the keyboard's Read, Back and Delete groups and the pad's.
+const KEY_HINTS: [u32; 3] = [0x9502_D148, 0x5232_50E9, 0xC1C1_90EB];
+const PAD_HINTS: [u32; 3] = [0x23AF_B3F6, 0x1C7F_CF8B, 0xD18B_818D];
 
 fn career_with(ids: &[u32]) -> Career {
     let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
@@ -43,6 +44,12 @@ fn node(tree: &UiTree, guid: u32) -> &blackbox_feng::UiNode {
 fn drawn_hints(h: &Harness, device: InputDevice) -> (UiTree, usize) {
     let raw = h.tree().nodes.len();
     (h.presented(device), raw)
+}
+
+/// Whether a child of the group named `group` is drawn.
+fn drawn_group(tree: &UiTree, group: u32) -> bool {
+    let Some(root) = tree.nodes.iter().position(|n| n.name_hash == group) else { return false };
+    tree.draw_order.iter().any(|&i| tree.nodes[i].parent == Some(root))
 }
 
 #[test]
@@ -78,15 +85,18 @@ fn the_inbox_footer_follows_the_device_used_last() {
     open_inbox(&mut h);
     for device in [InputDevice::Keyboard, InputDevice::Xbox, InputDevice::Keyboard] {
         let (shown, raw) = drawn_hints(&h, device);
-        let hints = &shown.nodes[raw..];
-        let says = |text: &str| hints.iter().any(|n| n.visible && n.text.as_deref() == Some(text));
-        assert!(says("Back") && says("Read") && says("Delete"), "{device:?}: the drawn footer");
-        let glyphs =
-            hints.iter().any(|n| n.visible && matches!(n.kind, NodeKind::Image { texture, .. } if texture == ATLAS));
+        assert_eq!(shown.nodes.len(), raw, "{device:?}: the package draws its own footer, the host adds nothing");
+        let (used, other) = match device {
+            InputDevice::Keyboard => (KEY_HINTS, PAD_HINTS),
+            InputDevice::Xbox => (PAD_HINTS, KEY_HINTS),
+        };
+        assert!(used.iter().all(|&g| drawn_group(&shown, g)), "{device:?}: the device's buttons are drawn");
+        assert!(!other.iter().any(|&g| drawn_group(&shown, g)), "{device:?}: the other device's are not");
+        let glyphs = shown
+            .draw_order
+            .iter()
+            .any(|&i| matches!(shown.nodes[i].kind, NodeKind::Image { texture, .. } if texture == ATLAS));
         assert_eq!(glyphs, device == InputDevice::Xbox, "{device:?}: pad glyphs only for the controller");
-        for guid in PACKAGE_HINTS {
-            assert!(!shown.nodes.iter().any(|n| n.guid == guid && n.visible), "{device:?}: {guid:#x} still shows");
-        }
     }
     CareerHandle::shared().clear();
 }
@@ -151,7 +161,7 @@ fn accept_opens_the_highlighted_message_and_back_brings_the_list_back() {
         h.screens.top()
     );
     assert!(shows_list(&h.tree()), "the list is back after the message");
-    let (shown, raw) = drawn_hints(&h, InputDevice::Keyboard);
-    assert!(shown.nodes[raw..].iter().any(|n| n.visible && n.text.as_deref() == Some("Read")), "the footer is back");
+    let (shown, _) = drawn_hints(&h, InputDevice::Keyboard);
+    assert!(drawn_group(&shown, KEY_HINTS[0]), "the footer's Read is back");
     CareerHandle::shared().clear();
 }

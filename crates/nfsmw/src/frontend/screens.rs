@@ -21,6 +21,7 @@ use crate::ui::{Catalog, UiAssets};
 mod aspect;
 mod car_loading;
 mod command;
+mod dump_rows;
 mod geometry;
 mod input_gate;
 mod layers;
@@ -80,6 +81,9 @@ pub struct Screens {
     start_press: Option<crate::input::PlayerDevice>,
     /// The screen and backdrop-loading state the loading LEDs were last told (`screens/car_loading.rs`).
     car_loading: Option<(PackageId, bool)>,
+    /// The stack is opened over the running game (`set_in_game`, until it empties): screens opened now get the dim panel
+    /// under them.
+    in_game: bool,
 }
 
 impl Screens {
@@ -107,6 +111,7 @@ impl Screens {
             last_pad: 0,
             start_press: None,
             car_loading: None,
+            in_game: false,
         }
     }
 
@@ -130,6 +135,7 @@ impl Screens {
         while let Some(s) = self.stack.pop() {
             self.runtime.unload(s.id);
         }
+        self.in_game = false;
         self.trace_stack("clear");
     }
 
@@ -165,14 +171,16 @@ impl Screens {
         };
         if replace && let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
+            self.close_bare_background();
         }
-        self.open_pause_background(name);
+        self.open_in_game_background(name);
         let missing = self.assets.missing_resources(&package);
         if !missing.is_empty() {
             log::debug!("{name}: resources without a texture or font: {missing:?}");
         }
         let file_name = package.name.clone();
         let id = self.runtime.load(package);
+        super::prompts::package_footer::reveal_keys(&mut self.runtime, id, &file_name);
         let mut commands = Vec::new();
         let mut cx = Cx {
             rt: &mut self.runtime,
@@ -204,6 +212,7 @@ impl Screens {
         if let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
         }
+        self.close_bare_background();
         self.trace_stack("pop");
         self.await_release = true;
         self.give_control();
