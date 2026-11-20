@@ -77,6 +77,8 @@ pub struct RenderExperiments {
     pub auto_player_lights: bool,
     /// Player tail and brake lights illuminate nearby surfaces.
     pub local_tail_lights: bool,
+    /// Allow moving rear and emergency spill lights to use local shadow maps.
+    pub moving_spill_shadows: bool,
     /// Flashing emergency light bars of nearby vehicles illuminate the surfaces around them.
     pub local_emergency_lights: bool,
     /// Brightness of the emergency light-bar spill.
@@ -223,6 +225,7 @@ impl Default for RenderExperiments {
             full_day_night: false,
             auto_player_lights: true,
             local_tail_lights: false,
+            moving_spill_shadows: false,
             local_emergency_lights: false,
             local_emergency_strength: 1.0,
             night_sky_brightness: 0.18,

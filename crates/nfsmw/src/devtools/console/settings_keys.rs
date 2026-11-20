@@ -54,6 +54,7 @@ pub(super) const KEYS: [&str; 133] = [
     "speed_trail_style",
     "exhaust_flames",
     "enhanced_exhaust",
+    "moving_spill_shadows",
     "turn_signals",
     "rider_gear",
     "easy_wheelie",

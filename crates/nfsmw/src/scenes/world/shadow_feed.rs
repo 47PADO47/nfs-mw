@@ -128,7 +128,8 @@ fn needs_casters(settings: &blackbox_gfx::RenderExperiments) -> bool {
     let local = settings.local_lamps
         || settings.local_street_lights
         || settings.local_headlights
-        || settings.local_traffic_headlights;
+        || settings.local_traffic_headlights
+        || (settings.moving_spill_shadows && (settings.local_tail_lights || settings.local_emergency_lights));
     settings.sun_shadows || (local && settings.local_shadow_count > 0)
 }
 
@@ -186,6 +187,15 @@ mod tests {
             ..Default::default()
         };
         assert!(!super::needs_casters(&off), "night alone draws no shadow map");
+        for spill in [
+            blackbox_gfx::RenderExperiments { local_tail_lights: true, ..off },
+            blackbox_gfx::RenderExperiments { local_emergency_lights: true, ..off },
+        ] {
+            assert!(!super::needs_casters(&spill));
+            let active = blackbox_gfx::RenderExperiments { moving_spill_shadows: true, ..spill };
+            assert!(super::needs_casters(&active));
+            assert!(!super::needs_casters(&blackbox_gfx::RenderExperiments { local_shadow_count: 0, ..active }));
+        }
         let street = blackbox_gfx::RenderExperiments { local_street_lights: true, ..off };
         assert!(super::needs_casters(&street));
         assert!(!super::needs_casters(&blackbox_gfx::RenderExperiments { local_shadow_count: 0, ..street }));
