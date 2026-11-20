@@ -203,6 +203,9 @@ impl WorldScene {
                 overlay_open: false,
                 garage_backdrop: None,
                 garage_exit: None,
+                car_environment: super::car_environment::CarEnvironment::from_zones(
+                    audio_environment.as_ref().and_then(|map| map.zones.as_ref()),
+                ),
                 audio_environment,
                 common_sounds: Vec::new(),
                 sound_speedbreaker_active: false,

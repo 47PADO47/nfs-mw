@@ -124,6 +124,7 @@ struct VsOut {
     @location(8) original_half: vec3<f32>,
     @location(9) original_normal: vec3<f32>,
     @location(10) original_light: vec3<f32>,
+    @location(12) @interpolate(flat) environment_open: f32,
     @location(11) @interpolate(flat) receives_shadow: u32,
 };
 
@@ -132,6 +133,7 @@ fn vs_main(v: VsIn) -> VsOut {
     let model = mat4x4<f32>(v.model_0, v.model_1, v.model_2, v.model_3);
     let world = model * vec4<f32>(v.position, 1.0);
     var out: VsOut;
+    out.environment_open = 1.0 - v.shadow_flags.z;
     out.receives_shadow = u32(v.shadow_flags.x);
     out.clip = globals.view_proj * world;
     out.normal = (model * vec4<f32>(v.normal, 0.0)).xyz;
@@ -178,6 +180,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     }
     if shadow_data.environment.x > 0.5 { indirect = rig.ambient.xyz + environment_light(n); }
     if material.lighting.y > 0.0 { indirect = max(indirect, hemisphere_floor(n)); }
+    indirect *= in.environment_open;
     let direct = saturate(dot(n, rig.to_light[0].xyz) + 0.1) * rig.color[0].xyz * visibility;
     let light = direct + indirect * ao;
 
@@ -231,7 +234,8 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     if !finish_on { env = hybrid_environment(in.world, n, reflected, env); }
     // Environment reflections fade where AO is dark; sun highlights keep their direct visibility.
     // Car paint keeps its full reflection: screen-space AO reads a car's own curves as occluders.
-    let specular_ao = 1.0;
+    let specular_ao = in.environment_open;
+    reflection_intensity *= in.environment_open;
 
     var out: Shaded;
     out.rgb = diffuse_rgb

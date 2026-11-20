@@ -20,8 +20,8 @@ Luminance targets use the renderer's validated format fallback on non-HDR adapte
 The Bevy renderer hides this unsupported option and retains its saved preference.
 
 This is a midday proof of concept, not complete original rendering parity:
-dynamic tunnel exposure, time-of-day interpolation and pursuit/cinematic look
-selection remain open. Existing lighting differences, including the port's
+authored tunnel exposure, time-of-day interpolation and pursuit/cinematic look
+selection remain open. Enhanced has optional [histogram exposure](auto-exposure.md). Existing lighting differences, including the port's
 bright sky, can still cause highlight clipping at full strength. Subtle offers
 a gentler comparison while those systems are implemented.
 

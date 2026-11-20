@@ -84,6 +84,8 @@ pub struct Instance {
     pub shadow: ShadowFlags,
     /// Emission of materials that use an authored alpha mask.
     pub emission: f32,
+    /// Fraction of ambient and reflected light blocked. Negative values compensate for a sheltered capture.
+    pub environment_occlusion: f32,
     /// The scene object this instance belongs to: selects fixture emission power and excludes a fixture from
     /// shadowing its own light. Detached model parts share their placement's owner.
     pub owner_key: InstanceKey,
@@ -102,6 +104,7 @@ impl Instance {
             key: InstanceKey::TRANSIENT,
             shadow: ShadowFlags { cast: true, receive: true },
             emission: 0.0,
+            environment_occlusion: 0.0,
             owner_key: InstanceKey::TRANSIENT,
             flip_winding: false,
         }
@@ -115,6 +118,7 @@ impl Instance {
             key,
             shadow: ShadowFlags { cast: true, receive: true },
             emission: 0.0,
+            environment_occlusion: 0.0,
             owner_key: key,
             flip_winding: false,
         }

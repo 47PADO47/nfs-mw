@@ -119,6 +119,7 @@ fn custom_overrides_survive_a_round_trip_and_quality_selection() {
     s.appearance.lighting.local_reflection_correction = false;
     s.appearance.lighting.weather_car_lighting = false;
     s.appearance.treatment_strength = Some(0.73);
+    s.appearance.auto_exposure = true;
     s.appearance.vignette = 0.42;
     s.appearance.dlss_model = DlssModel::K;
     s.appearance.lighting.freeze_sun = true;
@@ -139,6 +140,7 @@ value=7
     let mut loaded = Settings::from(super::super::file::parse(&text, "test"));
     assert_eq!(loaded.post_aa, PostAa::Smaa);
     assert_eq!(loaded.appearance.treatment_strength, Some(0.73));
+    assert!(loaded.graphics().post.auto_exposure.is_some());
     assert_eq!(loaded.appearance.vignette, 0.42);
     assert_eq!(loaded.appearance.dlss_model, DlssModel::K);
     assert_eq!(loaded.graphics().dlss_model, 11);

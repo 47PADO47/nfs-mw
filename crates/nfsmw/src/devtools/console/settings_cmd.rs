@@ -20,6 +20,8 @@ use crate::settings::{
 /// The text for `get <key>`, or an error naming the valid keys.
 pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
     let value = match key {
+        "sun_shafts" => on_off(settings.appearance.lighting.sun_shafts).to_owned(),
+        "sun_shaft_strength" => settings.appearance.lighting.sun_shaft_strength.to_string(),
         "traffic_preset" => settings.traffic_preset().to_string(),
         "traffic_population" => settings.population_preset().to_string(),
         "traffic_density" => settings.traffic_policy.density_percent.to_string(),
@@ -27,6 +29,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "car_geometry" => settings.detail.car.to_string(),
         "geometry_range" => settings.detail.geometry_range.to_string(),
         "visibility_range" => settings.detail.visibility_range.to_string(),
+        "per_car_environment" => on_off(settings.appearance.lighting.per_car_environment).to_owned(),
         "highest_world" => on_off(settings.detail.highest_world).to_owned(),
         "highest_player" => on_off(settings.detail.highest_player).to_owned(),
         "deadzone_mode" => settings.controls.deadzone_mode.to_string(),
@@ -72,6 +75,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "speed_trail_style" => settings.speed_trail_style.to_string(),
         "exhaust_flames" => on_off(settings.exhaust_flames).to_owned(),
         "enhanced_exhaust" => on_off(settings.enhanced_exhaust).to_owned(),
+        "moving_spill_shadows" => on_off(settings.appearance.lighting.moving_spill_shadows).to_owned(),
         "turn_signals" => on_off(settings.turn_signals).to_owned(),
         "rider_gear" => on_off(settings.rider_gear).to_owned(),
         "easy_wheelie" => on_off(settings.easy_wheelie).to_owned(),
@@ -105,6 +109,9 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "motion_blur_strength" => settings.motion_blur_strength.to_string(),
         "grading_strength" => settings.grading_strength.to_string(),
         "post_tonemap" => settings.post_tonemap.to_string(),
+        "auto_exposure" => on_off(settings.appearance.auto_exposure).to_owned(),
+        "physical_bloom" => (settings.appearance.optics.physical_bloom * 100.0).round().to_string(),
+        "sun_glare" => (settings.appearance.optics.sun_glare * 100.0).round().to_string(),
         "post_bloom" => settings.post_bloom.to_string(),
         "post_aa" => settings.post_aa.to_string(),
         "visual_treatment" => settings.visual_treatment.to_string(),
@@ -120,6 +127,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "shadows" => settings.shadows.to_string(),
         "ao" => settings.ao.to_string(),
         "ao_intensity" => settings.ao_intensity.to_string(),
+        "puddle_ripples" => on_off(settings.appearance.lighting.puddle_ripples).to_owned(),
         "ao_compare" => on_off(settings.ao_compare).to_owned(),
         "ao_depth_mips" => on_off(settings.ao_depth_mips).to_owned(),
         "ao_method" => settings.ao_method.to_string(),
@@ -145,6 +153,14 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         return set_without_value(settings, key);
     }
     match key {
+        "sun_shafts" => settings.appearance.lighting.sun_shafts = parse_bool(value)?,
+        "sun_shaft_strength" => {
+            let strength: f32 = value.parse().map_err(|_| "expected strength from 0 to 4")?;
+            if !(0.0..=4.0).contains(&strength) {
+                return Err("expected strength from 0 to 4".into());
+            }
+            settings.appearance.lighting.sun_shaft_strength = strength;
+        }
         "traffic_preset" => settings.select_traffic_preset(value.parse()?),
         "traffic_population" => settings.select_population_preset(value.parse()?),
         "traffic_density" => settings.traffic_policy.density_percent = value.parse::<Percent>()?.0,
@@ -152,6 +168,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "car_geometry" => settings.detail.car = value.parse()?,
         "geometry_range" => settings.detail.geometry_range = value.parse()?,
         "visibility_range" => settings.detail.visibility_range = value.parse()?,
+        "per_car_environment" => settings.appearance.lighting.per_car_environment = parse_bool(value)?,
         "highest_world" => settings.detail.highest_world = parse_bool(value)?,
         "highest_player" => settings.detail.highest_player = parse_bool(value)?,
         "deadzone_mode" => settings.controls.deadzone_mode = value.parse()?,
@@ -203,6 +220,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "speed_trail_style" => settings.speed_trail_style = value.parse()?,
         "exhaust_flames" => settings.exhaust_flames = parse_bool(value)?,
         "enhanced_exhaust" => settings.enhanced_exhaust = parse_bool(value)?,
+        "moving_spill_shadows" => settings.appearance.lighting.moving_spill_shadows = parse_bool(value)?,
         "turn_signals" => settings.turn_signals = parse_bool(value)?,
         "rider_gear" => settings.rider_gear = parse_bool(value)?,
         "easy_wheelie" => settings.easy_wheelie = parse_bool(value)?,
@@ -233,6 +251,9 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "motion_blur_strength" => settings.motion_blur_strength = crate::settings::motion_blur::parse_strength(value)?,
         "grading_strength" => settings.grading_strength = crate::settings::grading::parse_strength(value)?,
         "post_tonemap" => settings.post_tonemap = PostTonemap::from_str(value)?,
+        "auto_exposure" => settings.appearance.auto_exposure = parse_bool(value)?,
+        "physical_bloom" => settings.appearance.optics.physical_bloom = value.parse::<Percent>()?.amplitude(),
+        "sun_glare" => settings.appearance.optics.sun_glare = value.parse::<Percent>()?.amplitude(),
         "post_bloom" => settings.post_bloom = PostBloom::from_str(value)?,
         "post_aa" => settings.post_aa = PostAa::from_str(value)?,
         "visual_treatment" => settings.visual_treatment = value.parse()?,
@@ -248,6 +269,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "shadows" => settings.shadows = value.parse()?,
         "ao" => settings.ao = value.parse()?,
         "ao_intensity" => settings.ao_intensity = value.parse()?,
+        "puddle_ripples" => settings.appearance.lighting.puddle_ripples = parse_bool(value)?,
         "ao_compare" => settings.ao_compare = parse_bool(value)?,
         "ao_depth_mips" => settings.ao_depth_mips = parse_bool(value)?,
         "ao_method" => settings.ao_method = crate::settings::AoMethod::from_str(value)?,
@@ -275,8 +297,11 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
 /// The on/off settings, which `set <key>` flips.
 fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
     match key {
+        "per_car_environment" => Some(&mut settings.appearance.lighting.per_car_environment),
+        "sun_shafts" => Some(&mut settings.appearance.lighting.sun_shafts),
         "highest_world" => Some(&mut settings.detail.highest_world),
         "highest_player" => Some(&mut settings.detail.highest_player),
+        "auto_exposure" => Some(&mut settings.appearance.auto_exposure),
         "vsync" => Some(&mut settings.vsync),
         "invert_camera_y" => Some(&mut settings.controls.invert_camera_y),
         "hud" => Some(&mut settings.hud),
@@ -287,6 +312,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "speed_trails" => Some(&mut settings.speed_trails),
         "exhaust_flames" => Some(&mut settings.exhaust_flames),
         "enhanced_exhaust" => Some(&mut settings.enhanced_exhaust),
+        "moving_spill_shadows" => Some(&mut settings.appearance.lighting.moving_spill_shadows),
         "turn_signals" => Some(&mut settings.turn_signals),
         "rider_gear" => Some(&mut settings.rider_gear),
         "easy_wheelie" => Some(&mut settings.easy_wheelie),
@@ -296,6 +322,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
         "manual_clutch" => Some(&mut settings.manual_clutch),
         "h_shifter" => Some(&mut settings.h_shifter),
         "motion_blur" => Some(&mut settings.motion_blur),
+        "puddle_ripples" => Some(&mut settings.appearance.lighting.puddle_ripples),
         "ao_compare" => Some(&mut settings.ao_compare),
         "ao_depth_mips" => Some(&mut settings.ao_depth_mips),
         "traffic_lights" => Some(&mut settings.traffic_lights),
@@ -311,6 +338,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
 /// What a setting accepts, for the usage line.
 fn syntax(key: &str) -> Option<&'static str> {
     Some(match key {
+        "sun_shaft_strength" => "<0-4>",
         "traffic_preset" => "<reference|extended|custom>",
         "traffic_population" => "<normal|high|very-high|custom>",
         "traffic_density" => "<0-100>",
@@ -351,6 +379,9 @@ fn syntax(key: &str) -> Option<&'static str> {
         "bike_steering" | "bike-steering" => "<arcade|reference>",
         "radio_hud" | "radio-hud" => "<ea_trax|custom> (alias of ui_style)",
         "post_tonemap" => "<off|aces>",
+        "auto_exposure" => "<on|off>",
+        "physical_bloom" => "<0..100>",
+        "sun_glare" => "<0..100>",
         "post_bloom" => "<off|low|medium|high>",
         "post_aa" => "<off|fxaa|smaa|taa>",
         "visual_treatment" => "<off|low|high>",

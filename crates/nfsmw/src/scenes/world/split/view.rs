@@ -112,6 +112,7 @@ impl WorldScene {
         if self.original_sky {
             self.residency.sky.place(&self.residency.shared, out, lens.position, crate::scenes::world::sky::View::Main);
         }
+        let cars_start = out.len();
         if let Some(traffic) = &mut self.traffic {
             let placed = self.residency.placed().filter_map(crate::scenes::world::ai::signal_props::candidate);
             traffic.update_signal_props(self.residency.visual_revision(), placed);
@@ -138,6 +139,8 @@ impl WorldScene {
         // A multiplayer client's remote cars: other players, traffic, police (`net_client/remote.rs`).
         #[cfg(feature = "multiplayer")]
         self.remote_car_instances(out);
+        let probe = self.players.lead().map(|drive| drive.position());
+        self.car_environment.apply(self.clock, self.residency.collision(), probe, &mut out[cars_start..]);
         // Each half shows its own player's route arrow: the first player's in theirs, a co-op guest's in the second.
         let arrow = match viewer {
             Viewer::First => self.route_arrow(),

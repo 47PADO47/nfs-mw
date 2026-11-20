@@ -17,10 +17,13 @@ macro_rules! lighting {
     }
 }
 lighting! {
-    enhanced_sky: bool, cloud_shadows: bool,
+    per_car_environment: bool,
+    moving_spill_shadows: bool,
+    enhanced_sky: bool, cloud_shadows: bool, sun_shafts: bool, sun_shaft_strength: f32,
     local_lamps: bool, local_street_lights: bool, local_headlights: bool, local_traffic_headlights: bool, local_traffic_limit: u32, experimental_night: bool, full_day_night: bool, auto_player_lights: bool, local_tail_lights: bool, local_emergency_lights: bool, local_emergency_strength: f32, night_sky_brightness: f32, local_light_distance: f32, local_light_strength: f32,
     local_headlight_strength: f32, local_street_strength: f32, local_street_range: f32, local_street_glow: f32, local_light_fog: f32, local_light_fog_distance: f32, local_light_fog_quality: u32, local_street_haze_count: u32, local_light_fog_count: u32, local_light_limit: u32, local_shadow_count: u32, local_shadow_resolution: u32, local_shadow_filter: f32, local_shadow_distance: f32, local_specular_strength: f32,
     enhanced_wet_surfaces: bool, puddle_coverage: f32, puddle_scale: f32, water_ripples: f32,
+    puddle_ripples: bool,
     road_reflection_range: f32, road_reflection_fade: f32,
     ray_texture_quality: u32,
     ray_soft_shadows: bool, ray_shadow_samples: u32, ray_shadow_resolution: u32, ray_shadow_temporal: bool, ray_shadow_filter: f32,
@@ -44,6 +47,8 @@ struct Stored {
     style: VisualStyle,
     quality: Quality,
     treatment_strength: Option<f32>,
+    auto_exposure: bool,
+    optics: Optics,
     vignette: f32,
     dlss_model: DlssModel,
     lighting: Lighting,
@@ -56,6 +61,8 @@ impl Default for Stored {
             style: VisualStyle::Custom,
             quality: Quality::High,
             treatment_strength: None,
+            auto_exposure: false,
+            optics: Default::default(),
             vignette: 0.0,
             dlss_model: DlssModel::Auto,
             lighting: Default::default(),
@@ -87,6 +94,8 @@ pub(super) fn read(value: &toml::Value, origin: &str) -> Option<Appearance> {
         style: stored.style,
         quality: stored.quality,
         treatment_strength: stored.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
+        auto_exposure: stored.auto_exposure,
+        optics: stored.optics,
         vignette: match stored.vignette.is_finite() {
             true => stored.vignette.clamp(0.0, 1.0),
             false => 0.0,
@@ -102,6 +111,8 @@ pub(super) fn value(value: Appearance) -> anyhow::Result<toml::Value> {
         style: value.style,
         quality: value.quality,
         treatment_strength: value.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
+        auto_exposure: value.auto_exposure,
+        optics: value.optics,
         vignette: match value.vignette.is_finite() {
             true => value.vignette.clamp(0.0, 1.0),
             false => 0.0,

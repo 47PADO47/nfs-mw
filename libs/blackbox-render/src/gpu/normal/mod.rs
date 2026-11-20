@@ -164,7 +164,7 @@ impl Normal {
                     water.1.enhanced_wet_surfaces
                         && matches!(frame.projection, blackbox_gfx::Projection::PerspectiveInfiniteReverse { .. }),
                 ) as f32,
-                0.0,
+                u8::from(water.1.puddle_ripples) as f32,
             ],
             [water.0.dampness, water.0.pooling, water.0.time, water.0.rain],
             [

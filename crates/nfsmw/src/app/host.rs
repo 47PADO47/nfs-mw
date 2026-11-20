@@ -251,7 +251,7 @@ impl Host {
     /// Give the renderer the graphics settings (once per change).
     pub fn apply_graphics(&mut self, settings: &Settings) {
         let Some(renderer) = self.renderer.as_mut() else { return };
-        self.graphics.apply(renderer.as_mut(), settings);
+        self.graphics.apply(renderer.as_mut(), settings, self.scene.world_camera_optics());
     }
 
     pub fn set_tire_effects(&mut self, smoke: bool, marks: bool) {

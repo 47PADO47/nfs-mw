@@ -40,6 +40,9 @@ pub struct SoftDraw<'a> {
 
 pub struct LocalFogShadows<'a> {
     pub data: &'a wgpu::Buffer,
+    pub cloud: &'a wgpu::TextureView,
+    pub cascades: &'a wgpu::TextureView,
+    pub detail: &'a wgpu::TextureView,
     pub map: &'a wgpu::TextureView,
     pub sampler: &'a wgpu::Sampler,
 }
@@ -215,6 +218,11 @@ impl Effects {
         {
             batch.upload(device, queue, vertices);
         }
+    }
+
+    /// Set directional scattering independently of local lights.
+    pub fn set_sun_shaft_strength(&mut self, strength: f32) {
+        self.light_fog.sun_strength = strength.clamp(0.0, 4.0);
     }
 
     /// Supply the scene's local lights for the optional shared fog pass.

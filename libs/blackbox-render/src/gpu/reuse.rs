@@ -64,7 +64,10 @@ impl Renderer {
         if self.dlss.is_some() {
             return false;
         }
-        if self.post.has_temporal() || self.post_effects().antialiasing == Antialiasing::Taa {
+        if self.post_effects().auto_exposure.is_some()
+            || self.post.has_temporal()
+            || self.post_effects().antialiasing == Antialiasing::Taa
+        {
             return false;
         }
         self.output.copyable()

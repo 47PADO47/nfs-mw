@@ -8,6 +8,8 @@ use super::{PassContext, PassIo, PostChain, PostPass, fxaa};
 use crate::gpu::targets::{FrameTargets, HDR_FORMAT};
 use crate::{Antialiasing, PostSettings, Tonemap};
 
+#[path = "auto_exposure_tests.rs"]
+mod auto_exposure_tests;
 #[path = "colour_cube_tests.rs"]
 mod colour_cube_tests;
 #[path = "focus_tests.rs"]
@@ -38,7 +40,12 @@ fn the_effect_shaders_validate_and_expose_their_entry_points() {
     for (name, source, entries) in [
         ("tonemap", &tonemap, &["vs_main", "fs_main"][..]),
         ("fxaa", &fxaa, &["vs_main", "fs_main"][..]),
-        ("bloom", &bloom, &["vs_main", "fs_prefilter", "fs_down", "fs_up", "fs_composite", "fs_composite_tonemap"][..]),
+        (
+            "bloom",
+            &bloom,
+            &["vs_main", "fs_prefilter", "fs_down", "fs_up", "fs_physical_up", "fs_composite", "fs_composite_tonemap"]
+                [..],
+        ),
     ] {
         let module = validate(name, source);
         for entry in entries {
@@ -325,9 +332,21 @@ fn check(backend: wgpu::Backends) {
         assert!(mapped.iter().all(|&p| near(p, expected, 2)), "exposure {exposure}: {:?} vs {expected:?}", mapped[0]);
     }
 
+    let physical = PostSettings { physical_bloom: 1.0, ..PostSettings::default() };
+    let paint = gpu.run(&mut gpu.chain_with(physical), size, flat);
+    assert!(paint.iter().all(|&p| near(p, [255, 128, 64, 255], 1)), "constant paint gains no light");
+
     // Bloom: a bright square spills light onto its black surroundings; below the threshold nothing changes.
     let square = "let on = abs(pos.x - 32.0) < 6.0 && abs(pos.y - 32.0) < 6.0;
                   return select(vec4<f32>(0.0, 0.0, 0.0, 1.0), vec4<f32>(4.0, 4.0, 4.0, 1.0), on);";
+    // Physical bloom runs with legacy bloom off. A dark pixel beside an HDR lamp
+    // receives progressively more scattered light as the physical slider increases.
+    let edge = 32 * 64 + 40;
+    let halo = [0.0, 0.3, 1.0].map(|physical_bloom| {
+        let settings = PostSettings { physical_bloom, ..PostSettings::default() };
+        gpu.run(&mut gpu.chain_with(settings), size, square)[edge][0]
+    });
+    assert!(halo[0] == 0 && halo[1] > 5 && halo[2] > halo[1], "physical bloom off/30%/100%: {halo:?}");
     let settings = PostSettings { bloom_intensity: 1.0, ..PostSettings::default() };
     let mut chain = gpu.chain_with(settings);
     assert_eq!(chain.names(), ["bloom"]);

@@ -8,6 +8,9 @@ use blackbox_gfx::LocalLight;
 
 use crate::{SoftDraw, WorldBindings, world::write_mask};
 
+pub(crate) const GRID_SHADER: &str =
+    concat!(include_str!("shaders/light_fog_grid.wgsl"), "\n", include_str!("shaders/sun_shafts.wgsl"));
+
 mod grid;
 mod params;
 mod view;
@@ -51,6 +54,7 @@ pub struct LightFog {
     lights: Vec<LocalLight>,
     source_lights: Vec<LocalLight>,
     shelters: Vec<blackbox_gfx::FogShelter>,
+    pub(crate) sun_strength: f32,
     selection: crate::fog_lights::FogLights,
     last_upload: Option<std::time::Instant>,
     options: [f32; 2],
@@ -69,6 +73,7 @@ impl LightFog {
             lights: Vec::new(),
             source_lights: Vec::new(),
             shelters: Vec::new(),
+            sun_strength: 0.0,
             selection: Default::default(),
             last_upload: None,
             options: [0.0; 2],
@@ -110,12 +115,12 @@ impl LightFog {
         };
         self.lights = self.selection.update(lights, limit, dt);
         self.lights.truncate(MAX_LIGHTS);
-        if !enabled {
+        if !enabled && self.sun_strength == 0.0 {
             // Switched off: release every view's buffers now.
             self.views.clear();
             return;
         }
-        if self.lights.is_empty() {
+        if self.lights.is_empty() && self.sun_strength == 0.0 {
             self.views.iter_mut().for_each(ViewFog::forget_history);
         }
         // A view not drawn for a while (no lit fog, or the view went away) releases its buffers.
@@ -134,7 +139,7 @@ impl LightFog {
         view: FogView,
     ) {
         let Some(gpu) = &mut self.gpu else { return };
-        if self.options[0] <= 0.0 || self.lights.is_empty() {
+        if self.sun_strength == 0.0 && (self.options[0] <= 0.0 || self.lights.is_empty()) {
             return;
         }
         let size = draw.depth.texture().size();
@@ -150,7 +155,7 @@ impl LightFog {
             options: self.options,
             distance: self.distance,
         };
-        let params = Params::new(&Inputs {
+        let mut params = Params::new(&Inputs {
             inverse_view_proj: draw.inverse_view_proj,
             options: self.options,
             distance: self.distance,
@@ -160,6 +165,7 @@ impl LightFog {
             shelters: &self.shelters,
             previous: state.previous(&frame),
         });
+        params.temporal[2] = self.sun_strength;
         state.encode((device, queue), gpu, encoder, draw, (&params, &frame));
     }
 

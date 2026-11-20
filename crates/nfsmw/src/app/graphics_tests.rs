@@ -73,3 +73,19 @@ fn notes_are_logged_at_info_level() {
     assert_eq!(lines[0].0, Level::Info);
     assert!(lines[0].1.contains("noisy"), "{}", lines[0].1);
 }
+
+#[test]
+fn menus_suppress_world_glare_and_returning_to_the_world_restores_it() {
+    let mut settings = Settings::from(Partial::default());
+    settings.appearance.style = crate::settings::VisualStyle::Custom;
+    settings.appearance.optics.sun_glare = 0.4;
+    settings.appearance.optics.physical_bloom = 0.2;
+    let mut backend = crate::app::test_backend::NullBackend::new(test_caps::native());
+    let mut applied = Applied::default();
+    for world in [false, true, false, true] {
+        assert!(applied.apply(&mut backend, &settings, world));
+        let post = applied.requested.unwrap().post;
+        assert_eq!(post.sun_glare, if world { 0.4 } else { 0.0 });
+        assert_eq!(post.physical_bloom, 0.2);
+    }
+}

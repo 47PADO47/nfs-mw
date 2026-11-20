@@ -14,6 +14,10 @@ const CAR_GROUPS: u32 = 0x8000_0000;
 /// The group of the characters of a NIS scene. Car groups count up from [`CAR_GROUPS`] and never reach it.
 const CHARACTER_GROUP: u32 = 0xFFFF_0000;
 
+pub(super) fn is_car(group: u32) -> bool {
+    (CAR_GROUPS..CHARACTER_GROUP).contains(&group)
+}
+
 /// The car the player drives.
 pub const PLAYER_CAR: u32 = 0;
 
