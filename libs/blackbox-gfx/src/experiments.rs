@@ -35,6 +35,7 @@ pub struct RenderExperiments {
     pub per_car_environment: bool,
     /// Spatial wet-film and pooled-water response on eligible reflective surfaces.
     pub enhanced_wet_surfaces: bool,
+    pub puddle_ripples: bool,
     pub puddle_coverage: f32,
     /// World-space patch size in metres.
     pub puddle_scale: f32,
@@ -188,6 +189,7 @@ impl Default for RenderExperiments {
             cloud_shadows: false,
             per_car_environment: false,
             enhanced_wet_surfaces: false,
+            puddle_ripples: false,
             puddle_coverage: 0.7,
             puddle_scale: 7.0,
             water_ripples: 0.5,

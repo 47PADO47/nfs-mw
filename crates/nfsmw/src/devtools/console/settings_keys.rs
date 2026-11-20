@@ -99,6 +99,7 @@ pub(super) const KEYS: [&str; 133] = [
     "shadows",
     "ao",
     "ao_intensity",
+    "puddle_ripples",
     "ao_compare",
     "ao_depth_mips",
     "ao_method",
