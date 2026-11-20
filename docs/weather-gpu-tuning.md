@@ -7,6 +7,13 @@ This also applies to cloud self-shadow and ground-shadow density samples.
 Cloud map dimensions, update bands, density filtering, view/light sample counts,
 wind and opacity termination remain unchanged.
 
+When the enhanced sky's daylight factor reaches zero, the cloud march still
+integrates opacity but skips the sunlight-density samples and scattering.
+The enhanced RT soft-shadow filter checks visibility and separation first.
+A sample inside the current extrema cannot expand them, so the filter skips
+that sample's surface fetch and compatibility calculation. Both paths keep
+the same samples that contribute to the image.
+
 Screen-space road rays project their origin and direction once, then evaluate
 the projected line at each march/refinement distance. Range, sample spacing,
 intersection thickness, refinement and confidence fades remain unchanged.
