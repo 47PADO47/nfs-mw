@@ -72,7 +72,7 @@ catalogue ([translations.md](translations.md)); characters the font lacks are dr
 
 ## Game interaction
 
-Status of the five interfaces (ids `bb.vehicles` (1.2), `bb.hud`, `bb.camera` (1.1), `bb.audio`, `bb.world`, all 1.0 otherwise). The rows below
+Status of the five interfaces (ids `bb.vehicles` (1.3, `spec` is in [api-handling.md](api-handling.md#the-car-in-physical-numbers-bbvehicles-13-spec)), `bb.hud`, `bb.camera` (1.1), `bb.audio`, `bb.world`, all 1.0 otherwise). The rows below
 say what each delivers; the rest of each table is still the plan. A call the game cannot serve answers
 `BB_ERR_UNSUPPORTED`, and a call that needs a world or a car answers `BB_ERR_NOT_READY` while none is loaded.
 The wire layouts are in [api.md](api.md#wire-numbers-abi-01).
