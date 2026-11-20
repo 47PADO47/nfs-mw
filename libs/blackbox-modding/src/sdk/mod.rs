@@ -35,6 +35,7 @@ mod event;
 pub mod ffi;
 mod guard;
 mod handle;
+mod handling;
 mod hud;
 mod i18n;
 mod iface;
@@ -61,8 +62,10 @@ pub use engine::{Engine, EnginePhase, EngineState};
 pub use error::{Error, ModResult};
 pub use event::{Collider, Event, Role};
 pub use handle::{
-    AbilityId, ActionId, BlipId, CameraViewId, CommandId, MenuId, SettingId, SoundId, UiThemeId, VehicleId, WorldId,
+    AbilityId, ActionId, BlipId, CameraViewId, CommandId, HandlingHookId, MenuId, SettingId, SoundId, UiThemeId,
+    VehicleId, WorldId,
 };
+pub use handling::{Handling, TyreQuery, TyreResult};
 pub use hud::{Hud, MessageStyle};
 pub use i18n::{Arg as I18nArg, I18n};
 pub use iface::Interface;
@@ -74,7 +77,7 @@ pub use settings::{SettingValue, Settings, SettingsSection};
 pub use time::{Time, TimeOfDay};
 pub use traffic::{Traffic, TrafficCar};
 pub use ui::{Prim, Rect, Tokens, Ui};
-pub use vehicles::{VehicleState, Vehicles};
+pub use vehicles::{DriveLayout, VehicleSpec, VehicleState, Vehicles};
 pub use world::World;
 
 /// The SDK version, reported to the host by `bb_mod_info`.

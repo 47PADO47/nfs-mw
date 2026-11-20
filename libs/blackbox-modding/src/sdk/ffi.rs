@@ -17,6 +17,7 @@ pub(crate) mod content;
 mod content_tests;
 pub(crate) mod engine;
 mod event;
+pub(crate) mod handling;
 pub(crate) mod hud;
 pub(crate) mod i18n;
 pub(crate) mod input;

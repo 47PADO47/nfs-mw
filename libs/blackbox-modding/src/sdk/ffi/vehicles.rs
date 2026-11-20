@@ -6,10 +6,11 @@ use core::ptr::null_mut;
 
 use super::{read_or, status_result};
 use crate::abi::{
-    BbVec3, BbVehicleAddNosFn, BbVehicleRepairFn, BbVehicleSetDriftAssistFn, BbVehicleSpawnTrafficFn, BbVehicleState,
-    BbVehicleStateFn, BbVehicleTeleportFn, BbVehicles,
+    BB_DRIVE_ALL, BB_DRIVE_FRONT, BbVec3, BbVehicleAddNosFn, BbVehicleRepairFn, BbVehicleSetDriftAssistFn,
+    BbVehicleSpawnTrafficFn, BbVehicleSpec, BbVehicleSpecFn, BbVehicleState, BbVehicleStateFn, BbVehicleTeleportFn,
+    BbVehicles,
 };
-use crate::sdk::{Error, Interface, ModResult, VehicleState};
+use crate::sdk::{DriveLayout, Error, Interface, ModResult, VehicleSpec, VehicleState};
 
 /// The function pointers of one `bb.vehicles` table, read once.
 #[derive(Clone, Copy)]
@@ -21,6 +22,7 @@ pub(crate) struct VehiclesFns {
     spawn_traffic: Option<BbVehicleSpawnTrafficFn>,
     add_nos: Option<BbVehicleAddNosFn>,
     set_drift_assist: Option<BbVehicleSetDriftAssistFn>,
+    spec: Option<BbVehicleSpecFn>,
 }
 
 /// Read the `bb.vehicles` table the host offered.
@@ -35,6 +37,7 @@ pub(crate) fn read(iface: Interface) -> VehiclesFns {
             spawn_traffic: read_or(&iface, offset_of!(BbVehicles, spawn_traffic), None),
             add_nos: read_or(&iface, offset_of!(BbVehicles, add_nos), None),
             set_drift_assist: read_or(&iface, offset_of!(BbVehicles, set_drift_assist), None),
+            spec: read_or(&iface, offset_of!(BbVehicles, spec), None),
         }
     }
 }
@@ -59,6 +62,46 @@ pub(crate) fn state(fns: &VehiclesFns) -> ModResult<VehicleState> {
         impact: raw.impact,
         on_ground: raw.on_ground != 0,
     })
+}
+
+/// The player's car in physical numbers. The mod sets the size word to its own layout; the host writes what it has of it.
+pub(crate) fn spec(fns: &VehiclesFns) -> ModResult<BbVehicleSpec> {
+    let spec = fns.spec.ok_or(Error::Unsupported)?;
+    let mut raw = BbVehicleSpec { size: size_of::<BbVehicleSpec>() as u32, ..BbVehicleSpec::default() };
+    // SAFETY: `raw` is valid for one write of its whole layout, and its size word says so.
+    status_result(unsafe { spec(fns.ctx, &mut raw) })?;
+    Ok(raw)
+}
+
+/// The safe form of the wire spec.
+pub(crate) fn vehicle_spec(raw: BbVehicleSpec) -> VehicleSpec {
+    let gears = (raw.gear_count as usize).min(raw.gear_ratios.len());
+    let drive = match raw.drive_layout {
+        BB_DRIVE_FRONT => DriveLayout::Front,
+        BB_DRIVE_ALL => DriveLayout::All,
+        _ => DriveLayout::Rear,
+    };
+    VehicleSpec {
+        revision: raw.revision,
+        mass_kg: raw.mass_kg,
+        wheelbase_m: raw.wheelbase_m,
+        track_m: [raw.track_front_m, raw.track_rear_m],
+        cg_height_m: raw.cg_height_m,
+        front_weight_fraction: raw.front_weight_fraction,
+        tyre_radius_m: [raw.tyre_radius_front_m, raw.tyre_radius_rear_m],
+        tyre_width_m: [raw.tyre_width_front_m, raw.tyre_width_rear_m],
+        peak_friction: [raw.peak_friction_front, raw.peak_friction_rear],
+        sliding_friction: [raw.sliding_friction_front, raw.sliding_friction_rear],
+        drive,
+        max_power_w: raw.max_power_w,
+        max_power_rpm: raw.max_power_rpm,
+        redline_rpm: raw.redline_rpm,
+        final_drive: raw.final_drive,
+        gear_ratios: raw.gear_ratios[..gears].to_vec(),
+        brake_torque_nm: [raw.brake_torque_front_nm, raw.brake_torque_rear_nm],
+        drag_area_m2: raw.drag_area_m2,
+        downforce_area_m2: raw.downforce_area_m2,
+    }
 }
 
 /// Queue a move of the player's car.

@@ -11,6 +11,7 @@ mod commands;
 mod config;
 mod content;
 mod engine;
+mod handling;
 mod hud;
 mod i18n;
 mod input;
@@ -25,6 +26,8 @@ mod world;
 
 #[cfg(test)]
 mod engine_tests;
+#[cfg(test)]
+mod handling_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -49,6 +52,10 @@ pub use engine::{
     BB_ENGINE_OFF, BB_ENGINE_RUNNING, BB_ENGINE_STARTING, BbEngine, BbEngineCarFn, BbEngineStartFn, BbEngineState,
     BbEngineStateFn, BbEngineStopFn,
 };
+pub use handling::{
+    BB_TYRE_FLAG_ALL_ROLES, BB_TYRE_HANDLED, BB_TYRE_NOT_HANDLED, BbHandling, BbHandlingRegisterTyreFn,
+    BbHandlingUnregisterTyreFn, BbTyreHook, BbTyreHookFn, BbTyreQuery, BbTyreResult,
+};
 pub use hud::{BB_HUD_BIG, BB_HUD_INFO, BB_HUD_WARNING, BbHud, BbHudHideFn, BbHudMessageFn};
 pub use i18n::{BB_I18N_INT, BB_I18N_TEXT, BbI18n, BbI18nArg, BbI18nGenerationFn, BbI18nLocaleFn, BbI18nTextFn};
 pub use input::{BbHotkeyFn, BbInput, BbInputRegisterFn, BbInputUnregisterFn};
@@ -68,7 +75,8 @@ pub use ui::{
     BbUiTokens, BbUiUnregisterThemeFn,
 };
 pub use vehicles::{
-    BbVec3, BbVehicleAddNosFn, BbVehicleRepairFn, BbVehicleSetDriftAssistFn, BbVehicleSpawnTrafficFn, BbVehicleState,
+    BB_DRIVE_ALL, BB_DRIVE_FRONT, BB_DRIVE_REAR, BB_SPEC_GEARS, BbVec3, BbVehicleAddNosFn, BbVehicleRepairFn,
+    BbVehicleSetDriftAssistFn, BbVehicleSpawnTrafficFn, BbVehicleSpec, BbVehicleSpecFn, BbVehicleState,
     BbVehicleStateFn, BbVehicleTeleportFn, BbVehicles,
 };
 pub use world::{BbWorld, BbWorldSetRainFn, BbWorldSetTrafficFn, BbWorldTextFn};
@@ -123,7 +131,12 @@ pub const IFACE_SETTINGS_VERSION: (u16, u16) = (1, 0);
 /// Id of the vehicles interface: read and move the player's car.
 pub const IFACE_VEHICLES: &str = "bb.vehicles";
 /// The version the host implements for [`IFACE_VEHICLES`], as `(major, minor)`.
-pub const IFACE_VEHICLES_VERSION: (u16, u16) = (1, 2);
+pub const IFACE_VEHICLES_VERSION: (u16, u16) = (1, 3);
+
+/// Id of the handling interface: replace how a vehicle's tyres turn load, slip and torque into forces.
+pub const IFACE_HANDLING: &str = "bb.handling";
+/// The version the host implements for [`IFACE_HANDLING`], as `(major, minor)`.
+pub const IFACE_HANDLING_VERSION: (u16, u16) = (1, 0);
 
 /// Id of the HUD interface: a centred message and hiding it.
 pub const IFACE_HUD: &str = "bb.hud";

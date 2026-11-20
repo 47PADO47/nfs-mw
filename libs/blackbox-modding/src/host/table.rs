@@ -25,6 +25,10 @@ mod content_tests;
 mod engine;
 #[cfg(test)]
 mod engine_tests;
+mod handling;
+mod handling_model;
+#[cfg(test)]
+mod handling_tests;
 mod hud;
 #[cfg(test)]
 mod hud_tests;
@@ -77,6 +81,7 @@ pub(crate) use commands::attach as attach_commands;
 pub(crate) use config::attach as attach_config;
 pub(crate) use content::attach as attach_content;
 pub(crate) use engine::attach as attach_engine;
+pub(crate) use handling::attach as attach_handling;
 pub(crate) use hud::attach as attach_hud;
 pub(crate) use i18n::attach as attach_i18n;
 pub(crate) use input::attach as attach_input;
@@ -97,6 +102,8 @@ pub use commands::{CommandHandler, CommandsBackend};
 pub use config::ConfigBackend;
 pub use content::{ContentBackend, LazyFiles, MAX_LAZY_FILE_BYTES};
 pub use engine::{EngineBackend, EnginePhase, EngineState};
+pub use handling::HandlingBackend;
+pub use handling_model::{CALLBACK_BUDGET, HookStats, TyreHook};
 pub use hud::{HudBackend, MAX_MESSAGE_SECS, MessageStyle};
 pub use i18n::{I18nArg, I18nBackend, MAX_ARGS as MAX_I18N_ARGS};
 pub use input::{HotkeyHandler, InputBackend};
@@ -106,7 +113,7 @@ pub use settings::{SettingHandler, SettingsBackend};
 pub use time::TimeBackend;
 pub use traffic::{TrafficBackend, TrafficCarInfo};
 pub use ui::{MAX_PRIMITIVES, UiBackend, UiPrim, UiRect, UiThemeSpec, UiTokens};
-pub use vehicles::{VehicleState, VehiclesBackend};
+pub use vehicles::{VehicleSpecSheet, VehicleState, VehiclesBackend};
 pub use world::{MAX_COP_SHARE, WorldBackend};
 
 /// What a backend method returns: its value, or the status the mod sees.
