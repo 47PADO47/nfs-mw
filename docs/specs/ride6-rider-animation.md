@@ -16,6 +16,11 @@ Integration into the game: [ride6-rider-render-integration.md](ride6-rider-rende
 > and the rider walks the bike backwards when it rolls back. The `ass_knee` clips of section 3 are buttock-volume corrections of the
 > suit, not knee poses.
 
+> **Standstill and hands** ([ride6-rider-standstill.md](ride6-rider-standstill.md), [ride6-rider-hands.md](ride6-rider-hands.md)): the rider puts his
+> feet down when the bike stops, his feet leave the pegs in the reverse walk, the right wrist rolls the throttle, the left fingers pull the clutch and
+> the right fingers the front brake, and the hands hold the grip bones. The riding style is a setting
+> ([ride6-rider-styles.md](ride6-rider-styles.md), section 8).
+
 > **Round 6** ([ride6-rider-round6.md](ride6-rider-round6.md), section 4) replaced the choices of sections 5 and 8 below by the
 > blueprint's own signals: the lean, tuck, wheelie and stoppie inputs of the graph, their smoothing rates and the meaning of
 > the smoothers. Where this page disagrees with it, round 6 is right.
@@ -184,6 +189,7 @@ The pose is authored for a bike in its rest pose; the hands and feet are then mo
 | left foot | `SOCKET_LEFT_FOOT` (`BONE_CHASSIS`) | (-25.73, -20.88, 42.41) | (-0.2573, 0.2088, 0.4241) |
 | right foot | `SOCKET_RIGHT_FOOT` (`BONE_CHASSIS`) | (-23.77, 19.18, 43.15) | (-0.2377, -0.1918, 0.4315) |
 
+(Where the hands hold the grips is now decided by the grip bone, not the socket: [ride6-rider-hands.md](ride6-rider-hands.md), section 3.)
 (`attach.json` is computed from the exported bike skeleton, not from this table; the other bikes' own points are in each
 car's `contacts.json`, [ride6-rider-render-integration.md](ride6-rider-render-integration.md) section 8.) The grips sit on `BONE_HANDLE`
 (Unreal (29.72, 0, 100.38) cm, tilted back by the rake), so they follow the steering. How well the authored poses already

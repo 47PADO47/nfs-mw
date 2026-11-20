@@ -58,8 +58,20 @@ impl PhysicsData {
 
     /// [`Self::car`] with the performance upgrades `package` names.
     pub fn car_with_performance(&self, type_name: &str, package: super::PerformancePackage) -> Result<CarPhysics> {
+        self.car_with_customization(type_name, package, &crate::car::customization::Selection::default())
+    }
+
+    /// [`Self::car_with_performance`] with the parts `parts` fitted too: a mod car whose components change a number of its
+    /// physics (a bike's) applies every fitted component's modifiers, not only the upgrade ladders'. A car of the original game
+    /// has its parts in the model only, so they change nothing here.
+    pub fn car_with_customization(
+        &self,
+        type_name: &str,
+        package: super::PerformancePackage,
+        parts: &crate::car::customization::Selection,
+    ) -> Result<CarPhysics> {
         if let Some(stats) = crate::car::mods::stats(type_name) {
-            return self.mod_car(type_name, stats, package);
+            return self.mod_car(type_name, stats, package, parts);
         }
         let mut physics = self.stock_car(type_name)?;
         super::performance::apply(&self.db, type_name, package, &mut physics)?;
@@ -73,11 +85,14 @@ impl PhysicsData {
         folder: &str,
         stats: &crate::car::mods::CarStats,
         package: super::PerformancePackage,
+        parts: &crate::car::customization::Selection,
     ) -> Result<CarPhysics> {
         let collision = super::mod_car_collision(&self.dir, folder)?;
         // A bike is moved by its two-wheel data; the body of its stats only meets the walls and the objects.
         let mut physics = match crate::car::mods::bike::of(folder) {
             Some(spec) => {
+                // A bike's upgrades (the levels of its package) change the numbers of its two-wheel data.
+                let spec = crate::car::mods::components::upgraded(folder, spec, package, parts);
                 let layout = crate::car::mods::wheel_layout::of(folder);
                 let origin_x = crate::car::mods::bike::origin_x(layout.as_ref());
                 super::CarPhysics::from_bike(spec, origin_x, collision.bounds)

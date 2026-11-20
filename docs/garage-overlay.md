@@ -5,7 +5,6 @@ or click the window's close button, to return. The `garage` input action can be
 rebound with the existing `bind` / `bind-save` commands. `--open-garage` starts a
 world viewer with the overlay open, including screenshot runs. The console and
 garage do not take input at the same time; `--open-console` takes precedence.
-Use `--open-garage --garage-tab tuning` to start on the tuning controls.
 
 The garage pauses the world's driving simulation while streaming continues.
 It takes the keyboard and releases the cursor. Closing restores the previous
@@ -19,75 +18,37 @@ See the [garage parity matrix](garage-parity.md) for those paths and limits.
 
 ## Available controls
 
+The F6 garage is about **which vehicle you drive**. Everything about the setup of the vehicle you are in (parts, appearance,
+performance, tuning, saved setups, the rider's gear) is on the **vehicle panel (F11)**, which lists what the vehicle's own data offers
+and works in the car viewer too: see [devtools-vehicle.md](devtools-vehicle.md). F6 used to have those as tabs on its right; they were
+moved, and a button there, **Vehicle options: open the vehicle panel (F11)**, opens the panel.
+
 - **Racing cars** and **Police** tabs contain only installed vehicles of those
   categories with usable physics, engine and gearbox data. Traffic, trucks,
   trailers, accessories and vehicles without a working powertrain are excluded.
   Names use the installed language table where available, with readable fallbacks.
 - Search by car name, manufacturer or folder name. A grid fills the browser's
   available height; widening the window adds columns and enlarging it reveals
-  more cars. Performance and appearance/camera have separate options tabs.
-- **Performance** offers Stock, Maximum and Max + Junkman presets, plus all
-  seven independent categories: engine, transmission, induction, nitrous,
-  suspension, tires and brakes. Each category uses that car's installed limits
-  and endpoint records. Intermediate stages and Junkman follow the
-  [original package rules](specs/performance-upgrades.md). A variant with
-  missing upgrade records keeps its original equipment and explains the limitation.
-- Upgrades apply immediately without moving, stopping or repairing the car.
-  The HUD, engine/transmission/induction audio and engine-upgrade exhaust
-  eligibility follow the selection. Stock restores the original installed
-  records, including absence of nitrous on cars without original equipment.
-  A car that has factory nitrous keeps it at stock. Junkman eligibility follows
-  the installed category and requires a nitrous/induction kit for those categories.
-- **Tuning** offers three profiles with eleven positions for steering, handling,
-  brake balance, ride height, aerodynamics, nitrous and induction. Zero is
-  neutral. Original help directions appear beside each slider. Suspension,
-  brake, nitrous and induction upgrades unlock their corresponding controls;
-  stock equipment and Junkman alone do not. Aerodynamics requires a selected
-  aftermarket body kit or spoiler from the Parts tab.
-  Locked controls explain their requirement. Removing an upgrade retains
-  profile values and their physics effects, matching the original; **Reset
-  profile** restores the active profile to neutral. Profile and slider changes
-  apply immediately without respawning, repairing or stopping the car.
-- Select any of the nine existing camera modes. This changes the live camera
+  more cars. Click a car to drive it.
+- **Preview car** hides the browser to see the car; **Browse cars** brings it back.
+- **Exhaust** and **Backfire** (the flame styles) stay here: their shape and motion are shared across cars and saved
+  automatically, and the previews need the world frozen, as it is while F6 is open.
+- Select any of the nine existing camera modes with F5. This changes the live camera
   setting immediately. Original camera modes use the existing installed view
   data and retain the existing fallback when that data is absent.
-- **Appearance** offers installed paint finish/color presets and window tints.
-  Quick **Gloss**, **Metallic**, **Pearl**, **Chrome** and **Matte** buttons retain
-  the current RGB color while selecting an installed finish.
-  **Vinyls** lists supported fixed-UV artwork present for the selected car;
-  recolorable vinyls expose their color channels. Artwork stays in place.
-  **Rim paint** offers presets and custom RGB after fitting aftermarket rims.
-  Tires, brakes and body trim retain their materials.
-  **Gauges** offers stock plus installed styles 1–10, with independent backing,
-  needle and digit colors. These use the Original HUD theme; the panel can
-  switch to it. Drag races retain their dedicated gauge artwork.
-  Paint choices show their finish family and RGB value. The selected part supplies
-  its original gloss and material. Fixed liveries keep their textures and have no
-  paint choices. Tint remains independent of body paint and model parts.
-- Choose an RGB body color for cars with generated paint textures. A custom RGB
-  value keeps the selected finish; **Preset color** restores that paint preset's
-  color. **Restore stock appearance** restores factory paint, color, tint, vinyl, rim paint and gauges
-  without changing model parts, performance or tuning. Simple car shading does
-  not draw these materials; the panel offers a button to enable Glossy shading.
-  Glossy and both Original shading modes draw the selected tint.
-- Car and paint changes apply when selected. The window can be resized by
+- Car changes apply when selected. The window can be resized by
   dragging its edges or corners. Loading validates the selection before replacing
   the current car. Changing cars places the new one at rest on a nearby road.
-  Repainting the current car preserves its physics pose, velocity and damage.
-  Select **Preset color** to restore the selected paint preset's color. Preset swatches and
-  **Custom paint** apply live. Dragging the color picker reuses the loaded model
-  instead of reading the geometry again.
 
-Selections apply to the current session. Expand **Saved presets**, enter a name
-and **Save preset** to retain the complete car, paint, vinyl colors, rim paint, gauges, model parts, performance
-packages and all three tuning profiles in `garage-presets.toml` beside the user
-config. Choose a saved name and **Load preset** to apply it immediately. Saving
-the same name replaces it. Presets survive car changes and application restarts;
-they do not load automatically at startup. Unavailable cars, stages and parts
+`--open-garage` opens F6; with `--garage-tab performance|tuning|appearance|parts` it opens the vehicle panel on that page
+instead (the tabs F6 had), since that is where they are now.
+
+Selections apply to the current session. The named setups (**Saved setups** on the vehicle panel) retain the complete car, paint,
+vinyl colors, rim paint, gauges, model parts, performance packages and all three tuning profiles in `garage-presets.toml` beside the
+user config; see [devtools-vehicle.md](devtools-vehicle.md). Unavailable cars, stages and parts
 are rejected through the normal garage validation before replacing the rig.
 No original game assets are modified. Diagnostic changes do not cool career
-heat or enter career saves. Restoring installed paint reloads the stock assembled
-model. Normal career checkout owns the separate cash, marker, heat and save work.
+heat or enter career saves. Normal career checkout owns the separate cash, marker, heat and save work.
 
 Speedbreaker toggles with **Left Ctrl**, the mouse **Back thumb button**, or
 **Xbox B / PlayStation Circle**. Wheel buttons and pedals can use the same
@@ -108,10 +69,10 @@ controller navigation. The legacy F6 widgets retain their pointer controls.
 The existing camera modes have their existing behavior; this contribution does
 not establish camera parity.
 
-A mod car whose manifest has a `[customization.plate]` also gets a collapsed **License plate** row in Appearance: a text field
+A mod car whose manifest has a `[customization.plate]` also gets a collapsed **License plate** row on the vehicle panel's Appearance page: a text field
 (applied on Enter or when it loses focus; the characters the car's glyph sheet draws, at most its slots) and, when the plate offers
 designs, a design chooser. Other cars show no row. The console has the same for the car being driven: `plate [TEXT|reset]` and
-`plate-design [ID|name|none|list [filter]|reset]` (`this car has no plate` otherwise). Both are session-only like the rest of F6;
+`plate-design [ID|name|none|list [filter]|reset]` (`this car has no plate` otherwise). Both are session-only like the rest of the diagnostic tools;
 the normal garage's License Plate and Plate Design pages keep a text and a design in `plates.toml`
 ([plates](modding/car-customization.md#license-plates)).
 

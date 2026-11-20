@@ -229,6 +229,13 @@ state. The camera model, its smoothing and its per-car data belong to the mod: t
 | Field of view | `camera.set_fov_scale(f32)` | G | `viewer/camera.rs` |
 | Photo path | `camera.screenshot(path: &str) -> Result<()>` | G | `app/screenshot.rs` |
 
+### Worlds
+
+A mod provides a second world declaratively (`worlds/<id>.toml` and the packs in `worlds/<id>/`, [api-content-worlds.md](api-content-worlds.md#worlds)),
+not through a call. `bb.world` `track` names the world played: the city's track name, or the world's id. A mod that wants to know
+which world it is in reads `track`; the other `bb.world` entries answer for the world in play (ground height and nearest road read its
+collision). There is no call to switch worlds at run time: the choice is made when free roam starts.
+
 ### World state
 
 `bb.world`.

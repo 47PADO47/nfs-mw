@@ -22,8 +22,8 @@ const HEADER: &str = "Plate Design";
 /// The first entry: no design, the plate as its sheet draws it.
 const PLAIN: &str = "Plain plate";
 /// How far L and R move through the list, and how many names the vertical list shows at once.
-const JUMP: isize = 10;
-const WINDOW: usize = 9;
+pub(super) const JUMP: isize = 10;
+pub(super) const WINDOW: usize = 9;
 
 /// One entry of the list: the id kept for it (empty for the plain plate) and its name.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,7 +45,7 @@ fn position(entries: &[Entry], id: Option<&str>) -> usize {
 }
 
 /// `at` moved `by` entries along a list of `len`, wrapping round at either end.
-fn stepped(at: usize, by: isize, len: usize) -> usize {
+pub(super) fn stepped(at: usize, by: isize, len: usize) -> usize {
     match len {
         0 => 0,
         _ => (at as isize + by).rem_euclid(len as isize) as usize,
@@ -53,7 +53,7 @@ fn stepped(at: usize, by: isize, len: usize) -> usize {
 }
 
 /// The first entry of the window of `WINDOW` names that keeps `at` near its middle.
-fn window_start(at: usize, len: usize) -> usize {
+pub(super) fn window_start(at: usize, len: usize) -> usize {
     at.saturating_sub(WINDOW / 2).min(len.saturating_sub(WINDOW))
 }
 
@@ -159,6 +159,7 @@ impl ScreenLogic for PlateDesigns {
 
     fn tick(&mut self, cx: &mut Cx, _dt: f32) {
         self.vertical = cx.list_look();
+        confirm::keep_notice(cx);
     }
 
     fn vertical(&self) -> bool {

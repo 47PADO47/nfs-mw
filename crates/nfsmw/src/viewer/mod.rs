@@ -4,11 +4,13 @@
 pub mod camera;
 mod race_report;
 mod static_hash;
+mod vehicle;
 pub use race_report::{
     MILESTONE_LINES, MilestoneLine, MilestoneStatus, PhotoKind, PhotoReport, PursuitPage, PursuitReport, RaceAnswer,
     RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport, photo_picture,
 };
 pub use static_hash::StaticHash;
+pub use vehicle::VehicleScene;
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
@@ -102,6 +104,11 @@ pub trait Scene {
     /// Put a traffic car on the road at `at` (x, y), facing `heading`. Returns whether a car was placed.
     fn spawn_traffic_at(&mut self, _at: [f32; 2], _heading: f32) -> bool {
         false
+    }
+
+    /// The vehicle on show, for the developer tools' vehicle panel and the `vehicle` console command (`vehicle.rs`).
+    fn vehicle(&mut self) -> Option<&mut dyn VehicleScene> {
+        None
     }
 
     /// Installed car choices for the runtime garage; scenes without driving return None.

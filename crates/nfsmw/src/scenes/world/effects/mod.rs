@@ -6,8 +6,10 @@ pub(in crate::scenes::world) mod entry_marks;
 #[cfg(test)]
 mod ground_tests;
 mod marks;
+mod marks_variant;
 mod profile;
 mod rain;
+pub(in crate::scenes::world) mod rain_splash;
 mod smoke;
 mod street_lamps;
 #[cfg(test)]
@@ -18,8 +20,9 @@ mod world;
 use blackbox_gfx::EffectLayer;
 use glam::Vec3;
 
-pub use contacts::{Contact, project};
+pub use contacts::{Contact, is_loose_surface, project, slide_of};
 use marks::Marks;
+use marks_variant::MarksVariant;
 use profile::SmokeVariant;
 use smoke::Smoke;
 
@@ -36,6 +39,8 @@ pub struct TireEffects {
     variant: SmokeVariant,
     tint: crate::settings::SmokeTint,
     marks: Marks,
+    /// The pictures of a mod's skid mark variant, when the player chose one: the marks are drawn with them.
+    mark_variant: MarksVariant,
     enabled: [bool; 2],
     layer: EffectLayer,
 }
@@ -48,6 +53,7 @@ impl Default for TireEffects {
             variant: SmokeVariant::default(),
             tint: crate::settings::SmokeTint::default(),
             marks: Marks::default(),
+            mark_variant: MarksVariant::default(),
             enabled: [true; 2],
             layer: EffectLayer::default(),
         }
@@ -77,8 +83,18 @@ impl TireEffects {
         self.variant.set_wanted(profile);
     }
 
-    /// Load the variant's pictures when it changed, or drop them when it went. Does nothing when nothing changed.
+    /// The skid mark variant the player chose, if it is a mod's (`None`: the game's own dark strips). Its pictures are loaded at the
+    /// next frame ([`Self::load_variant`]).
+    pub fn set_marks_variant(&mut self, profile: Option<std::sync::Arc<blackbox_modding::content::SkidMarksProfile>>) {
+        self.mark_variant.set_wanted(profile);
+    }
+
+    /// Load the variants' pictures when one changed, or drop them when it went. Does nothing when nothing changed.
     pub fn load_variant(&mut self, renderer: &mut dyn blackbox_gfx::RenderBackend, dir: &game_install::GameDir) {
+        self.mark_variant.release(renderer);
+        if self.mark_variant.needs_load() {
+            self.mark_variant.load(renderer, dir);
+        }
         self.variant.release(renderer);
         if !self.variant.needs_load() {
             return;
@@ -90,16 +106,19 @@ impl TireEffects {
     /// Forget the loaded variant (the car goes): its textures are freed by [`Self::load_variant`] or [`Self::release`].
     pub fn unload_variant(&mut self) {
         self.variant.unload();
+        self.mark_variant.unload();
     }
 
     /// Free the GPU textures of a variant that was dropped.
     pub fn release(&mut self, renderer: &mut dyn blackbox_gfx::RenderBackend) {
         self.variant.release(renderer);
+        self.mark_variant.release(renderer);
     }
 
     /// Take the vertex buffers of the variant back from the layer `build` made, once it has been uploaded.
     pub fn reclaim_built(&mut self) {
         self.variant.reclaim(&mut self.layer);
+        self.mark_variant.reclaim(&mut self.layer);
     }
 
     pub fn set_enabled(&mut self, smoke: bool, marks: bool) {
@@ -148,7 +167,7 @@ impl TireEffects {
                 self.smoke.emit(wheel, contact, velocity, dt);
             }
             if self.enabled[1] {
-                self.marks.sample(wheel, contact);
+                self.marks.sample(wheel, contact, self.wet, self.mark_variant.profile());
             }
         }
     }
@@ -160,7 +179,9 @@ impl TireEffects {
     pub fn build(&mut self, camera: Vec3, forward: Vec3) -> &mut EffectLayer {
         self.layer.clear();
         self.layer.detailed_particles = self.smoke.quality == crate::settings::SmokeQuality::High;
-        self.marks.geometry(&mut self.layer.surfaces);
+        let variant = &self.mark_variant;
+        self.marks.geometry(&mut self.layer.surfaces, |mark| variant.covers(mark));
+        self.mark_variant.geometry(&self.marks, &mut self.layer);
         self.smoke.geometry(camera, forward, &mut self.layer.particles);
         self.variant.geometry(camera, forward, self.tint, &mut self.layer);
         &mut self.layer
@@ -168,7 +189,7 @@ impl TireEffects {
 
     pub fn status(&self) -> String {
         format!(
-            "smoke {} ({}): {}/{} live, oldest {:.2}s, {} emitted; marks {}: {}/{} quads, oldest {:.2}s, {} created",
+            "smoke {} ({}): {}/{} live, oldest {:.2}s, {} emitted; marks {}: {}/{} quads ({} with a variant's pictures), oldest {:.2}s, {} created",
             self.enabled[0],
             self.smoke.quality,
             self.smoke.len(),
@@ -178,6 +199,7 @@ impl TireEffects {
             self.enabled[1],
             self.marks.len(),
             MAX_MARKS,
+            self.mark_variant.counts(&self.marks).0,
             self.marks.oldest(),
             self.marks.created,
         )

@@ -1,6 +1,8 @@
 //! What the bike keeps from step to step apart from its filters: the day it rides in (air and road temperature) and the running
 //! state of the fall tests (`docs/specs/ride6-chassis-round6.md`).
 
+use super::air::AirState;
+use super::rough::RoughState;
 use crate::bike::choices;
 use crate::bike::spec::FallSpec;
 
@@ -61,6 +63,10 @@ pub struct ChassisState {
     pub fall_lean: f32,
     /// How long the lean has been beyond that limit (s).
     pub fall_timer: f32,
+    /// What the bike keeps of its flights: the timers of a jump and the player's air control (`air.rs`).
+    pub air: AirState,
+    /// What the bike believes about the ground it rides on (`rough.rs`).
+    pub rough: RoughState,
 }
 
 impl ChassisState {
@@ -70,6 +76,8 @@ impl ChassisState {
             environment: Environment::default(),
             fall_lean: fall.lean,
             fall_timer: 0.0,
+            air: AirState::default(),
+            rough: RoughState::default(),
         }
     }
 

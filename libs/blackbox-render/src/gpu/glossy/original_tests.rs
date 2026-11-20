@@ -40,6 +40,7 @@ impl Fixture {
         Self {
             material: GlossyMaterial {
                 background_actor: false,
+                ambient_floor: 0.0,
                 model,
                 surface: None,
                 diffuse_min: [0.1, 0.12, 0.14, 0.7],

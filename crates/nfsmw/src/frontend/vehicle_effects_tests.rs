@@ -9,7 +9,10 @@ fn optional_vehicle_effect_rows_cycle_stock_and_experimental_independently() {
     let rows = rows(Category::Video, &crate::settings::test_caps::native());
     let at = rows.iter().position(|row| row.setting == Setting::CollisionSparks).unwrap();
     assert_eq!(rows[at].title, Title::Key("options-collision-sparks"));
-    assert_eq!(rows[at + 1].title, Title::Key("options-speed-trails"));
+    assert_eq!(rows[at + 1].title, Title::Key("options-exhaust-flames"));
+    let trails = rows.iter().position(|row| row.setting == Setting::SpeedTrails).unwrap();
+    assert_eq!(rows[trails].title, Title::Key("options-speed-trails"), "under Experimental, after the ordinary rows");
+    assert!(trails > at);
     let initial = Settings::from(Partial {
         hud: Some(false),
         tire_smoke: Some(false),

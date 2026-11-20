@@ -19,7 +19,12 @@ pub fn culls_blended(effect_id: u32) -> bool {
 /// Whether a scenery instance with `flags` placed by `transform` shows its mesh wound the other way round than the
 /// transform says (`blackbox_gfx::Instance::flip_winding`): mirrored by the flag but not by the transform.
 pub fn flip_winding(flags: u32, transform: &Mat4) -> bool {
-    (flags & MIRRORED_INSTANCE != 0) != (transform.determinant() < 0.0)
+    is_mirrored(flags) != (transform.determinant() < 0.0)
+}
+
+/// Whether a scenery instance with `flags` is a mirrored copy (the flag; its transform may or may not carry the mirror).
+pub fn is_mirrored(flags: u32) -> bool {
+    flags & MIRRORED_INSTANCE != 0
 }
 
 #[cfg(test)]

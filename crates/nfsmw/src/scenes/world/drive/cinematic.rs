@@ -48,6 +48,7 @@ mod tests {
             clutch: 1.0,
             reset: true,
             pop: true,
+            air: blackbox_vehicle::air_control::AirAxes { pitch: 1.0, roll: -1.0, yaw: 0.5 },
             fall: Some(blackbox_vehicle::bike::FallKind::HighSide),
         };
         let ai = DriveInput { throttle: 0.25, steer: 0.5, ..Default::default() };

@@ -42,6 +42,9 @@ const INFRACTION_RINGS: u32 = 0x3345_911d;
 /// What the layout shows this frame, one flag per feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Shown {
+    /// A world with no map (a second world): the minimap, the heat ring and flame and the detector's disc stay hidden even where
+    /// the package's layout puts them under a group that shows (the PC layout's heat group and arcs are inside the tachometer's).
+    pub mapless: bool,
     pub radar: bool,
     pub heat: bool,
     pub nitrous: bool,
@@ -246,6 +249,13 @@ impl Layout {
                 *slot |= self.is_under(i, root);
             }
         }
+        if want.mapless {
+            for &root in self.heat.iter().chain(&self.radar).chain(&self.minimap) {
+                for (i, slot) in shown.iter_mut().enumerate() {
+                    *slot &= !self.is_under(i, root);
+                }
+            }
+        }
         // The parts without a bound feed stay hidden under whatever shows around them.
         for (i, slot) in shown.iter_mut().enumerate() {
             // The lap group is the tollbooth milestone group (not bound); a lap count shows in the progress group.
@@ -263,6 +273,14 @@ impl Layout {
         }
         for (index, shown) in shown.into_iter().enumerate() {
             rt.set_hidden(ObjectRef { package: self.package, index }, !shown);
+        }
+    }
+
+    /// Hides the minimap, the heat ring and the detector for good (a world with no map). Called after the package's scripts ran for
+    /// the frame: an authored script that shows one of them again (the heat arcs' own, the detector's appear) is overruled.
+    pub fn hide_mapless(&self, rt: &mut Runtime) {
+        for &index in self.heat.iter().chain(&self.radar).chain(&self.minimap) {
+            rt.set_hidden(ObjectRef { package: self.package, index }, true);
         }
     }
 

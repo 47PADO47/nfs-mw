@@ -62,6 +62,7 @@ The ambiguities, with what was done:
   has a side view for the front camera. How the filter speed filters is not in the data: spring and exponential are both
   possible; the port takes the exponential approach (Unreal's `RInterpTo`, whose step is the speed times the frame time).
   The limits and the speed are host constants (`viewer/camera/head_look.rs`), not table values: the data is the same for every bike.
+  The port's pitch limits are not the data's -10 to 10: a playtest asked for more, so they are 25 up and 30 down (a choice).
 - The helmet's straight tilt: `HelmetInternalCameraBehavior.RelativeRotation.Pitch` is -10 on 312 of 344 containers, absent on 23
   and -5, -7, -15, -20, -50 and -60 on 9; `PitchFactor` is 0.25 on 339 and a share of the bike's pitch, not a tilt. Nothing in the
   data looks further down for a normal bike, so the 8 degrees more (`HELMET_VIEW_DOWN_DEG`) are the user's request and a modelling

@@ -26,7 +26,9 @@ impl Residency {
         let budget = self.upload_budget();
         let mut spent = 0;
         while let Some(data) = self.arrived.pop_front() {
-            if !matches!(self.tiles.get(&data.index), Some(TileState::Requested)) {
+            // A tile streamed again because the trees variant changed replaces the resident one (`trees.rs`).
+            let refreshing = self.take_refresh(data.index);
+            if !refreshing && !matches!(self.tiles.get(&data.index), Some(TileState::Requested)) {
                 continue; // no longer wanted
             }
             let bytes = data.upload_bytes();
@@ -35,11 +37,13 @@ impl Residency {
                 break;
             }
             spent += bytes;
-            self.upload_tile(renderer, data);
+            self.upload_tile(renderer, data, refreshing);
         }
     }
 
-    fn upload_tile(&mut self, renderer: &mut dyn RenderBackend, mut data: SectionData) {
+    /// Put a section on the GPU as a tile. A `refreshing` section replaces the tile that is resident under its index: the same
+    /// map tile with other models, so its collision stays as it is and the old resources are released.
+    fn upload_tile(&mut self, renderer: &mut dyn RenderBackend, mut data: SectionData, refreshing: bool) {
         let mut resources = SectionResources::with_texture_detail(self.texture_discard.unwrap_or(0));
         resources.emitters = std::mem::take(&mut data.emitters);
         resources.anims = std::mem::take(&mut data.anims);
@@ -57,12 +61,17 @@ impl Residency {
         for (index, reflected) in resources.reflection_placed.iter_mut().enumerate() {
             reflected.bind_player(&placed, keys::tile(data.index, index | (1 << 31)));
         }
-        self.unresolved += unresolved;
         let packs = data.collision.iter().map(|p| p.section).collect();
-        for pack in data.collision {
-            self.insert_collision(pack, data.index);
+        if !refreshing {
+            self.unresolved += unresolved;
+            for pack in data.collision {
+                self.insert_collision(pack, data.index);
+            }
         }
-        self.tiles.insert(data.index, TileState::Resident { resources: Box::new(resources), placed, packs });
+        let resident = TileState::Resident { resources: Box::new(resources), placed, packs };
+        if let Some(TileState::Resident { resources: old, .. }) = self.tiles.insert(data.index, resident) {
+            old.release(renderer);
+        }
         self.visual_revision = self.visual_revision.wrapping_add(1);
     }
 }
@@ -116,6 +125,25 @@ mod tests {
         residency.upload_arrived(&mut renderer);
         assert!(residency.arrived.is_empty());
         assert!(!residency.tiles.contains_key(&99));
+    }
+
+    #[test]
+    fn a_tile_streamed_again_replaces_the_resident_one_and_a_stray_arrival_does_not() {
+        let (mut residency, mut renderer) = fixture();
+        residency.update(&mut renderer, -1.0, 0.0);
+        residency.tiles.insert(99, TileState::Requested);
+        residency.arrived.push_back(arrived_tile(99));
+        residency.upload_arrived(&mut renderer);
+        let first = residency.visual_revision;
+        residency.arrived.push_back(arrived_tile(99));
+        residency.upload_arrived(&mut renderer);
+        assert_eq!(residency.visual_revision, first, "nobody asked for it again: dropped");
+        residency.refresh.insert(99);
+        residency.arrived.push_back(arrived_tile(99));
+        residency.upload_arrived(&mut renderer);
+        assert!(residency.refresh.is_empty(), "the refresh was taken");
+        assert_ne!(residency.visual_revision, first, "the tile was uploaded again");
+        assert!(matches!(residency.tiles.get(&99), Some(TileState::Resident { .. })));
     }
 
     #[test]

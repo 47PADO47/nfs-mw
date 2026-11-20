@@ -51,13 +51,14 @@ fn the_handler_is_read_from_the_vehicle_elements_of_the_physics_file() {
 
 #[test]
 fn the_table_lists_each_set_with_its_graph_and_its_walk() {
-    let race = entry(&graph_sets::RACE, 0, Some(2.2));
+    let race = entry(&graph_sets::RACE, Some(2.2));
     assert_eq!(race["graph"], "graph_race.json");
     assert_eq!(race["bike_type"], 0);
     assert_eq!(race["reverse"]["loop_seconds"], json!(2.2f32));
     assert_eq!(race["reverse"]["rate"], json!([1.0, 4.0]));
-    assert!(entry(&graph_sets::NAKED, 1, None).get("reverse").is_none());
-    let text = table(&[(&graph_sets::RACE, race), (&graph_sets::NAKED, entry(&graph_sets::NAKED, 0, None))]);
+    assert!(entry(&graph_sets::NAKED, None).get("reverse").is_none());
+    assert_eq!(race["stand"]["speed_kmh"], 6.0, "the standstill's numbers are in the entry");
+    let text = table(&[(&graph_sets::RACE, race), (&graph_sets::NAKED, entry(&graph_sets::NAKED, None))]);
     assert_eq!(text["version"], 1);
     assert_eq!(text["styles"]["naked"]["graph"], "graph_naked.json");
 }

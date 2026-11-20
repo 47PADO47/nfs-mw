@@ -135,3 +135,22 @@ fn a_chase_that_starts_with_a_reset_does_not_fire() {
     let rise = look.update(2.0, true, 0.016, 0.016);
     assert_eq!(weight(&rise), 1.0, "a later heat rise still fires");
 }
+
+#[test]
+fn the_helmet_camera_keeps_a_share_of_the_start_effects() {
+    let mut look = fixture();
+    look.update(2.4, false, 0.016, 0.016);
+    let start = look.update(2.4, true, 0.016, 0.016);
+    let helmet = start.scaled(HELMET_SHARE);
+    assert_eq!(helmet.look.target, start.look.target, "the same look, less of it");
+    assert!((helmet.look.weight - HELMET_SHARE).abs() < 1e-6, "grade {}", helmet.look.weight);
+    assert!((helmet.look.brightness - (1.0 + 2.0 * HELMET_SHARE)).abs() < 1e-6, "flash {}", helmet.look.brightness);
+    assert!((helmet.radial_blur - HELMET_SHARE).abs() < 1e-6, "blur {}", helmet.radial_blur);
+}
+
+#[test]
+fn a_frame_with_no_effect_is_not_changed_by_the_share() {
+    let quiet = fixture().update(3.0, true, 0.016, 0.016);
+    assert_eq!(quiet.scaled(HELMET_SHARE), quiet);
+    assert_eq!(quiet.scaled(1.0), quiet, "a full share is the frame itself");
+}

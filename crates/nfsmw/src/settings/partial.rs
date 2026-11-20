@@ -120,6 +120,14 @@ pub struct Partial {
     pub tail_trail_style: Option<super::TailTrailStyle>,
     /// Show turn signals on cars while steering (`[Gameplay] ShowTurnSignals`); off by default.
     pub turn_signals: Option<bool>,
+    /// Dress the rider of a bike in the gear the player picked (`rider_gear`); on by default.
+    pub rider_gear: Option<bool>,
+    /// The throttle alone lifts and holds a bike's wheelie (`easy_wheelie`); on by default.
+    pub easy_wheelie: Option<bool>,
+    /// Steer a vehicle in the air (`air_control`); off by default.
+    pub air_control: Option<bool>,
+    /// The live screen of a bike's instrument cluster (`live_dash`); on by default.
+    pub live_dash: Option<bool>,
     pub rear_view_mirror: Option<bool>,
     pub discord: Option<bool>,
     pub discord_time_played: Option<bool>,
@@ -136,10 +144,24 @@ pub struct Partial {
     pub hud_options: super::hud::HudLayer,
     /// The UI theme (`ui_style`). The legacy `radio_hud` key is mapped onto it by the reader of each layer.
     pub ui_style: Option<UiStyle>,
+    /// Whether the CustomHUD plugin's gauge skin is drawn (`custom_hud_skin`).
+    pub custom_hud_skin: Option<super::CustomHudSkin>,
     /// The HUD's speed unit (`speed_units`).
     pub speed_units: Option<SpeedUnits>,
+    /// How the rider of a bike of each class leans into a corner (`riding_style_road`, `riding_style_motard`, `riding_style_offroad`;
+    /// the older `riding_style` key is read as all three).
+    pub riding_style_road: Option<super::RidingStyle>,
+    pub riding_style_motard: Option<super::RidingStyle>,
+    pub riding_style_offroad: Option<super::RidingStyle>,
+    /// The fingers on a bike's brake and clutch levers (`brake_fingers`, `clutch_fingers`).
+    pub brake_fingers: Option<super::BrakeFingers>,
+    pub clutch_fingers: Option<super::ClutchFingers>,
+    /// How a bike turns (`bike_steering`).
+    pub bike_steering: Option<super::BikeSteering>,
     /// The language tag (`language`).
     pub language: Option<super::LanguageTag>,
+    /// The second world to play (`world`).
+    pub world: Option<super::world_id::WorldId>,
     /// The palette of the token-driven HUD (`ui_theme`).
     pub ui_theme: Option<UiTheme>,
     pub post_tonemap: Option<PostTonemap>,
@@ -184,6 +206,8 @@ pub struct Partial {
     pub motion_blur: Option<bool>,
     /// The radial blur's strength multiplier, 0 to 2 (`motion_blur_strength`).
     pub motion_blur_strength: Option<f32>,
+    /// The colour grading strength, 0 to 1 (`grading_strength`).
+    pub grading_strength: Option<f32>,
     /// The HD content options (`[hd_content]`).
     pub hd_content: HdContentLayer,
     /// The custom fonts (`[custom_fonts]`).
@@ -266,6 +290,10 @@ impl Partial {
             backfire_style: self.backfire_style.or(lower.backfire_style),
             tail_trail_style: self.tail_trail_style.or(lower.tail_trail_style),
             turn_signals: self.turn_signals.or(lower.turn_signals),
+            rider_gear: self.rider_gear.or(lower.rider_gear),
+            easy_wheelie: self.easy_wheelie.or(lower.easy_wheelie),
+            air_control: self.air_control.or(lower.air_control),
+            live_dash: self.live_dash.or(lower.live_dash),
             rear_view_mirror: self.rear_view_mirror.or(lower.rear_view_mirror),
             discord: self.discord.or(lower.discord),
             discord_time_played: self.discord_time_played.or(lower.discord_time_played),
@@ -279,8 +307,16 @@ impl Partial {
             hud_layout: self.hud_layout.or(lower.hud_layout),
             hud_options: self.hud_options.or(lower.hud_options),
             ui_style: self.ui_style.or(lower.ui_style),
+            custom_hud_skin: self.custom_hud_skin.or(lower.custom_hud_skin),
             speed_units: self.speed_units.or(lower.speed_units),
+            riding_style_road: self.riding_style_road.or(lower.riding_style_road),
+            riding_style_motard: self.riding_style_motard.or(lower.riding_style_motard),
+            riding_style_offroad: self.riding_style_offroad.or(lower.riding_style_offroad),
+            brake_fingers: self.brake_fingers.or(lower.brake_fingers),
+            clutch_fingers: self.clutch_fingers.or(lower.clutch_fingers),
+            bike_steering: self.bike_steering.or(lower.bike_steering),
             language: self.language.or(lower.language),
+            world: self.world.or(lower.world),
             ui_theme: self.ui_theme.or(lower.ui_theme),
             post_tonemap: self.post_tonemap.or(lower.post_tonemap),
             post_bloom: self.post_bloom.or(lower.post_bloom),
@@ -317,6 +353,7 @@ impl Partial {
             h_shifter: self.h_shifter.or(lower.h_shifter),
             motion_blur: self.motion_blur.or(lower.motion_blur),
             motion_blur_strength: self.motion_blur_strength.or(lower.motion_blur_strength),
+            grading_strength: self.grading_strength.or(lower.grading_strength),
             hd_content: self.hd_content.or(lower.hd_content),
             custom_fonts: self.custom_fonts.or(lower.custom_fonts),
             fe_shadows: self.fe_shadows.or(lower.fe_shadows),

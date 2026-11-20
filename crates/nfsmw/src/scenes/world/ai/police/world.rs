@@ -35,6 +35,12 @@ impl super::super::TrafficWorld {
         self.police.note_manual_reset();
     }
 
+    /// A bike's rider is off the bike or has just been put back on it: the busted meter does not fill while it holds
+    /// (`docs/specs/ride6-bike-cameras.md` section 9). Said every step by the world; a car's is always false.
+    pub fn note_bust_grace(&mut self, grace: bool) {
+        self.police.set_bust_grace(grace);
+    }
+
     /// Gives the helicopter the track's height sheet (read once when the track opens).
     pub fn set_heli_sheet(&mut self, sheet: HeliSheet) {
         self.police.set_heli_sheet(sheet);
@@ -90,6 +96,7 @@ impl super::super::TrafficWorld {
             player_speed: player.speed.abs(),
             slow_speed: self.police.bust_speed(level),
             flashing: self.police.flashing(),
+            grace: self.police.bust_grace,
         };
         self.police.set_rig(self.helicopter_rig.clone());
         self.police.set_last_known(self.pursuit.as_ref().and_then(|p| p.last_seen).map(|seen| seen.position));

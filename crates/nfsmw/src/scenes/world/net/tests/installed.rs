@@ -44,7 +44,7 @@ pub fn script(tick: u32, player: u8) -> InputState {
         steer: ((t % 240) as f32 / 120.0 - 1.0) * 0.6,
         handbrake: pedal(phase == 5 && t % 90 < 10),
         nos: phase == 2,
-        shift_up: t % 300 == 0,
+        shift_up: t.is_multiple_of(300),
         ..InputState::default()
     }
 }
