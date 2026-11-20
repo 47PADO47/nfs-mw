@@ -70,7 +70,6 @@ pub fn post_effects(settings: &Settings) -> PostSettings {
         }),
         sun_glare: settings.appearance.optics.sun_glare * enhanced,
         physical_bloom: settings.appearance.optics.physical_bloom * enhanced,
-        lens_flare: settings.appearance.optics.lens_flare * enhanced,
         vignette: settings.appearance.vignette,
         colour_treatment_override: settings.visual_treatment.parameter_override(),
         colour_treatment: settings

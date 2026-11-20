@@ -46,6 +46,23 @@ fn threshold(c: vec3<f32>) -> vec3<f32> {
     return c * max(weight, 0.0);
 }
 
+// The native scene stores display-encoded RGB even in its floating-point target.
+fn bloom_linear(c: vec3<f32>) -> vec3<f32> {
+    let rgb = max(c, vec3<f32>(0.0));
+    return select(pow((rgb + 0.055) / 1.055, vec3<f32>(2.4)), rgb / 12.92, rgb <= vec3<f32>(0.04045));
+}
+
+fn bloom_encoded(c: vec3<f32>) -> vec3<f32> {
+    let rgb = max(c, vec3<f32>(0.0));
+    return select(1.055 * pow(rgb, vec3<f32>(1.0 / 2.4)) - 0.055, rgb * 12.92, rgb <= vec3<f32>(0.0031308));
+}
+
+// Limit the scattered energy before the six levels accumulate into an FP16 target.
+fn scatter_source(linear: vec3<f32>) -> vec3<f32> {
+    let colour = min(linear, vec3<f32>(8192.0));
+    return colour * smoothstep(0.15, 0.65, max(colour.r, max(colour.g, colour.b)));
+}
+
 // The 13 taps: a centre, four at +-1 texel on the diagonals and eight at +-2 texels, weighted so
 // the five overlapping 2x2 boxes sum to one. `bright` applies the threshold to each tap.
 fn down13(tex: texture_2d<f32>, uv: vec2<f32>, bright: bool) -> vec3<f32> {
@@ -59,8 +76,12 @@ fn down13(tex: texture_2d<f32>, uv: vec2<f32>, bright: bool) -> vec3<f32> {
     );
     for (var i = 0; i < 13; i++) {
         var c = tap(tex, uv + o[i] * d);
-        if (bright && params.b.y <= 0.0) {
-            c = threshold(c);
+        if bright {
+            if params.b.y > 0.0 {
+                c = scatter_source(bloom_linear(c));
+            } else {
+                c = threshold(c);
+            }
         }
         t[i] = c;
     }
@@ -95,6 +116,24 @@ fn fs_down(in: VsOut) -> @location(0) vec4<f32> {
 }
 
 @fragment
+fn fs_physical_up(in: VsOut) -> @location(0) vec4<f32> {
+    let size = vec2<f32>(textureDimensions(src));
+    let d = 1.0 / size;
+    // Fold the separable [1,2,1] tent into four bilinear reads. Account for
+    // fractional texel centres even when a mip has an odd dimension.
+    let p = in.uv * size - 0.5;
+    let f = fract(p);
+    let right = 1.0 + 2.0 * f;
+    let left = 4.0 - right;
+    let centre = floor(p) + 0.5;
+    let lo = (centre - 1.0 + (2.0 - f) / left) * d;
+    let hi = (centre + 1.0 + f / right) * d;
+    let a = mix(tap(src, lo), tap(src, vec2(hi.x, lo.y)), right.x * 0.25);
+    let b = mix(tap(src, vec2(lo.x, hi.y)), tap(src, hi), right.x * 0.25);
+    return vec4<f32>(mix(a, b, right.y * 0.25), 0.0);
+}
+
+@fragment
 fn fs_up(in: VsOut) -> @location(0) vec4<f32> {
     let d = 1.0 / vec2<f32>(textureDimensions(src));
     var sum = tap(src, in.uv) * 4.0;
@@ -105,33 +144,18 @@ fn fs_up(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(sum / 16.0, 0.0);
 }
 
-fn flare_sample(uv: vec2<f32>) -> vec3<f32> {
-    let edge = min(uv, 1.0-uv);
-    let fade = smoothstep(0.0, 0.08, min(edge.x,edge.y));
-    let c = textureSampleLevel(src2, samp, uv, 0.0).rgb * params.b.w;
-    // Only the brightest glow (the sun, lamps) makes ghosts; the scene is display-encoded, so 0.3 is already bright.
-    return max(c - vec3<f32>(0.3), vec3<f32>(0.0)) * fade;
-}
-
-fn optics(base: vec3<f32>, glow: vec3<f32>, uv: vec2<f32>) -> vec3<f32> {
-    var lit = base + glow * params.a.z;
-    if params.b.y > 0.0 {
-        lit = mix(base, glow * params.b.w, 0.12 * params.b.y);
-    }
-    if params.b.z <= 0.0 { return lit; }
-    let axis = uv - 0.5;
-    let direction = axis / max(length(axis), 0.0001);
-    let ghost = flare_sample(0.5 - axis * 1.4) + flare_sample(0.5 - axis * 0.65);
-    let ring = uv - direction * 0.32;
-    let halo = vec3<f32>(flare_sample(ring + direction*0.003).r, flare_sample(ring).g, flare_sample(ring-direction*0.003).b);
-    return lit + (ghost + halo) * (1.5 * params.b.z);
+fn composite_bloom(base: vec3<f32>, glow: vec3<f32>) -> vec3<f32> {
+    if params.b.y <= 0.0 { return base + glow * params.a.z; }
+    let linear = bloom_linear(base);
+    let scatter = glow * params.b.w - scatter_source(linear);
+    return bloom_encoded(linear + scatter * (0.45 * params.b.y));
 }
 
 @fragment
 fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
     let base = textureLoad(src, vec2<i32>(in.clip.xy), 0);
     let glow = textureSampleLevel(src2, samp, in.uv, 0.0).rgb;
-    return vec4<f32>(optics(base.rgb, glow, in.uv), 1.0);
+    return vec4<f32>(composite_bloom(base.rgb, glow), 1.0);
 }
 
 // The ACES fit of tonemap.wgsl, kept identical to it (a test compares the two texts).
@@ -144,6 +168,6 @@ fn aces(x: vec3<f32>) -> vec3<f32> {
 fn fs_composite_tonemap(in: VsOut) -> @location(0) vec4<f32> {
     let base = textureLoad(src, vec2<i32>(in.clip.xy), 0);
     let glow = textureSampleLevel(src2, samp, in.uv, 0.0).rgb;
-    let lit = optics(base.rgb, glow, in.uv);
+    let lit = composite_bloom(base.rgb, glow);
     return vec4<f32>(aces(max(lit, vec3<f32>(0.0)) * params.b.x), 1.0);
 }

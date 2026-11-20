@@ -1,7 +1,7 @@
 //! The keys the console's `get` and `set` know, in the order `get` lists them.
 
 /// Every setting the console can show, by its key.
-pub(super) const KEYS: [&str; 142] = [
+pub(super) const KEYS: [&str; 141] = [
     "sun_shafts",
     "sun_shaft_strength",
     "traffic_preset",
@@ -84,7 +84,6 @@ pub(super) const KEYS: [&str; 142] = [
     "post_tonemap",
     "auto_exposure",
     "physical_bloom",
-    "lens_flare",
     "sun_glare",
     "post_bloom",
     "post_aa",

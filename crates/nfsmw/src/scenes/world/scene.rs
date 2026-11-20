@@ -1,17 +1,17 @@
 //! Viewer integration, controls and world updates.
 
 use super::*;
+use crate::extra_options::Action as ExtraAction;
 use crate::viewer::Fullscreen;
 
 impl Scene for WorldScene {
+    fn world_camera_optics(&self) -> bool {
+        self.garage_backdrop.is_none()
+    }
     fn extra_options(&mut self) -> Option<&mut crate::extra_options::State> {
         Some(&mut self.extra)
     }
-    fn apply_extra_option(
-        &mut self,
-        renderer: &mut dyn RenderBackend,
-        action: crate::extra_options::Action,
-    ) -> anyhow::Result<()> {
+    fn apply_extra_option(&mut self, renderer: &mut dyn RenderBackend, action: ExtraAction) -> Result<()> {
         self.extra_action(renderer, action)
     }
     fn screenshot_ui_hidden(&self) -> bool {

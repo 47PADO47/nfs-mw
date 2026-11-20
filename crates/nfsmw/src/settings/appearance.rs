@@ -5,7 +5,6 @@ pub mod display;
 #[serde(default)]
 pub struct Optics {
     pub physical_bloom: f32,
-    pub lens_flare: f32,
     pub sun_glare: f32,
 }
 mod persistence;

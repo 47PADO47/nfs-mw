@@ -45,7 +45,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 75] = [
+pub const BUILT_IN: [(&str, &str); 74] = [
     ("trace start [seconds]|stop|mark [label]|status", "performance trace; F9 record/stop, F10 bookmark"),
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
@@ -82,7 +82,6 @@ pub const BUILT_IN: [(&str, &str); 75] = [
     ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),
     ("auto_exposure <on|off>", "adapt exposure in dark scenes"),
     ("physical_bloom <0..100>", "enhanced physical bloom strength"),
-    ("lens_flare <0..100>", "enhanced lens flare strength"),
     ("sun_glare <0..100>", "enhanced sun glare strength"),
     ("post_bloom <off|low|medium|high>", "glow around bright areas"),
     (
@@ -136,7 +135,7 @@ pub const BUILT_IN: [(&str, &str); 75] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 53] = [
+const SET_SHORTHANDS: [&str; 52] = [
     "fps",
     "renderer",
     "vsync",
@@ -177,7 +176,6 @@ const SET_SHORTHANDS: [&str; 53] = [
     "post_tonemap",
     "auto_exposure",
     "physical_bloom",
-    "lens_flare",
     "sun_glare",
     "post_bloom",
     "post_aa",

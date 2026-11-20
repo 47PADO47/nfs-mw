@@ -118,8 +118,6 @@ pub struct PostSettings {
     pub sun_glare: f32,
     /// Fraction of maximum energy-conserving scatter. Zero restores legacy bloom.
     pub physical_bloom: f32,
-    /// Strength of ghosts and the chromatic halo from the bloom chain.
-    pub lens_flare: f32,
     /// Legacy additive bloom intensity.
     pub bloom_intensity: f32,
     /// The brightness above which pixels bloom (0.0..=[`MAX_BLOOM_THRESHOLD`]; a soft knee starts a little below).
@@ -138,7 +136,6 @@ impl Default for PostSettings {
             exposure: 1.0,
             sun_glare: 0.0,
             physical_bloom: 0.0,
-            lens_flare: 0.0,
             bloom_intensity: 0.0,
             bloom_threshold: DEFAULT_BLOOM_THRESHOLD,
             antialiasing: Antialiasing::Off,
@@ -160,7 +157,6 @@ impl PostSettings {
             colour_treatment_override: self.colour_treatment_override.filter(|value| value.is_valid()),
             sun_glare: pick(self.sun_glare, 0.0, 0.0, 1.0),
             physical_bloom: pick(self.physical_bloom, 0.0, 0.0, 1.0),
-            lens_flare: pick(self.lens_flare, 0.0, 0.0, 1.0),
             vignette: pick(self.vignette, 0.0, 0.0, 1.0),
             exposure: pick(self.exposure, defaults.exposure, MIN_EXPOSURE, MAX_EXPOSURE),
             bloom_intensity: pick(self.bloom_intensity, defaults.bloom_intensity, 0.0, MAX_BLOOM_INTENSITY),
@@ -180,14 +176,14 @@ impl PostSettings {
     /// The enabled effects in the order they run.
     pub fn effects(&self) -> Vec<PostEffect> {
         let mut effects = Vec::new();
-        let optics = self.physical_bloom > 0.0 || self.lens_flare > 0.0;
-        if optics {
+        let physical = self.physical_bloom > 0.0;
+        if physical {
             effects.push(PostEffect::Bloom);
         }
         if self.colour_treatment > 0.0 {
             effects.push(PostEffect::SceneTreatment);
         }
-        if self.bloom_intensity > 0.0 && !optics {
+        if self.bloom_intensity > 0.0 && !physical {
             effects.push(PostEffect::Bloom);
         }
         if self.tonemap != Tonemap::Off {

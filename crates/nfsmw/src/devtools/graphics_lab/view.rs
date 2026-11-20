@@ -107,11 +107,8 @@ fn appearance(ui: &mut egui::Ui, settings: &mut Settings) {
     );
     ui.add_enabled_ui(settings.appearance.style != crate::settings::VisualStyle::OriginalPc, |ui| {
         let optics = &mut settings.appearance.optics;
-        for (label, strength) in [
-            ("Physical bloom", &mut optics.physical_bloom),
-            ("Lens flare", &mut optics.lens_flare),
-            ("Sun glare", &mut optics.sun_glare),
-        ] {
+        for (label, strength) in [("Physical bloom", &mut optics.physical_bloom), ("Sun glare", &mut optics.sun_glare)]
+        {
             ui.horizontal(|ui| {
                 let mut enabled = *strength > 0.0;
                 if ui.checkbox(&mut enabled, label).changed() {

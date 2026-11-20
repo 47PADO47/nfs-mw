@@ -38,7 +38,7 @@ pub(super) fn params(settings: &PostSettings) -> Params {
     let threshold = settings.bloom_threshold;
     Params {
         a: [threshold, threshold * KNEE, settings.bloom_intensity * INTENSITY_SCALE, 0.0],
-        b: [0.0, settings.physical_bloom, settings.lens_flare, 0.0],
+        b: [0.0, settings.physical_bloom, 0.0, 0.0],
     }
 }
 
@@ -122,8 +122,9 @@ impl PostPass for BloomPass {
         for pair in levels.windows(2) {
             draw("fs_down", &pair[0].view, &pair[1].view, Blend::Replace);
         }
+        let upsample = if params.b[1] > 0.0 { "fs_physical_up" } else { "fs_up" };
         for pair in levels.windows(2).rev() {
-            draw("fs_up", &pair[1].view, &pair[0].view, Blend::Add);
+            draw(upsample, &pair[1].view, &pair[0].view, Blend::Add);
         }
         let composite = Draw {
             entry: match tonemap {
