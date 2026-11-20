@@ -30,9 +30,12 @@ pub fn load_global_textures(dir: &GameDir) -> Result<GlobalTextures> {
     let mut out = GlobalTextures::default();
     for rel in GLOBAL_TEXTURE_FILES.iter().map(|&rel| shared::pack_file(dir, rel)).filter(|rel| dir.exists(rel)) {
         let file = shared_unwrapped(dir, rel)?;
+        let mut textures = Vec::new();
         for pack in blackbox_tpk::read_texture_packs(&file).with_context(|| format!("texture packs in {rel}"))? {
-            out.textures.extend(pack.textures);
+            textures.extend(pack.textures);
         }
+        crate::texture_packs::apply_file(dir, rel, &mut textures);
+        out.textures.extend(textures);
         out.anims.extend(blackbox_tpk::read_texture_anims(&file));
         if GLOBAL_MODEL_FILES.contains(&rel) {
             let solids = blackbox_solid::read_solids(&file).with_context(|| format!("shared models in {rel}"))?;

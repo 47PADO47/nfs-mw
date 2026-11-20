@@ -75,6 +75,7 @@ mods/<id>/
   mod.toml        manifest (required)
   <library>       .dll / .so (optional: a content-only mod has none)
   files/          VFS overlay, mirrors the install layout (CARS/MYCAR/..., MUSIC/...)
+  textures/       loose DDS files that replace single textures by name or hash; see ../texture-packs.md
   cars/           one <id>.toml per car the mod adds (role, heat, name, [stats], [customization]); see api-content.md#cars
   music/          audio files and .m3u playlists; the contexts are in [music] of mod.toml
   lang/           <locale>/*.ftl translations of the mod's text, and language packs; see translations.md
@@ -179,6 +180,9 @@ downloads or fetches a mod.
   the same path in the install or in a lower layer, and a new path adds one. Layers order by `[content] priority`
   (higher wins), then by load order (a later mod wins a tie). Mods do not write to the
   install.
+- **Textures:** each mod's `textures/` folder replaces single textures with loose DDS files, by the same priority, and never
+  undoes a higher mod's own files. Use it for upscaled or repainted textures rather than shipping whole texture packs in
+  `files/`, so two texture mods can be combined. The rules are in [texture-packs.md](../texture-packs.md).
 - **Content:** a mod's `cars/<id>.toml` files add cars, each a car of its own (not a copy of a stock one) with the mod's own
   `files/CARS/<ID>/` folder (geometry, textures and collision bounds), as player cars, cop cars, or both. A mod's `music/`
   folder joins the custom music library in the contexts its `[music]` table names, and plays even with the custom music

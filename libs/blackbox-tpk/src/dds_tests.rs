@@ -82,3 +82,25 @@ fn bad_files_are_refused() {
     assert_eq!(read_dds("T", &cube), Err(DdsError::NotFlat));
     assert!(matches!(read_dds("T", &block_file(b"DXT1", 0, 4, 1, 8)), Err(DdsError::Size(..))));
 }
+
+#[test]
+fn a_size_cap_drops_the_largest_stored_levels() {
+    // 16 by 8 DXT1: 64 bytes, then 16, 8, 8 and 8.
+    let mut texture = read_dds("T", &block_file(b"DXT1", 16, 8, 5, 64 + 16 + 8 + 8 + 8)).unwrap();
+    assert_eq!(texture.limit_size(4), 2);
+    assert_eq!((texture.width, texture.height, texture.mip_levels, texture.data.len()), (4, 2, 3, 24));
+    assert_eq!(texture.limit_size(0), 0);
+    let mut single = read_dds("T", &block_file(b"DXT1", 16, 8, 1, 64)).unwrap();
+    assert_eq!(single.limit_size(4), 0);
+    assert_eq!((single.width, single.height), (16, 8));
+}
+
+#[test]
+fn a_replacement_takes_the_pixels_and_keeps_the_names_render_state() {
+    let mut stock = read_dds("STOCK", &block_file(b"DXT1", 4, 4, 1, 8)).unwrap();
+    stock.alpha_sorting = true;
+    let picture = read_dds("OTHER", &block_file(b"DXT5", 8, 8, 1, 64)).unwrap();
+    stock.take_pixels(picture);
+    assert_eq!((stock.name.as_str(), stock.width, stock.format, stock.data.len()), ("STOCK", 8, PixelFormat::Dxt5, 64));
+    assert!(stock.alpha_sorting);
+}

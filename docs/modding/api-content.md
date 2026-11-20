@@ -30,6 +30,9 @@ follow-up; it would live in `libs/blackbox-chunk`).
 
 The console command `vfs <path>` (new, host) prints which layer provides a path; `mods` lists the layers.
 
+Single textures are replaced per texture, not per file, by a mod's `textures/` folder of loose DDS files: see
+[texture-packs.md](../texture-packs.md). Those follow the same priorities and never undo a higher layer's own files.
+
 ## Content registries (`bb.content`)
 
 Two ways in, both producing the same entry: a TOML file under `content/<kind>/` in the mod folder, read by the

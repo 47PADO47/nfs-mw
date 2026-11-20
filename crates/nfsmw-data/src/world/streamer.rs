@@ -254,6 +254,11 @@ fn worker(
         };
         let event = match sections.get(index).map(|s| file.load(index, s)) {
             Some(Ok(mut data)) => {
+                // Replacement textures are read here, where the file's place in the layers is known. A world built in
+                // memory has no file, and its maker chooses its textures.
+                if let Source::File(path) = source {
+                    crate::texture_packs::apply(path, &mut data.textures);
+                }
                 if let Some(rewrite) = control.rewrite.get() {
                     let _rewrite = blackbox_trace::scope("Streaming worker: section rewrite");
                     rewrite(&mut data);

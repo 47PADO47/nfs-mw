@@ -25,6 +25,7 @@ mod policy;
 pub mod pursuit_feed;
 pub mod races_feed;
 mod runtime;
+pub(crate) mod textures;
 
 #[cfg(test)]
 mod hello_tests;

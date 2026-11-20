@@ -7,13 +7,14 @@ use game_install::GameDir;
 
 use super::backends;
 use super::manager::ModManager;
-use super::{Mods, content, layers, policy};
+use super::{Mods, content, layers, policy, textures};
 use crate::cli::ViewArgs;
 use crate::settings::Settings;
 use crate::settings::mods::ModsSettings;
 
 /// Open the install, start the mods, and add the `files/` folder of each loaded mod to the install as a layer. Then the
-/// cars and music the mods declare are read and sealed ([`content`]), against the layers just added.
+/// cars and music the mods declare are read and sealed ([`content`]), against the layers just added, and the replacement
+/// textures are indexed ([`textures`]).
 ///
 /// The mods start first, and the layers are in place before the install is returned, so every scene that clones the
 /// install sees them. A mod that fails does not stop the game.
@@ -40,8 +41,12 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     let planned = content::plan(&loaded, &candidates);
     content::register(&dir, &planned);
     mods.declare_replacements(&planned);
+    let game_settings = Settings::load(view.settings_layer());
+    // The replacement textures: the mods' `textures/` folders and the settings' folder, before any scene loads.
+    let (sources, folders) = textures::plan(&loaded, &candidates, &game_settings.hd_content);
+    textures::apply(sources, folders, game_settings.hd_content.texture_max_size);
     // The language packs are mod content: the language is chosen once the mods' folders are known.
-    crate::i18n::start(&dir, Settings::load(view.settings_layer()).language);
+    crate::i18n::start(&dir, game_settings.language);
     mods.set_install(&dir);
     // The replacements the saved choices make are in effect before the world's first section loads: a viewer or a drive that starts at
     // once would otherwise load the shared library (where most signs, lamps and props are) with the game's own models for good.

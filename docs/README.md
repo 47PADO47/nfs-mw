@@ -56,6 +56,7 @@ against a local install selected with `NFSMW_GAME_DIR`.
 | [low-end.md](low-end.md) | Weak GPUs and laptops: what each graphics setting costs, the low, medium and high presets, a low-end config and how to read the performance overlay |
 | [post-processing.md](post-processing.md) | Optional tone mapping, bloom and anti-aliasing (FXAA; SMAA and TAA on the Bevy renderer): settings, menu rows, what each does and how to compare them |
 | [visual-treatment.md](visual-treatment.md) | Installed PC midday colour treatment for the native renderer |
+| [texture-packs.md](texture-packs.md) | Texture replacement with loose DDS files: which route to use (per texture or whole files), a mod's `textures/` folder and the `texture_packs` setting, their order, the folder layouts (names, hashes, NextGenGraphics `TexturePackInfo.json`), formats, the `texture_max_size` cap, scope and the measured cost of a 4x pack |
 | [ambient-occlusion.md](ambient-occlusion.md) | Spatial and temporal ambient-only AO: shared geometry, history rejection, comparison and GPU validation |
 | [optional-reflections.md](optional-reflections.md) | Optional cached local probes and selective current-frame car reflections |
 | [cached-shadows.md](cached-shadows.md) | Optional exact static shadow reuse, dynamic casters, memory costs and invalidation |

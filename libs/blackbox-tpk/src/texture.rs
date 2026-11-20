@@ -41,6 +41,33 @@ impl Texture {
         self.data.get(start..start + size)
     }
 
+    /// Take the pixels of `picture` (its size, format, mip chain and data) and keep this texture's name, alpha rules and
+    /// flags: a replacement picture stands in for the texture without changing how the engine draws it.
+    pub fn take_pixels(&mut self, picture: Texture) {
+        self.width = picture.width;
+        self.height = picture.height;
+        self.mip_levels = picture.mip_levels;
+        self.format = picture.format;
+        self.data = picture.data;
+        self.palette = picture.palette;
+    }
+
+    /// Drop the largest stored mip levels while a side is over `max` pixels, as long as a smaller stored level remains: a
+    /// size cap that costs no re-encoding. `0` is no cap. A texture without the smaller levels keeps its size. Returns
+    /// how many levels were dropped.
+    pub fn limit_size(&mut self, max: u32) -> u32 {
+        let mut dropped = 0;
+        while max > 0 && self.width.max(self.height) > max && self.mip_levels > 1 {
+            let size = mip_level_size(self.format, self.width, self.height, 0);
+            self.data.drain(..size);
+            self.width = (self.width / 2).max(1);
+            self.height = (self.height / 2).max(1);
+            self.mip_levels -= 1;
+            dropped += 1;
+        }
+        dropped
+    }
+
     /// Whether the texture must be decoded to RGBA8 to be drawn: for every format but DXT, and for DXT on a
     /// renderer without BC support or with a size that is not whole 4x4 blocks. Any other DXT texture is uploaded
     /// as block-compressed data. The loader threads and the renderer's upload both use this rule.
