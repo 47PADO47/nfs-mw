@@ -131,6 +131,7 @@ impl WorldScene {
         // their state and the random numbers they draw do not depend on how ticks group into frames
         // (`docs/specs/multiplayer/determinism.md`, D2 and D4).
         for tick_delta in deltas {
+            self.unattended.note_tick(tick_delta);
             let trace = blackbox_trace::scope("World: simulation / physics step");
             self.physics_step(tick_delta, driving, look, &guest_looks);
             drop(trace);
@@ -246,6 +247,7 @@ impl WorldScene {
             drive.refill_extra(self.extra.testing.unlimited_nos, self.extra.testing.unlimited_breaker);
         }
         self.update_moment_control_with_delta(dt);
+        self.autopilot_tick(dt);
         let primary = self.chase_primary();
         let focus = self.traffic_focus();
         // What the gameplay rules see (the crash gate, the cops' spawn window, the helicopter, what is out of view) is

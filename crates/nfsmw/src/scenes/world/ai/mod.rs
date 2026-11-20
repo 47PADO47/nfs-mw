@@ -35,7 +35,7 @@ mod model_loader;
 mod models;
 mod moment_driver;
 mod moment_feed;
-pub(in crate::scenes::world) use moment_driver::MomentDriver;
+pub(in crate::scenes::world) use moment_driver::{MomentDriver, PilotCar, RaceAim};
 mod net_export;
 mod nis_poses;
 mod original_camera;
@@ -105,7 +105,7 @@ pub use population::{ModelRequest, PatrolPlan};
 #[cfg(test)]
 pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_arrest_fixture};
 pub use pursuit::{CopModel, Pursuit};
-pub use racers::{ModelState, RacerSpawn};
+pub use racers::{ModelState, RaceDriving, RacerSpawn};
 pub use tally::{PursuitCostTally, RoadblockTally};
 pub use touches::{CarTouch, Toucher};
 pub(in crate::scenes::world) use water::RainView;

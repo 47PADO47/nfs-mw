@@ -35,7 +35,7 @@ pub struct QuickPlay {
 
 impl QuickPlay {
     pub fn new() -> Self {
-        Self::with_rng(Rng::from_clock())
+        Self::with_rng(Rng::for_run(crate::parity::seed::Stream::QuickPlay))
     }
 
     /// A screen whose picks follow `rng`, for tests.

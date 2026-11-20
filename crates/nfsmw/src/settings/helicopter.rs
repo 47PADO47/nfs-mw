@@ -159,6 +159,10 @@ impl HeliSettings {
 
 /// The settings in the file next to the config file. A missing file is the vanilla tuning.
 pub fn load() -> HeliSettings {
+    // A stock run has no such file (`parity/stock.rs`).
+    if crate::parity::stock::ini_absent(FILE_NAME) {
+        return HeliSettings::default();
+    }
     match crate::settings::Settings::config_path().as_deref().and_then(Path::parent) {
         Some(dir) => read(&dir.join(FILE_NAME)),
         None => HeliSettings::default(),

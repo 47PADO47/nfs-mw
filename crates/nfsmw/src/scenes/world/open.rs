@@ -278,6 +278,7 @@ impl WorldScene {
                 race_starts,
                 gameplay,
                 race: None,
+                unattended: race::Unattended::of_run(),
                 screen_fade: Default::default(),
                 queued_race: None,
                 queued_again: None,

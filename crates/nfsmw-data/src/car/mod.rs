@@ -314,7 +314,7 @@ fn load_with(
             }
         }
     }
-    decals::apply(dir, car, t, &slots, &mut model)?;
+    decals::apply(dir, car, t, &slots, &mut model, options.preset.is_some())?;
     Ok(model)
 }
 

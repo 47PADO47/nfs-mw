@@ -3,6 +3,7 @@
 //! computer-driven racers, the minimap, the card and the career. Specs: `docs/specs/race-mode.md`,
 //! `docs/specs/ai-racers.md`, `docs/specs/ai-racers-route.md`, `docs/specs/ai-racers-catchup.md`.
 
+mod autopilot;
 mod barriers;
 #[cfg(test)]
 mod blacklist_tests;
@@ -29,6 +30,7 @@ mod intro;
 mod load;
 pub(super) mod mods;
 mod names;
+mod nis_grid;
 mod outro;
 mod police_context;
 mod report;
@@ -45,7 +47,9 @@ mod start;
 mod startable;
 #[cfg(test)]
 pub(in crate::scenes::world) mod test_roads;
+mod trace_rows;
 mod traffic;
+mod unattended;
 mod wrong_way;
 
 pub(super) use command::race_command;
@@ -54,6 +58,7 @@ pub(super) use restart::Kit as RestartKit;
 pub(in crate::scenes::world) use setup::Opponent;
 pub use setup::RaceOptions;
 pub use split::SplitSetup;
+pub(in crate::scenes::world) use unattended::Unattended;
 
 /// The story's own races, which player 1 drives alone in co-op: the scripted chase and the final race.
 pub(in crate::scenes::world) fn is_story_race(race: &nfsmw_data::gameplay::Race) -> bool {
@@ -243,9 +248,14 @@ pub(in crate::scenes::world) fn map_route_of(session: Option<&RaceSession>) -> O
 impl crate::scenes::world::WorldScene {
     /// Whether a race that has no police is on, so the cops are kept out of the world.
     pub(in crate::scenes::world) fn race_bars_cops(&self) -> bool {
-        if self.race.as_ref().is_some_and(|race| race.event == scripted_chase::CHASE_EVENT) {
+        self.race.as_ref().is_some_and(|race| self.bars_cops_in(race))
+    }
+
+    /// Whether the race `session` keeps the cops out of the world.
+    pub(in crate::scenes::world) fn bars_cops_in(&self, session: &RaceSession) -> bool {
+        if session.event == scripted_chase::CHASE_EVENT {
             return self.career.chase.as_ref().is_none_or(|run| !run.cops_allowed());
         }
-        self.race.as_ref().is_some_and(|race| !race.has_police())
+        !session.has_police()
     }
 }

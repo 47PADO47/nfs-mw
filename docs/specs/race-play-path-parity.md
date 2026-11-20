@@ -30,7 +30,9 @@ eligibility checks or replacing it with a loaded career's car. See
 Ordinary custom races allow zero opponents, as reported by the user for the OG.
 Keep the existing extended maximum. Racer ID zero remains the player even when
 the physical grid slot varies. Authored forced positions and scripted career
-starts take priority. A solo race has one valid grid slot.
+starts take priority over the planned grid; where a standing start's intro NIS
+ends its cars, those end poses are the grid ([route](ai-racers-route.md)
+section 3). A solo race has one valid grid slot.
 
 The remake draws custom starting slots from a separate random stream, seeded
 from the clock in single player or from the world's explicit session seed.
@@ -72,7 +74,12 @@ This does not grant Junkman parts. The action planner still caps performance
 against the player's car; quick-race matching bias defaults to zero **[decomp]**.
 
 Apply maximum ordinary hardware to computer opponents in ordinary quick races.
-Keep human cars and scripted career/preset setup outside this follow-up change.
+The vehicle comes from the character's preset ride when it names one, otherwise
+from its car type; the `[1, 1, 1]` target is supplied in both cases, so a preset
+ride's opponent gets the same maximum hardware with the preset's looks **[exe]**.
+The `OPM_*` presets of the street rivals have no `presetride` record in this
+install, so reading upgrade levels from that class gives them stock hardware.
+Keep human cars and scripted career setup outside this follow-up change.
 An installed probe must inspect both actual vehicle hardware and action limits.
 Its external player trajectory controls catch-up and residency; it is a diagnostic
 replay, not evidence of identical human driving or a finished OG parity pass.
@@ -93,3 +100,9 @@ catch-up therefore affects positive engine torque, drag and downforce using
 the existing [speed/skill contract](ai-driver-speed-skill.md), section 8.3.
 Pass those per-car force scales into simulation; leave human, traffic and police
 scales at one. Do not change installed specs or use a fixed race-speed boost.
+Simple suspension brings its own tire, brakes and drive slip rules
+([police simple chassis](cop-simple-chassis.md) sections 1 to 3); race opponents
+use them, with the racer steering-drag share. Held rivals stage as the driver
+specs give it: staging gas 0.8, no brake, the staging speed request. The chassis
+staging holds the body, and the simple tire's staging rule lets the driven wheels
+slip at a quarter of their traction until GO.

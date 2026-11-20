@@ -77,6 +77,13 @@ pub fn run(cli: Cli) -> Result<()> {
     let launch = NetLaunch;
     // No command at all: the game, as `play` starts it.
     let command = cli.command.unwrap_or_else(Command::play);
+    // The seed and the stock rules are set before the settings, the mods or any random source is read.
+    if let Some(view) = command.view_args() {
+        crate::parity::init(view.parity_options());
+    }
+    if let Some(race_run) = command.race_run() {
+        crate::parity::race_run::init(race_run.options(|name| std::env::var(name).ok()));
+    }
     match command {
         Command::CheckInstall => install::check(game_dir),
         Command::Setup => setup::run(game_dir),
@@ -137,7 +144,7 @@ pub fn run(cli: Cli) -> Result<()> {
             let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
-        Command::Play { skip_boot, drive, aliases, ui_script, view } => {
+        Command::Play { skip_boot, drive, aliases, ui_script, view, .. } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let settings = Settings::load(view.settings_layer());
             let scripted = skip_boot || ui_script.is_some();
@@ -249,7 +256,18 @@ pub fn run(cli: Cli) -> Result<()> {
             let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
-        Command::ViewWorld { at, height, heading, pitch, fog_distance, wait_for_load, drive, drive_script, view } => {
+        Command::ViewWorld {
+            at,
+            height,
+            heading,
+            pitch,
+            fog_distance,
+            wait_for_load,
+            drive,
+            drive_script,
+            view,
+            ..
+        } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let driving = drive.is_some();
             let drive = drive.map(|car| crate::scenes::world::DriveOptions { car, script: drive_script });

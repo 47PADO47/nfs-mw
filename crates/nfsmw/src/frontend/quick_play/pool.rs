@@ -266,6 +266,14 @@ impl Rng {
         Self::new(nanos)
     }
 
+    /// Seeded from the run's seed for `stream` when the run has one (`--seed`, `parity/seed.rs`), else from the clock.
+    pub fn for_run(stream: crate::parity::seed::Stream) -> Self {
+        match crate::parity::seed::next(stream) {
+            Some(seed) => Self::new(seed),
+            None => Self::from_clock(),
+        }
+    }
+
     fn next(&mut self) -> u64 {
         self.0 ^= self.0 >> 12;
         self.0 ^= self.0 << 25;

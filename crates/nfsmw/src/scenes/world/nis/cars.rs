@@ -126,6 +126,11 @@ impl CarTrack {
         Some(Self { slot, translation, rotation, translation_at, rotation_at })
     }
 
+    /// The scene time at which the longer of the track's two clips ends: where the scene leaves the car.
+    pub fn end_time(&self) -> f32 {
+        self.translation.duration_secs().max(self.rotation.duration_secs()) / CAR_TIME_SCALE
+    }
+
     /// The car's pose at `scene_time` (seconds from the scene's zero), in render space for a scene placed at `anchor`.
     pub fn spot(&self, anchor: &Anchor, scene_time: f32) -> CarSpot {
         let secs = scene_time * CAR_TIME_SCALE;

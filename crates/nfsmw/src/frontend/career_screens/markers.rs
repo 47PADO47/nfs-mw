@@ -196,7 +196,7 @@ pub fn make(name: &str, _args: Args) -> Option<Box<dyn ScreenLogic>> {
     if name != screen::SAFEHOUSE_MARKERS.to_ascii_lowercase() {
         return None;
     }
-    Some(Box::new(MarkersLogic::new(Rng::from_clock())))
+    Some(Box::new(MarkersLogic::new(Rng::for_run(crate::parity::seed::Stream::Markers))))
 }
 
 /// The markers screen: the cards of the queue, the highlight, and the picks.

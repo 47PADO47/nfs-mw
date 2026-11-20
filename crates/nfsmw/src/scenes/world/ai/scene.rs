@@ -63,7 +63,7 @@ impl WorldScene {
     }
 
     /// How many cars to keep: the console's count if there is one, else the setting while a car is driven.
-    fn traffic_wanted(&self) -> usize {
+    pub(in crate::scenes::world) fn traffic_wanted(&self) -> usize {
         match self.traffic_manual {
             Some(n) => n,
             None if self.players.has_lead() => self.traffic_setting.cars as usize,

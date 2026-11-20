@@ -32,6 +32,7 @@ pub fn open_install(game_dir: Option<&Path>, view: &ViewArgs) -> Result<(GameDir
     );
     let loaded: Vec<String> = mods.loaded().into_iter().map(|summary| summary.id).collect();
     let refused: Vec<String> = mods.rejected().iter().filter_map(|rejected| rejected.id.clone()).collect();
+    crate::parity::header::record_mods(settings.mode, &loaded);
     mods.set_manager(ModManager::new(settings, config_file.clone(), &loaded, &refused));
     // The runtime found the mods once, when it started; their folders come from it, not from a second scan.
     let candidates = mods.loaded_candidates();

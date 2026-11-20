@@ -64,7 +64,7 @@ fn supported_start(
     collision: &CollisionWorld,
     surfaces: &SurfaceTable,
 ) -> (AiCar, RoadNav) {
-    let filter = SegmentFilter { traffic: true, cop: true, no_decision: true };
+    let filter = SegmentFilter { traffic: true, cop: true, no_decision: true, open: false };
     let mut candidates = Vec::new();
     for (i, segment) in world.network.segments.iter().enumerate() {
         if !filter.allows(segment) || segment.length < 60.0 {

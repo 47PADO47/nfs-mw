@@ -60,7 +60,8 @@ impl Writer {
             json!({"schema": "nfsmw-ui-trace-v1", "unix_ns": unix_ns,
             "pid": std::process::id(), "sample_period_ms": 33, "queue_capacity": capacity,
             "sound_evidence": "runtime_request_not_playback", "clock": "monotonic_since_header",
-            "scope": "frontend_screen_host", "object_space": "local_before_presentation"}),
+            "scope": "frontend_screen_host", "object_space": "local_before_presentation",
+            "run": serde_json::to_value(crate::parity::header::RunHeader::of_run(None)).ok()}),
         );
         Ok(writer)
     }
