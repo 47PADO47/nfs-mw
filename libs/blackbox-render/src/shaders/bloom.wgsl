@@ -109,7 +109,8 @@ fn flare_sample(uv: vec2<f32>) -> vec3<f32> {
     let edge = min(uv, 1.0-uv);
     let fade = smoothstep(0.0, 0.08, min(edge.x,edge.y));
     let c = textureSampleLevel(src2, samp, uv, 0.0).rgb * params.b.w;
-    return max(c - vec3<f32>(select(0.0, 0.8, params.b.y > 0.0)), vec3<f32>(0.0)) * fade;
+    // Only the brightest glow (the sun, lamps) makes ghosts; the scene is display-encoded, so 0.3 is already bright.
+    return max(c - vec3<f32>(0.3), vec3<f32>(0.0)) * fade;
 }
 
 fn optics(base: vec3<f32>, glow: vec3<f32>, uv: vec2<f32>) -> vec3<f32> {
@@ -123,7 +124,7 @@ fn optics(base: vec3<f32>, glow: vec3<f32>, uv: vec2<f32>) -> vec3<f32> {
     let ghost = flare_sample(0.5 - axis * 1.4) + flare_sample(0.5 - axis * 0.65);
     let ring = uv - direction * 0.32;
     let halo = vec3<f32>(flare_sample(ring + direction*0.003).r, flare_sample(ring).g, flare_sample(ring-direction*0.003).b);
-    return lit + (ghost + halo) * (0.04 * params.b.z);
+    return lit + (ghost + halo) * (1.5 * params.b.z);
 }
 
 @fragment
