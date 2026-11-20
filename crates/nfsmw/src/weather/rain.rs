@@ -47,6 +47,10 @@ impl Rain {
             self.amount = amount.clamp(0.0, 1.0);
         }
     }
+    /// What [`Self::configure`] set: rain on every track, and the amount from 0 to 1.
+    pub fn setting(&self) -> (bool, f32) {
+        (self.always, self.amount)
+    }
     pub fn target_at(&self, camera: Vec3) -> f32 {
         if self.amount == 0.0 {
             return 0.0;

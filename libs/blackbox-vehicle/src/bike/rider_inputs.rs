@@ -3,7 +3,7 @@
 
 use glam::Vec3;
 
-use super::{Bike, RiderRotation};
+use super::{Bike, RiderRotation, ThrottleWheelie};
 
 impl Bike {
     /// The rider's weight on the bike, -1 (fully back) to 1 (fully forward). It moves the combined centre of gravity and
@@ -13,6 +13,22 @@ impl Bike {
             true => weight.clamp(-1.0, 1.0),
             false => 0.0,
         };
+    }
+
+    /// Switch the game's wheelie from the throttle alone: [`ThrottleWheelie::GAME`] or [`ThrottleWheelie::REFERENCE`] (the default), which
+    /// is the reference's behaviour (the weight lever alone lifts a wheel).
+    pub fn set_throttle_wheelie(&mut self, config: ThrottleWheelie) {
+        self.throttle_wheelie = config;
+    }
+
+    /// The throttle-only wheelie's settings now.
+    pub fn throttle_wheelie(&self) -> &ThrottleWheelie {
+        &self.throttle_wheelie
+    }
+
+    /// Whether the throttle is holding the weight lever back this step (a wheelie it asked for), as opposed to the rider's own lever.
+    pub fn throttle_lever(&self) -> bool {
+        self.trick.throttle_lever
     }
 
     /// The rider's weight now (-1 back to 1 forward): the weight the rider help aims at after the rate limit of the input

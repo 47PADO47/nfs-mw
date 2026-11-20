@@ -120,7 +120,7 @@ impl Radio {
             backend,
             lists,
             mode: Mode::default(),
-            random: Random::from_clock(),
+            random: Random::for_run(),
             enabled: true,
             driving: false,
             manual: false,

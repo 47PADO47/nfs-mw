@@ -186,7 +186,7 @@ impl Recorder {
         if self.index.len() >= MAX_INDEX_ENTRIES {
             let mut position = 0usize;
             self.index.retain(|_| {
-                let keep = position % 2 == 0;
+                let keep = position.is_multiple_of(2);
                 position += 1;
                 keep
             });

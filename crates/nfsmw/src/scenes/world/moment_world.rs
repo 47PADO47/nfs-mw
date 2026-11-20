@@ -103,6 +103,10 @@ impl WorldScene {
             return;
         }
         self.moment.driver = None;
+        // An unattended race run's autopilot keeps the car after the moment (`race/autopilot.rs`).
+        if self.unattended.pilot_engaged() {
+            return;
+        }
         if let Some(drive) = self.players.lead_mut() {
             drive.set_cinematic_input(None);
         }

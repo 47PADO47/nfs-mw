@@ -88,6 +88,26 @@ impl TextureSource {
         }
     }
 
+    /// The texture as a reader of a pack would give it (no pack is written): every field the source has, the name's hash included.
+    pub fn into_texture(self) -> Texture {
+        Texture {
+            name_hash: self.hash(),
+            name: self.name,
+            width: self.width,
+            height: self.height,
+            mip_levels: self.mip_count,
+            format: self.format,
+            compression_type: self.compression_type,
+            alpha_usage: self.alpha_usage,
+            alpha_sorting: self.alpha_sorting,
+            alpha_blend: self.alpha_blend,
+            flags: self.flags,
+            tilable_uv: self.tilable_uv,
+            data: self.data,
+            palette: self.palette,
+        }
+    }
+
     /// The hash the pack files this texture under.
     pub fn hash(&self) -> u32 {
         self.name_hash.unwrap_or_else(|| bstring_hash(&self.name))
@@ -134,7 +154,7 @@ impl TextureSource {
         if (self.format == PixelFormat::P8) != has_palette {
             return Err(self.fail("a palette is required for P8 and not allowed for other formats"));
         }
-        if self.palette.len() % 4 != 0 || self.palette.len() / 4 > 256 {
+        if !self.palette.len().is_multiple_of(4) || self.palette.len() / 4 > 256 {
             return Err(self.fail("palette must be 1 to 256 four-byte entries"));
         }
         Ok(())

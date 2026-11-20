@@ -36,7 +36,7 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
     let source = PathBuf::from(source);
     let dir = mod_folder(&source);
 
-    let Start::Started { job: running, live } = job::start(&dir, None).unwrap() else {
+    let Start::Started { job: running, live, .. } = job::start(&dir, None).unwrap() else {
         panic!("the first start must convert")
     };
     assert!(!live, "nothing is live on a first start");
@@ -48,8 +48,11 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
 
     let folder = dir.join("files/CARS").join(&car.id);
     let geometry = std::fs::read(folder.join("GEOMETRY.BIN")).unwrap();
-    let (solids, errors) = blackbox_solid::read_solids_lossy(&geometry).unwrap();
+    let (mut solids, errors) = blackbox_solid::read_solids_lossy(&geometry).unwrap();
     assert!(errors.is_empty(), "{errors:?}");
+    // The file leaves out the second level where it is the first; the game reads it back as a copy (`levels.rs`).
+    assert!(!solids.iter().any(|solid| solid.name.ends_with("_B")), "a second level is written only when it differs");
+    nfsmw_data::car::mods::levels::alias_second_level(&mut solids);
     for stem in ["KIT00_BODY", "KIT00_FRONT_TIRE"] {
         for letter in ['A', 'B', 'C', 'D'] {
             let name = format!("{}_{stem}_{letter}", car.id);
@@ -127,9 +130,9 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
         assert!(&wav[..4] == b"RIFF" || &wav[..4] == b"Gnsu", "{file} is a WAV or a Ginsu file");
     }
 
-    assert!(matches!(job::start(&dir, None).unwrap(), Start::UpToDate { cars: 1 }));
+    assert!(matches!(job::start(&dir, None).unwrap(), Start::UpToDate { cars: 1, .. }));
     std::fs::write(dir.join("config.toml"), "source = 'nowhere'\n").unwrap();
-    let Start::Started { job: second, live } = job::start(&dir, None).unwrap() else {
+    let Start::Started { job: second, live, .. } = job::start(&dir, None).unwrap() else {
         panic!("a changed setting converts")
     };
     assert!(live, "content from the first run is live now, so the new run waits for the next start");

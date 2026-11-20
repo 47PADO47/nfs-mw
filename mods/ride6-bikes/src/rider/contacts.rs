@@ -17,7 +17,7 @@ use blackbox_skeleton::Transform;
 use glam::Vec3;
 use serde_json::{Map, Value, json};
 
-use super::attach::{HUB_BONES, SEAT_SOCKET, TARGETS};
+use super::attach::{GRIP_BONES, HUB_BONES, SEAT_SOCKET, TARGETS};
 use super::convert;
 use super::raw::{JsonBone, JsonSkeleton, JsonSocket};
 use super::style;
@@ -62,6 +62,8 @@ pub struct Points {
     pub hubs: (Vec3, Vec3),
     /// `(role, place, steers with the handlebar)` in the order of [`TARGETS`].
     pub targets: Vec<(&'static str, Transform, bool)>,
+    /// `(role, place and turn)` of the handlebar bone each grip is held on ([`GRIP_BONES`]); a bike without the bone has none.
+    pub anchors: Vec<(&'static str, Transform)>,
 }
 
 impl Points {
@@ -71,18 +73,28 @@ impl Points {
         found.map(|(_, at, _)| *at).with_context(|| format!("no target {role}"))
     }
 
+    /// The place and turn of the grip bone of the target `role`, if the bike has it.
+    pub fn anchor(&self, role: &str) -> Option<Transform> {
+        self.anchors.iter().find(|(name, _)| *name == role).map(|(_, at)| *at)
+    }
+
     /// `rider_root_in_bike`, `hubs` and `targets` of `attach.json` and `contacts.json`.
     pub fn placement(&self) -> Map<String, Value> {
         let targets: Vec<Value> = self
             .targets
             .iter()
             .map(|(role, at, steers)| {
-                json!({
+                let mut target = json!({
                     "name": role,
                     "position": at.translation.to_array(),
                     "rotation": at.rotation.to_array(),
                     "steers": steers,
-                })
+                });
+                if let Some(anchor) = self.anchor(role) {
+                    target["anchor"] = json!(anchor.translation.to_array());
+                    target["anchor_rotation"] = json!(anchor.rotation.to_array());
+                }
+                target
             })
             .collect();
         let mut out = Map::new();
@@ -111,7 +123,12 @@ pub fn points(bike: &JsonSkeleton) -> Result<Points> {
     for (role, socket, steers) in TARGETS {
         targets.push((role, world(socket)?, steers));
     }
-    Ok(Points { seat: world(SEAT_SOCKET)?, hubs: (hub(HUB_BONES.0)?, hub(HUB_BONES.1)?), targets })
+    let bone_at = |name: &str| -> Result<Transform> {
+        let bone = skeleton.find(name).with_context(|| format!("the bike has no bone {name}"))?;
+        Ok(component[bone])
+    };
+    let anchors = GRIP_BONES.iter().filter_map(|(role, bone)| Some((*role, bone_at(bone).ok()?))).collect();
+    Ok(Points { seat: world(SEAT_SOCKET)?, hubs: (hub(HUB_BONES.0)?, hub(HUB_BONES.1)?), targets, anchors })
 }
 
 fn floats<const N: usize>(value: Option<&Value>, what: &str) -> Result<[f32; N]> {
@@ -252,6 +269,12 @@ pub fn write(bike_dir: &Path, car_dir: &Path, physics: &Path) -> Result<bool> {
     let mut json =
         contacts_json(&parts, table.as_ref()).with_context(|| format!("contact points of {}", path.display()))?;
     add_seat_surface(&mut json, bike_dir);
+    if let Err(error) = super::grip_span::add(&mut json, bike_dir) {
+        println!("{}: no grip spans: {error:#}", bike_dir.display());
+    }
+    if let Err(error) = super::body_section::add(&mut json, bike_dir) {
+        println!("{}: no body section: {error:#}", bike_dir.display());
+    }
     let vehicle = parts.get("vehicle").and_then(Value::as_str).unwrap_or_default();
     add_style(&mut json, handler_of(physics, vehicle).as_deref());
     let folder = car_dir.join("RIDER");

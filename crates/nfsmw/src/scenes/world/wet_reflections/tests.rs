@@ -8,6 +8,33 @@ fn run(road: &mut WetRoad, fps: u32, seconds: u32, raining: bool) {
 }
 
 #[test]
+fn a_wet_road_variant_soaks_dries_and_scales_the_levels_and_the_games_own_changes_nothing() {
+    use blackbox_modding::content::WetRoadProfile;
+    use std::sync::Arc;
+    let mut own = WetRoad::default();
+    run(&mut own, 60, 4, true);
+    let mut same = WetRoad::default();
+    same.set_profile(Some(Arc::new(WetRoadProfile::default())));
+    run(&mut same, 60, 4, true);
+    assert_eq!((own.amount(), own.water()), (same.amount(), same.water()), "factors of 1 are the game's own road");
+    let mut quick = WetRoad::default();
+    quick.set_profile(Some(Arc::new(WetRoadProfile { soak: 2.0, ..Default::default() })));
+    run(&mut quick, 60, 4, true);
+    assert!(quick.amount() > own.amount(), "a faster soak wets it more in the same time");
+    let mut film = WetRoad::default();
+    film.set_profile(Some(Arc::new(WetRoadProfile { film: 2.0, pooling: 3.0, ..Default::default() })));
+    run(&mut film, 60, 4, true);
+    assert!(film.amount() > own.amount() && film.amount() <= 1.0, "the film level is scaled and kept to 0..1");
+    assert!(film.water().pooling >= own.water().pooling && film.water().pooling <= 1.0);
+    let (mut slow, mut dries) = (own, WetRoad::default());
+    slow.set_profile(Some(Arc::new(WetRoadProfile { dry: 0.25, ..Default::default() })));
+    run(&mut dries, 60, 4, true);
+    run(&mut slow, 60, 4, false);
+    run(&mut dries, 60, 4, false);
+    assert!(slow.amount() > dries.amount(), "a slower drying keeps more of the wet");
+}
+
+#[test]
 fn wet_and_dry_history_matches_elapsed_time_at_high_fps() {
     let mut reference = WetRoad::default();
     run(&mut reference, 60, 10, true);

@@ -69,6 +69,16 @@ impl Interpolate {
 pub struct Constant(f32);
 
 impl Constant {
+    /// A smoother that already stands at `value` (the blueprint's variables have defaults; this one is not born at 0).
+    pub fn at(value: f32) -> Self {
+        Self(value)
+    }
+
+    /// The value now.
+    pub fn value(self) -> f32 {
+        self.0
+    }
+
     pub fn step(&mut self, x: f32, rate: f32, dt: f32) -> f32 {
         let left = x - self.0;
         if left * left >= SNAP {
@@ -173,6 +183,12 @@ mod tests {
         assert!((y.step(-1.0, 3.0, 0.1) - 0.7).abs() < 1e-6, "down as well");
         let held = y.step(0.7, 3.0, 0.1);
         assert_eq!(y.step(0.7, 3.0, 0.1), held);
+    }
+
+    #[test]
+    fn a_constant_smoother_can_start_where_the_variable_does() {
+        assert_eq!(Constant::at(1.0).step(1.0, 3.0, 0.1), 1.0);
+        assert!((Constant::at(1.0).step(0.0, 3.0, 0.1) - 0.7).abs() < 1e-6);
     }
 
     #[test]

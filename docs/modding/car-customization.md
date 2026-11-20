@@ -16,6 +16,9 @@ other halves of a car are on their own pages:
 
 The [2012 cars mod](../../mods/nfsmw-2012-content/README.md) is the worked example, and its settings are on its own page.
 
+*Planned:* the fixed lists below become slots and components of one general model, with per-vehicle options, rules and prices
+([ADR 0014](../decisions/0014-vehicle-components.md)). Every table on this page keeps working.
+
 ## The files of a car
 
 A car is the folder `files/CARS/<ID>/` of a mod plus the manifest `cars/<id>.toml` ([api-content.md](api-content.md#cars)):
@@ -39,7 +42,11 @@ manifest's file name). A solid it does not find is not drawn, and a car with nei
 | `<ID>_KIT00_DRIVER_S0_A` / `_B`, `S1`, `S2` ... and `<ID>_KIT00_DRIVER_BACK_A` / `_B` | optional: the driver posed for the steering and for the reverse gear ([The driver's poses](#the-drivers-poses)) |
 
 The letters are the levels of detail, `A` the finest; `E` is not looked for, and a level a car lacks draws nothing at that
-distance, so A and B are the finest the player sees. The paint placeholder texture is `<ID>_SKIN1`, on the paint surfaces.
+distance, so A and B are the finest the player sees. **A solid `<stem>_A` with no `<stem>_B` beside it serves as `<stem>_B`
+too** (`nfsmw_data::car::mods::levels`, applied when a mod car's `GEOMETRY.BIN` is read, never to a car of the game): a car
+whose second level is the same mesh as its first writes it once. The 2012 content mod does, which took 232 MB of its 510 MB
+of geometry files for 78 cars (the `_B` copies of the bodies, wheels, drivers, driver poses and hinged parts). A `_B` the file
+does have is kept as it is. The paint placeholder texture is `<ID>_SKIN1`, on the paint surfaces.
 Solids are in car space (+x forward, +y left, +z up), centred on the wheelbase: the wheels sit at plus and minus half the
 `wheelbase_m` of `[stats]` ([car-stats.md](car-stats.md)).
 

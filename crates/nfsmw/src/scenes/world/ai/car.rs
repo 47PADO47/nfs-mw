@@ -210,7 +210,7 @@ impl AiCar {
         match (&role, start.patrol) {
             (Role::Cop(_), _) | (Role::Traffic, true) => sim.configure_police(),
             (Role::Traffic, false) => sim.configure_traffic(),
-            (Role::Racer(_), _) => sim.configure_ai(),
+            (Role::Racer(_), _) => sim.configure_racer(),
         }
         sim.collision_role.cop = start.patrol || matches!(role, Role::Cop(_));
         sim.collision_racer = matches!(role, Role::Racer(_));

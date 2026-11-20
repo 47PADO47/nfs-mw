@@ -35,7 +35,7 @@ Off by default. With the feature off, nothing is scanned or decoded and the radi
 ### 2.1 Sources
 
 - A **folder source** is one folder. Its tracks are the files directly inside it (no subfolders), whose extension is
-  one of `mp3`, `ogg`, `flac` or `wav`, compared without case. Files are sorted by file name, case-insensitively
+  one of `mp3`, `ogg`, `flac`, `wav` or `sps`, compared without case. Files are sorted by file name, case-insensitively
   (ties by the exact name). A folder that cannot be read is logged and skipped. [design]
 - A **playlist source** is an M3U or M3U8 file. Its text is read as UTF-8 (a byte-order mark is dropped); if that
   fails, each byte is read as one Latin-1 character. [mod: M3U files had to be non-Unicode, which this avoids]
@@ -193,6 +193,7 @@ decoder streams instead).
 | `ogg` | Ogg | Vorbis | Tags: Vorbis comments. |
 | `flac` | native FLAC | FLAC | Tags: Vorbis comments. |
 | `wav` | RIFF WAVE | PCM | 8, 16, 24, 32-bit integer and 32-bit float. |
+| `sps` | EA Audio stream | EA Layer III | The songs of NFS: Most Wanted (2012) (`UI/SONGS/*.SPS`, [chameleon-sound.md](../formats/chameleon-sound.md)). The file is read whole and repacked to MP3 in memory with `ea_audio::sps::to_mp3` (the front stereo pair of a stream of more channels), then decoded as an MP3; nothing is written. No tags: a playlist caption names the song. |
 
 The mod also plays tracker modules and MIDI (with a SoundFont); those are **[deferred]**. So is AAC in M4A and MP4.
 
@@ -303,7 +304,7 @@ config reader is `settings/custom_music.rs`; the radio's custom side is `audio/r
 | 2.2 pursuit context | **not played (decision needed).** The radio already holds its place while a pursuit has the music (`update_held`, fed by `Scene::is_pursuing`), so no custom track plays in a chase. Playing the pursuit sources would put custom tracks over the pursuit music, which section 1 says they do not replace. Pick one: the pursuit sources play instead of the pursuit music (needs the music's gating changed), or they stay unplayed | `audio/radio/glue.rs` `update_radio`, `audio/plugin.rs` |
 | 2.2 race context | **not played.** The port has no race mode: Quick Race stops at its options screen (`frontend/custom_race/track_options.rs`) | none |
 | 2.8 config read at the first drive | done | `audio/radio/glue.rs` `load_radio` |
-| 4 formats (mp3, ogg, flac, wav) | done through symphonia; the decoder streams blocks | `custom/decode.rs` |
+| 4 formats (mp3, ogg, flac, wav) | done through symphonia; the decoder streams blocks. `sps` (the 2012 songs) is repacked to MP3 in memory first, so the install's own files play with no conversion | `custom/decode.rs` |
 | EA Trax playlist screen (`frontend-menus.md` 2.2) | **done for stock songs**: the jukebox screen drives `EA_Trax_Jukebox.fng` with the four-state song mode, table order and random flag reversed from `speed.exe` ([eatrax-jukebox.md](eatrax-jukebox.md)). Custom tracks are not listed: the package has four fixed rows | `frontend/jukebox.rs`, `settings/eatrax.rs` |
 | 7 per-track amplitude and loop points | **not done, and no source defines them.** The M3U `#EXTINF` line gives only the length and the text, and this spec has no sidecar format. Stays deferred | none |
 

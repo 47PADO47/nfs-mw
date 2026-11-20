@@ -55,7 +55,7 @@ pub mod vanilla {
 }
 
 /// Passive recharge: the meter fills once the speed is strictly above `min_speed`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub struct Recharge {
     /// Speed in m/s.
     pub min_speed: f32,
@@ -64,7 +64,7 @@ pub struct Recharge {
 }
 
 /// Drift recharge: fills while drifting faster than `min_speed` at more than `min_slip` radians.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub struct DriftRecharge {
     /// Speed in m/s.
     pub min_speed: f32,
@@ -75,7 +75,7 @@ pub struct DriftRecharge {
 }
 
 /// Simulation-time multiplier while active, and the rates it moves at.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub struct Dilation {
     /// The multiplier while active (0.25 is a quarter speed).
     pub target: f32,
@@ -92,7 +92,7 @@ impl Default for Dilation {
 }
 
 /// The vehicle effects while active, applied by the physics step.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub struct PhysicsModifiers {
     /// Collision mass relative to the car's mass.
     pub car_mass_scale: f32,
@@ -122,7 +122,7 @@ impl Default for PhysicsModifiers {
 }
 
 /// Every Speedbreaker tunable, in the game's own units (metres per second, seconds, radians).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub struct SpeedbreakerTuning {
     /// Speed (m/s) to activate; an active breaker turns off below it.
     pub min_speed: f32,

@@ -1,9 +1,11 @@
 //! Identify cart changes and remove exactly one installed item.
 
+use crate::garage::options::{Store, VehicleOptions};
+use crate::garage::rider_gear::Part as GearPart;
 use crate::garage::{Model, Selection, menu_rows::Row};
 use nfsmw_data::car::{customization::Category as Part, physics::PerformanceCategory as Hardware};
 
-pub(super) fn changed(_model: &Model, baseline: &Selection, cart: &Selection) -> Vec<Row> {
+pub(super) fn changed(model: &Model, baseline: &Selection, cart: &Selection) -> Vec<Row> {
     let mut rows = Vec::new();
     for part in Part::ALL {
         if baseline.parts.parts[part as usize] != cart.parts.parts[part as usize] {
@@ -51,15 +53,51 @@ pub(super) fn changed(_model: &Model, baseline: &Selection, cart: &Selection) ->
     if [2, 3].into_iter().any(|zone| baseline.parts.decals[zone][6..8] != cart.parts.decals[zone][6..8]) {
         rows.push(Row::Number(0));
     }
+    rows.extend(changed_slots(model, baseline, cart));
+    rows.extend(
+        GearPart::ALL.into_iter().filter(|part| baseline.gear.get(*part) != cart.gear.get(*part)).map(Row::Gear),
+    );
     rows
+}
+
+/// The component slots of the car no model category or level holds (`Row::Slot`) that the cart fits differently.
+fn changed_slots(model: &Model, baseline: &Selection, cart: &Selection) -> Vec<Row> {
+    if baseline.parts.slots == cart.parts.slots {
+        return Vec::new();
+    }
+    let Some(car) = model.cars.iter().find(|car| car.folder == cart.car) else { return Vec::new() };
+    let (Some(before), Some(after)) =
+        (VehicleOptions::of_selection(car, baseline), VehicleOptions::of_selection(car, cart))
+    else {
+        return Vec::new();
+    };
+    after
+        .slots
+        .iter()
+        .enumerate()
+        .filter(|(at, slot)| {
+            slot.store == Store::Session && before.slots.get(*at).is_none_or(|old| old.current != slot.current)
+        })
+        .filter_map(|(at, _)| u8::try_from(at).ok().map(Row::Slot))
+        .collect()
 }
 
 pub(super) fn active(model: &Model, cart: &Selection, row: Row) -> bool {
     !changed(model, &model.draft, cart).contains(&row)
 }
 
-pub(super) fn restore(row: Row, baseline: &Selection, cart: &mut Selection) {
+pub(super) fn restore(row: Row, model: &Model, baseline: &Selection, cart: &mut Selection) {
     match row {
+        Row::Gear(part) => cart.gear.set(part, baseline.gear.get(part)),
+        Row::Slot(at) => {
+            let Some(car) = model.cars.iter().find(|car| car.folder == cart.car) else { return };
+            let Some(options) = VehicleOptions::of_selection(car, cart) else { return };
+            let Some(slot) = options.slots.get(usize::from(at)) else { return };
+            match baseline.parts.slots.get(&slot.id) {
+                Some(id) => cart.parts.slots.insert(slot.id.clone(), id.clone()),
+                None => cart.parts.slots.remove(&slot.id),
+            };
+        }
         Row::Part(part) => {
             cart.parts.parts[part as usize] = baseline.parts.parts[part as usize];
             match part {
@@ -122,7 +160,7 @@ mod tests {
             cart.parts.decals[zone][7] = Some(21);
         }
         assert_eq!(changed(&model, &baseline, &cart), [Row::Number(0)]);
-        restore(Row::Number(0), &baseline, &mut cart);
+        restore(Row::Number(0), &model, &baseline, &mut cart);
         assert_eq!(cart, baseline);
     }
 
@@ -137,8 +175,8 @@ mod tests {
         cart.gauges.color_parts[1] = Some(12);
         cart.gauges.needle = Some([10, 20, 30]);
         assert_eq!(changed(&model, &baseline, &cart), [Row::Part(Part::Vinyl), Row::Gauge]);
-        restore(Row::Part(Part::Vinyl), &baseline, &mut cart);
-        restore(Row::Gauge, &baseline, &mut cart);
+        restore(Row::Part(Part::Vinyl), &Model::default(), &baseline, &mut cart);
+        restore(Row::Gauge, &Model::default(), &baseline, &mut cart);
         assert_eq!(cart, baseline);
     }
 
@@ -149,8 +187,32 @@ mod tests {
         let mut cart = baseline.clone();
         cart.parts.parts[Part::Body as usize] = Some(2);
         cart.parts.decals[0][0] = Some(99);
-        restore(Row::Part(Part::Body), &baseline, &mut cart);
+        restore(Row::Part(Part::Body), &Model::default(), &baseline, &mut cart);
         assert_eq!(cart.parts.decals[0][0], Some(99));
         assert_eq!(cart.parts.parts[Part::Body as usize], Some(1));
+    }
+
+    #[test]
+    fn a_component_slot_and_a_piece_of_gear_are_cart_entries_that_restore_to_the_baseline() {
+        use crate::garage::rider_gear::Part as Gear;
+        let mut model = crate::garage::menu_fixture::shop_model();
+        let baseline = model.draft.clone();
+        Row::Slot(3).set(&mut model, 1);
+        model.draft.gear.set(Gear::Helmet, "HL_A");
+        let mut cart = model.draft.clone();
+        assert_eq!(changed(&model, &baseline, &cart), [Row::Slot(3), Row::Gear(Gear::Helmet)]);
+        assert!(!active(&model, &cart, Row::Slot(3)) || model.draft == cart, "the draft is the cart here");
+        restore(Row::Slot(3), &model, &baseline, &mut cart);
+        assert!(cart.parts.slots.is_empty());
+        restore(Row::Gear(Gear::Helmet), &model, &baseline, &mut cart);
+        assert_eq!(cart, baseline);
+        assert!(changed(&model, &baseline, &cart).is_empty());
+        // Names: the slot and what is fitted, the gear part and the item.
+        model.draft.parts.slots.clear();
+        Row::Slot(3).set(&mut model, 1);
+        let label = super::super::names::label(Row::Slot(3), &model, &model.draft);
+        assert_eq!(label, "Road mirrors: Chrome mirrors");
+        let exhaust = super::super::names::label(Row::Part(Part::Spoiler), &model, &model.draft);
+        assert_eq!(exhaust, "Exhaust: Stock exhaust");
     }
 }

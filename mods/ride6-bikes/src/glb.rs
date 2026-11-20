@@ -330,11 +330,11 @@ mod tests {
     /// A glb file from its JSON text and binary chunk.
     fn wrap(json: &str, bin: &[u8]) -> Vec<u8> {
         let mut json = json.as_bytes().to_vec();
-        while json.len() % 4 != 0 {
+        while !json.len().is_multiple_of(4) {
             json.push(b' ');
         }
         let mut bin = bin.to_vec();
-        while bin.len() % 4 != 0 {
+        while !bin.len().is_multiple_of(4) {
             bin.push(0);
         }
         let total = 12 + 8 + json.len() + 8 + bin.len();

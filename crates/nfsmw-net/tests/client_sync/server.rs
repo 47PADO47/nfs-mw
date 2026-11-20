@@ -127,7 +127,7 @@ impl Server {
         let views = self.views();
         let other = views.iter().find(|v| v.owner == Some(OTHER)).map_or([0.0; 3], |v| v.position);
         self.truth.push(other);
-        if tick % 3 == 0 {
+        if tick.is_multiple_of(3) {
             self.snapshot(tick, &views);
         }
     }

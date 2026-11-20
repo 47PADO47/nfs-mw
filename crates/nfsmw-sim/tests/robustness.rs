@@ -16,7 +16,7 @@ fn hostile(n: u8, tick: u32) -> InputState {
         brake: pick(3),
         steer: pick(5),
         handbrake: pick(8),
-        nos: tick % 3 == 0,
+        nos: tick.is_multiple_of(3),
         shift_up: true,
         shift_down: true,
         gear_select: Some(usize::MAX),

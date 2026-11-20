@@ -9,6 +9,10 @@ use crate::lookup::ramp;
 /// Gravity used by the cornering limit.
 const G: f32 = 9.8;
 
+/// The staging request over skill 0..1, miles per hour, and metres per second in a mile per hour.
+const STAGING_MPH: [f32; 2] = [2.5, 3.0];
+const MPH: f32 = 0.44704;
+
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
@@ -131,6 +135,14 @@ impl SpeedGovernor {
     /// Starts at the car's current speed.
     pub fn begin(speed: f32) -> Self {
         Self { speed_limit: speed.max(0.0), last_speed: speed }
+    }
+
+    /// A car staging on the grid: the request is `lerp(2.5, 3.0, skill)` mph and the governor follows on from
+    /// there once the car is released (`docs/specs/ai-driver-speed-skill.md` section 1).
+    pub fn stage(&mut self, speed: f32, skill: f32) -> f32 {
+        self.speed_limit = lerp(STAGING_MPH[0], STAGING_MPH[1], skill.clamp(0.0, 1.0)) * MPH;
+        self.last_speed = speed;
+        self.speed_limit
     }
 
     pub fn update(&mut self, speed: f32, potential_speed: f32, potential_accel: f32, skill: f32, dt: f32) -> f32 {

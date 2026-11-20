@@ -53,6 +53,7 @@ const REVIEWED_MEDIA: &[(&str, u64)] = &[
     ("assets/input-prompts/kenney-xbox.png", 0xda7a_10ea_8ad2_ea78),
     ("assets/discord/discord.png", 0xdbef_44cb_d040_d484),
     ("assets/mods/mod-manager.png", 0xc589_bd95_d57a_200f),
+    ("assets/mods/rider-gear.png", 0xfc1a_47ee_6933_6c76),
 ];
 
 fn check_file(path: &str, bytes: &[u8]) -> Vec<String> {
@@ -145,6 +146,8 @@ mod tests {
         let mut altered = data.to_vec();
         altered[64] ^= 1;
         assert!(!check_file("assets/mods/mod-manager.png", &altered).is_empty());
+        let rider = include_bytes!("../../assets/mods/rider-gear.png");
+        assert!(check_file("assets/mods/rider-gear.png", rider).is_empty());
     }
 
     #[test]

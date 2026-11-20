@@ -31,6 +31,8 @@ pub fn begin(
     threads: usize,
 ) -> Started {
     let streamer = Streamer::spawn(stream, sections.to_vec(), threads);
+    // Before the first request: a section that loads without it would keep the game's own models for good (a mod's replacement set).
+    streamer.set_rewrite(Box::new(crate::modding::content::replace::rewrite));
     request_shared(&streamer, sections);
     let mut zones = Zones::new(visible.clone(), sections);
     let requested = first_tiles(&mut zones, sections, at);

@@ -1,0 +1,27 @@
+# Tracks of the user's own RIDE 6 install, converted by `ride6-track-import` (mods/ride6-tracks/README.md).
+# A native mod: it converts the exporter's track packs of the user's own RIDE 6 install in the background (README.md). The
+# generated `files/` and `worlds/` belong to that install and are never committed.
+
+[mod]
+id = "ride6-tracks"
+name = "RIDE 6 tracks"
+version = "0.1.0"
+authors = ["nfs-mw contributors"]
+license = "MIT OR Apache-2.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["nfsmw"]
+
+[optional.interfaces]
+"bb.content" = "1.0"
+"bb.hud" = "1.0"
+"bb.vehicles" = "1.0"
+"bb.world" = "1.0"
+
+[library]
+windows = "ride6_tracks.dll"
+linux = "libride6_tracks.so"
+macos = "libride6_tracks.dylib"

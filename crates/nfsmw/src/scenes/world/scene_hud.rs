@@ -1,4 +1,6 @@
 //! Visibility and composition of the world HUD.
+use nfsmw_data::world::DEFAULT_TRACK;
+
 use super::WorldScene;
 
 impl WorldScene {
@@ -33,7 +35,14 @@ impl WorldScene {
         if looking_back && !self.tuning.show_hud_on_look_back {
             return None;
         }
-        self.hud_frame()
+        let mut state = self.hud_frame()?;
+        // The minimap is the city's picture: a second world has none (`docs/specs/second-world.md`).
+        if self.track != DEFAULT_TRACK {
+            state.minimap = None;
+            state.map_car = None;
+            state.second_world = true;
+        }
+        Some(state)
     }
     pub(super) fn scene_ui(&mut self, ctx: &egui::Context) -> f32 {
         if self.career.garage.is_some() {

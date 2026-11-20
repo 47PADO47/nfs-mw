@@ -48,6 +48,28 @@ pub struct RacerSpawn {
     pub person: Option<bool>,
 }
 
+/// What one racer's driver and car did in the last step (`AiCar::race_driving`), for the race trace.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RaceDriving {
+    /// The pedals and the steering the car stepped with: 0 to 1, and -1 to 1 positive to the right.
+    pub throttle: f32,
+    pub brake: f32,
+    pub steering: f32,
+    /// -1 reverse, 0 neutral, 1 and up the forward gears.
+    pub gear: i32,
+    pub rpm: f32,
+    /// The speed the driver is asked for, m/s: its think's, or the recovery speed while it reverses.
+    pub target_speed: f32,
+    /// The character's skill, the catch-up offset added to it this tick, and the skill the driver uses (the sum, in 0..1).
+    pub base_skill: f32,
+    pub catch_up: f32,
+    pub skill: f32,
+    /// The catch-up force budget (`RacerState::cheat`): it scales the engine, drag and downforce of the car.
+    pub catch_up_force: f32,
+    /// The racer moves on its off-world stand-in, not by physics: the controls are those of its last physics step.
+    pub stand_in: bool,
+}
+
 impl TrafficWorld {
     /// Asks for the racer's model (a `pvehicle` name) unless it is loaded or already asked for.
     pub fn request_racer_model(&mut self, name: &str) {
@@ -137,6 +159,11 @@ impl TrafficWorld {
     /// The racers: index, place in physics space and speed.
     pub fn racers(&self) -> impl Iterator<Item = (usize, Vec3, f32)> + '_ {
         self.cars.iter().filter_map(|car| car.racer_id().map(|id| (id, car.race_position(), car.race_speed())))
+    }
+
+    /// What each racer's driver and car did in the last step: index and [`RaceDriving`].
+    pub fn racers_driving(&self) -> impl Iterator<Item = (usize, RaceDriving)> + '_ {
+        self.cars.iter().filter_map(|car| Some((car.racer_id()?, car.race_driving()?)))
     }
 
     /// The racer with this index.

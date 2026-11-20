@@ -112,8 +112,8 @@ fn eigen(mut a: [[f64; 3]; 3]) -> ([f64; 3], [[f64; 3]; 3]) {
                 row[p] = c * rp - s * rq;
                 row[q] = s * rp + c * rq;
             }
-            for k in 0..3 {
-                let (pk, qk) = (a[p][k], a[q][k]);
+            let (ap, aq) = (a[p], a[q]);
+            for (k, (pk, qk)) in ap.into_iter().zip(aq).enumerate() {
                 a[p][k] = c * pk - s * qk;
                 a[q][k] = s * pk + c * qk;
             }
@@ -162,8 +162,8 @@ mod tests {
     fn the_column_is_the_direction_a_flat_wheel_varies_least_in_and_it_points_forward() {
         let tilted = unit([0.0, 0.5, 1.0]);
         let frame = wheel_frame(&wheel([0.36, 0.9, 0.2], tilted, 0.18)).expect("a disc");
-        for k in 0..3 {
-            assert!((frame.axis[k] - tilted[k]).abs() < 0.02, "{:?}", frame.axis);
+        for (k, want) in tilted.into_iter().enumerate() {
+            assert!((frame.axis[k] - want).abs() < 0.02, "{:?}", frame.axis);
         }
         // The same wheel described with the opposite normal still points forward.
         let flipped = wheel_frame(&wheel([0.36, 0.9, 0.2], [0.0, -0.5, -1.0], 0.18)).unwrap();

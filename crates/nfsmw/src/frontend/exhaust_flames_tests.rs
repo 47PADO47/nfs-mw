@@ -8,8 +8,11 @@ fn the_video_screen_has_one_exhaust_flames_row_after_the_vehicle_effects() {
     let video = rows(Category::Video, &crate::settings::test_caps::native());
     let at = video.iter().position(|r| r.setting == Setting::ExhaustFlames).expect("a row");
     assert_eq!(video[at].title, Title::Key("options-exhaust-flames"));
-    assert_eq!(video[at - 1].setting, Setting::SpeedTrailStyle);
-    assert_eq!(video[at - 2].setting, Setting::SpeedTrails);
+    // The experimental Speed Trails rows are under the Experimental title, after the ordinary rows.
+    assert_eq!(video[at - 1].setting, Setting::CollisionSparks);
+    let trails = video.iter().position(|r| r.setting == Setting::SpeedTrails).expect("a row");
+    assert!(trails > at, "Speed Trails is in the Experimental section");
+    assert_eq!(video[trails + 1].setting, Setting::SpeedTrailStyle);
     // The pause menu shows the same rows as the main menu.
     assert_eq!(video.iter().filter(|r| r.setting == Setting::ExhaustFlames).count(), 1);
     for category in [Category::Audio, Category::Gameplay] {

@@ -8,7 +8,9 @@
 //! `fall=generic`: a bike throws its rider at the start of the segment, through the path a real fall takes; a car
 //! ignores it; see `docs/modding/drive-script.md`), `look` and `lookup` (the right stick's X and Y for a bike's helmet camera,
 //! -1..1, right and up positive, held for the whole segment; a camera setting, not a drive input), `weight` (the rider's weight
-//! lever of a bike, -1 back to 1 forward, held for the segment: what V or the pad's stick pulled back give; a car ignores it).
+//! lever of a bike, -1 back to 1 forward, held for the segment: what V or the pad's stick pulled back give; a car ignores it),
+//! `air_pitch`, `air_roll` and `air_yaw` (the air control's stick, -1..1: forward is the nose down, right the right side down and a spin to
+//! the right; read only with the `air_control` setting on and no wheel on the ground, `docs/specs/air-control.md`).
 //! A segment without keys coasts.
 
 use blackbox_vehicle::bike::FallKind;
@@ -62,6 +64,9 @@ impl DriveScript {
                     "brake" => input.brake = n.clamp(0.0, 1.0),
                     "steer" => input.steer = n.clamp(-1.0, 1.0),
                     "weight" => input.weight = n.clamp(-1.0, 1.0),
+                    "air_pitch" => input.air.pitch = n.clamp(-1.0, 1.0),
+                    "air_roll" => input.air.roll = n.clamp(-1.0, 1.0),
+                    "air_yaw" => input.air.yaw = n.clamp(-1.0, 1.0),
                     "handbrake" => input.handbrake = n > 0.5,
                     "nos" => input.nos = n > 0.5,
                     "speedbreaker" => input.speedbreaker = n > 0.5,
@@ -73,7 +78,7 @@ impl DriveScript {
                     "lookup" => look[1] = n.clamp(-1.0, 1.0),
                     other => {
                         return Err(format!(
-                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop fall look lookup weight)"
+                            "unknown key {other:?} (throttle brake steer handbrake nos speedbreaker up down reset pop fall look lookup weight air_pitch air_roll air_yaw)"
                         ));
                     }
                 }
@@ -217,6 +222,16 @@ mod tests {
         assert_eq!(script.input_at(1.5), DriveInput::default(), "the physics never sees it");
         assert_eq!(script.input_at(0.5).throttle, 1.0);
         assert!(DriveScript::parse("1:look=left").is_err());
+    }
+
+    #[test]
+    fn a_segment_holds_the_air_control_stick() {
+        let script = DriveScript::parse("1:air_pitch=1,air_roll=-0.5;1:air_yaw=9;1:throttle=1").unwrap();
+        let first = script.input_at(0.5).air;
+        assert_eq!((first.pitch, first.roll, first.yaw), (1.0, -0.5, 0.0));
+        assert_eq!(script.input_at(1.5).air.yaw, 1.0, "clamped to the stick's travel");
+        assert!(!script.input_at(2.5).air.is_active(), "a segment without the keys lets the stick go");
+        assert!(DriveScript::parse("1:air_roll=left").is_err());
     }
 
     #[test]

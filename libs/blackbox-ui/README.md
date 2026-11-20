@@ -163,6 +163,14 @@ reports a change only as a redraw request, and the table's focus index says whic
 own settings model is the source of truth: it applies the change there and feeds the value back when it
 rebuilds the row (`with_selected`, `set_selected`, or `set_on`).
 
+## Menu model
+
+`menu` (`src/menu/`) is the abstract model of a menu list, with no drawing: **`EntryFlags`** (`highlightable`, `clickable`,
+`skip_on_scroll`, `centered`, `accent_text`, with the presets `ROW`, `TITLE` and `ACTION`), **`Entry<A>`** (a label, flags and an
+action), **`Section`** and **`SectionSet`** (rows grouped under a title; the first section has no title and a section with no rows
+shows none) and **`menu::nav`** (`first_stop`, `step`, `settle`, `page`, `can_hover`, `can_press`: a cursor that skips what it must
+not land on). A host maps its rows onto the flags and a theme reads them to draw. Spec: `docs/specs/menu-sections.md`.
+
 ## Slots and themes
 
 - **`SlotId`** is an opaque number that names an overridable slot. The crate does not know what a slot

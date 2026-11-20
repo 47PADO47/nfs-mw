@@ -140,6 +140,14 @@ impl Random {
         Self::new(nanos as u64 ^ 0x9E37_79B9_7F4A_7C15)
     }
 
+    /// Seeded from the run's seed when the run has one (`--seed`, `parity/seed.rs`), else from the clock.
+    pub fn for_run() -> Self {
+        match crate::parity::seed::next(crate::parity::seed::Stream::RadioPlaylist) {
+            Some(seed) => Self::new(seed),
+            None => Self::from_clock(),
+        }
+    }
+
     /// A number below `count` (0 when `count` is 0).
     pub fn below(&mut self, count: usize) -> usize {
         self.0 ^= self.0 << 13;

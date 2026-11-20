@@ -117,7 +117,14 @@ mod tests {
     #[test]
     fn red_timer_blends_with_the_warning_and_only_busted_reaches_one() {
         let mut bust = Busted::default();
-        let close = BustInput { cop_distance: 10.0, seen: true, player_speed: 0.0, slow_speed: 2.5, flashing: false };
+        let close = BustInput {
+            cop_distance: 10.0,
+            seen: true,
+            player_speed: 0.0,
+            slow_speed: 2.5,
+            flashing: false,
+            grace: false,
+        };
         bust.update(2.5, &close, &BUST);
         assert_eq!(bust.display_meter(input(10.0, 0.0, -0.25), &BUST, &DISPLAY), 0.75);
         bust.update(2.5, &close, &BUST);

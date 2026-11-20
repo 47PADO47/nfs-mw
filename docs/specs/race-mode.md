@@ -46,7 +46,8 @@ small state machine, section 2, and the rest of this page.
   assumed to be m/s **[unconfirmed]**.
 - **Countdown length** is not in the executable data read here (the board's timing is in the HUD package); this
   rewrite uses 3 s, one second per number **[unconfirmed]**.
-- **Grid.** The player stands at the race's `racestart` marker facing its heading. Opponents stand in two columns
+- **Grid.** A standing start whose intro plays a NIS at the start stands the racers where that scene's car channels
+  end. Otherwise the player stands at the race's `racestart` marker facing its heading and the opponents in two columns
   behind and beside it, [ai-racers-route.md](ai-racers-route.md) section 3.
 
 ## 3. Checkpoints and laps

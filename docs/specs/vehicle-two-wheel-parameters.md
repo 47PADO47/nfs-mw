@@ -24,7 +24,7 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 |---|---|---|---|
 | `drag` | `Aerodynamic.DragCoefficient` | none (`F = Cd v^2`, [aero spec](ride6-aero-drag.md)) | fact |
 | `gyro_roll_scale`, `gyro_yaw_scale` | handler `GyroscopicRollMomentumScale`, `...Yaw...`; 0 when `SimulateGyroscopicEffects` is false | unset: 1 | default (lean spec) |
-| `chassis.mass_kg` | `CHASSIS.Mass` | none | fact |
+| `chassis.mass_kg` | `CHASSIS.Mass` | none; `Bike::new` carries `choices::BIKE_MASS_SCALE` (0.85) of it, the rider's mass whole (`ride6-wheelie-hold.md`) | fact / choice |
 | `chassis.rider_mass_kg` | handler `Rider.Mass` (when `SimulateRider`) | none | fact |
 | `chassis.rider_offset_m` | handler `Rider.COMOffset` | cm to m, axes; from the bike's own centre of gravity (the rider sits `CGPosition.z + COMOffset.z` high) | fact; the origin is [I] |
 | `chassis.rider_forward_shift_m`, `..._backward_shift_m` | `Rider.ForwardOffset` (set by no asset: 0), `Rider.BackwardOffset` | cm to m, axes | fact / default (an `FVector` starts at 0) |
@@ -80,7 +80,7 @@ constructor default recorded in a spec, choice = a named choice of the importer.
 | `steering.lean.k`, `.damping_ratio` | `LeanK`, `LeanDamp` | ratio as above | fact |
 | `steering.lean.damping_multiplier` | `LeanComponent` ranges and the bike's size | the formula after this table | structure [B], operands [I] |
 | `steering.lean.steer_k`, `.steer_damping_ratio`, `.target_k`, `.target_damping_ratio` | `SteerK/SteerDamp`, `TargetLeanAngleFilter.KValue/DampValue` | ratio as above | fact |
-| `steering.lean.time_scale*` | `LeanTimeScale`, `LeanTimeScaleSpeedTuning` (km/h), `LeanTimeScaleInputTuning`; attenuation and sensitivity unset: 0 | speeds to m/s; a cubic curve is sampled | fact / default |
+| `steering.lean.time_scale*` | `LeanTimeScale`, `LeanTimeScaleSpeedTuning` (km/h), `LeanTimeScaleInputTuning`; attenuation and sensitivity unset: 0 | speeds to m/s; a cubic curve is sampled; the input curve is read at the quicker of `+-|stick|` and the speed curve is held at 0.65 at least (`ride6-feel-round13.md`) | fact / default / choice |
 | `steering.lean.g_tuning`, `.skid_*`, `.stopped_*` | `LeanLimitGForceTuning`; `LeanLimitSkidRange` (deg), `...Linearity`, `...Reduction` (km/h); `StoppedLeanLimit` (deg), `StoppedSpeedThreshold` (km/h) | deg to rad, km/h to m/s | fact |
 | `steering.lean.blend_range_mps` | `SteerAlignmentRange` (2 to 4) | none | the lean spec calls it `LowSpeedSteerBlendRange`; no asset sets that name |
 | `steering.lean.rider_mass_scale`, `.help_speed`, `.help_limit` | `RiderMassScale`; `LeanHelpFactorSpeedTuning` (km/h); `LeanHelpLimitSpeedTuning` output at the top of its range | km/h to m/s | fact; `help_limit` is one number where the data has a speed curve |

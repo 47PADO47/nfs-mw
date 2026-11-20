@@ -24,7 +24,7 @@ available through the existing setting; this routing change does not change
 camera cycling or the user's stored choice.
 
 The Gameplay page, which is also the pause menu's gameplay page, repeats the Camera row (the same label, setting and
-saving as the Player page's) after Cop Health Bars, so the view can be switched in a running race: the setting is read
+saving as the Player page's) among its untitled rows, so the view can be switched in a running race: the setting is read
 every frame, the world follows it at once, and the C hotkey and both rows stay in step. The row steps through the game's
 nine cameras and then the extra views mods registered (`bb.camera` 1.1) that fit the car being driven.
 
