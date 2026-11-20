@@ -493,3 +493,6 @@ Enhanced bloom and lens flare
   https://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare/
 - John Chapman, Pseudo Lens Flare. Algorithm reference only.
   https://john-chapman.github.io/2017/11/05/pseudo-lens-flare.html
+Road rain-ring design reference: Sébastien Lagarde, Water drop 2b (2013).
+https://seblagarde.wordpress.com/2013/01/03/water-drop-2b-dynamic-rain-and-its-effects/
+Independent implementation; no article code or assets incorporated.

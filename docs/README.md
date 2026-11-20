@@ -280,7 +280,7 @@ World rendering: [material routing](specs/world-material-routing.md),
 
 Road and glass: [reflective surfaces](specs/world-reflect-materials.md),
 [architectural windows](specs/world-window-materials.md),
-[projected wet-road captures](specs/wet-road-reflections.md).
+[projected wet-road captures](specs/wet-road-reflections.md), [puddle contours and rain rings](puddle-ripples.md).
 
 Car rendering: [original material families](specs/car-material-shading.md),
 [light rigs and authored specular scale](specs/car-lighting.md).
