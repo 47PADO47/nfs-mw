@@ -95,6 +95,10 @@ pub struct RenderExperiments {
     pub local_street_glow: f32,
     /// Shared weather-dependent light scattering from local fixtures.
     pub local_light_fog: f32,
+    /// Scatter directional light in the shared fog volume.
+    pub sun_shafts: bool,
+    /// Directional scattering multiplier.
+    pub sun_shaft_strength: f32,
     /// View distance of the shared local-light fog in metres.
     pub local_light_fog_distance: f32,
     /// Shared fog-grid resolution, from 1 (low) to 3 (high).
@@ -237,6 +241,8 @@ impl Default for RenderExperiments {
             local_street_range: 35.0,
             local_street_glow: 1.0,
             local_light_fog: 0.5,
+            sun_shafts: false,
+            sun_shaft_strength: 1.0,
             local_light_fog_distance: 200.0,
             local_light_fog_quality: 2,
             local_street_haze_count: 8,
@@ -309,6 +315,7 @@ impl RenderExperiments {
             local_light_strength: finite(self.local_light_strength, 1.0).clamp(0.0, 5.0),
             local_street_strength: finite(self.local_street_strength, 1.5).clamp(0.0, 5.0),
             local_street_glow: finite(self.local_street_glow, 1.0).clamp(0.0, 2.0),
+            sun_shaft_strength: finite(self.sun_shaft_strength, 1.0).clamp(0.0, 4.0),
             local_light_fog: finite(self.local_light_fog, 0.5).clamp(0.0, 4.0),
             local_light_fog_distance: finite(self.local_light_fog_distance, 200.0).clamp(80.0, 600.0),
             local_light_fog_quality: self.local_light_fog_quality.clamp(1, 3),

@@ -14,12 +14,14 @@ pub(super) struct Grid {
     shadow_layout: wgpu::BindGroupLayout,
     fallback_data: wgpu::Buffer,
     fallback_map: wgpu::TextureView,
+    fallback_cloud: wgpu::TextureView,
     fallback_sampler: wgpu::Sampler,
     /// The shadow bind group of the last draw, kept while its inputs stay the same.
     shadow_group: Option<(ShadowKey, wgpu::BindGroup)>,
 }
 
-type ShadowKey = (wgpu::Buffer, wgpu::TextureView, wgpu::Sampler);
+type ShadowKey =
+    (wgpu::Buffer, wgpu::TextureView, wgpu::Sampler, wgpu::TextureView, wgpu::TextureView, wgpu::TextureView);
 
 /// One view's cells: two history-swapped scattering volumes, the integrated volume and the tile masks.
 pub(super) struct Volume {
@@ -59,16 +61,10 @@ impl Grid {
             label: Some("fog shadow inputs"),
             entries: &[
                 buffer_entry(0, wgpu::BufferBindingType::Uniform),
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2Array,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
+                texture_entry(1, wgpu::TextureSampleType::Depth, wgpu::TextureViewDimension::D2Array),
+                texture_entry(3, wgpu::TextureSampleType::Depth, wgpu::TextureViewDimension::D2Array),
+                texture_entry(4, wgpu::TextureSampleType::Depth, wgpu::TextureViewDimension::D2Array),
+                texture_entry(5, wgpu::TextureSampleType::Float { filterable: false }, wgpu::TextureViewDimension::D2),
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
@@ -84,7 +80,7 @@ impl Grid {
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("fog volume"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/light_fog_grid.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(super::GRID_SHADER.into()),
         });
         let pipeline = |entry| {
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -117,6 +113,21 @@ impl Grid {
                 dimension: Some(wgpu::TextureViewDimension::D2Array),
                 ..Default::default()
             });
+        let fallback_cloud = device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("disabled fog shadow map"),
+                size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::R8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            })
+            .create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2),
+                ..Default::default()
+            });
         let fallback_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             compare: Some(wgpu::CompareFunction::LessEqual),
             ..Default::default()
@@ -130,6 +141,7 @@ impl Grid {
             fallback_data,
             fallback_map,
             fallback_sampler,
+            fallback_cloud,
             shadow_group: None,
         }
     }
@@ -187,8 +199,22 @@ impl Grid {
         shadows: Option<&crate::LocalFogShadows<'_>>,
     ) {
         let key = match shadows {
-            Some(shadows) => (shadows.data.clone(), shadows.map.clone(), shadows.sampler.clone()),
-            None => (self.fallback_data.clone(), self.fallback_map.clone(), self.fallback_sampler.clone()),
+            Some(shadows) => (
+                shadows.data.clone(),
+                shadows.map.clone(),
+                shadows.sampler.clone(),
+                shadows.cascades.clone(),
+                shadows.detail.clone(),
+                shadows.cloud.clone(),
+            ),
+            None => (
+                self.fallback_data.clone(),
+                self.fallback_map.clone(),
+                self.fallback_sampler.clone(),
+                self.fallback_map.clone(),
+                self.fallback_map.clone(),
+                self.fallback_cloud.clone(),
+            ),
         };
         if self.shadow_group.as_ref().is_none_or(|(cached, _)| *cached != key) {
             let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -197,6 +223,9 @@ impl Grid {
                 entries: &[
                     wgpu::BindGroupEntry { binding: 0, resource: key.0.as_entire_binding() },
                     wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&key.1) },
+                    wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&key.3) },
+                    wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&key.4) },
+                    wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&key.5) },
                     wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&key.2) },
                 ],
             });
@@ -234,6 +263,19 @@ impl Volume {
     /// Bytes of GPU memory the volume holds.
     pub(super) fn bytes(&self) -> u64 {
         self.cells.iter().chain([&self.integrated, &self.masks]).map(wgpu::Buffer::size).sum()
+    }
+}
+
+fn texture_entry(
+    binding: u32,
+    sample_type: wgpu::TextureSampleType,
+    view_dimension: wgpu::TextureViewDimension,
+) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::COMPUTE,
+        ty: wgpu::BindingType::Texture { sample_type, view_dimension, multisampled: false },
+        count: None,
     }
 }
 

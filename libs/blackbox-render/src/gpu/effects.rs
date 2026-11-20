@@ -14,6 +14,10 @@ impl Renderer {
         let regions = distortion.map_or(&[][..], |d| d.regions.as_slice());
         self.post.set_distortion(&self.device, view, regions);
         self.effects.upload(&self.device, &self.queue, layer);
+        self.effects.set_sun_shaft_strength(match self.experiments.sun_shafts {
+            true => self.experiments.sun_shaft_strength,
+            false => 0.0,
+        });
         self.effects.upload_light_fog(
             layer.light_fog,
             &layer.fog_shelters,
@@ -53,6 +57,9 @@ impl Renderer {
             camera_cut: frame.camera_cut,
             local_fog_shadows: Some(blackbox_gpu_passes::LocalFogShadows {
                 data: &self.shared.shadows.buffer,
+                cloud: &self.shared.shadows.cloud,
+                cascades: &self.shared.shadows.view,
+                detail: &self.shared.shadows.detail,
                 map: &self.shared.shadows.local,
                 sampler: &self.shared.shadows.sampler,
             }),

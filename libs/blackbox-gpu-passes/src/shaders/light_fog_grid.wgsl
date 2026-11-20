@@ -1,5 +1,5 @@
 // Camera-aligned fog cells share light evaluation between nearby pixels.
-struct Globals { view_proj: mat4x4<f32>, camera_pos: vec4<f32>, light_dir: vec4<f32>, fog_color: vec4<f32>, fog_range: vec4<f32> };
+struct Globals { view_proj: mat4x4<f32>, camera_pos: vec4<f32>, light_dir: vec4<f32>, fog_color: vec4<f32>, fog_range: vec4<f32>, rayleigh: vec4<f32>, mie: vec4<f32>, to_sun: vec4<f32>, surface_ambient: vec4<f32>, surface_diffuse: vec4<f32> };
 struct Shelter { bounds: vec4<f32>, info: vec4<f32>, points: array<vec4<f32>,8> };
 struct Params { inverse: mat4x4<f32>, options: vec4<f32>, grid: vec4<u32>, previous_view_proj: mat4x4<f32>, previous_camera: vec4<f32>, temporal: vec4<f32>, shadow_indices: array<vec4<u32>,32>, positions: array<vec4<f32>,128>, directions: array<vec4<f32>,128>, colors: array<vec4<f32>,128>, uppers: array<vec4<f32>,128>, shelters: array<Shelter,24> };
 struct ShadowData {
@@ -127,7 +127,7 @@ fn build_volume(@builtin(global_invocation_id) id:vec3<u32>) {
     let index=(id.z*params.grid.y+id.y)*params.grid.x+id.x;
     let mask=masks[id.y*params.grid.x+id.x];
     // No light reaches this column: its scattered light is zero and its transmission never reaches the image.
-    if all(mask==vec4(0u)) { cells[index]=vec4(0.0); return; }
+    if params.temporal.z==0.0 && all(mask==vec4(0u)) { cells[index]=vec4(0.0); return; }
     let uv=(vec2<f32>(id.xy)+0.5)/vec2<f32>(params.grid.xy);
     let h=params.inverse*vec4(uv*vec2(2.0,-2.0)+vec2(-1.0,1.0),0.000001,1.0);
     let direction=normalize(h.xyz/h.w-globals.camera_pos.xyz);
@@ -157,9 +157,23 @@ fn build_volume(@builtin(global_invocation_id) id:vec3<u32>) {
             light+=params.colors[i].rgb*cone*edge*edge/(1.0+0.04*d2)*fade*shadow_visibility(i,p);
         }
     }
-    let current=vec4(light*amount*0.012,amount*0.004);
+    var source=light*amount*0.012;
+    var extinction=amount*0.004;
+    if params.temporal.z>0.0 {
+        let sun=-globals.light_dir.xyz;
+        let g=0.65;
+        let phase=(1.0-g*g)/(12.56637*pow(max(1.0+g*g-2.0*g*dot(direction,sun),0.01),1.5));
+        let twilight=1.0-smoothstep(0.05,0.5,abs(sun.z));
+        let haze=clamp((params.options.w-globals.fog_range.x)/max(globals.fog_range.y-globals.fog_range.x,1.0),0.0,1.0);
+        let medium=density*(0.00008+0.0005*haze+0.002*weather+0.0006*twilight);
+        let jitter=fract(52.9829189*fract(dot(vec2<f32>(id.xy),vec2(0.06711056,0.00583715))))-0.5;
+        let offset=jitter*2.0*slice*params.options.w/f32(params.grid.z);
+        source+=params.temporal.z*medium*phase*sun_visibility(p+direction*offset)*cloud_visibility(p,sun)*mix(vec3(1.0),globals.surface_diffuse.rgb,globals.surface_ambient.w);
+        extinction=max(extinction,medium);
+    }
+    let current=vec4(source,extinction);
     // An unlit cell takes no history colour (any lit history fails the confidence test), so skip its loads.
-    if all(light==vec3(0.0)) { cells[index]=current; return; }
+    if all(source==vec3(0.0)) { cells[index]=current; return; }
     cells[index]=reproject(p,current);
 }
 
@@ -168,7 +182,7 @@ fn build_volume(@builtin(global_invocation_id) id:vec3<u32>) {
 fn integrate_volume(@builtin(global_invocation_id) id:vec3<u32>) {
     if any(id.xy>=params.grid.xy) { return; }
     // An unlit column adds nothing; the composite ignores transmission.
-    if all(masks[id.y*params.grid.x+id.x]==vec4(0u)) {
+    if params.temporal.z==0.0 && all(masks[id.y*params.grid.x+id.x]==vec4(0u)) {
         for(var z=0u;z<params.grid.z;z++) { integrated[(z*params.grid.y+id.y)*params.grid.x+id.x]=vec4(0.0,0.0,0.0,1.0); }
         return;
     }

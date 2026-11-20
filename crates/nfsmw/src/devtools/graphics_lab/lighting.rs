@@ -214,6 +214,8 @@ fn local_lights(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
         super::controls::slider(ui, &mut lab.options.local_street_strength, 0.0..=5.0, "Street light strength", defaults.local_street_strength);
         super::controls::slider(ui, &mut lab.options.local_street_glow, 0.0..=2.0, "Street lamp glow", defaults.local_street_glow)
             .on_hover_text("Changes the visible lamp glow without changing illumination or shadow cost.");
+        super::controls::checkbox(ui, &mut lab.options.sun_shafts, "Sun shafts", defaults.sun_shafts);
+        super::controls::slider(ui, &mut lab.options.sun_shaft_strength, 0.0..=4.0, "Sun shaft strength", defaults.sun_shaft_strength);
         super::controls::slider(ui, &mut lab.options.local_light_fog, 0.0..=4.0, "Local light fog", defaults.local_light_fog)
             .on_hover_text("Weather-dependent illuminated air from nearby local lights. Zero disables it.");
         super::controls::slider(ui, &mut lab.options.local_light_fog_distance, 80.0..=600.0, "Fog visibility distance (m)", defaults.local_light_fog_distance)

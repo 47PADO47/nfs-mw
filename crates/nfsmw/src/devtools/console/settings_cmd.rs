@@ -20,6 +20,8 @@ use crate::settings::{
 /// The text for `get <key>`, or an error naming the valid keys.
 pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
     let value = match key {
+        "sun_shafts" => on_off(settings.appearance.lighting.sun_shafts).to_owned(),
+        "sun_shaft_strength" => settings.appearance.lighting.sun_shaft_strength.to_string(),
         "traffic_preset" => settings.traffic_preset().to_string(),
         "traffic_population" => settings.population_preset().to_string(),
         "traffic_density" => settings.traffic_policy.density_percent.to_string(),
@@ -152,6 +154,14 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         return set_without_value(settings, key);
     }
     match key {
+        "sun_shafts" => settings.appearance.lighting.sun_shafts = parse_bool(value)?,
+        "sun_shaft_strength" => {
+            let strength: f32 = value.parse().map_err(|_| "expected strength from 0 to 4")?;
+            if !(0.0..=4.0).contains(&strength) {
+                return Err("expected strength from 0 to 4".into());
+            }
+            settings.appearance.lighting.sun_shaft_strength = strength;
+        }
         "traffic_preset" => settings.select_traffic_preset(value.parse()?),
         "traffic_population" => settings.select_population_preset(value.parse()?),
         "traffic_density" => settings.traffic_policy.density_percent = value.parse::<Percent>()?.0,
@@ -290,6 +300,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
 fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
     match key {
         "per_car_environment" => Some(&mut settings.appearance.lighting.per_car_environment),
+        "sun_shafts" => Some(&mut settings.appearance.lighting.sun_shafts),
         "highest_world" => Some(&mut settings.detail.highest_world),
         "highest_player" => Some(&mut settings.detail.highest_player),
         "auto_exposure" => Some(&mut settings.appearance.auto_exposure),
@@ -329,6 +340,7 @@ fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
 /// What a setting accepts, for the usage line.
 fn syntax(key: &str) -> Option<&'static str> {
     Some(match key {
+        "sun_shaft_strength" => "<0-4>",
         "traffic_preset" => "<reference|extended|custom>",
         "traffic_population" => "<normal|high|very-high|custom>",
         "traffic_density" => "<0-100>",

@@ -2,6 +2,8 @@
 
 /// Every setting the console can show, by its key.
 pub(super) const KEYS: [&str; 133] = [
+    "sun_shafts",
+    "sun_shaft_strength",
     "traffic_preset",
     "traffic_population",
     "traffic_density",
