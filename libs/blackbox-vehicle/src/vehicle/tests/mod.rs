@@ -19,6 +19,7 @@ mod settle;
 mod settle_replay;
 mod simple_chassis;
 mod tuning;
+mod tyre_model;
 mod wheel;
 
 use glam::{Quat, Vec3};

@@ -38,6 +38,7 @@ impl Vehicle {
     /// Probes the ground under each wheel, updates springs and tires, and returns the summed force and
     /// torque about the centre of gravity (not yet applied to the body).
     pub(super) fn wheel_forces(&mut self, dt: f32, ground: &dyn Ground, angular_velocity: Vec3) -> WheelOutput {
+        self.drop_retired_tyre_model();
         let rot = self.body.rotation();
         let up = rot.y_axis;
         let pos = self.body.position;
@@ -132,15 +133,18 @@ impl Vehicle {
                     surface: c.surface,
                 };
                 let simple = self.simple_tires_on();
-                let fy = match self.rolling_chassis {
-                    Some(config) => self.tires[i].update_rolling(&self.params[i], &input, config.tires),
-                    None if simple => {
-                        let drag = self.tires[i].drag_reduction;
-                        self.tires[i].update_simple(&self.params[i], &input, drag)
-                    }
-                    None => match self.coasting_tires {
-                        Some(response) => self.tires[i].update_coasting(&self.params[i], &input, response),
-                        None => self.tires[i].update_loaded(&self.params[i], &input),
+                let fy = match self.tyre_model_loaded(i, &input) {
+                    Some(fy) => fy,
+                    None => match self.rolling_chassis {
+                        Some(config) => self.tires[i].update_rolling(&self.params[i], &input, config.tires),
+                        None if simple => {
+                            let drag = self.tires[i].drag_reduction;
+                            self.tires[i].update_simple(&self.params[i], &input, drag)
+                        }
+                        None => match self.coasting_tires {
+                            Some(response) => self.tires[i].update_coasting(&self.params[i], &input, response),
+                            None => self.tires[i].update_loaded(&self.params[i], &input),
+                        },
                     },
                 };
                 let fy_limit = (lat_speed / dt).abs() * 0.25 * mass;
@@ -149,11 +153,7 @@ impl Vehicle {
                 let drive_dir = if drive_dir.length_squared() > 1e-8 { drive_dir.normalize() } else { rot.z_axis };
                 force = lateral + drive_dir * self.tires[i].longitudinal_force + up * f_spring;
             } else {
-                match self.rolling_chassis {
-                    Some(_) => self.tires[i].update_rolling_free(),
-                    None if self.simple_tires_on() => self.tires[i].update_simple_free(&self.params[i], dt),
-                    None => self.tires[i].update_free(&self.params[i], dt),
-                }
+                self.update_unloaded_tyre(i, dt);
             }
 
             // The force acts at the contact patch: the arm lowered by the unused ride height.

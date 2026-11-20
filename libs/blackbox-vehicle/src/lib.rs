@@ -57,4 +57,7 @@ pub const FIXED_STEP: f32 = 1.0 / 60.0;
 pub use ground::{FlatGround, Ground, GroundHit, NoGround, SurfaceGrip, WallHit};
 pub use input::{ControlConfig, InputState};
 pub use launch::LaunchConfig;
-pub use vehicle::{DriftTuning, ManeuverAssist, SKID_RANGE, SMOKE_RANGE, Tunings, Vehicle, VehicleSpec, WheelState};
+pub use vehicle::{
+    DriftTuning, DriveLayout, ManeuverAssist, SKID_RANGE, SMOKE_RANGE, Tunings, Vehicle, VehicleSpec, VehicleSummary,
+    WheelState, integration_takes_model,
+};

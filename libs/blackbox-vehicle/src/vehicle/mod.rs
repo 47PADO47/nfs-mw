@@ -25,6 +25,8 @@ mod spec;
 mod staging;
 mod state;
 mod step;
+mod summary;
+mod tyre_model;
 mod wall_steering;
 mod wheels;
 
@@ -41,6 +43,8 @@ pub use rolling_chassis::RollingChassisConfig;
 pub use simple_chassis::SimpleChassisConfig;
 pub use spec::{Tunings, VehicleSpec};
 pub use state::{SKID_RANGE, SMOKE_RANGE, WheelState};
+pub use summary::{DriveLayout, VehicleSummary};
+pub use tyre_model::integration_takes_model;
 pub use wall_steering::WallSteeringConfig;
 
 use glam::{Mat3, Quat, Vec3};
@@ -97,6 +101,7 @@ pub struct Vehicle {
     steering: Steering,
     wheel_angles: WheelAngles,
     tires: [Tire; 4],
+    tyre_hook: crate::tires::TyreHook,
     tire_integration: TireIntegration,
     corners: [Corner; 4],
     contacts: [Option<WheelContact>; 4],
@@ -169,6 +174,7 @@ impl Vehicle {
             steering: Steering::default(),
             wheel_angles: WheelAngles::default(),
             tires: [Tire::default(); 4],
+            tyre_hook: crate::tires::TyreHook::empty(),
             tire_integration: TireIntegration::default(),
             corners: [Corner::default(); 4],
             contacts: [None; 4],
