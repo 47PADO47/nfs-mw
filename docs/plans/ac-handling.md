@@ -1,7 +1,7 @@
-# Sim handling: plan
+# AC handling: plan
 
-Part of [ADR 0016](../decisions/0016-handling-hooks.md); specs in [specs/sim-handling/](../specs/sim-handling/README.md).
-An optional mod, `mods/sim-handling`, gives NFS:MW's own cars the feel of Assetto Corsa (a high-rate tyre model with a
+Part of [ADR 0016](../decisions/0016-handling-hooks.md); specs in [specs/ac-handling/](../specs/ac-handling/README.md).
+An optional mod, `mods/ac-handling`, gives NFS:MW's own cars the feel of Assetto Corsa (a high-rate tyre model with a
 real slip curve, load sensitivity, thermal state, proper suspension and driver aids), switched on and tuned by the
 player. **Verdict: doable, in small stages, each leaving the game unchanged for anyone who does not turn it on.**
 
@@ -25,7 +25,7 @@ integration mode refuses hooks (stage 1 answers it).
 |---|---|---|
 | A contributor working on anything else | nothing | the mod, its specs, AC, any other project |
 | A contributor on the host hooks (stage 1) | the fixture mod `handling-probe` and a fake host | the real mod, AC |
-| A contributor on the mod (stages 2 to 6) | the specs and their test vectors; `cargo test -p sim-handling` | an AC install, a rustyAC checkout, the NFS:MW install for unit tests |
+| A contributor on the mod (stages 2 to 6) | the specs and their test vectors; `cargo test -p ac-handling` | an AC install, a rustyAC checkout, the NFS:MW install for unit tests |
 | A maintainer refreshing reference numbers | their own AC install and the harness in `tools/` | to commit anything but a table of numbers |
 | CI | builds the mod, runs its pure tests, runs the off-path regression | any install; install-dependent checks skip, as the existing ones do |
 
@@ -37,9 +37,9 @@ rustyAC code or holds AC data (the leak check and review enforce it); NOTICE cre
 
 | Stage | Goal | Touches | Exit |
 |---|---|---|---|
-| 0 | specs and reference numbers | `docs/specs/sim-handling/`, `docs/provenance/`, `NOTICE`, `tools/` (harness) | specs written and reviewed; `targets.md` filled; no game code |
+| 0 | specs and reference numbers | `docs/specs/ac-handling/`, `docs/provenance/`, `NOTICE`, `tools/` (harness) | specs written and reviewed; `targets.md` filled; no game code |
 | 1 | the host seam | `libs/blackbox-modding` (`bb.handling` 1.0, `bb.vehicles` 1.3), `libs/blackbox-vehicle` (hook branch), `crates/nfsmw/src/modding/` | with no hook registered every existing trace is bit-identical; the fixture mod's trivial tyre drives; ABI snapshot test; online refusal |
-| 2 | mod v0 | `mods/sim-handling` | tyre model with wheel-local substeps, master toggle, preset, grip scale, hotkey; 5 to 8 cars; scenario metrics inside the bands of `targets.md`. **Gate A** |
+| 2 | mod v0 | `mods/ac-handling` | tyre model with wheel-local substeps, master toggle, preset, grip scale, hotkey; 5 to 8 cars; scenario metrics inside the bands of `targets.md`. **Gate A** |
 | 3 | suspension | `bb.handling` 1.1, mod | camber, roll centre, hub motion; scenario metrics re-checked. **Gate B** |
 | 4 | aids and steering | `bb.handling` 1.2, mod | traction control, ABS, stability, speed-sensitive steering; levels as sliders |
 | 5 | depth | mod | temperature, pressure, wear; HUD number; force-feedback output if the game has one |
@@ -61,7 +61,7 @@ parallel (different files, different sessions).
   maintainer's own AC install and records scalars: skidpad lateral g per compound class, braking distance from
   100 km/h, understeer gradient, step-steer yaw overshoot and settling time, slide-and-recover time, launch traction. Only
   the **scalars and their tolerance bands** are committed in `targets.md`; recordings stay local.
-- **Provenance.** `docs/provenance/sim-handling.md` per [provenance/README.md](../provenance/README.md).
+- **Provenance.** `docs/provenance/ac-handling.md` per [provenance/README.md](../provenance/README.md).
 - **Exit.** A reviewer who has never seen AC can implement stage 2 from the spec alone, and the spec's test vectors
   pin every formula.
 
@@ -88,7 +88,7 @@ parallel (different files, different sessions).
 
 ## Stage 2: mod v0
 
-- **Crate.** `mods/sim-handling`, `cdylib` plus `rlib` like `ride6-bikes`, listed as a workspace member and left out of
+- **Crate.** `mods/ac-handling`, `cdylib` plus `rlib` like `ride6-bikes`, listed as a workspace member and left out of
   the default build as the other mods are; own `README.md`; `mod.toml` requiring `bb.handling` and `bb.vehicles`.
 - **Model.** From the tyre spec: slip curve, load sensitivity, combined slip, relaxation, wheel-local substeps. The
   substep count is a constant of the model chosen by the spec (and a setting for testing), not a host concern.
@@ -117,7 +117,7 @@ parallel (different files, different sessions).
 ## Stage 5 and 6
 
 - Thermal, pressure and wear state, with one HUD value through `bb.hud`; presets for every compound class and car class
-  in the roster; `docs/modding/sim-handling.md` (the player and author page) and an example in
+  in the roster; `docs/modding/ac-handling.md` (the player and author page) and an example in
   [docs/modding/examples.md](../modding/examples.md).
 - Cops, traffic and racers stay `not handled` unless the owner asks otherwise. Their balance depends on the built-in
   model, and a high-grip player against arcade cops is a design question, not an engine one.

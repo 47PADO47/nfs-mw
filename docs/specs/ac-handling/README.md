@@ -1,7 +1,7 @@
-# Sim handling: specs
+# AC handling: specs
 
-Part of [ADR 0016](../../decisions/0016-handling-hooks.md) and [the plan](../../plans/sim-handling.md). These specs describe
-an optional handling model, in our own words, with enough maths and numbers that the mod `mods/sim-handling` can be built
+Part of [ADR 0016](../../decisions/0016-handling-hooks.md) and [the plan](../../plans/ac-handling.md). These specs describe
+an optional handling model, in our own words, with enough maths and numbers that the mod `mods/ac-handling` can be built
 and tested **without** an Assetto Corsa install or a checkout of any other project. None of them exists yet; this page
 is the contract they will be written to.
 
@@ -14,7 +14,7 @@ The spec is the interface between two sessions.
    understanding only*. They write what the behaviour **is**: inputs, outputs, state, equations, constants, limits. They
    never paste code, translate line by line, or quote comments.
 2. The **implementer** builds from the spec alone, with no restricted source open, and records the session in
-   `docs/provenance/sim-handling.md`.
+   `docs/provenance/ac-handling.md`.
 3. A **reviewer** checks the spec for copied expression and the code for anything the spec does not say.
 
 If a spec is not enough to implement from, the answer is to fix the spec, not to open the source.
@@ -68,9 +68,9 @@ unknown, the line says `unmeasured` and the matching test is skipped, not guesse
 
 | Thing | Place |
 |---|---|
-| Why and how | [ADR 0016](../../decisions/0016-handling-hooks.md), [the plan](../../plans/sim-handling.md) |
+| Why and how | [ADR 0016](../../decisions/0016-handling-hooks.md), [the plan](../../plans/ac-handling.md) |
 | What the model is | this folder |
-| The model | `mods/sim-handling/src/` (pure functions, unit tests from the test vectors) |
-| Presets and per-car overrides | `mods/sim-handling/presets/`, `mods/sim-handling/cars/` (TOML) |
-| What was read and when | `docs/provenance/sim-handling.md`, `NOTICE` |
+| The model | `mods/ac-handling/src/` (pure functions, unit tests from the test vectors) |
+| Presets and per-car overrides | `mods/ac-handling/presets/`, `mods/ac-handling/cars/` (TOML) |
+| What was read and when | `docs/provenance/ac-handling.md`, `NOTICE` |
 | The host interface | `docs/modding/api.md` (`bb.handling`), added in stage 1 |

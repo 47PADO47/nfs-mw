@@ -1,10 +1,10 @@
-# 0016 — Handling hooks: an optional, toggleable sim-handling mod
+# 0016 — Handling hooks: an optional, toggleable ac-handling mod
 
 - **Status:** proposed (2026-11-20). The owner has fixed three points: the goal is the *feel and handling* of
   Assetto Corsa on NFS:MW's own cars (not AC cars); the work is a **mod the player switches on**, with its own
   toggles; and it must be **optional for contributors**: nobody needs an AC install or a checkout of another
   project to build, test or review it. Everything else here is a proposal.
-- **Plan:** [plans/sim-handling.md](../plans/sim-handling.md). **Specs:** [specs/sim-handling/](../specs/sim-handling/README.md).
+- **Plan:** [plans/ac-handling.md](../plans/ac-handling.md). **Specs:** [specs/ac-handling/](../specs/ac-handling/README.md).
 - **Builds on:** [ADR 0005](0005-native-mod-plugins.md) (mods, interfaces, quarantine, online policy),
   [ADR 0014](0014-vehicle-components.md) (named behaviours), [licensing.md](../licensing.md) (spec-first).
 
@@ -67,9 +67,11 @@ arrays of four wheels per call, `catch_unwind` in the SDK trampoline, a layout s
 
 ### 3. The mod
 
-`mods/sim-handling` (id `nfsmw.sim-handling`). Pure Rust, `MIT OR Apache-2.0`, no game files, built like the other
-mods (see the plan for placement). The name is descriptive on purpose: it targets the *feel* of Assetto Corsa and is
-not affiliated with its makers.
+`mods/ac-handling` (id `nfsmw.ac-handling`). Pure Rust, `MIT OR Apache-2.0`, no game files, built like the other
+mods (see the plan for placement). It is named for what it is, an Assetto Corsa handling mod: it targets the *feel* of
+Assetto Corsa and says so in its name, README and `mod.toml`, with the usual notice that it is an independent project,
+not affiliated with or endorsed by Kunos Simulazioni or 505 Games. Only the mod carries the name: the `bb.handling`
+interface stays generic because engine code names no game and other mods may use the hooks.
 
 - **Model:** tyre (slip curve with a peak and fall-off, load sensitivity, combined slip, relaxation, then thermal,
   pressure and wear), suspension (stage 3), aids and steering feel (stage 4). Pure functions with their own tests.
@@ -88,7 +90,7 @@ mod is stable and the netcode has a way to compare digests.
 
 The spec step (reading AC behaviour, public vehicle-dynamics literature and rustyAC) and the build step are separate
 sessions. The spec records its sources and their licenses at the top; the implementer works from the spec alone and
-never opens the source. Provenance goes in `docs/provenance/sim-handling.md` and NOTICE credits every project learned
+never opens the source. Provenance goes in `docs/provenance/ac-handling.md` and NOTICE credits every project learned
 from, with URL and license. Reference numbers measured on a maintainer's own AC install are committed as tables of
 facts (for example "peak lateral g of the reference tyre on the test pad"), never as recordings or game files.
 
