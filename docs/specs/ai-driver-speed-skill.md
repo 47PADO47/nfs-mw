@@ -233,6 +233,13 @@ metres ahead, in front (dot > 0.5), and reachable within the nitrous time on off
 `sc` gets `+1`. The check only runs in a speed-trap race while racing, above 10 m/s, and when the car is already
 burning or within 5 m/s of its `speed_limit`. [decomp]
 
+The PC 1.3 executable has the same rule and constants; its timer counts the off time from the moment the race action
+begins (the hand-over from the intro scene, about three seconds before the green light), and race opponents of a quick
+race burn several times a lap (usable share 0.375 in `16.1.1`) **[PC binary, observed]**
+([provenance](../provenance/ai-racers-composition.md)). The rewrite: `blackbox_driver::NitrousLimits` (section 2's
+boost, share and full-tank seconds) and `NitrousTimer` (this section), used by `ai/racer.rs` for race opponents; the
+speed-trap term is not implemented.
+
 ### 7.2 Pursuit (off-road action) uses `DoNOS`
 
 Hysteresis on the desired and actual speeds and alignment [decomp]:

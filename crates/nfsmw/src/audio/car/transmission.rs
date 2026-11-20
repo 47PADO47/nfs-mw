@@ -69,7 +69,7 @@ impl TransmissionPlayback {
         }
         let words = params(sound.engine.car_id, frame, levels.expect("present transmission levels"));
         if self.module.as_mut().expect("loaded transmission module").update(
-            &mut EffectSampler(audio, Group::Sfx),
+            &mut EffectSampler(audio, Group::World),
             dt,
             &words,
         ) {

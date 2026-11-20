@@ -1,10 +1,12 @@
 //! The database: every loaded vault's classes, collections and types, plus a name dictionary.
 
 mod load;
+mod table_order;
 mod types;
 
 use std::collections::HashMap;
 
+pub use table_order::KeyTable;
 pub use types::TypeInfo;
 
 use crate::Result;
@@ -80,6 +82,15 @@ impl Database {
 
     pub fn collections_of_key(&self, class: u32) -> impl Iterator<Item = CollectionRef<'_>> {
         self.collections().filter(move |c| c.collection.class == class)
+    }
+
+    /// The collections of one class in the order a walk of the class gives: their keys in a [`KeyTable`] of the class's
+    /// collection reserve (`mCollectionReserve`), added in load order. Empty for a class that is not loaded.
+    pub fn collections_in_table_order(&self, class: u32) -> Vec<CollectionRef<'_>> {
+        let Some(definition) = self.class_by_key(class) else { return Vec::new() };
+        let table =
+            KeyTable::of_keys(definition.collection_reserve as usize, self.collections_of_key(class).map(|c| c.key()));
+        table.keys().filter_map(|key| self.collection_by_key(class, key)).collect()
     }
 
     /// `db.collection("pvehicle", "bmwm3gtr")`.

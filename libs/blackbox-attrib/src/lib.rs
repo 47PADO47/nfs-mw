@@ -45,7 +45,7 @@ mod tests;
 
 pub use class::{Class, Field, FieldFlags};
 pub use collection::{Attribute, Collection, CollectionRef};
-pub use database::{Database, TypeInfo};
+pub use database::{Database, KeyTable, TypeInfo};
 pub use error::{Error, Result};
 pub use hash::vlt_hash;
 pub use names::Names;

@@ -360,6 +360,16 @@ pub fn use_strike_marker(career: &mut Career, handle: u32) -> Result<(), Text> {
 }
 
 impl ScreenLogic for CareerCarSelectLogic {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        message: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        cue.filter(|_| !crate::frontend::sound_rules::vertical(message))
+    }
+
     fn start(&mut self, cx: &mut Cx) {
         cx.rt.post_to_package(cx.package, super::car_select_view::LABEL_TITLE);
         let (original, cursor) = self

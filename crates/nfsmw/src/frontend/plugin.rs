@@ -25,6 +25,7 @@ use super::world_map::{Chrome, WorldMapOverlay, control, layout};
 use crate::app::{FrameSet, Host};
 use crate::devtools::Console;
 use crate::gui::UiOutput;
+use crate::hud::HudPresent;
 use crate::input::{Action, ActionState, Bindings, InputDevice, InputPresentation, MouseCapture};
 use crate::settings::Settings;
 use crate::ui::present::{FENG_HEIGHT, Screen};
@@ -64,14 +65,14 @@ impl Plugin for FrontendPlugin {
         // The screens and the UI assets load on background threads, so the window opens at once. The systems below wait
         // for what they draw with (`pending.rs`).
         super::pending::install(app, self);
-        let ready = resource_exists::<Frontend>;
+        let (ready, assets) = (resource_exists::<Frontend>, resource_exists::<SharedAssets>);
         app.init_resource::<WorldMapOverlay>()
             .init_resource::<Assets<Image>>()
             .init_resource::<TypedKeys>()
             .add_systems(Update, collect_typed.before(update).run_if(ready))
             .add_systems(Update, update.in_set(FrameSet::Frontend).run_if(ready))
-            .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
-            .add_systems(Update, pointer::apply.run_if(resource_exists::<SharedAssets>));
+            .add_systems(Update, present.in_set(FrameSet::Hud).before(HudPresent).run_if(ready).run_if(assets))
+            .add_systems(Update, pointer::apply.run_if(assets));
         super::lan::build(app);
     }
 }
@@ -181,7 +182,8 @@ fn update(
     host.flow_driven = true;
 
     // A script replaces the input and the clock.
-    let scripted = fe.script.as_mut().and_then(UiScript::next_mask);
+    let top = fe.screens.top().map(str::to_owned);
+    let scripted = fe.script.as_mut().and_then(|script| script.next_mask_on(top.as_deref()));
     // A screenshot waits for the world while the loading screen is up (the world is not in the window until it is built).
     host.hold_capture = fe.script.as_ref().is_some_and(|s| !s.is_over()) || fe.stage == Stage::Loading;
     let dt = if scripted.is_some() { script::STEP } else { time.delta_secs().min(MAX_STEP) };
@@ -332,6 +334,7 @@ fn update(
             if playing && !pause && !console_had_it && map_key {
                 control::open(fe, &mut map.overlay, host, &mut env);
             }
+            fe.poll_inbox(playing && !pause && !console_had_it && !map_key, &actions, script_key, host, &mut env);
         }
         Stage::Map if dialog_over_map => {
             // The GPS Yes/No dialog is over the map: it takes the input (handled above), the map stays frozen behind.
@@ -397,6 +400,7 @@ fn update(
     }
 
     fe.last_mask = mask;
+    fe.trace_career_state();
     // The input layer seats both players while a split-screen race or a co-op session (`input::coop_seats`) is on.
     let seats = fe.split_seats().or_else(|| {
         crate::input::coop_seats(host.scene.coop_second_device(), map.pads.iter().map(|(entity, _)| entity))
@@ -458,6 +462,7 @@ fn present(
     }
     let mut claimed: Vec<ElementId> = Vec::new();
     let reusable = themes.menus_are_static();
+    let mut dumped = crate::parity::fe_dump::enabled().then(Vec::new);
     for Presented { tree, serial, slot, list, name } in fe.screens.presented(&bindings, device).into_iter().rev() {
         // The themed full-screen map replaces the FEng map screen, in its place in the stack (a dialog over it stays on top).
         if chrome == Chrome::Drawn && name.eq_ignore_ascii_case(super::ids::screen::WORLD_MAP) {
@@ -481,7 +486,11 @@ fn present(
             continue;
         }
         presenter.0.present(&layer, &assets.0, screen, &mut out);
+        if let Some(d) = dumped.as_mut() {
+            d.insert(0, (name, layer));
+        }
     }
+    dumped.iter().for_each(|d| fe.screens.dump_frame(d));
     // A closed screen leaves no tree behind: the menu slots no screen took this frame are emptied (a slot that is not
     // set leaves the cell, and its generation, as it was).
     layers.keep_only(&claimed);

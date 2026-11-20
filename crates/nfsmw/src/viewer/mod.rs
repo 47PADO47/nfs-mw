@@ -248,8 +248,7 @@ pub trait Scene {
     fn readout(&self, _level: crate::devtools::ShowReadout) -> Option<String> {
         None
     }
-    /// Who changes gear (the transmission setting), told every frame before `update`; a scene without a car
-    /// ignores it.
+    /// Who changes gear (the transmission setting), told every frame before `update`; a scene with no car ignores it.
     fn set_transmission(&mut self, _transmission: crate::settings::Transmission) {}
     /// Which gameplay camera to use (the camera setting), told every frame; scenes without a chase camera ignore it.
     fn set_camera_mode(&mut self, _mode: crate::settings::CameraMode) {}
@@ -388,8 +387,7 @@ pub trait Scene {
     fn attach_net_client(&mut self, _client: &crate::net::ClientHandle) -> bool {
         false
     }
-    /// The scene keeps running under the pause menu (a multiplayer client: the server never pauses), with neutral
-    /// input.
+    /// Keeps running under the pause menu (a multiplayer client: the server never pauses), with neutral input.
     fn runs_while_paused(&self) -> bool {
         false
     }
@@ -438,6 +436,11 @@ pub trait Scene {
     /// Sound the scene wants played once, handed over when asked (the audio of a movie).
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         None
+    }
+    /// Whether a movie whose sound [`Scene::take_clip`] hands over is playing: false once it has run out, was skipped or
+    /// was stopped (the audio then stops its sound) and for a scene with no movie (the menu mutes no cue for it).
+    fn clip_playing(&self) -> bool {
+        false
     }
     /// The one-shot sounds the traffic cars asked for since the last call (horns, near-miss whooshes).
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {

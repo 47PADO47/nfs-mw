@@ -68,6 +68,7 @@ fn a_catalogue_car_needs_a_price_a_car_class_and_a_folder() {
         unlock_rank: Some(12),
         class: Some(class),
         manufacturer: Some(19),
+        vehicle: None,
     };
     let catalogue = [
         entry("cobaltss", 26_000, true, CarClass::NorthAmerica),

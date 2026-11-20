@@ -152,3 +152,28 @@ Open or unverified:
 - The RNG state at career start: the static start value is `0x12345678`, but every earlier draw in the process changes it.
   The serial is reproducible only by replaying those draws. No time-based reseed was found in the write sites.
 - Whether the 16-byte save field at `0x26C` is zeroed beyond the 13 bytes written here (not checked in the save).
+
+## Car lot list, stable order and race-win cash (2026-11-18)
+
+Method: Ghidra MCP on the unmodded `speed.exe` 1.3 (sha256 `80774c2e...`), decompile and disassembly read for behaviour
+only; the private symbol map for names. Checked against the first car lot observed in the running original
+(2026-11-18) by simulating the rules over the install data; the install test reproduces all 32 positions.
+
+| Item | Address | Note |
+|---|---|---|
+| Car select list build (`UIQRCarSelect::RefreshCarList`) | `0x007BF7B0` | stable slots 0..199 (`GetCarByIndex` `0x0056ECF0`), filter `0x0056F180`, availability `0x0058A9F0`; sorts for filter `& 0xFFFF` in {1, 2, 8, 0x10} |
+| Lot comparison (`SortCarsByUnlock`, no function defined) | `0x007AE450` | both cars' `frontend` records; returns `rank(a) > rank(b)` (layout byte `+0x59`) |
+| List sort (`bList::Sort`) | `0x00462830` | first pass moving a node before a predecessor that is not before it; merge sort only when it moved something |
+| Merge sort (`bList::MergeSort`) | `0x0045D490` | bottom-up, widths 1, 2, 4...; takes the left node only when the comparison is positive; stops after a pass with fewer than two merges |
+| Default stable (`FEPlayerCarDB::Default`) | `0x00590D40` | `M3GTRCAREERSTART`, the preset rides, then a record per `pvehicle` with a `frontend` field (`0x85885722`) in class walk order |
+| Class walk first / next | `0x00456B00` / `0x00456B20` (`0x00456660`) | slot order of the class table |
+| Table find | `0x00454CC0` | `key mod size`, linear probe |
+| Table insert | `0x00456220` | grows when full; records the longest probe (`x2` in the flags word) |
+| Table resize / re-insert | `0x00456390` / `0x00456300` | `size * 5 / 4` rounded to 4; retries one larger while the probe word is over `0x50`; re-inserts in old slot order |
+| Collection constructor (insert into the class table) | `0x00457FB5` | grows after an insert when the probe word is over `0x50` |
+| `GetCashValue` | `0x005FB920` | `CashValue` (`0xD8BAA07B`) read with inheritance |
+| `NotifyRaceFinished` (script function) | `0x006119F0`, registered by name in `0x0061E750` | the only race-win cash: place 1, once per race (`+0x4554`), play mode 2, `cash (+0xB4) += GetCashValue()` at `0x00611BA5` |
+
+Not read: where a class table is first sized (the reserve is taken from the fit), the filter and availability routines
+in detail, `CareerSettings::AwardCash`, `Game_AwardCash`. Not confirmed live: the stable slot order and the list as the
+screen builds it (the fit to one observed run stands in).

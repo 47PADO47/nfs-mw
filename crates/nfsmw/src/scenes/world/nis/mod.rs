@@ -13,11 +13,14 @@
 #[cfg(test)]
 mod arrest_scene_tests;
 mod camera;
+mod capture;
 mod car_events;
 mod car_memory;
+mod car_state;
 mod car_world;
 mod cars;
 mod characters;
+mod coast;
 mod command;
 mod cop_cars;
 mod cop_wait;
@@ -29,9 +32,14 @@ mod light;
 mod loading;
 mod player;
 mod race_grid;
+pub(super) mod report;
+mod scene_list;
 mod skin;
 mod world;
 
+#[cfg(test)]
+pub(super) use cars::Target;
 pub(super) use command::nis_command;
+pub(super) use kind::NisKind;
 pub(super) use player::NisPlayer;
 pub(super) use race_grid::intro_grid;

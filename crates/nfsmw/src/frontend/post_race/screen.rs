@@ -6,6 +6,7 @@
 
 use blackbox_feng::ids::{PAD_ACCEPT, PAD_BUTTON0, PAD_LTRIGGER, PAD_RTRIGGER};
 use blackbox_feng::runtime::pad;
+use blackbox_feng::{PackageId, Runtime};
 
 use super::pages::{Cell, Page, Table, table};
 use super::retry;
@@ -18,6 +19,9 @@ use nfsmw_career::story::LossRule;
 /// The racer's name over the table: the group whose two strings (shadow and face) hold it, inside the group of the arrows.
 const NAME_GROUP: u32 = 0xEB43_CCB0;
 const FILTER_GROUP: u32 = 0x8A41_F5B9;
+/// Sound-sensitive results overlay and its hidden script.
+const RESULTS_OVERLAY: u32 = 0x57EF_B2FB;
+const OVERLAY_HIDE: u32 = 0x0016_A259;
 /// The title, and the footer's second button (its string is called `Stats` in the package).
 const TITLE_GROUP: u32 = 0x2D69_1760;
 const FOOTER_BUTTON: u32 = 0x6F23_15C4;
@@ -44,9 +48,9 @@ const ROW_GROUPS: [u32; 10] = [
 /// The strings of the tenth row (left, middle, right), and the group of the eleventh row, which stays hidden.
 const TENTH: [u32; 3] = [0x4ED8_0BD8, 0x3B19_E0B9, 0x275B_B59A];
 const ELEVENTH_GROUP: u32 = 0xB85F_9E15;
-/// The buttons this build has no screen for (the console footer's stats, the online gamer card, mute and feedback),
-/// hidden, by GUID.
-const UNUSED: [u32; 5] = [0xE690F, 0xFA5B3, 0xFD000, 0x10688A, 0x122661];
+/// The buttons this build has no screen for (the online gamer card, mute and feedback), hidden, by GUID. The pad's copy
+/// of the page button is the package footer's (`prompts/package_footer.rs`).
+const UNUSED: [u32; 3] = [0xFD000, 0x10688A, 0x122661];
 /// The footer's second button (the group of the `Stats` string and the key 2 glyph), by GUID.
 const STATS_BUTTON: u32 = 0x1062F9;
 /// The pad bit of the second button (key 2, the pad's fourth button).
@@ -70,7 +74,11 @@ pub struct PostRaceLogic {
 
 impl PostRaceLogic {
     pub fn new(report: RaceReport) -> Self {
-        Self { report, page: Page::Standings, shown: 0, rows: 0, headers: [true; 3], filter: false, done: 0 }
+        let page = match report.kind {
+            nfsmw_data::gameplay::RaceType::Tollbooth => Page::Stages,
+            _ => Page::Standings,
+        };
+        Self { report, page, shown: 0, rows: 0, headers: [true; 3], filter: false, done: 0 }
     }
 
     /// Looks at the racer `step` places on, wrapping: only the pages that have a racer filter step.
@@ -196,7 +204,7 @@ fn resolve(cell: &Cell) -> String {
 /// Every object (by name hash) the logic sets or hides, for the install test.
 #[cfg(test)]
 pub(super) fn used_objects() -> Vec<u32> {
-    let mut all = vec![NAME_GROUP, FILTER_GROUP, TITLE_GROUP, FOOTER_BUTTON, ELEVENTH_GROUP];
+    let mut all = vec![NAME_GROUP, FILTER_GROUP, TITLE_GROUP, FOOTER_BUTTON, ELEVENTH_GROUP, RESULTS_OVERLAY];
     all.extend(HEADERS);
     all.extend(ROW_GROUPS);
     for row in 0..ROW_GROUPS.len() {
@@ -262,7 +270,26 @@ fn lies_inside(cx: &Cx, name: u32, group: u32) -> bool {
     false
 }
 
+impl PostRaceLogic {
+    fn allows_sound(&self, runtime: &Runtime, package: PackageId, message: u32) -> bool {
+        match message {
+            0x4A80_5994 | 0x9AFA_53A7 => {
+                if self.report.racers.len() <= 1 || self.page == Page::Standings {
+                    return false;
+                }
+            }
+            0x7B6B_89D7 | PAD_ACCEPT | blackbox_feng::ids::BUTTON_PRESSED => {}
+            _ => return true,
+        }
+        runtime.find(package, RESULTS_OVERLAY).and_then(|object| runtime.script_of(object)) != Some(OVERLAY_HIDE)
+    }
+}
+
 impl ScreenLogic for PostRaceLogic {
+    fn sound_trigger(&mut self, runtime: &Runtime, package: PackageId, message: u32, cue: Option<i32>) -> Option<i32> {
+        cue.filter(|_| self.allows_sound(runtime, package, message))
+    }
+
     fn footer(&self) -> crate::frontend::logic::Footer {
         crate::frontend::logic::Footer::RaceResults {
             back: back_target(self.page, self.report.photo.is_some()) != Back::Stay,
@@ -338,6 +365,51 @@ mod tests {
     fn the_logic_starts_on_the_standings_of_the_player() {
         let logic = PostRaceLogic::new(RaceReport::sample());
         assert_eq!((logic.page, logic.shown), (Page::Standings, 0));
+    }
+
+    #[test]
+    fn tollbooth_results_start_on_stages() {
+        let mut report = RaceReport::sample();
+        report.kind = nfsmw_data::gameplay::RaceType::Tollbooth;
+        assert_eq!(PostRaceLogic::new(report).page, Page::Stages);
+    }
+
+    #[test]
+    fn racer_change_cues_require_a_racer_page_with_multiple_racers() {
+        let runtime = Runtime::default();
+        let package = PackageId(1);
+        let mut logic = PostRaceLogic::new(RaceReport::sample_circuit());
+        assert!(logic.report.racers.len() > 1);
+        for message in [0x4A80_5994, 0x9AFA_53A7] {
+            logic.page = Page::Standings;
+            assert!(!logic.allows_sound(&runtime, package, message));
+            logic.page = Page::Statistics;
+            assert!(logic.allows_sound(&runtime, package, message));
+        }
+        logic.report.racers.truncate(1);
+        assert!(!logic.allows_sound(&runtime, package, 0x4A80_5994));
+        assert!(logic.allows_sound(&runtime, package, 0x7B6B_89D7));
+    }
+
+    #[test]
+    #[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+    fn installed_results_overlay_hides_accept_and_racer_change_cues() {
+        let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR")).unwrap();
+        let catalog = crate::ui::Catalog::load(&dir, &["GLOBAL/InGameB.bun"]);
+        let mut runtime = Runtime::new();
+        let package = runtime.load(catalog.find("PostRace_Results.fng").unwrap().clone());
+        let overlay = runtime.find(package, RESULTS_OVERLAY).unwrap();
+        let mut logic = PostRaceLogic::new(RaceReport::sample_circuit());
+        logic.page = Page::Statistics;
+        runtime.run_script(overlay, blackbox_feng::fe_hash_upper("INIT"));
+        for message in [0x4A80_5994, 0x9AFA_53A7, 0x7B6B_89D7] {
+            assert!(logic.allows_sound(&runtime, package, message));
+        }
+        runtime.run_script(overlay, OVERLAY_HIDE);
+        assert_eq!(runtime.script_of(overlay), Some(OVERLAY_HIDE));
+        for message in [0x4A80_5994, 0x9AFA_53A7, 0x7B6B_89D7] {
+            assert!(!logic.allows_sound(&runtime, package, message));
+        }
     }
 
     #[test]

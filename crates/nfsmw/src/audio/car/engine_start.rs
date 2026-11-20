@@ -18,7 +18,7 @@ pub(super) fn play(audio: &mut Audio, sound: &StartSound) {
             return;
         }
     };
-    if let Err(error) = audio.play(Group::Sfx, data.volume(decibels(sound.gain))) {
+    if let Err(error) = audio.play(Group::World, data.volume(decibels(sound.gain))) {
         log::warn!("the engine start sound {} does not play: {error}", sound.file);
     }
 }

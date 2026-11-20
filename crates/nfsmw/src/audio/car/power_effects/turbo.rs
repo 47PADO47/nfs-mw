@@ -69,7 +69,7 @@ impl TurboPlayback {
             ),
         );
         if let Some(running) = self.blowoff.as_mut() {
-            running.group = Group::Sfx;
+            running.group = Group::World;
         }
         self.charge = 0.0;
         self.reached_peak = false;

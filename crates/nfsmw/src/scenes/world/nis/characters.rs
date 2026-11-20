@@ -140,6 +140,11 @@ impl Characters {
         self.models.len() - 1
     }
 
+    /// How many characters the scene draws: the records that resolved to a clip, a skeleton and a model.
+    pub fn actor_count(&self) -> usize {
+        self.actors.len()
+    }
+
     /// Uploads the models' parts and the scene's textures, once. A texture of the bundle comes first, then `shared`,
     /// the world's own textures. Does nothing for a scene without characters, or once the scene is uploaded.
     pub fn prepare(&mut self, renderer: &mut dyn RenderBackend, shared: &Materials) {

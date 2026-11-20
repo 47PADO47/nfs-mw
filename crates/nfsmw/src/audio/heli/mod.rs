@@ -97,7 +97,7 @@ impl Slot {
             bearing: frame.forward.normalize_or_zero().dot((-offset).normalize_or_zero()).clamp(-1.0, 1.0).acos(),
         };
         let words = params::class_words(inputs);
-        if !rotor.module.update(&mut DelayedSampler(audio, Group::Sfx, 0.0), frame.dt, &words) {
+        if !rotor.module.update(&mut DelayedSampler(audio, Group::World, 0.0), frame.dt, &words) {
             self.rotor = None;
         }
     }

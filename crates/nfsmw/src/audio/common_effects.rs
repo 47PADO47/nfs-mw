@@ -132,7 +132,7 @@ impl CommonPlayback {
                 let gain = (mixer.volume(OBJECT, slot + 2).unwrap_or(0.0) * 32767.0) as i32;
                 let words = current.event.words(gain);
                 let healthy = current.module.update(
-                    &mut DelayedSampler(audio, Group::Sfx, ticks as f32 / 60.0),
+                    &mut DelayedSampler(audio, Group::World, ticks as f32 / 60.0),
                     TICK as f32,
                     &words,
                 );

@@ -13,6 +13,8 @@ use crate::scenes::world::WorldScene;
 
 /// Puts the race into its outro, with `won` deciding whether the chain runs after it. The outro plays on the next frame.
 pub(super) fn begin(session: &mut RaceSession, won: bool) {
+    let line = serde_json::json!({"event": session.event, "won": won, "chain": session.chain});
+    crate::parity::career_trace::record("race_outro", line);
     session.stage = Stage::Outro { steps: queue(session), current: Playing::Idle, won };
 }
 
@@ -48,6 +50,8 @@ impl WorldScene {
             return true;
         }
         let next = next_race(won, session.chain.as_deref(), session.options.career);
+        let line = serde_json::json!({"event": session.event, "won": won, "next": next});
+        crate::parity::career_trace::record("race_chain", line);
         if let Some(name) = next {
             self.queued_race = Some((name, session.options));
             self.queued_again = None;

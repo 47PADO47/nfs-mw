@@ -94,6 +94,20 @@ impl NisPlayer {
         self.player_stays && self.play.is_some()
     }
 
+    /// The car the camera's car-space keys follow: the scene pose of channel [`CAMERA_SLOT`]. `None` when no scene
+    /// plays or the scene has no such channel.
+    pub fn camera_car(&self) -> Option<CarSpot> {
+        let playing = self.play.as_ref()?;
+        let slot = camera_slot();
+        let car = playing.cars.iter().find(|car| car.slot == slot)?;
+        Some(car.spot(&playing.anchor, playing.run.scene_time()))
+    }
+
+    /// The overlay byte of the camera key now (`blackbox_chunk::ice::Key::overlay`); `None` with no camera sample.
+    pub fn camera_overlay(&self) -> Option<u8> {
+        self.sample().map(|sample| sample.overlay)
+    }
+
     /// The playing scene's time, seconds; `None` when no scene plays.
     pub fn scene_time(&self) -> Option<f32> {
         self.play.as_ref().map(|playing| playing.run.scene_time())
@@ -111,5 +125,22 @@ pub(super) fn handed_back(spots: Vec<(Target, CarSpot)>, player_stays: bool) -> 
     match player_stays {
         true => spots.into_iter().filter(|&(target, _)| target != Target::Player).collect(),
         false => spots,
+    }
+}
+
+/// The channel slot the camera's car-space keys follow. Which car the original's camera follows is not in the specs;
+/// `NFSMW_NIS_CAMERA_SLOT` overrides the choice for comparing captures with the original.
+fn camera_slot() -> usize {
+    std::env::var("NFSMW_NIS_CAMERA_SLOT").ok().and_then(|value| value.parse().ok()).unwrap_or(CAMERA_SLOT)
+}
+
+/// The default slot of [`camera_slot`]: `car1`.
+pub const CAMERA_SLOT: usize = 0;
+
+impl Playing {
+    /// Whether channel `slot` has a car: linked to one, or not linked yet (the events of a scene that has not linked
+    /// its cars keep their effect until it does).
+    pub(super) fn has_car(&self, slot: usize) -> bool {
+        self.links.as_ref().is_none_or(|links| links.iter().any(|&(linked, _)| linked == slot))
     }
 }

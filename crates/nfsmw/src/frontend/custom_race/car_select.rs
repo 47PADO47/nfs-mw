@@ -51,7 +51,8 @@ const LOCKED_TEXT: u32 = 0x2D25_B2C4;
 /// The car name strings (the pictures name the car instead), the console Accept button, the heat meter and the lot's lines.
 const HIDDEN: [u32; 8] =
     [0xD6D3_2016, 0x79D6_E45C, 0x64F6_D21F, 0xBDE6_E3BA, 0x1939_8802, 0x1930_B057, 0x20D1_13DC, 0x20C8_3C31];
-const BLANKED: [u32; 3] = [0xD6D3_2016, 0x79D6_E45C, 0xC5E1_D8A4];
+/// The car name strings the package fills with sample text (the footer's Showcase caption is the package's own, drawn).
+const BLANKED: [u32; 2] = [0xD6D3_2016, 0x79D6_E45C];
 /// The "no cars" panel of an empty list: shown and hidden by these messages, its sentence is the string `0x36C1E04D` (the My
 /// Cars list says how to fill it, the others say `0x58BBED2A`) **[decomp]**.
 const NO_CARS_ON: u32 = 0xD942_0CD5;

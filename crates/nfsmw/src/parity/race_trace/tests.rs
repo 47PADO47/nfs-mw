@@ -251,7 +251,15 @@ fn a_sample_line_has_every_racer_and_the_players_controls() {
         racer: 0,
         position: [1.5, -2.0, 100.0],
         speed: 30.0,
-        controls: Some(Controls { throttle: 1.0, brake: 0.0, steering: -0.25, gear: 3, rpm: 7000.0 }),
+        controls: Some(Controls {
+            throttle: 1.0,
+            brake: 0.0,
+            steering: -0.25,
+            gear: 3,
+            rpm: 7000.0,
+            drive_torque: 0.0,
+            wheels_on_ground: 4,
+        }),
         driver: None,
     };
     let opponent = SampleRow { racer: 1, position: [4.0, 5.0, 6.0], speed: 28.5, controls: None, driver: None };
@@ -262,7 +270,8 @@ fn a_sample_line_has_every_racer_and_the_players_controls() {
         line["racers"],
         json!([
             {"racer": 0, "position": [1.5, -2.0, 100.0], "speed": 30.0,
-             "controls": {"throttle": 1.0, "brake": 0.0, "steering": -0.25, "gear": 3, "rpm": 7000.0}},
+             "controls": {"throttle": 1.0, "brake": 0.0, "steering": -0.25, "gear": 3, "rpm": 7000.0,
+                          "drive_torque": 0.0, "wheels_on_ground": 4}},
             {"racer": 1, "position": [4.0, 5.0, 6.0], "speed": 28.5},
         ]),
         "a row without a car to read or a driver has no such keys"
@@ -278,14 +287,23 @@ fn the_autopilots_driver_is_in_the_players_row() {
         skill: 1.0,
         catch_up_force: 0.0,
         stand_in: false,
+        nitrous: false,
     };
-    let controls = Some(Controls { throttle: 0.5, brake: 0.0, steering: 0.1, gear: 2, rpm: 5000.0 });
+    let controls = Some(Controls {
+        throttle: 0.5,
+        brake: 0.0,
+        steering: 0.1,
+        gear: 2,
+        rpm: 5000.0,
+        drive_torque: 0.0,
+        wheels_on_ground: 4,
+    });
     let row = SampleRow { racer: 0, position: [0.0; 3], speed: 20.0, controls, driver: Some(driver) };
     let line = serde_json::to_value(row).unwrap();
     assert_eq!(
         line["driver"],
         json!({"target_speed": 44.0, "base_skill": 1.0, "catch_up": 0.0, "skill": 1.0, "catch_up_force": 0.0,
-               "stand_in": false})
+               "stand_in": false, "nitrous": false})
     );
     assert_eq!(line["controls"]["rpm"], json!(5000.0));
 }

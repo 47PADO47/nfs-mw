@@ -1,10 +1,12 @@
 //! The cop channels of a NIS scene that wait for a police car. A cop channel with no free police car to borrow waits while
-//! the police car model the scene spawns (`ai/nis_poses.rs`) loads and while its spawn is tried. The world retries the
-//! waiting channels every frame and gives them up after [`WAIT_LIMIT`] real seconds. This holds the slots and the time
+//! the police car model the scene spawns (`ai/nis_poses.rs`) loads, and while the world under the channel's pose streams
+//! in (a scene's police cars often start far from its camera). The world retries the waiting channels every frame and
+//! gives them up after [`WAIT_LIMIT`] seconds. This holds the slots and the time
 //! only; the links the channels get are in `player.rs`, and the retries in `car_world.rs`.
 
-/// How long, in real seconds, the cop channels of a scene wait for a police car before they give up and stay off.
-pub const WAIT_LIMIT: f32 = 2.0;
+/// How long, in seconds, the cop channels of a scene wait for a police car before they give up and stay off: longer
+/// than the scenes, so a channel whose ground streams in late still gets its car [ours].
+pub const WAIT_LIMIT: f32 = 60.0;
 
 /// The cop channels still waiting for a police car, and the real time they have waited.
 #[derive(Debug, Clone, Default, PartialEq)]

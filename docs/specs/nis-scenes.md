@@ -235,7 +235,8 @@ marker of each moment ([pursuit-breaker-moment.md](pursuit-breaker-moment.md), s
 **Special car lists (53).** Each entry is a scene hash and one of twelve car list codes (`NONE` = -1, `ONE_COP` = 0,
 `LOTS_OF_COPS` = 1, `TRAFFIC_MIX1` to `TRAFFIC_MIX9` = 2 to 10, `ONE_SPORT_COP` = 11) **[decomp]**. All 26 arrests use
 code 0 (`ONE_COP`). The other 27 entries are for race starts, endings and FMVs, and 7 of those 27 hash to no scene in
-the install. **[verified]** For what the code does with the code, see [nis-player.md](nis-player.md), section 7.
+the install. **[verified]** Each code picks a fixed list of eight vehicles for `cop1`..`cop8`, with no random choice
+([nis-events-3.md](nis-events-3.md) section 6) **[pc; live, 1 run]**.
 
 **Race start candidates (1 used).** The only race-start row in the install names the hash of `ArrestF02`
 (camera track 0, flags 0x43, three to four cars, config 6). A race-start scene is not an arrest, so this row is

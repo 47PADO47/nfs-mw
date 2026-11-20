@@ -215,7 +215,7 @@ impl OwnSfx {
             .clone()
             .volume(decibels(volume * SHOT_LEVEL))
             .start_time(StartTime::Delayed(Duration::from_secs_f32(delay)));
-        if let Err(e) = audio.play(Group::Sfx, data) {
+        if let Err(e) = audio.play(Group::World, data) {
             log::debug!("a car effect: {e}");
         }
         true

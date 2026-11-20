@@ -28,6 +28,10 @@ pub struct CarMemory {
     rolling: Vec<Rolling>,
     /// The scene time of the last frame.
     clock: Option<f32>,
+    /// The cars' channel motion, and the cars that coast after a detach (`coast.rs`).
+    pub coasts: super::coast::Coasts,
+    /// The repairs the scene asked for that the world has made, per car.
+    repairs: Vec<(Target, u32)>,
 }
 
 impl CarMemory {
@@ -59,7 +63,16 @@ impl CarMemory {
     /// How far the wheels of `target` have turned with the car at `at` (render space) facing `forward` this frame: on
     /// its first frame in the scene they keep `start` (the physics car's); then each wheel rolls by the distance moved
     /// along `forward` over its radius in `radii`. A jump of more than [`CUT_JUMP`] (a cut) rolls nothing.
-    pub fn roll(&mut self, target: Target, at: Vec3, forward: Vec3, radii: [f32; 4], start: [f32; 4]) -> [f32; 4] {
+    /// Wheels marked in `held` (a locked brake) do not turn.
+    pub fn roll(
+        &mut self,
+        target: Target,
+        at: Vec3,
+        forward: Vec3,
+        radii: [f32; 4],
+        start: [f32; 4],
+        held: [bool; 4],
+    ) -> [f32; 4] {
         let Some(rolling) = self.rolling.iter_mut().find(|r| r.target == target) else {
             self.rolling.push(Rolling { target, at, spin: start });
             return start;
@@ -68,12 +81,27 @@ impl CarMemory {
         if moved.length() > CUT_JUMP {
             return rolling.spin;
         }
-        rolling.spin = rolled(rolling.spin, radii, moved.dot(forward));
+        let turned = rolled(rolling.spin, radii, moved.dot(forward));
+        rolling.spin = std::array::from_fn(|i| if held[i] { rolling.spin[i] } else { turned[i] });
         rolling.spin
     }
 }
 
 impl CarMemory {
+    /// Whether `target` still needs a repair, the scene having asked for `asked` so far; counts it as made.
+    pub fn take_repair(&mut self, target: Target, asked: u32) -> bool {
+        let entry = match self.repairs.iter_mut().find(|(t, _)| *t == target) {
+            Some(entry) => entry,
+            None => {
+                self.repairs.push((target, 0));
+                self.repairs.last_mut().expect("just pushed")
+            }
+        };
+        let due = asked > entry.1;
+        entry.1 = asked;
+        due
+    }
+
     /// Notes the scene's time this frame; gives the scene seconds since the last frame (0 on the first).
     pub fn tick(&mut self, time: f32) -> f32 {
         let dt = self.clock.map_or(0.0, |last| (time - last).max(0.0));
@@ -135,16 +163,29 @@ mod tests {
     fn the_wheels_roll_with_the_car_and_not_over_a_cut() {
         let mut memory = CarMemory::default();
         let radii = [0.5; 4];
-        let start = memory.roll(Target::Player, Vec3::ZERO, Vec3::X, radii, [0.3; 4]);
+        let start = memory.roll(Target::Player, Vec3::ZERO, Vec3::X, radii, [0.3; 4], [false; 4]);
         assert_eq!(start, [0.3; 4], "the first frame keeps the car's own wheels");
-        let after = memory.roll(Target::Player, Vec3::new(1.0, 0.5, 0.0), Vec3::X, radii, [0.0; 4]);
+        let after = memory.roll(Target::Player, Vec3::new(1.0, 0.5, 0.0), Vec3::X, radii, [0.0; 4], [false; 4]);
         assert!((after[0] - 2.3).abs() < 1e-5, "a metre forward: {after:?}");
-        let cut = memory.roll(Target::Player, Vec3::new(100.0, 0.0, 0.0), Vec3::X, radii, [0.0; 4]);
+        let cut = memory.roll(Target::Player, Vec3::new(100.0, 0.0, 0.0), Vec3::X, radii, [0.0; 4], [false; 4]);
         assert_eq!(cut, after, "a cut does not spin the wheels");
-        let still = memory.roll(Target::Player, Vec3::new(100.0, 0.0, 0.0), Vec3::X, radii, [0.0; 4]);
+        let still = memory.roll(Target::Player, Vec3::new(100.0, 0.0, 0.0), Vec3::X, radii, [0.0; 4], [false; 4]);
         assert_eq!(still, after, "standing still");
-        let other = memory.roll(Target::Traffic(2), Vec3::ZERO, Vec3::X, radii, [0.0; 4]);
+        let other = memory.roll(Target::Traffic(2), Vec3::ZERO, Vec3::X, radii, [0.0; 4], [false; 4]);
         assert_eq!(other, [0.0; 4], "each car has its own wheels");
+    }
+
+    #[test]
+    fn locked_wheels_do_not_turn_and_repairs_are_made_once() {
+        let mut memory = CarMemory::default();
+        let held = [false, false, true, true];
+        memory.roll(Target::Player, Vec3::ZERO, Vec3::X, [0.5; 4], [0.0; 4], held);
+        let after = memory.roll(Target::Player, Vec3::X, Vec3::X, [0.5; 4], [0.0; 4], held);
+        assert_eq!(after, [2.0, 2.0, 0.0, 0.0]);
+        assert!(!memory.take_repair(Target::Player, 0));
+        assert!(memory.take_repair(Target::Player, 1));
+        assert!(!memory.take_repair(Target::Player, 1), "once per request");
+        assert!(memory.take_repair(Target::Player, 2));
     }
 
     #[test]

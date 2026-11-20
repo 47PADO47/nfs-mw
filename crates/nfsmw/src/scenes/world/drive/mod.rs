@@ -164,8 +164,7 @@ pub struct Drive {
     gridded: bool,
     /// Drag launches cancel their bonus when shifting; ordinary race launches pause its timer.
     launch_cancel_on_shift: bool,
-    /// A point (physics space) the car steers at by itself, with the player's steering ignored (the drag assist,
-    /// `grid.rs`).
+    /// A physics-space point the car steers at by itself, ignoring the player's steering (the drag assist, `grid.rs`).
     assist_aim: Option<glam::Vec3>,
     /// The speed the next placement gives the car, m/s (a rolling start); taken by the placement.
     pending_speed: f32,
@@ -174,6 +173,8 @@ pub struct Drive {
     /// The pose a NIS scene gives the car while it plays (`nis_pose.rs`); `None` draws the physics pose.
     nis_pose: Option<CarPose>,
     nis_body_tilt: glam::Quat,
+    /// The head lights a NIS scene sets (`ENISLights`), `None` for the player's own switch.
+    nis_headlights: Option<bool>,
     /// Network prediction plus its smoothed correction; `None` draws the physics pose (`predict.rs`).
     net_pose: Option<CarPose>,
     telemetry: Telemetry,
@@ -246,7 +247,7 @@ impl Drive {
             nos_glow: self.nos_glow(),
             reverse,
             steer: self.steer_lamp,
-            headlights: self.headlights && !dark,
+            headlights: self.nis_headlights.unwrap_or(self.headlights) && !dark,
             enhanced: self.rig.enhanced_lamps(),
             turn_signals: false,
             dark,
@@ -346,8 +347,7 @@ impl Drive {
         self.sim.as_ref().map_or(self.current, CarSim::pose)
     }
 
-    /// Move the chase camera; `look` is the player's look input (the right stick or the mouse), which
-    /// orbits the camera round the car.
+    /// Move the chase camera; `look` (the right stick or the mouse) orbits the camera round the car.
     pub fn follow(&mut self, _collision: &CollisionWorld, look: (f32, f32), dt: f32) {
         // A bike's chase camera is made to its size (`viewer/camera/bike.rs`); a car's is the one the camera is built for.
         self.chase.fit =

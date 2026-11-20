@@ -21,6 +21,7 @@ pub(super) enum Target {
     /// The sender package: responses and `Targ` objects.
     ThisPackage,
     Sound,
+    InputSound,
     Input,
     Object(usize),
 }
@@ -66,22 +67,16 @@ pub enum PackageCommandKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Outgoing {
     /// A message for the game. `from` is the GUID of the object that sent it.
-    Game {
-        message: u32,
-        package: PackageId,
-        from: Option<u32>,
-    },
+    Game { message: u32, package: PackageId, from: Option<u32> },
     Sound {
         message: u32,
         package: PackageId,
         from: Option<u32>,
+        /// True for a package script or response that explicitly targets sound.
+        authored: bool,
     },
     /// A package-control request; the host owns the package list.
-    Package {
-        kind: PackageCommandKind,
-        name: String,
-        from: PackageId,
-    },
+    Package { kind: PackageCommandKind, name: String, from: PackageId },
 }
 
 impl Runtime {
@@ -124,9 +119,14 @@ impl Runtime {
                 let from = from_guid(self);
                 self.outgoing.push(Outgoing::Game { message: m.id, package: m.package, from });
             }
-            Target::Sound => {
+            Target::Sound | Target::InputSound => {
                 let from = from_guid(self);
-                self.outgoing.push(Outgoing::Sound { message: m.id, package: m.package, from });
+                self.outgoing.push(Outgoing::Sound {
+                    message: m.id,
+                    package: m.package,
+                    from,
+                    authored: m.target == Target::Sound,
+                });
             }
             // Input control messages are not modelled: the host decides when to feed input.
             Target::Input => {}

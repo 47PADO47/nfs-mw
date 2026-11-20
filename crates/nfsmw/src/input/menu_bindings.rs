@@ -42,6 +42,9 @@ pub(super) fn menus() -> Vec<Binding> {
         Binding::new(MenuStart, key(KeyCode::KeyP), 1.0),
         Binding::new(MenuStart, button(GamepadButton::Start), 1.0),
         Binding::new(MenuButton1, key(KeyCode::Digit1), 1.0),
+        // The original's button 5 (Delete, Restart, Sell) is the pad's Y in its footers (owner's pictures of the original
+        // with a pad): Y first, so the footers show it; the left shoulder stays.
+        Binding::new(MenuButton1, button(GamepadButton::North), 1.0),
         Binding::new(MenuButton1, button(GamepadButton::LeftTrigger), 1.0),
         Binding::new(MenuButton2, key(KeyCode::Digit2), 1.0),
         Binding::new(MenuButton2, button(GamepadButton::West), 1.0),

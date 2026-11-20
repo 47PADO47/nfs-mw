@@ -151,3 +151,16 @@ fn installed_breaker_icons_are_the_icon_markers() {
         assert_eq!(near, 1, "one icon at the gas station near {:?}", station.position);
     }
 }
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_scenes_name_their_special_car_lists() {
+    let Some(path) = std::env::var_os("NFSMW_GAME_DIR") else { return };
+    let dir = GameDir::open(path).unwrap();
+    let data = load(&dir).unwrap();
+    // The D-Day start makes TRAFFIC_MIX7 (code 8), the bucket-16 outro TRAFFIC_MIX8 (code 9); a race start has none.
+    assert_eq!(data.car_list_of(scene_hash("IntroNisDD")), Some(8));
+    assert_eq!(data.car_list_of(scene_hash("EndingNis03")), Some(9));
+    assert_eq!(data.car_list_of(scene_hash("IntroNis05")), None);
+    assert_eq!(data.car_lists.len(), 53);
+}

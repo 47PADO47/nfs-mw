@@ -44,9 +44,10 @@ impl Audio {
         .unwrap();
         let mut music_builder = TrackBuilder::new();
         let music_filter = music_builder.add_effect(super::filter::MusicFilterBuilder);
-        let (sfx, music, engine, hud) = (
+        let (sfx, music, engine, hud, world) = (
             manager.add_sub_track(TrackBuilder::new()).unwrap(),
             manager.add_sub_track(music_builder).unwrap(),
+            manager.add_sub_track(TrackBuilder::new()).unwrap(),
             manager.add_sub_track(TrackBuilder::new()).unwrap(),
             manager.add_sub_track(TrackBuilder::new()).unwrap(),
         );
@@ -56,6 +57,7 @@ impl Audio {
             Some(Output {
                 manager: OutputManager::Replay(Box::new(manager)),
                 sfx,
+                world,
                 music,
                 music_filter,
                 engine,

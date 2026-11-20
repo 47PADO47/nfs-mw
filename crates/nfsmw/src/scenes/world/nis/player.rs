@@ -6,7 +6,7 @@
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
-use blackbox_chunk::ice::{CameraSample, Track};
+use blackbox_chunk::ice::Track;
 use blackbox_gfx::{Instance, RenderBackend};
 use blackbox_nis::{Playback, PlaybackState, Scene, SceneClock};
 use blackbox_sequence::Package;
@@ -22,14 +22,17 @@ use super::handlers::NisScreen;
 use super::light::Eye;
 use super::loading::Loading;
 use crate::audio::nis::NisAudioRequest;
-use crate::scenes::world::scene_space::{Anchor, lens_of, placed};
-use crate::viewer::camera::Lens;
+use crate::scenes::world::scene_space::{Anchor, placed};
 use cars_api::handed_back;
 
 pub use super::kind::{NisKind, NisOutcome};
 
 /// Frames per second of a scene's clock (`docs/specs/nis-scenes.md`, section 0).
 pub const SCENE_FPS: f32 = 30.0;
+/// Real seconds a scene holds its first pose before its clock runs: the 31 ticks of the activity's settle counter
+/// (`docs/specs/nis-player.md` section 4.2), at the 60 Hz of the world's fixed frame task. The original's D-Day start
+/// runs about 0.5 s behind its own scene clock against the game clock (reference frames).
+pub const SETTLE_SECS: f32 = 31.0 / 60.0;
 
 /// What a scene needs before it can play: its clock, its camera, where it stands and its kind.
 #[derive(Debug, Clone, PartialEq)]
@@ -93,6 +96,8 @@ struct Playing {
     memory: CarMemory,
     revs: Option<nfsmw_data::sound::NisRevs>,
     motion: [super::car_events::CarMotion; 16],
+    /// Real seconds of the settle still to hold ([`SETTLE_SECS`]).
+    settle: f32,
 }
 
 impl Playing {
@@ -167,17 +172,20 @@ impl NisPlayer {
         let Some(result) = self.loading.as_mut().and_then(Loading::poll) else { return };
         let Some(loading) = self.loading.take() else { return };
         let _trace = blackbox_trace::scope("NIS: prepare the loaded scene");
-        let started = result.and_then(|loaded| {
-            let ready = loading.prepare(loaded)?;
-            self.start_with_cars(ready.plan, ready.cars, ready.sequence, ready.characters)?;
-            if let Some(playing) = self.play.as_mut() {
-                playing.revs = ready.revs;
-            }
-            Ok(())
-        });
+        let started = result.and_then(|loaded| self.start_prepared(loading.prepare(loaded)?));
         let Err(error) = started else { return };
         log::warn!("NIS {}: the scene is not played: {error}", loading.name);
         self.give_up(&loading.name, &format!("failed ({error})"));
+    }
+
+    /// Starts a scene read and prepared off the player ([`Loading::prepare`]): its cars, events, characters and rev curves.
+    /// Refused while another plays, or when the scene has no time to play.
+    pub fn start_prepared(&mut self, ready: super::loading::Prepared) -> Result<(), String> {
+        self.start_with_cars(ready.plan, ready.cars, ready.sequence, ready.characters)?;
+        if let Some(playing) = self.play.as_mut() {
+            playing.revs = ready.revs;
+        }
+        Ok(())
     }
 
     /// Ends the load that is under way as skipped. Returns whether one was.
@@ -198,6 +206,16 @@ impl NisPlayer {
     /// play.
     #[cfg(test)]
     pub fn start(&mut self, plan: Plan) -> Result<(), String> {
+        self.start_with_cars(plan, Vec::new(), None, Characters::default())?;
+        if let Some(playing) = self.play.as_mut() {
+            playing.settle = 0.0;
+        }
+        Ok(())
+    }
+
+    /// [`NisPlayer::start`] with the settle kept, for its own test.
+    #[cfg(test)]
+    pub fn start_settling(&mut self, plan: Plan) -> Result<(), String> {
         self.start_with_cars(plan, Vec::new(), None, Characters::default())
     }
 
@@ -240,6 +258,7 @@ impl NisPlayer {
             memory: CarMemory::default(),
             revs: None,
             motion: Default::default(),
+            settle: SETTLE_SECS,
         });
         Ok(())
     }
@@ -256,19 +275,24 @@ impl NisPlayer {
     /// screen. The scene ends when its clock runs out.
     pub fn advance(&mut self, dt: f32) -> Vec<NisEvent> {
         self.finish_loading();
+        // The camera key's simulation speed slows the scene's clock (the original's slow-motion shots).
+        let speed = self.sample().map_or(1.0, |sample| sample.sim_speed);
         let Some(playing) = self.play.as_mut() else { return Vec::new() };
+        let held = dt.min(playing.settle).max(0.0);
+        playing.settle -= held;
+        let dt = dt - held;
         let before = playing.run.elapsed();
-        let finished = playing.run.advance(dt) == PlaybackState::Finished;
+        let finished = playing.run.advance(dt * speed) == PlaybackState::Finished;
         let step = playing.run.elapsed() - before;
         let mut events = playing.events.as_mut().map_or_else(Vec::new, |events| events.advance(step));
         events.retain(|event| {
-            if let NisEvent::Car { system, event } = *event {
-                if let Some(slot) = super::car_events::slot_of(system) {
-                    playing.motion[slot].apply(event, playing.run.elapsed());
-                }
-                return false;
+            let NisEvent::Car { system, event } = *event else { return true };
+            // A channel with no car fires nothing in the original (live log, `nis-events.md` section 2.2).
+            let slot = super::car_events::slot_of(system).filter(|&slot| playing.has_car(slot));
+            if let Some(slot) = slot {
+                playing.motion[slot].apply(event, playing.run.elapsed());
             }
-            true
+            false
         });
         self.screen.advance(dt);
         if finished {
@@ -308,7 +332,7 @@ impl NisPlayer {
         self.final_cars = Some(handed_back(playing.spots(), std::mem::take(&mut self.player_stays)));
         self.last = Some(format!("{}: {outcome:?}", playing.name));
         self.outcome = Some(outcome);
-        self.screen.clear();
+        self.screen.end();
         self.cut = true;
         self.retired.push(playing.characters);
     }
@@ -443,26 +467,6 @@ impl NisPlayer {
         self.play.is_some() || self.loading.is_some()
     }
 
-    /// The camera sample of the scene now, from its track. `None` with no track, or when the track has no sample.
-    fn sample(&self) -> Option<CameraSample> {
-        let playing = self.play.as_ref()?;
-        camera::track_sample(playing.camera.as_ref()?, playing.run.scene_time())
-    }
-
-    /// The camera of the scene now, `aspect` being width over height. A scene whose track gives no camera (no track, or
-    /// a point in a space that is not placed) plays the slow orbit instead.
-    pub fn lens(&self, aspect: f32) -> Option<Lens> {
-        let playing = self.play.as_ref()?;
-        let track = self.sample().and_then(|sample| lens_of(&playing.anchor, &sample, aspect));
-        let fraction = playing.run.elapsed() / playing.run.clock().duration();
-        Some(track.unwrap_or_else(|| camera::orbit(&playing.focus, fraction, aspect)))
-    }
-
-    /// The letterbox bar height as a fraction of the screen at the scene's time; 0 when the scene has no bars.
-    pub fn letterbox(&self) -> f32 {
-        self.sample().map_or(0.0, |sample| sample.letterbox)
-    }
-
     /// One line for the console.
     pub fn status(&self) -> String {
         let now = match &self.play {
@@ -481,6 +485,10 @@ impl NisPlayer {
     }
 }
 
+#[path = "player_camera.rs"]
+mod camera_api;
+#[path = "player_capture.rs"]
+pub mod capture_api;
 #[path = "player_cars.rs"]
 mod cars_api;
 #[cfg(test)]

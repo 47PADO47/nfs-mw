@@ -262,7 +262,7 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
 | `lap` | `racer`, `lap`, `lap_time`, `race_time`; the last lap too |
 | `racer_finished` | `racer`, `place`, `total_time` |
 | `knocked_out` | `racer`, `race_time` |
-| `sample` | `race_time`, `racers`: per racer on the road `racer`, `position`, `speed`, `controls` (`throttle`, `brake`, `steering`, `gear`, `rpm`) and, for a racer an AI driver drives, `driver` (`target_speed`, `base_skill`, `catch_up`, `skill`, `catch_up_force`, `stand_in`) |
+| `sample` | `race_time`, `racers`: per racer on the road `racer`, `position`, `speed`, `controls` (`throttle`, `brake`, `steering`, `gear`, `rpm`, `drive_torque`, `wheels_on_ground`) and, for a racer an AI driver drives, `driver` (`target_speed`, `base_skill`, `catch_up`, `skill`, `catch_up_force`, `stand_in`, `nitrous`) |
 | `race_finished` | `race_time`, `results` (`racer`, `place`, `finished`, `total_time` per racer) |
 
 - The finish line is not a checkpoint: crossing it writes `lap`, and no `checkpoint`. A race with no finish line closes
@@ -292,7 +292,8 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
   (the physics space's `(x, y, z)` is `(-y, z, x)` of it). `speed` is the speed along the car in m/s, without its sign.
   `controls` are what each car stepped with in its last step after the input shaping, whoever drove it: `throttle`
   and `brake` 0 to 1, `steering` -1 to 1 (positive to the right), `gear` -1 reverse, 0 neutral, 1 and up forward, and
-  `rpm` the engine speed after the step. The player's are those of the sample's tick; an opponent's are read after the
+  `rpm` the engine speed after the step, `drive_torque` the engine's drive torque in N m and `wheels_on_ground` the wheels
+  touching the ground. The player's are those of the sample's tick; an opponent's are read after the
   world's step of that tick.
 - `driver` (`crates/nfsmw/src/scenes/world/race/trace_rows.rs`) is what the AI driver asked for in that tick: the
   opponents' drivers, and the autopilot's while it has the player's car (absent before it takes the car). `target_speed`
@@ -300,7 +301,7 @@ A gate is tested once a tick, so a time is that of the tick the car crossed in.
   character's skill, `catch_up` the offset the catch-up added this tick, and `skill` the sum in 0..1 that the driver uses
   ([ai-driver-speed-skill.md](specs/ai-driver-speed-skill.md) section 8). `catch_up_force` is the catch-up force budget,
   0 to 0.5, which scales the car's positive engine torque, drag and downforce; the player's car gets neither offset nor
-  force (both 0). `stand_in` is true while the racer moves on its off-world stand-in rather than by physics; its
+  force (both 0). `nitrous` is true while the car's nitrous burns (always false for the player's car). `stand_in` is true while the racer moves on its off-world stand-in rather than by physics; its
   `controls` are then those of its last physics step.
 - The player's vehicle record is the car folder's own `pvehicle`: `--drive BMWM3GTR` races `bmwm3gtr`, and
   `--drive BMWM3GTRE46` races `bmwm3gtre46`, the record the prologue's M3 GTR uses (`CAR:PRESET` adds a preset ride's
@@ -330,3 +331,152 @@ What this does not give:
   runs do not put the same input on the same tick.
 - `play --drive` takes the same options, but opens the front end, whose post-race screen freezes the world; use
   `view-world` for batch runs.
+
+### Silent audio output and the front-end cue trace
+
+`--no-sound` removes the audio system, so nothing about sound can be seen in such a run. `--silent-audio` (or
+`NFSMW_AUDIO_OUTPUT=silent`) keeps the whole audio system and its mixer running at the real sample rate, discards the
+samples and opens no output device (`crates/nfsmw/src/audio/silent.rs`). Sounds start, run and end on time, so the
+audio trace (`NFSMW_AUDIO_TRACE=<file>`, JSON lines) shows what a player would have heard. Its `output` record names the
+output: `device`, `silent` or `none`.
+
+Every front-end sound message a screen sends is one `fe_cue` record (`crates/nfsmw/src/audio/menu/cue_log.rs`).
+`trigger` is the cue, `success` whether a voice started, and `detail` holds:
+
+| Field | Content |
+|---|---|
+| `screen`, `message` | the package that sent the message and its hash (`-` for a cue screen code requests directly) |
+| `source` | `authored` (a package script or response targets the sound system), `input` (the host's pad feedback) or `direct` |
+| `candidate` | the trigger the message maps to before the screen's gates |
+| `result` | `played` with `voice=started instance=N`, or `voice=dropped: ...`/`failed: ...` when no voice started; `suppressed` with `gate=...` |
+| `gate` | `frame: ...` (the same cue already came this frame), `screen gate: <logic>` (the screen's own filter), `no trigger: <logic>`, `unmapped input`, `orbit footer: direction`, `rival bio: input back` |
+| `bus`, `effective` | the effects bus: `master`, `sfx`, their product as the cue meets it, and the `movie_active` and `world_muted` presentation state |
+
+A started voice also has its `menu_trigger` record with the same instance.
+
+### Menu sound walk
+
+`play --boot-flow --ui-script ...` runs the whole boot flow (movies, title, profile step) under a script, as an
+unscripted start does; without `--boot-flow` a script starts at the main menu. The script step `until SCREEN` releases
+the pad until that screen file is on top (two minutes at most), so a script can follow the boot movies, whose length in
+frames differs between runs. The install-backed test `crates/nfsmw/tests/menu_walk_audio.rs` walks the boot flow, the
+main menu, Challenge Series, Quick Race, an Options slider and the career menu in a hidden, silent session and fails
+when a cue the walk must start is missing from the trace:
+
+```sh
+NFSMW_GAME_DIR=<install> NFSMW_WALK_EXE=<release nfsmw.exe> cargo test -p nfsmw --test menu_walk_audio -- --ignored
+```
+
+It needs a display (the window stays hidden and off-screen) and runs for about two minutes. Without `NFSMW_WALK_EXE`
+it runs the test build of the binary.
+
+## Unattended career run
+
+One command starts a new career on an empty profile folder and plays it with nobody at the controls until the first
+car is bought in the car lot the prologue ends in, or a time limit. The options are on `play`; they are never saved
+(`crates/nfsmw/src/cli/career_args.rs`, `crates/nfsmw/src/parity/career_trace.rs`).
+
+| Option | Effect |
+|---|---|
+| `--new-career <ALIAS>` | Starts a new career under the alias at once, as Start New Career on the career menu does (`Command::CareerNew`), with no boot flow and no menus. Set `BLACKBOX_PROFILE_DIR` to an empty folder so no real profile or config is read or written |
+| `--career-trace <FILE>`, `NFSMW_CAREER_TRACE=<FILE>` | Writes the career-flow trace (below) to this file, replacing it; the flag wins |
+| `--career-start first-car-lot` | With `--new-career`: the career starts in the car lot the prologue ends in, with the state the prologue leaves (its six events won, the cash their data pays; the three markers of `16.2.3` are not granted). The default `prologue` starts at `16.1.0` |
+| `--exit-after-first-car` | Ends the process when the first car is bought in the first-car lot |
+| `--exit-after-first-visit` | Ends the process when the first safe house visit hands over to the safe house menu (after `blacklist_15`) |
+| `--skip-cinematics` | Every movie (over the world and over the menus) and every NIS scene ends as soon as it starts, as a skip does |
+| `--autopilot` | As in a race run: the opponents' driver has the player's car in every race of the career, from the green light. On the drive to the first safe house it drives the car to the safe house's respawn marker along its own race route (`career/drive_pilot.rs`), not the GPS |
+| `--ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right"` | The scripted pad: the steps after `loop` repeat for the whole run. Accept goes on from whatever front-end screen is up (the win photo, the results). In the first-car lot Accept asks to buy the car shown, Left moves the question's focus from No (where it opens) to Yes, and Accept buys it. The lot opens on a car the prologue's cash does not pay for (the GTI at 35,000 against 31,000): Accept then shows the notice, the next press closes it, and the two Rights step to the next car |
+
+```sh
+mkdir -p out/profile
+BLACKBOX_PROFILE_DIR="$(pwd -W)/out/profile" STREAMLINE_PLUGIN_DIR="$(pwd -W)" \
+nfsmw --game-dir "<install>" play --new-career CAREERRUN --autopilot \
+  --career-trace out/career.jsonl --race-trace out/races.jsonl --exit-after-first-car \
+  --ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right" \
+  --seed 1 --stock-rules --no-sound --backend vulkan --bench-seconds 3000 --offscreen --max-fps 60
+```
+
+`--offscreen` with `--bench-seconds` works on `play` as on `view-world`: the window stays hidden and the benchmark's
+`N` seconds are the time limit. The movies and NIS scenes play at their own length: the world skips them only on a
+real Accept, which the scripted pad does not send to the world. The run needs a graphics adapter.
+
+A full prologue takes about 21 minutes, most of it the movies and scenes at their own length; `--skip-cinematics` cuts
+that to the races, and `--career-start first-car-lot` skips the prologue. A short loop from the lot to the first visit:
+
+```sh
+nfsmw --game-dir "<install>" play --new-career CAREERRUN --career-start first-car-lot --skip-cinematics --autopilot   --career-trace out/career.jsonl --exit-after-first-visit   --ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right; wait 1; back"   --seed 1 --stock-rules --no-sound --backend vulkan --bench-seconds 900 --offscreen --max-fps 60
+```
+
+The drive's message 15 opens `SMS_Message.fng`, which closes on Back (Accept only with its Done button in focus), hence
+the `back` at the end of the loop; Back is refused in the first-car lot, and in the bio it goes on as Accept does.
+
+### Career-flow trace
+
+JSON lines, written and flushed as they happen. Every line has `kind`, `seq` (from 1), `tick` and `sim_time` (the physics
+ticks run so far in the process and their simulated seconds, summed over every world of the run, so they never go back)
+and `wall_ms` (milliseconds since the file was opened). The front end runs while the world is frozen or not built, so
+lines in a row can share a `sim_time`.
+
+| `kind` | Fields |
+|---|---|
+| `header` | `schema` (`nfsmw-career-trace-v1`), `created_unix_ms`, `build` (`git_commit`, `git_dirty`) |
+| `screen` | `action` (`open`, `pop`, `clear`), `top` and `stack`: the FEng packages on the front end's stack after the change |
+| `boot_step` | `step`: a boot movie or the title screen |
+| `movie_start`, `movie_end`, `movie_missing` | `movie`; `player` (`front_end` over the menus, `world` over a race); `how` (`finished`, `skipped`, `stopped`) |
+| `nis_start`, `nis_failed`, `nis_end` | `scene`, `track`, `error`; `outcome` at the end |
+| `message_card` | `id`, `label` (language hash) and `text` of a race's message card |
+| `career_new`, `career_resume` | a new career (`alias`) or Resume Career |
+| `career_race_request` | the front end starts a career race behind the loading screen: `event`, `car` |
+| `world_load`, `world_shown`, `world_load_failed` | the front end hands over to a new world (`car`, `race`, `career`, `drive_to_safe_house`, `safe_house_start`), the world is on screen, or it could not be built |
+| `race_start`, `race_start_failed` | a queued race starts in the world: `query`, `career`, `error` |
+| `race_countdown` | the intro is over and the countdown (or rolling start) begins: `event`, `rolling` |
+| `race_over` | the race engine's end: `event`, `name`, `place`, `racers`, `finished`, `time`, `career` |
+| `career_race_result` | what the career recorded: `event`, `place`, `cash_paid`, `bins_done`, `bins_entered` |
+| `race_answer` | the post-race screen's answer: `Restart` or `Exit` |
+| `race_outro`, `race_chain` | the outro begins (`won`, `chain`: the race's `PostRaceActivity`); the outro is over and `next` is queued, or `null` |
+| `race_end` | the race is taken down: `event`, `stage` it was in, `next_queued` |
+| `chase_event`, `drive_event` | the scripted chase of `16.1.0`/`16.2.1` and the drive to the first safe house, one line per event |
+| `cell_call`, `sms_delivered` | a phone call processed (`id`, `outcome`), text messages delivered (`delivered`, `open_at`) |
+| `career_request` | a request of the world's career taken by the front end (`SafeHouse`, `CarLot`, `FirstCarLot`, `Sms`, ...) |
+| `handoff` | `to`: `car_lot` (`zone`, `first_car`), `drive_to_safe_house`, `first_safe_house_visit`, `safe_house` |
+| `blacklist_step` | a step of the safe house's Blacklist sequence: `action`, `stage` |
+| `car_lot_action` | a confirmed purchase or sale: `action`, `first_drive`, `outcome` |
+| `car_lot_list` | the lot as it opens: `tab`, `first_car`, `cursor` (the row shown first) and `rows` (`car`, `price`, `locked`) in list order |
+| `pad` | a pad button a screen received: `screen`, `button` (what answered or closed it) |
+| `gps_route`, `gps_end` | a GPS route set (`target`, `car`, `segments`, `polyline`: the route's road every 25 m, render space) or ended (`why`: `finished`, `lost`, `cleared`) |
+| `gps_sample` | once a second while a route is set: `car`, `heading`, `speed`, `state`, `aim` (the arrow's look-ahead point) and `aim_dir`, `bearing_wanted`, `bearing_drawn`, `arrow_yaw`, `arrow_tip` (where the drawn model's point goes), `arrow_shown`, `road_dir` and `off_road_m` (the route's road nearest the car), `to_target_m`, `next_turn`. Angles in degrees on the render ground plane |
+| `career_start` | `--career-start first-car-lot` set the prologue's end state: `at`, `cash` |
+| `career_state` | when any of these changed since the last such line: `playing`, `alias`, `stage` (the bin), `cash`, `car_handle`, `car`, `cars_owned`, `flags` (settings flags, hex), `won_in_career` (event ids), `unlocked_in_career` (a count), `rival_beaten` |
+| `run_end` | `reason`: `first_car_bought` with `--exit-after-first-car`, `first_visit_done` with `--exit-after-first-visit` |
+
+### NIS frame capture
+
+For looking at the cutscenes of a run: set `NFSMW_NIS_CAPTURE=<folder>` on any `play` run (for example the career run
+above, or `play --drive --race 16.1.0`). While a captured scene plays, its clock steps one scene frame (1/30 s) per drawn
+frame and waits while a frame is read back, so the pictures do not depend on the machine; story movies are skipped
+(`crates/nfsmw/src/parity/nis_capture.rs`, `crates/nfsmw/src/scenes/world/nis/capture.rs`).
+
+| Variable | Effect |
+|---|---|
+| `NFSMW_NIS_CAPTURE_EVERY` | a picture every N scene frames, `<scene>-<frame>.png` (default 15); four more after the scene ends, `<scene>-end-<n>.png` |
+| `NFSMW_NIS_CAPTURE_SIZE` | picture size, `WIDTHxHEIGHT` (default 640x360). Give the run the same `--screenshot-size`, or the HUD layer does not fit the picture |
+| `NFSMW_NIS_CAPTURE_SCENES` | only these scenes, comma separated |
+| `NFSMW_NIS_CAPTURE_EXIT` | `1`: end the process once each listed scene has played |
+| `NFSMW_NIS_CAMERA_SLOT` | the car slot the camera's car-space keys follow (default 0, `car1`), for comparisons |
+
+`frames.jsonl` has one line per scene frame: the scene time, the anchor, the camera (the track's eye and look in render
+space, its spaces, field of view, overlay byte and simulation speed, the lens the scene asks for and the lens the frame
+used), each car channel (the car it drives, its pose from the scene data, the pose it is drawn at, the ground lift between
+them, its speed) and the traffic cars near the camera that no channel takes. After the scene an `end` line says where the
+player's car and the other cars stand.
+
+```sh
+BLACKBOX_PROFILE_DIR="$(pwd -W)/out/profile" STREAMLINE_PLUGIN_DIR="$(pwd -W)" NFSMW_NIS_CAPTURE="$(pwd -W)/out/nis" \
+NFSMW_NIS_CAPTURE_SIZE=960x540 nfsmw --game-dir "<install>" play --new-career CAREERRUN --autopilot --exit-after-first-car \
+  --ui-script "loop; wait 2; accept; wait 1; left; wait 0.5; accept; wait 1; right; wait 0.5; right" \
+  --seed 1 --stock-rules --no-sound --backend vulkan --bench-seconds 3000 --offscreen --screenshot-size 960x540
+```
+
+### Front-end screen dump
+
+`NFSMW_FE_DUMP` writes what every front-end screen draws; see [parity-tracing.md](parity-tracing.md#front-end-screen-dump).

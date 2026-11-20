@@ -39,7 +39,10 @@ pub enum GpsEnd {
 /// A route being followed. Create one with [`Gps::engage`], then call [`Gps::update`] every frame.
 #[derive(Debug, Clone)]
 pub struct Gps {
+    /// The navigator on the car, holding the route from the car's segment to the target.
     nav: RoadNav,
+    /// The point the arrow aims at: a look-ahead distance along the route from the car.
+    aim: Vec3,
     target: Vec3,
     max_deviation: f32,
     look_ahead: f32,
@@ -68,9 +71,10 @@ impl Gps {
         }
         // The first aim point is a look-ahead distance along the route, not the car's own place on it.
         let mut rng = SplitMix(0);
-        nav.advance(net, LOOK_AHEAD_MIN, Vec3::ZERO, &mut rng);
+        let aim = aim_ahead(&nav, net, LOOK_AHEAD_MIN, &mut rng);
         Some(Self {
             nav,
+            aim,
             target,
             max_deviation: if max_deviation < 0.1 { MAX_DEVIATION } else { max_deviation },
             look_ahead: LOOK_AHEAD_MIN,
@@ -96,6 +100,7 @@ impl Gps {
         let placed = self.nav.init_at_point(net, index, car, heading, true);
         if placed && self.nav.on_path(net) {
             self.state = GpsState::Tracking;
+            self.drop_passed();
         } else {
             self.state = GpsState::Searching;
             let Some((segment, t, distance)) = closest_on_path(net, &self.nav.path, car) else {
@@ -109,13 +114,19 @@ impl Gps {
         let wanted = (speed * LOOK_AHEAD_SECONDS).clamp(LOOK_AHEAD_MIN, LOOK_AHEAD_MAX);
         let step = LOOK_AHEAD_CATCH_UP * dt;
         self.look_ahead += (wanted - self.look_ahead).clamp(-step, step);
-        self.nav.advance(net, self.look_ahead, Vec3::ZERO, &mut self.rng);
+        self.aim = aim_ahead(&self.nav, net, self.look_ahead, &mut self.rng);
         None
+    }
+
+    /// Drops the segments of the route the car has left behind: the route then starts at the car's segment.
+    fn drop_passed(&mut self) {
+        let Some(at) = self.nav.path.iter().position(|&segment| segment == self.nav.segment) else { return };
+        self.nav.path.drain(..at);
     }
 
     /// The point the arrow aims at: a look-ahead distance along the route from the car.
     pub fn arrow_point(&self) -> Vec3 {
-        self.nav.position
+        self.aim
     }
 
     /// Unit direction from the car towards the arrow point, or `None` when it is on top of the car.
@@ -139,6 +150,14 @@ impl Gps {
     pub fn path(&self) -> &[u16] {
         &self.nav.path
     }
+}
+
+/// Where a navigator on the route ends up `distance` metres on from `nav`. A copy walks it: a path navigator retires the
+/// route's segments it walks past, and the route must keep the segments between the car and the aim point.
+fn aim_ahead(nav: &RoadNav, net: &RoadNetwork, distance: f32, rng: &mut SplitMix) -> Vec3 {
+    let mut ahead = nav.clone();
+    ahead.advance(net, distance, Vec3::ZERO, rng);
+    ahead.position
 }
 
 /// The point on the route closest to `point`: its segment, its stored-direction parameter and the distance.

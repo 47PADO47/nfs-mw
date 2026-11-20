@@ -28,8 +28,8 @@ fn the_slots_wait_while_the_time_is_under_the_limit() {
 #[test]
 fn the_slots_give_up_once_the_limit_is_reached_and_only_once() {
     let mut wait = CopWait::new(vec![9, 11]);
-    assert!(wait.tick(1.0).is_empty());
-    assert_eq!(wait.tick(1.0), vec![9, 11], "two seconds of real time give up both channels");
+    assert!(wait.tick(WAIT_LIMIT - 1.0).is_empty());
+    assert_eq!(wait.tick(1.0), vec![9, 11], "the limit reached gives up both channels");
     assert!(wait.slots().is_empty());
     assert!(wait.tick(1.0).is_empty(), "the give-up is reported once");
 }

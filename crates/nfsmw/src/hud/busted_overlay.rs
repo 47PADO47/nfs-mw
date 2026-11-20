@@ -66,6 +66,18 @@ impl BustedOverlay {
         runtime.set_text(line, summary.text(&template));
     }
 
+    /// Writes the language string `label` into the crawl once per showing: the text a scene's police camera shows when
+    /// the scene is not an arrest. Nothing happens while the overlay is down or when the label has no text.
+    pub fn fixed_line(&mut self, runtime: &mut Runtime, label: u32) {
+        let Some(id) = self.shown else { return };
+        if std::mem::replace(&mut self.lined, true) {
+            return;
+        }
+        let Some(line) = runtime.find(id, LINE) else { return };
+        let Some(text) = runtime.label_text(label) else { return };
+        runtime.set_text(line, text);
+    }
+
     /// The overlay's package, while it is up.
     pub fn shown(&self) -> Option<PackageId> {
         self.shown

@@ -92,6 +92,9 @@ impl AiCar {
         let held = self.controls.steer;
         if human.is_none() {
             self.controls = self.driver.step(&view, &request, self.step_delta, clock);
+            if let super::Role::Racer(racer) = &self.role {
+                self.controls.nos = racer.nitrous() && !reversing && self.sim.telemetry().has_nos;
+            }
             if let super::Role::Cop(cop) = &self.role {
                 self.controls.nos = cop.nitrous()
                     && !self.searching

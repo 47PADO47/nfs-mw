@@ -159,6 +159,22 @@ all of them (`mLayoutSize` bytes). For `pvehicle` it holds `TENSOR_SCALE` (0x00)
 `VerbalType` (0x40), `HornType` (0x4C), `TrafficEngType` (0x4D), matching the decomp's generated
 `_LayoutStruct` **[decomp + verified]**.
 
+## Collection table order **[exe]**
+
+A class keeps the keys of its collections in an open-addressed table, and walking the class (first collection, next
+collection) reads that table slot by slot, skipping empty slots. So a walk does not give file order.
+
+- **Insert.** A key goes to slot `key mod size`; while that slot is taken, the next slot (wrapping at the end). A key
+  already present is not added again. The number of steps is the key's probe.
+- **Growth.** Before an insert into a full table, and after an insert whose longest probe is over 40, the table grows
+  to `size * 5 / 4` rounded up to a multiple of 4. The old slots are re-inserted in slot order; while a probe is still
+  over 40 the new size is tried again one slot larger.
+- **First size.** The class's `mCollectionReserve` (`pvehicle`: 222 for 113 collections in the stock file) **[verified
+  by fit]**: with that size and the file's collection order, the walk gives the stable order the career car lot shows
+  ([career-car-lot.md](../specs/career-car-lot.md) section 1.2); where the table is first sized was not read.
+
+`blackbox-attrib` gives the walk as `Database::collections_in_table_order` (table `KeyTable`).
+
 ## Values **[verified]**
 
 | Type | Size | Encoding |

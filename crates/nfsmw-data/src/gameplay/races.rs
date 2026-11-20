@@ -103,6 +103,19 @@ pub(crate) fn races(db: &Database) -> Vec<Race> {
     instances(db).filter_map(|c| race(db, c)).collect()
 }
 
+impl Race {
+    /// The cash a career win of this race pays (`docs/specs/career-economy-flows.md` section 7): its `CashValue`, which
+    /// the game reads with inheritance and pays in the finish record of a first place. An NIS shell (`NISShell`, the
+    /// prologue's `16.8.1`) never runs its racing state, so no racer finishes it and it pays nothing, although its
+    /// `CashValue` (the `race` template's 1,000) is set.
+    pub fn win_cash_value(&self) -> f32 {
+        if self.story.nis_shell {
+            return 0.0;
+        }
+        self.params.cash_value
+    }
+}
+
 fn race(db: &Database, c: CollectionRef<'_>) -> Option<Race> {
     // Only races set `racestart`; templates and everything else are skipped by `instances`.
     let start_key = key_field(c, "racestart")?;
@@ -185,5 +198,29 @@ mod tests {
         assert_eq!(text_items(Some(&scalar)), vec!["BARRIER_LOCKED_12"]);
         assert!(text_items(None).is_empty());
         assert!(text_items(Some(&Value::Array(Vec::new()))).is_empty());
+    }
+
+    fn race_paying(cash_value: f32, nis_shell: bool) -> Race {
+        Race {
+            key: 0,
+            name: String::new(),
+            event_icon: String::new(),
+            race_type: None,
+            event: None,
+            region: None,
+            laps: 0,
+            start: None,
+            finish: None,
+            checkpoints: Vec::new(),
+            barriers: Vec::new(),
+            params: RaceParams { cash_value, ..RaceParams::default() },
+            story: RaceStory { nis_shell, ..RaceStory::default() },
+        }
+    }
+
+    #[test]
+    fn a_race_win_pays_its_cash_value_and_an_nis_shell_pays_nothing() {
+        assert_eq!(race_paying(10_000.0, false).win_cash_value(), 10_000.0);
+        assert_eq!(race_paying(1_000.0, true).win_cash_value(), 0.0);
     }
 }

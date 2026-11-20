@@ -113,12 +113,17 @@ pub struct HudState {
     /// it while the bust sequence shows the overlay (`scenes/world/ai/police/busted/flow.rs`) and while an arrest scene
     /// plays, whose camera puts it up (`scenes/world/scene_hud.rs`).
     pub busted_overlay: bool,
+    /// A race's message card is up (`hud/message_card.rs`): the HUD draws `SixDaysLater.fng` alone over the frame.
+    pub message_card: bool,
     /// The arrest scene's last message to the overlay (`ENISOverlayMessage`): its FEng hash and the event's serial. The
     /// HUD posts each serial once while the overlay is up (`FLASHTRIGGER` runs the package's flash).
     pub busted_overlay_cue: Option<(u32, u32)>,
     /// The chase the arrest closes, for the busted overlay's suspect line (`hud/busted_line.rs`). The world sets it with
     /// the overlay; `None` keeps the package's sample text.
     pub busted_summary: Option<super::ChaseSummary>,
+    /// The language label the busted overlay's crawl shows when a scene that is not an arrest puts the overlay up (the
+    /// D-Day start's police camera); `None` leaves the crawl to [`HudState::busted_summary`].
+    pub busted_overlay_text: Option<u32>,
     /// Career mode is on: the bounty row's number, the car's banked bounty plus the chase's pending points. `None`
     /// outside career mode, where the bounty row and the heat meter stay hidden.
     pub career_bounty: Option<u32>,
@@ -191,7 +196,9 @@ impl Default for HudState {
             visible: true,
             busted: 0.0,
             busted_overlay: false,
+            message_card: false,
             busted_overlay_cue: None,
+            busted_overlay_text: None,
             busted_summary: None,
             career_bounty: None,
             total_bounty: None,

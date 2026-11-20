@@ -126,8 +126,8 @@ impl WidgetMenu {
         true
     }
 
-    /// Left or right on the selected row changes its setting; the new value is in effect at once.
-    pub(super) fn change(&mut self, cx: &mut Cx, forward: bool) {
+    /// Carries out a left or right on the selected row.
+    pub(super) fn apply_change(&mut self, cx: &mut Cx, forward: bool) {
         let Some(row) = self.rows.get(self.selected).copied() else { return };
         if self.leaving || !self.selected_flags().clickable {
             return;
