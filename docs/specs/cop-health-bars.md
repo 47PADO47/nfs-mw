@@ -305,7 +305,7 @@ take the same route and use world units, as the mod does. A screen-space route (
 | 1. Damage is read | `scenes/world/ai/car/hits.rs`: a new `AiCar::cop_health_sample(&self) -> Option<CopHealthSample>` | Returns `Some` for `Role::Cop(_)` only, with `damage` (`CopDamage::wreck.damage()`), `destroyed` (`wreck.is_destroyed()`), `position` (render space) and `key` (the serial). `CopDamage` is `pub(super)` and `wreck` is private, so this accessor goes in `hits.rs`, where `CopDamage` is defined. `is_wrecked()` must not be used, and neither should `take_wreck()`, which is consumed by the cops-wrecked counter. |
 | 2. Samples are gathered | `scenes/world/ai/mod.rs`, next to `map_blips` (line 244): `TrafficWorld::cop_health_samples(&self, out: &mut Vec<CopHealthSample>)` | Walks `self.cars` and skips anything `cop_health_sample` refuses. Helicopters are never in `cars`, so there is nothing to skip for them. |
 | 3. State steps | `scenes/world/simulation.rs`, after `traffic.update_police(steps as f32 * STEP, ..)` (line 90) | Runs once per simulated step with `dt = STEP`, and gives the same sim-time clock as the police. It runs whether or not the bars are shown, as the mod's update runs regardless of drawing. Each step, the state takes the samples, updates the lag and death timers, and drops the state of keys that were not sampled. |
-| 4. Bars are built | `scenes/world/cop_health.rs` (new): `CopHealthBars::bars(&self, camera: &Lens) -> Vec<CopHealthBar>` | Applies the distance fade and death alpha, and sorts back to front. Returns nothing when a gate of section 10 is shut. |
+| 4. Bars are built | `scenes/world/cop_health.rs` (planned name; built as `scenes/world/ai/cop_health.rs` and `scenes/world/effects/cop_health.rs`, see the status below): `CopHealthBars::bars(&self, camera: &Lens) -> Vec<CopHealthBar>` | Applies the distance fade and death alpha, and sorts back to front. Returns nothing when a gate of section 10 is shut. |
 | 5. Quads are emitted | `scenes/world/effects/world.rs`, inside `upload_effects`, beside the flares (line 38) | Each `CopHealthBar` becomes its quads (section 5) in `layer.textured`. The gates are read here: the setting, `is_pursuing()`, the shot, and the HUD flag. |
 
 ### 13.3 Proposed types
@@ -333,7 +333,7 @@ pub struct CopHealthBar {
 }
 ```
 
-Per cop state, in `crates/nfsmw/src/scenes/world/cop_health.rs`: a `HashMap<u32, CopHealthTrack>` (or a `Vec` sorted by
+Per cop state, planned for `crates/nfsmw/src/scenes/world/cop_health.rs` (built in `libs/blackbox-pursuit/src/health_bar/state.rs` and held by `scenes/world/effects/cop_health.rs`): a `HashMap<u32, CopHealthTrack>` (or a `Vec` sorted by
 key) of `{ lag: LagTracker, last_health: f32, died_at: Option<f32> }`. The lag tracker is in libs; the colour tables and
 the `TexturedEffect` assembly are in `crates/nfsmw/src/hud/cop_health/` (colours.rs, quads.rs), next to the other HUD
 glue, so the rules stay in `libs/`.

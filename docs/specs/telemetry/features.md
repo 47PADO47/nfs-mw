@@ -47,7 +47,7 @@ Status words: **built** (the value exists in code now), **partial** (some of it 
 | F-04 | P0 | Frame metrics: fps, average frame time, 1 % low, worst frame, meshes, textures | built: `Metrics` in `crates/nfsmw/src/devtools/metrics.rs` |
 | F-05 | P0 | World clock: hour, seconds per game hour, lights on or off, sun phase | built: `DayClock` in `crates/nfsmw/src/scenes/world/day.rs` |
 | F-06 | P0 | Mode flags: world, drive, free camera, garage, pause, loading | partial: the commands `freecam`, `garage` and the pause and garage hooks exist; the state accessor to confirm in `crates/nfsmw/src/scenes/world/mod.rs` |
-| F-07 | P1 | Damage: per zone panel, paint and glass (0 to 3), punctured wheels | built in the library: `Damage` in `libs/blackbox-damage/src/lib.rs`; fed by the drive (`damage` and `repair` commands, `damage_marks.rs`) |
+| F-07 | P1 | Damage: per zone panel, paint and glass (0 to 3), punctured wheels | built in the library: `Damage` in `libs/blackbox-damage/src/lib.rs`; fed by the drive (`damage` and `repair` commands) |
 | F-08 | P1 | Pursuit: heat (value and level 1 to 10), busted timer and meter, cool-down, infractions and fines, end reason | built: `libs/blackbox-pursuit` (`Heat`, `Busted`, `Cooldown`, `InfractionLog`, `EndReason`); scene state in `crates/nfsmw/src/scenes/world/ai/pursuit.rs` |
 | F-09 | P1 | Traffic and police: counts by type, density, roadblocks, helicopter state | built: `crates/nfsmw/src/scenes/world/ai/` (`traffic.rs`, `cop.rs`, `police/`, `roadblock.rs`, `manager.rs`) |
 | F-10 | P1 | Radio: now playing (artist, title, album), elapsed and length | built: `NowPlaying` in `crates/nfsmw/src/audio/radio/state.rs` |
