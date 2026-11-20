@@ -73,6 +73,7 @@ mod sound_rules;
 mod splash;
 mod stage;
 mod stat_bars;
+mod step_budget;
 mod text_wrap;
 mod widget_layout;
 mod widget_menu;

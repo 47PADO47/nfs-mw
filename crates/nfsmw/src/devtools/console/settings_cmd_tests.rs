@@ -325,3 +325,50 @@ fn batch18_music_legacy_console_sets_both_contexts_and_new_keys_remain_independe
     assert_eq!(get_all(&s).lines().filter(|line| line.starts_with("menu_music_volume = ")).count(), 1);
     assert_eq!(get_all(&s).lines().filter(|line| line.starts_with("game_music_volume = ")).count(), 1);
 }
+
+#[test]
+fn the_riding_style_is_set_per_class_and_the_older_name_sets_every_class() {
+    let mut s = defaults();
+    assert_eq!(set(&mut s, "riding_style_motard", "old-school").unwrap(), "riding_style_motard = old-school");
+    assert_eq!(get(&s, "riding_style_motard").unwrap(), "riding_style_motard = old-school");
+    assert_eq!(get(&s, "riding_style_road").unwrap(), "riding_style_road = balanced");
+    set(&mut s, "riding_style_offroad", "shoulders-out").unwrap();
+    assert_eq!((s.riding_style_road, s.riding_style_offroad), (RidingStyle::Balanced, RidingStyle::ShouldersOut));
+    set(&mut s, "riding_style", "old-school").unwrap();
+    assert_eq!(
+        [s.riding_style_road, s.riding_style_motard, s.riding_style_offroad],
+        [RidingStyle::OldSchool; 3],
+        "the single name sets all three"
+    );
+    assert_eq!(get(&s, "riding_style").unwrap(), "riding_style = old-school");
+    set(&mut s, "riding_style_road", "balanced").unwrap();
+    assert_eq!(get(&s, "riding_style").unwrap(), "riding_style = road balanced, motard old-school, offroad old-school");
+    let before = s;
+    assert!(set(&mut s, "riding_style_road", "leaning").unwrap_err().contains("balanced, shoulders-out or old-school"));
+    assert_eq!(s, before);
+}
+
+#[test]
+fn the_fingers_are_set_by_number() {
+    let mut s = defaults();
+    assert_eq!(get(&s, "brake_fingers").unwrap(), "brake_fingers = 2");
+    assert_eq!(set(&mut s, "brake_fingers", "4").unwrap(), "brake_fingers = 4");
+    assert_eq!(set(&mut s, "clutch_fingers", "4").unwrap(), "clutch_fingers = 4");
+    assert_eq!((s.brake_fingers, s.clutch_fingers), (BrakeFingers::Four, ClutchFingers::Four));
+    assert!(set(&mut s, "brake_fingers", "3").unwrap_err().contains("expected 1, 2 or 4"));
+    assert!(set(&mut s, "clutch_fingers", "1").unwrap_err().contains("expected 2 or 4"));
+    assert_eq!(set(&mut s, "clutch_fingers", "").unwrap_err(), "usage: set clutch_fingers <2|4> (now 4)");
+}
+
+#[test]
+fn air_control_is_a_switch_the_console_gets_sets_and_toggles() {
+    let mut s = defaults();
+    assert_eq!(get(&s, "air_control").unwrap(), "air_control = off");
+    assert_eq!(set(&mut s, "air_control", "on").unwrap(), "air_control = on");
+    assert!(s.air_control);
+    assert_eq!(set(&mut s, "air-control", "off").unwrap(), "air-control = off");
+    assert!(!s.air_control);
+    assert!(set(&mut s, "air_control", "maybe").is_err());
+    assert!(KEYS.contains(&"air_control"));
+    assert!(get_all(&s).lines().any(|line| line.starts_with("air_control")));
+}

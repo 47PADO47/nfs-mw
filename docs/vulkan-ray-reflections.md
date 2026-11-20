@@ -31,6 +31,9 @@ meshes add their actual part transforms. Static BLAS are built once on first use
 the instance TLAS grows to fit and is rebuilt when geometry or transforms change.
 Identical scenes reuse the exact existing structure. Mesh destruction invalidates
 the shading table and releases its cached BLAS. wgpu retains in-flight resources.
+A BLAS holds a mesh's alpha-tested triangles, then its opaque ones as a second,
+opaque-flagged geometry (for sun rays, see vulkan-ray-shadows.md). Reflection rays
+force every hit non-opaque, so their sidedness, material and alpha tests are unchanged.
 
 F8 Materials exposes a live Hardware RT road reflections switch. Turning it off
 uses the existing road SSR path without binding the TLAS in the road pass.

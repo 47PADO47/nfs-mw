@@ -25,6 +25,12 @@ Cutouts follow shadow-map material rules: ordinary texture times vertex alpha,
 tree/window texture alpha, doubled prelit alpha, and opaque reflective normal materials.
 These family rules apply when authored world materials are enabled. Shadow casters
 are two-sided, matching the raster depth pass. Reflection-sidedness stays independent.
+Each mesh's BLAS holds its alpha-tested triangles and its opaque-blend triangles as two
+geometries; the second is flagged opaque, so sun rays commit those hits without running
+the alpha loop. Reflection rays force every hit non-opaque and keep their sidedness and
+material tests. The unfiltered mask (hard shadows, or soft ones without the filter) stores
+no occluder distance, so its rays stop at the first accepted occluder; the filtered path
+keeps closest hits because its penumbra width uses that distance.
 Incomplete hit storage or instance capacity falls back to cascades instead of
 assuming unobstructed sunlight. Freed meshes invalidate shared RT storage.
 
@@ -44,6 +50,12 @@ Controls persist with F8 Save for startup. The existing Sun visibility diagnosti
 shows the selected RT/cascade result. Disable RT to compare against cascades.
 
 ## Limits
+
+The mask is made for the depth prepass's surface at each pixel: opaque and alpha-tested draws. A blended surface
+(glass, the front end's see-through floor over its mirrored garage, a translucent canopy) would read the value of
+whatever lies behind it, so blended pipelines (`SCREEN_SHADOW_MASK` false) keep the cascaded shadow maps. In the
+main menu that value came from the mirrored garage below the floor: the floor showed shadows in the wrong places
+and the car none under it. The same applies to contact shadows and cascade history, which share the screen mask.
 
 Hard mode preserves the first milestone exactly. Soft mode produces contact-hardening
 from actual sun-disc visibility, with a small depth/normal-aware spatial filter.

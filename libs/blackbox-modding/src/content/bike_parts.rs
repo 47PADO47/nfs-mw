@@ -271,6 +271,7 @@ impl Steering {
             damping_ratio: self.damping_ratio,
             max_lean: self.max_lean_rad,
             lean: self.lean.to_spec(),
+            arcade: blackbox_vehicle::bike::ArcadeSteering::default(),
         }
     }
 }

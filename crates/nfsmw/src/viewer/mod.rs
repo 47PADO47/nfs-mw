@@ -4,11 +4,13 @@
 pub mod camera;
 mod race_report;
 mod static_hash;
+mod vehicle;
 pub use race_report::{
     MILESTONE_LINES, MilestoneLine, MilestoneStatus, PhotoKind, PhotoReport, PursuitPage, PursuitReport, RaceAnswer,
     RaceReport, ReportLap, ReportRacer, RewardLine, RewardsReport, photo_picture,
 };
 pub use static_hash::StaticHash;
+pub use vehicle::VehicleScene;
 
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
@@ -102,6 +104,11 @@ pub trait Scene {
     /// Put a traffic car on the road at `at` (x, y), facing `heading`. Returns whether a car was placed.
     fn spawn_traffic_at(&mut self, _at: [f32; 2], _heading: f32) -> bool {
         false
+    }
+
+    /// The vehicle on show, for the developer tools' vehicle panel and the `vehicle` console command (`vehicle.rs`).
+    fn vehicle(&mut self) -> Option<&mut dyn VehicleScene> {
+        None
     }
 
     /// Installed car choices for the runtime garage; scenes without driving return None.
@@ -241,8 +248,7 @@ pub trait Scene {
     fn readout(&self, _level: crate::devtools::ShowReadout) -> Option<String> {
         None
     }
-    /// Who changes gear (the transmission setting), told every frame before `update`; a scene without a car
-    /// ignores it.
+    /// Who changes gear (the transmission setting), told every frame before `update`; a scene with no car ignores it.
     fn set_transmission(&mut self, _transmission: crate::settings::Transmission) {}
     /// Which gameplay camera to use (the camera setting), told every frame; scenes without a chase camera ignore it.
     fn set_camera_mode(&mut self, _mode: crate::settings::CameraMode) {}
@@ -381,8 +387,7 @@ pub trait Scene {
     fn attach_net_client(&mut self, _client: &crate::net::ClientHandle) -> bool {
         false
     }
-    /// The scene keeps running under the pause menu (a multiplayer client: the server never pauses), with neutral
-    /// input.
+    /// Keeps running under the pause menu (a multiplayer client: the server never pauses), with neutral input.
     fn runs_while_paused(&self) -> bool {
         false
     }

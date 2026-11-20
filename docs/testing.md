@@ -5,13 +5,110 @@
 | Unit tests on synthetic bytes | `#[cfg(test)]` / `tests` modules in every crate | no | yes |
 | Real-install tests | [`crates/nfsmw-data/tests/real_install/`](../crates/nfsmw-data/tests/real_install) (`#[ignore]`) | yes | no |
 | Real-save tests | [`crates/nfsmw-career/tests/real_saves.rs`](../crates/nfsmw-career/tests/real_saves.rs) (runs only when `NFSMW_SAVE_DIR` points at the profile folder of the game under Documents, or at a folder of profile files; returns at once without it) | yes (saves) | no |
-| GPU tests (renderer) | `#[ignore = "needs a GPU"]` in `blackbox-render`, scenes from [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit); the passes' own in [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | no | no (optional job) |
+| Installed-game tests of the game itself | `#[ignore = "..."]` tests inside [`crates/nfsmw/src`](../crates/nfsmw/src), beside the code they check | yes | no |
+| Installed-data tests of the libraries and mods | `#[ignore]` tests in `libs/` and `mods/` | yes (this game, the 2012 game or RIDE 6 data, by test) | no |
+| GPU tests (renderer) | `#[ignore = "needs a GPU"]` in `blackbox-render`, scenes from [`blackbox-gfx-testkit`](../libs/blackbox-gfx-testkit); the passes' own in [`blackbox-gpu-passes`](../libs/blackbox-gpu-passes) | no | no |
 | Leak + size checks | `cargo xtask check` | no | yes, first job |
 | Python tool tests | [`tests/`](../tests) | no | yes |
 
+The CI workflow ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) starts on manual dispatch only. Its test
+step is `cargo test --workspace`, which skips every `#[ignore]` test; it has no GPU job and no game data.
+
 ```sh
 NFSMW_GAME_DIR="<your-install>" cargo test --release -p nfsmw-data -- --ignored
+NFSMW_GAME_DIR="<your-install>" cargo test -p nfsmw <name filter> -- --ignored --nocapture
 ```
+
+`nfsmw` is a binary crate, so its tests take no `--lib`. Run its ignored tests by name filter: some need more than
+the install (see below).
+
+## Ignored tests
+
+`#[ignore]` attributes counted in the sources on 2026-11-17:
+
+| Where | Ignored tests |
+|---|---|
+| `crates/nfsmw` | 624 |
+| `crates/nfsmw-data` | 210 |
+| `libs/` | 468 |
+| `mods/` | 56 |
+| `crates/nfsmw-career`, `nfsmw-modding`, `nfsmw-net`, `nfsmw-server`, `nfsmw-sim`, `xtask` | 0 |
+
+The 624 in `crates/nfsmw` all carry a reason string; there are 284 different strings and no shared vocabulary. The
+most common is `needs the game (set NFSMW_GAME_DIR)` (131 tests). Counting by words in the reason, with overlap:
+
+| Reason mentions | Tests | Examples |
+|---|---|---|
+| the installed game or its files | 618 | `requires installed original garage packages`, `requires installed audio banks; set NFSMW_GAME_DIR` |
+| a GPU, Vulkan, DX12 or rendering | 54 | `requires installed world and GPU`, `requires a Vulkan GPU` |
+| a run time or a benchmark | 22 | `needs the installed game; set NFSMW_GAME_DIR (about a minute)`, `CPU benchmark; run explicitly with --nocapture` |
+| a private capture, trace or fixture | 12 | `needs installed world and NFSMW_RACER_TRACE player trajectory JSON` |
+| a mod folder or converted mod data | 11 | `renders the converted Tesla offline (NFSMW_GAME_DIR, NFSMW_MEASURE_MOD)` |
+
+A reason does not always name every variable the test reads. Read the test before relying on it.
+
+### Tests that pass without checking
+
+Two patterns make a test pass when its data is missing:
+
+- **Plain `#[test]`s that return early.** Some tests are not ignored; they look for the install and return at once
+  without it, so `cargo test --workspace` and CI report them as passed without running a check. Examples:
+  `every_look_builds_draws_and_frees_what_it_uploaded` in
+  [`frontend/backdrop_tests.rs`](../crates/nfsmw/src/frontend/backdrop_tests.rs) and the tests of
+  [`audio/aems/tests.rs`](../crates/nfsmw/src/audio/aems/tests.rs), whose header says "passes without checking
+  otherwise". A script that looked for an early `return` on an environment lookup in the first statements of a
+  non-ignored test found 78 such tests in 22 files of `crates/nfsmw` (15 of them in `frontend/tests.rs`). That is a
+  lower bound: it only follows helpers defined in the same file. The real-save tests of `nfsmw-career` do the same
+  without `NFSMW_SAVE_DIR`. The comment in `ci.yml` ("Tests that need the game are `#[ignore]`d and skipped here")
+  does not cover these.
+- **Ignored tests that return early.** Some `#[ignore]` tests also return when a variable is unset (the
+  `nfsmw-data` real-install tests do), so `-- --ignored` without `NFSMW_GAME_DIR` passes them. Others `expect` the
+  variable and fail.
+
+A passed run is evidence only when the variables were set and the test's own output shows it ran.
+
+### Environment variables tests read
+
+| Variable | Used by | Value |
+|---|---|---|
+| `NFSMW_GAME_DIR` | the installed-game tests of `crates/nfsmw`, `crates/nfsmw-data`, several libs and the 2012 content mod | the install folder of the 2005 game |
+| `NFSMW_SAVE_DIR` | `crates/nfsmw-career/tests/real_saves.rs` | a folder of profile files |
+| `CHAMELEON_GAME_DIR` | tests of `libs/chameleon-*` and one in `mods/nfsmw-2012-content` | the install folder of the 2012 game |
+| `MW2012_GAME_DIR` | tests of `mods/nfsmw-2012-content`, `libs/chameleon-*` and `libs/ea-audio` | the install folder of the 2012 game; the two names are not unified |
+| `RIDE6_CARS`, `RIDE6_CAR`, `RIDE6_MOD_DIR` | bike tests in `libs/blackbox-modding` and `mods/ride6-bikes` | converted RIDE 6 bike data, which is the user's own |
+| `NFSMW_MEASURE_MOD`, `NFSMW_MOD_DIR` | car-sound measurement tests in `crates/nfsmw/src/audio/car/` | a built mod folder |
+| `BLACKBOX_TEST_API`, `BLACKBOX_GPU_FALLBACK`, `BLACKBOX_UPDATE_DIGESTS` | GPU tests (below) | graphics API, software adapter, digest regeneration |
+| `NFSMW_RACER_TRACE`, `NFSMW_RACER_CATCHUP_TRACE`, `NFSMW_PURSUIT_TARGET_TRACE`, `NFSMW_JUMP_REPLAY`, `NFSMW_CREEP_REPLAY`, `NFSMW_CAPTURE` | comparison tests against private recordings | an input file; formats in [parity-tracing.md](parity-tracing.md#test-inputs-and-outputs-named-by-environment-variables) |
+| `NFSMW_*_CAPTURE_DIR`, `NFSMW_*_EVIDENCE_DIR`, `NFSMW_TEST_OUTPUT_DIR`, `NFSMW_SHOT_DIR`, `NFSMW_LAMP_OUT`, `NFSMW_PERF_OUT` | tests that can save pictures, sound or reports | an output folder or file; unset, nothing is saved |
+
+Many more `RIDE6_*`, `MW2012_*` and `NFSMW_MEASURE_*` variables tune single measurement tests; each is documented
+at its test.
+
+### Known intermittent test
+
+`a_free_roam_drive_gives_the_same_state_hash_every_second_twice`
+([`scenes/world/determinism_tests.rs`](../crates/nfsmw/src/scenes/world/determinism_tests.rs)) runs the installed world
+twice under session rules and compares the state hash every simulated second. It has failed on the first run after a
+build, with a cold disk cache: twice in about twelve runs before lockstep streaming, and once in six runs on
+2026-10-22 after the support-tile fix. The cause is open
+([specs/multiplayer/determinism.md](specs/multiplayer/determinism.md), step 5). Run it again before treating a
+failure as a regression, and record both results.
+
+### Proposed convention
+
+**A proposal, not current practice.** No test uses these strings today. New ignored tests could start their reason
+with one fixed tag, so a run can be filtered and a skipped check is recognisable:
+
+| Tag | Meaning |
+|---|---|
+| `needs-game` | reads the installed game through `NFSMW_GAME_DIR` |
+| `needs-gpu` | needs a graphics adapter |
+| `needs-capture` | reads a private recording or fixture named by a variable |
+
+For example `#[ignore = "needs-game needs-gpu: renders the highway at dusk"]`. A test with such a tag would fail,
+not return, when its variable is unset.
+
+## Real-install tests of `nfsmw-data`
 
 The real-install tests check:
 
@@ -382,29 +479,4 @@ NFSMW_NIS_CAPTURE_SIZE=960x540 nfsmw --game-dir "<install>" play --new-career CA
 
 ### Front-end screen dump
 
-`NFSMW_FE_DUMP=<file>` writes what the front end hands the presenter for each screen as JSON lines, once the screen has
-settled (`crates/nfsmw/src/parity/fe_dump.rs`, rows in `crates/nfsmw/src/frontend/screens/dump_rows.rs`). It works on any
-command that shows FEng screens (`play`, `view-screen`). `NFSMW_FE_DUMP_SCREENS=SMS_Message,InGamePhotoMaster` limits it
-to some screens. A screen has settled when it has been drawn for 1.5 s without a break and none of its objects plays a
-play-once script that has not ended; a screen still animating after 2.5 s gets its first snapshot then anyway, with
-`settled: false`. A screen gets up to three snapshots 2 s apart. Each line (`schema`
-`fe-screen-dump-v1`) names the screen, the screens drawn in the same frame and the build, and holds one row per package
-object: `name_hash`, `guid`, `type` (the package file's type number), `parent`, `flags`, `hidden`, `colour` (RGBA),
-`pos`, `pivot`, `rot`, `size`, `uv`, `texture`, `label`, `text`, `script` (`id`, `time` in runtime ticks, `length`,
-`mode`), `visible`, `drawn` (in the presented tree's draw order), `in_tree` and `world` (the tree's screen point), and for a
-node in the tree `world_colour`, `z` and a coloured image's `corners`. `frame_drawn` gives, per package of the frame, the
-number of objects it drew (0 for a package walked but drawing nothing, as the original's HUD under an in-game screen);
-the comparer counts a package in the frame only when it drew something. A screen covered by another screen (the inbox
-under a message) starts a new set of snapshots. Nodes
-the host added to the tree (footer hints) follow with `host_added: true`. An object the presented tree does not hold has
-`in_tree: false`. Nothing drawn outside the package trees (egui panels, the 3D backdrop) is in the dump.
-
-```sh
-NFSMW_FE_DUMP=out/fe_dump.jsonl nfsmw --game-dir "<install>" play --new-career CAREERRUN --career-start first-car-lot \
-  --skip-cinematics --autopilot --exit-after-first-visit \
-  --ui-script "loop; wait 6; accept; wait 1; left; wait 0.5; accept; wait 6; right; wait 0.5; right; wait 6; back" \
-  --seed 1 --stock-rules --silent-audio --backend vulkan --bench-seconds 900 --offscreen --max-fps 60
-```
-
-The scripted pad must leave a screen up for longer than the settle time: the shorter loop of "Unattended career run"
-closes the drive's message after less than a second.
+`NFSMW_FE_DUMP` writes what every front-end screen draws; see [parity-tracing.md](parity-tracing.md#front-end-screen-dump).

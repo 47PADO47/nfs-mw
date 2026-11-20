@@ -66,6 +66,9 @@ pub struct StabilityInput {
     pub normalised_lean: f32,
     pub throttle: f32,
     pub brake: f32,
+    /// The side acceleration the arcade steering adds (m/s^2, positive right; 0 for the reference): a turn that has it needs the yaw rate
+    /// of `g tan(lean) + extra` over the speed.
+    pub extra_acceleration: f32,
 }
 
 /// The stability help factor, 0 to 1 (`ride6-chassis-round7.md`, section 3): the speed curve times the lean term, cut by the levers.
@@ -76,14 +79,14 @@ pub fn stability_factor(spec: &StabilitySpec, input: &StabilityInput) -> f32 {
     (curve(&spec.speed, input.speed) * lean * kept).clamp(0.0, 1.0)
 }
 
-/// The yaw rate (rad/s, positive for a turn to the right) a steady turn at `lean` needs at `speed`: `g tan(lean) / v`, the lean held
+/// The yaw rate (rad/s, positive for a turn to the right) a steady turn at `lean` needs at `speed`: `(g tan(lean) + extra) / v`, the lean held
 /// to `max_lean` when that is set.
-pub fn desired_yaw_rate(spec: &StabilitySpec, lean: f32, speed: f32) -> f32 {
+pub fn desired_yaw_rate(spec: &StabilitySpec, lean: f32, speed: f32, extra_acceleration: f32) -> f32 {
     let held = match spec.max_lean > 0.0 {
         true => lean.clamp(-spec.max_lean, spec.max_lean),
         false => lean,
     };
-    held.tan() * 9.81 / speed.max(1e-3)
+    (held.tan() * 9.81 + extra_acceleration) / speed.max(1e-3)
 }
 
 /// The angular acceleration (rad/s^2, positive to the right) the help asks of the yaw: `factor (desired - actual) / dt`, in at the
@@ -98,6 +101,6 @@ pub fn stability_acceleration(
     if input.speed <= spec.speed_range[0] {
         return 0.0;
     }
-    let wanted = desired_yaw_rate(spec, input.lean, input.speed);
+    let wanted = desired_yaw_rate(spec, input.lean, input.speed, input.extra_acceleration);
     factor * (wanted - actual_yaw_rate) / dt.max(0.001) * ramp(input.speed, spec.speed_range)
 }

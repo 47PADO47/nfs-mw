@@ -28,6 +28,9 @@ impl Scene for Pausable {
     fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.inner.apply_garage(renderer, selection)
     }
+    fn vehicle(&mut self) -> Option<&mut dyn crate::viewer::VehicleScene> {
+        self.inner.vehicle()
+    }
     fn set_garage_open(&mut self, open: bool) {
         self.inner.set_garage_open(open);
     }
@@ -470,8 +473,7 @@ impl Scene for Pausable {
         self.inner.finished()
     }
 
-    /// The world's panels (the entry card, the race card, the end-of-pursuit card), unless the loading screen hides the
-    /// world.
+    /// The world's panels (the entry, race and end-of-pursuit cards), unless the loading screen hides the world.
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
         if self.concealed() {
             return 0.0;

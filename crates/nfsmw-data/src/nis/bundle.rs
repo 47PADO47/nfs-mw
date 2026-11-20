@@ -46,7 +46,11 @@ impl NisBundle {
         let rel = format!("{NIS_DIR}/{file}");
         let data = read_unwrapped(dir, &rel)?;
         let name = scene_name_of_file(&file).unwrap_or(scene_name);
-        Self::from_bytes(name, &data).with_context(|| format!("reading {rel}"))
+        let mut bundle = Self::from_bytes(name, &data).with_context(|| format!("reading {rel}"))?;
+        for pack in &mut bundle.textures {
+            crate::texture_packs::apply_file(dir, &rel, &mut pack.textures);
+        }
+        Ok(bundle)
     }
 
     /// Reads a bundle from its unwrapped bytes. The bytes must hold an `AnimScene` chunk.

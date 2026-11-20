@@ -63,6 +63,11 @@ pub use iface::{
     BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn, IFACE_CONFIG, IFACE_CONFIG_VERSION,
 };
 pub use iface::{
+    BB_CONTENT_CAP_ALT_MAPS, BB_CONTENT_CAP_LAZY_FILES, BB_CONTENT_CAP_REPLACE_SETS, BB_CONTENT_CAP_TEXTURES,
+    BB_CONTENT_CAP_WORLD_PATCHES, BbContent, BbContentBytesSinkFn, BbContentCapabilitiesFn, BbContentProvideLazyFn,
+    BbContentReadLazyFn, BbContentReportFn, BbContentRescanFn, IFACE_CONTENT, IFACE_CONTENT_VERSION,
+};
+pub use iface::{
     BB_ENGINE_OFF, BB_ENGINE_RUNNING, BB_ENGINE_STARTING, BbEngine, BbEngineCarFn, BbEngineStartFn, BbEngineState,
     BbEngineStateFn, BbEngineStopFn, IFACE_ENGINE, IFACE_ENGINE_VERSION,
 };
@@ -80,16 +85,15 @@ pub use iface::{
     IFACE_TIME_VERSION,
 };
 pub use iface::{
-    BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_TOGGLE, BbSettingCallbackFn, BbSettingOption, BbSettingValue,
-    BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn, IFACE_SETTINGS,
-    IFACE_SETTINGS_VERSION,
+    BB_SETTING_LIST, BB_SETTING_MENU_GAMEPLAY, BB_SETTING_OPTION_V0_SIZE, BB_SETTING_TOGGLE, BbSettingCallbackFn,
+    BbSettingOption, BbSettingValue, BbSettings, BbSettingsAddOptionFn, BbSettingsGetFn, BbSettingsRemoveOptionFn,
+    IFACE_SETTINGS, IFACE_SETTINGS_VERSION,
 };
 pub use iface::{BB_TRAFFIC_FIELD, BbTraffic, BbTrafficListFn, BbTrafficSpawnFn, IFACE_TRAFFIC, IFACE_TRAFFIC_VERSION};
 pub use iface::{
     BB_UI_IMAGE, BB_UI_PANEL, BB_UI_TEXT, BbUi, BbUiPrim, BbUiRegisterThemeFn, BbUiSetSlotFn, BbUiSetTokensFn,
     BbUiTokens, BbUiUnregisterThemeFn, IFACE_UI, IFACE_UI_VERSION,
 };
-pub use iface::{BbContent, BbContentRescanFn, IFACE_CONTENT, IFACE_CONTENT_VERSION};
 pub use module::{
     BB_EVENT_CANCEL, BB_EVENT_CONTINUE, BbDestroyFn, BbEvent, BbEventResult, BbModApi, BbModCreateFn, BbModInfo,
     BbModInfoFn, BbOnEventFn, MOD_CREATE_SYMBOL, MOD_INFO_SYMBOL,

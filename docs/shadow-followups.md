@@ -143,3 +143,28 @@ This is a quality/cost experiment, not a claim of seamless or shimmer-free
 shadows. Moving-sun stability, foliage and driving views need separate checks.
 The mixed-resolution routing and continuous overlap weights have GPU probes;
 frustum coverage includes both ends of every overlap and both texture sizes.
+
+## Long screen-space shadows
+
+F8 Lighting > **Long screen-space shadows** (under Contact shadow detail, off by default, saved as
+`screen_space_shadows`) replaces the 24-step world-space contact march with a port of
+[Bend Studio's screen space shadows](https://www.bendstudio.com/blog/inside-bend-screen-space-shadows/)
+(Apache-2.0, 2023 release; `screen_shadow.wgsl` and `gpu/contact/wavefront.rs` carry the notice and list their
+changes). Compute wavefronts of 64 threads are laid out around the sun's place on screen so that each thread
+walks one ray towards it; the wavefront shares its depth reads, so every pixel tests 60 depth samples for four
+depth loads. A light needs one to eight dispatches. The result goes to the mask the contact march fills and
+is consumed the same way; ray-traced sun shadows still bypass both.
+
+It uses the original's starting values: 0.5% surface thickness, 2% bilinear threshold, contrast 4, 4 hard and
+8 fade-out samples. Depth is reverse-Z with far at zero, and loads outside the image return far. As the
+contact march does, it skips receivers without an authored normal or facing away from the sun, and fades in
+between 0.08 and 0.3 of facing; it removes at most 80% of the direct light. There is no early-out.
+
+The shadow is 60 pixels long whatever the distance, so it is short in world units up close and long far away,
+where shadow maps are coarsest. A pixel is assumed thin: a ray that passes well behind a thick object's front
+face is not shadowed by it, which leaves the body of such a shadow to the shadow map and gives partial values
+at its fringe. Wavefronts meet along seams where two threads can round to one pixel, so a repeated frame may
+differ in a few pixels. On an RTX 3070 at 2228x1254 a synthetic frame costs the same with either method
+(about 0.5 ms over no contact shadows, shared prepass included). GPU tests cover open planes in two
+orientations, a post's shadow against the march, and restoring the frame when off; the look in the game, and
+the thickness for this depth range, have not been tuned.

@@ -25,6 +25,8 @@ impl Drive {
         }
         let mut body = self.sim.as_ref()?.original_camera_body(self.speedbreaker_zoom(), self.chase.look_back_held());
         if !interpolate {
+            // The rider's body while he is thrown (`rider_cam.rs`).
+            self.blend_rider_body(&mut body, None);
             return Some(body);
         }
         let shown = self.pose();
@@ -32,6 +34,7 @@ impl Drive {
         body.position = shown.position + rotation * (body.position - self.current.position);
         body.forward = rotation * body.forward;
         body.up = rotation * body.up;
+        self.blend_rider_body(&mut body, Some(self.alpha));
         Some(body)
     }
 
@@ -54,7 +57,10 @@ impl Drive {
         if self.request.is_some() || self.sim.is_none() {
             return Vec::new();
         }
-        self.sound.camera_contacts().iter().copied().filter_map(camera_impact).collect()
+        // The bike's contacts (it slides and tumbles behind him) are not what the camera on the thrown rider looks at: they fade with its
+        // attention (`docs/specs/ride6-feel-round14.md`, section 1).
+        let contacts = self.sound.camera_contacts().iter().copied().filter_map(camera_impact);
+        faded(contacts, 1.0 - self.rider_cam.weight())
     }
 
     pub fn camera_avoidable(&self) -> Option<Avoidable> {
@@ -63,6 +69,11 @@ impl Drive {
         }
         Some(self.sim.as_ref()?.camera_avoidable())
     }
+}
+
+/// The impacts with their closing speeds times `keep` (0 to 1); the ones that come to nothing are dropped.
+fn faded(impacts: impl Iterator<Item = (ImpactKind, f32)>, keep: f32) -> Vec<(ImpactKind, f32)> {
+    impacts.map(|(kind, speed)| (kind, speed * keep)).filter(|&(_, speed)| speed > 0.0).collect()
 }
 
 fn camera_impact(contact: CarContact) -> Option<(ImpactKind, f32)> {
@@ -120,5 +131,14 @@ mod tests {
         for velocity in [Vec3::new(30.0, 0.0, 0.0), Vec3::new(30.0, 0.0, -5.0)] {
             assert!(camera_impact(contact(ContactSource::World, velocity)).is_none());
         }
+    }
+
+    #[test]
+    fn the_bikes_contacts_fade_with_the_cameras_attention_to_its_rider() {
+        let hits = || vec![(ImpactKind::Ground, 20.0), (ImpactKind::World, 6.0)].into_iter();
+        assert_eq!(faded(hits(), 1.0).len(), 2, "on the bike: all of them, as they were");
+        let half = faded(hits(), 0.5);
+        assert_eq!(half.iter().map(|&(_, s)| s).collect::<Vec<_>>(), [10.0, 3.0]);
+        assert!(faded(hits(), 0.0).is_empty(), "on the rider the bike sliding behind him shakes nothing");
     }
 }

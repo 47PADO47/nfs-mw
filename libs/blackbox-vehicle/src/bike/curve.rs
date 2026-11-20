@@ -23,6 +23,13 @@ pub fn factor(points: &[(f32, f32)], x: f32) -> f32 {
     }
 }
 
+/// Like [`factor`] read for both directions of a signed `x`: the greater of the curve at `|x|` and at `-|x|`. A tuning of the stick that
+/// the data states differently for the two sides (`LeanTimeScaleInputTuning`) then acts the same on a left and on a right stick, and never
+/// slower than the data's quicker side (`docs/specs/ride6-feel-round13.md`, section 3).
+pub fn factor_either_side(points: &[(f32, f32)], x: f32) -> f32 {
+    factor(points, x.abs()).max(factor(points, -x.abs()))
+}
+
 /// `x` mapped from `[from.0, from.1]` to `[0, 1]`, held at the ends. A range of zero width is a step at its start.
 pub fn ramp(x: f32, from: [f32; 2]) -> f32 {
     let width = from[1] - from[0];
@@ -44,6 +51,19 @@ mod tests {
         assert_eq!(curve(&points, 50.0), 100.0);
         assert_eq!(curve(&[], 1.0), 0.0);
         assert_eq!(factor(&[], 1.0), 1.0);
+    }
+
+    #[test]
+    fn a_curve_read_for_either_side_gives_the_quicker_side_to_both() {
+        let points = [(-1.0, 0.4), (0.0, 1.0), (1.0, 0.5)];
+        for x in [0.25_f32, 0.5, 1.0] {
+            assert_eq!(factor_either_side(&points, x), factor_either_side(&points, -x));
+            assert_eq!(factor_either_side(&points, x), factor(&points, x).max(factor(&points, -x)));
+        }
+        assert!((factor_either_side(&points, -1.0) - 0.5).abs() < 1e-6);
+        let mirrored = [(-1.0, 0.7), (0.0, 1.0), (1.0, 0.425)];
+        assert!((factor_either_side(&mirrored, 1.0) - 0.7).abs() < 1e-6);
+        assert_eq!(factor_either_side(&[], -0.5), 1.0);
     }
 
     #[test]

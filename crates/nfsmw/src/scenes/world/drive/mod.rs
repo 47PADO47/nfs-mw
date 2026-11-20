@@ -42,7 +42,8 @@ mod release;
 mod remote;
 mod render;
 mod reset_trail;
-mod rider;
+pub(crate) mod rider;
+mod rider_cam;
 mod rig;
 mod road_reflection;
 mod script;
@@ -54,6 +55,8 @@ mod speedbreaker;
 mod time_scale;
 mod touch;
 mod trace;
+mod under_map;
+mod under_map_check;
 mod visual_tires;
 pub(super) mod walls;
 
@@ -63,7 +66,8 @@ use super::road::{self, Spawn};
 use super::vehicle_effects::VehicleEffects;
 use crate::scenes::world::car_lights::{CarLights, LampState};
 use crate::settings::{Transmission, WheelOptions};
-use crate::viewer::camera::{CameraCut, ChaseCamera, ChaseView, Followed, PursuitCamera, PursuitFeed};
+use crate::viewer::camera::rider_follow::RiderCam;
+use crate::viewer::camera::{CameraCut, ChaseCamera, ChaseView, PursuitCamera, PursuitFeed};
 use blackbox_collision::CollisionWorld;
 pub(super) use clock::{FixedClock, STEP};
 pub(super) use debug::upload_box;
@@ -76,6 +80,7 @@ use input::Presses;
 use nfsmw_data::car::physics::CarPhysics;
 #[cfg(feature = "multiplayer")]
 pub(super) use predict::DriveSave;
+pub use rider::RiderVisibility;
 pub(super) use rig::SurfaceDamage;
 pub use rig::{CarPose, CarRig};
 pub use script::DriveScript;
@@ -159,8 +164,7 @@ pub struct Drive {
     gridded: bool,
     /// Drag launches cancel their bonus when shifting; ordinary race launches pause its timer.
     launch_cancel_on_shift: bool,
-    /// A point (physics space) the car steers at by itself, with the player's steering ignored (the drag assist,
-    /// `grid.rs`).
+    /// A physics-space point the car steers at by itself, ignoring the player's steering (the drag assist, `grid.rs`).
     assist_aim: Option<glam::Vec3>,
     /// The speed the next placement gives the car, m/s (a rolling start); taken by the placement.
     pending_speed: f32,
@@ -181,6 +185,8 @@ pub struct Drive {
     /// What the car sound hears of the drive.
     sound: SoundFeed,
     chase: ChaseCamera,
+    /// How much the cameras are on a thrown rider instead of his bike, and the grace after a reset (`rider_cam.rs`).
+    rider_cam: RiderCam,
     /// The caught pan and the arrest framing, blended over the chase view (`viewer/camera/pursuit`).
     pursuit: PursuitCamera,
     /// Console hits given before the car exists; applied when it is placed.
@@ -202,6 +208,8 @@ pub struct Drive {
     /// When a strict request first failed to find its ground.
     strict_since: Option<std::time::Instant>,
     fall: FallWatch,
+    /// The bike and its thrown rider under the map (`under_map.rs`): the bike's watch and the rider's.
+    under_map: [under_map::UnderMap; 2],
     /// Simulation seconds since the last road check.
     road_check_elapsed: f64,
     /// Button presses that have not met a physics step yet.
@@ -339,21 +347,19 @@ impl Drive {
         self.sim.as_ref().map_or(self.current, CarSim::pose)
     }
 
-    /// Move the chase camera; `look` is the player's look input (the right stick or the mouse), which
-    /// orbits the camera round the car.
+    /// Move the chase camera; `look` (the right stick or the mouse) orbits the camera round the car.
     pub fn follow(&mut self, _collision: &CollisionWorld, look: (f32, f32), dt: f32) {
         // A bike's chase camera is made to its size (`viewer/camera/bike.rs`); a car's is the one the camera is built for.
         self.chase.fit =
             self.bike_cameras().map_or_else(Default::default, |rig| crate::viewer::camera::bike::chase_fit(&rig));
+        self.chase.fit.height = self.rider_cam.lifted_height(self.chase.fit.height, self.chase.preferences.height);
         if dt == 0.0 {
             // A screenshot run has no frame time: put the camera where it belongs at once.
             self.chase.snap();
         }
         self.chase.look(look.0, look.1, dt);
-        let pose = self.current;
-        let forward = pose.rotation * Vec3::X;
-        let followed =
-            Followed { position: pose.position, heading: forward.y.atan2(forward.x), speed: self.telemetry.speed_mps };
+        // The bike, or its rider while he is thrown (`rider_cam.rs`).
+        let followed = self.followed();
         // World presentation applies shared wall/floor/body clearance after zoom.
         self.chase.update(followed, dt, |_, _| None);
     }
@@ -451,6 +457,7 @@ impl Drive {
             speedbreaker_active: self.breaker.active(),
             has_turbo: t.has_induction,
             boost_psi: t.boost_psi,
+            car_dir: self.car_name.clone(),
             telemetry: sim.hud_telemetry(),
             condition: Some(sim.hud_condition()),
             ..Default::default()

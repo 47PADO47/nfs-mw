@@ -83,9 +83,10 @@ impl Frontend {
             "career": self.career.is_active(), "drive_to_safe_house": self.drive_to_safe_house,
             "safe_house_start": self.safe_house_start.pending});
         crate::parity::career_trace::record("world_load", handoff);
+        let world = self.second_world(env);
         let spawned = std::thread::Builder::new()
             .name("world-load".to_owned())
-            .spawn(move || WorldScene::load(&dir, free_roam_options(&car)));
+            .spawn(move || WorldScene::load_in(&dir, free_roam_options(&car), world));
         let world = match spawned {
             Ok(world) => world,
             Err(e) => {
@@ -98,6 +99,19 @@ impl Frontend {
         self.stage = Stage::Loading;
         let commands = self.screens.open(screen.file(), Args::default(), true, env);
         self.apply(commands, host, env);
+    }
+
+    /// The second world the `world` setting names, for a plain Free Roam start; the city for every other start (the career,
+    /// races and the rest are the city's). A name no mod provides is logged and the city is played.
+    fn second_world(&mut self, env: &Env) -> Option<crate::modding::content::worlds::World> {
+        if !std::mem::take(&mut self.free_roam_world) {
+            return None;
+        }
+        let id = env.settings.world.as_ref().map(|id| id.as_str());
+        crate::modding::content::worlds::chosen(id).unwrap_or_else(|error| {
+            log::warn!("{error:#}; playing the city");
+            None
+        })
     }
 
     /// One frame of the loading stage: the screen animates, and the start goes on a step when its state allows. Nothing

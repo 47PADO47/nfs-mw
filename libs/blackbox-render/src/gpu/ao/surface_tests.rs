@@ -1,4 +1,4 @@
-//! Normal-mapped pavement receives contact AO on ambient light, independently of road reflection.
+//! Normal-mapped pavement receives contact AO on ambient light and its reflection, never on sun light or highlights.
 use super::tests::scene_shading;
 use crate::{Renderer, gpu::test_support};
 use blackbox_gfx::{
@@ -60,7 +60,7 @@ fn receiver(r: &mut Renderer, model: NormalModel, blend: BlendMode) -> Instance 
 
 #[test]
 #[ignore = "needs a GPU"]
-fn pavement_receives_ambient_contacts_without_darkening_sun_specular_or_reflection() {
+fn pavement_receives_ambient_and_reflection_contacts_without_darkening_sun_specular() {
     let _serial = test_support::serial();
     let Some(mut r) = test_support::headless(SIZE) else { return };
     let (mut frame, _) = scene_shading(&mut r, SIZE, false, Shading::Prelit);
@@ -70,25 +70,30 @@ fn pavement_receives_ambient_contacts_without_darkening_sun_specular_or_reflecti
     pole.cuboid(Vec3::new(-0.25, -0.25, 0.0), Vec3::new(0.25, 0.25, 2.0), [128, 128, 128, 255]);
     let pole = Instance::new(pole.finish().upload(&mut r, "AO pole"), Mat4::IDENTITY);
     let matrix = frame.projection.matrix() * frame.view;
-    let ground: Vec<usize> = (0..12)
-        .flat_map(|y| {
-            (0..24).map(move |x| {
-                let p = matrix.project_point3(Vec3::new(-0.65 + x as f32 * 0.055, -0.4 - y as f32 * 0.04, 0.0));
-                let px = ((p.x + 1.0) * 0.5 * SIZE.0 as f32) as usize;
-                let py = ((1.0 - p.y) * 0.5 * SIZE.1 as f32) as usize;
-                (py * SIZE.0 as usize + px) * 4
+    let samples = |x0: f32, y0: f32| -> Vec<usize> {
+        (0..12)
+            .flat_map(|y| {
+                (0..24).map(move |x| {
+                    let p = matrix.project_point3(Vec3::new(x0 + x as f32 * 0.055, y0 - y as f32 * 0.04, 0.0));
+                    let px = ((p.x + 1.0) * 0.5 * SIZE.0 as f32) as usize;
+                    let py = ((1.0 - p.y) * 0.5 * SIZE.1 as f32) as usize;
+                    (py * SIZE.0 as usize + px) * 4
+                })
             })
-        })
-        .collect();
+            .collect()
+    };
+    // Beside the pole, and open pavement well beyond the AO radius.
+    let ground = samples(-0.65, -0.4);
+    let open = samples(1.4, -1.6);
     for model in [NormalModel::Bump, NormalModel::Reflective] {
         for blend in [BlendMode::Opaque, BlendMode::AlphaTest, BlendMode::AlphaBlend] {
             let floor = receiver(&mut r, model, blend);
             let instances = [floor, pole];
             for method in AoMethod::ALL {
-                for ambient in [true, false] {
-                    let (ambient_light, diffuse) = match ambient {
-                        true => ([0.6; 3], [0.0; 3]),
-                        false => ([0.0; 3], [0.5; 3]),
+                for (light, reflection_scale) in [(Light::Ambient, 0.0), (Light::Direct, 0.0), (Light::Direct, 0.8)] {
+                    let (ambient_light, diffuse) = match light {
+                        Light::Ambient => ([0.6; 3], [0.0; 3]),
+                        Light::Direct => ([0.0; 3], [0.5; 3]),
                     };
                     frame.surface_light = Some(SurfaceLight {
                         ambient: ambient_light,
@@ -96,7 +101,7 @@ fn pavement_receives_ambient_contacts_without_darkening_sun_specular_or_reflecti
                         diffuse,
                         specular: [0.2; 3],
                         specular_power: 11.0,
-                        reflection_scale: 0.8,
+                        reflection_scale,
                         reflective_specular_scale: 1.0,
                         shadow_strength: 1.0,
                     });
@@ -107,21 +112,42 @@ fn pavement_receives_ambient_contacts_without_darkening_sun_specular_or_reflecti
                         ..Default::default()
                     });
                     let on = r.capture(SIZE.0, SIZE.1, &frame, &instances).unwrap();
+                    let case = format!("{model:?}/{blend:?}/{method}/{light:?}/{reflection_scale}");
                     let dark = ground.iter().filter(|&&i| u16::from(off[i]) > u16::from(on[i]) + 2).count();
-                    if ambient && blend != BlendMode::AlphaBlend {
+                    let received = blend != BlendMode::AlphaBlend;
+                    if light == Light::Ambient && received {
                         // The reference kernel is weaker around a thin pole than analytic GTAO.
                         // Both must measurably darken the actual ground, not only the pole.
-                        assert!(dark > 5, "{model:?}/{blend:?}/{method}: contact must reach pavement ({dark})");
+                        assert!(dark > 5, "{case}: contact must reach pavement ({dark})");
+                        continue;
+                    }
+                    if reflection_scale > 0.0 && received && model == NormalModel::Reflective {
+                        // Specular occlusion: the reflection fades in the contact, never brightens, and open
+                        // pavement keeps it exactly.
+                        // The weak reference kernel darkens few ground pixels, even for ambient light.
+                        let expected = match method {
+                            AoMethod::Ssao => 0,
+                            _ => 50,
+                        };
+                        assert!(dark > expected, "{case}: the reflection must fade in the contact ({dark})");
+                        assert!(ground.iter().all(|&i| (0..3).all(|c| on[i + c] <= off[i + c])), "{case}: brighter");
+                        assert!(open.iter().all(|&i| off[i..i + 3] == on[i..i + 3]), "{case}: open pavement changed");
                         continue;
                     }
                     assert!(
                         ground.iter().all(|&i| off[i..i + 3] == on[i..i + 3]),
-                        "{model:?}/{blend:?}/{method}: direct/specular/reflection or transparent floor changed"
+                        "{case}: direct light, sun specular or a transparent floor changed"
                     );
                 }
             }
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Light {
+    Ambient,
+    Direct,
 }
 
 #[test]

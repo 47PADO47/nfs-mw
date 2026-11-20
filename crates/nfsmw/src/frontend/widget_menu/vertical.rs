@@ -2,8 +2,10 @@
 //! pages) reads and does. The package still supplies the messages; the rows, their values and the window onto them are
 //! published as a [`MenuList`], and a click or the pointer picks a row.
 
+use blackbox_ui::menu::nav;
+
 use super::options::{self, Control, Data, Row, Title};
-use super::{Command, Cx, Pick, Way, WidgetMenu, mod_options};
+use super::{Cx, Pick, Way, WidgetMenu, mod_options};
 use crate::i18n::t;
 use crate::ui::Text;
 use crate::ui::theme::remastered::menu::layout::{MAX_ROWS, window_start};
@@ -23,32 +25,6 @@ impl WidgetMenu {
         {
             crate::audio::menu::preview_common_level(f32::from(value) / 100.0);
         }
-    }
-
-    fn apply_change(&mut self, cx: &mut Cx, forward: bool) {
-        let Some(row) = self.rows.get(self.selected).copied() else { return };
-        if self.leaving {
-            return;
-        }
-        self.nudge = Some((self.selected, forward, self.clock));
-        if row.setting == options::Setting::AdvancedGraphics {
-            cx.send(Command::OpenGraphics);
-            return;
-        }
-        if let options::Setting::Mod(_) | options::Setting::ModManaged(_) | options::Setting::GameplayOption(_) =
-            row.setting
-        {
-            mod_options::change(cx.mods, row.setting, forward);
-            self.draw_visible(cx);
-            return;
-        }
-        if row.setting == options::Setting::Autosave {
-            options::autosave::change(cx);
-            self.draw_visible(cx);
-            return;
-        }
-        row.setting.advance(cx.settings, cx.changed, forward, &cx.caps);
-        self.draw_visible(cx);
     }
 
     /// Pointer edits have no FEng pad announcement. Play feedback only when the edit succeeds.
@@ -83,7 +59,9 @@ impl WidgetMenu {
             self.entries.clear();
             return;
         }
-        self.top = window_start(self.top, self.selected, self.rows.len());
+        // The title of the section the selection is in stays in view with the selected row when the window slides up.
+        let title = self.with_title(self.selected);
+        self.top = window_start(window_start(self.top, title, self.rows.len()), self.selected, self.rows.len());
         self.entries = self.rows.iter().map(|row| entry_of(cx, row)).collect();
         self.note = match self.args.category {
             super::super::logic::Category::Hud => options::hud_options::note(cx.settings),
@@ -121,8 +99,15 @@ impl WidgetMenu {
         if self.leaving || row >= self.rows.len() {
             return;
         }
+        // A section title is not highlighted by the pointer, and a press on it does nothing.
+        if !nav::can_hover(&self.flags, row) {
+            return;
+        }
         self.select(cx, row);
         let Pick::Press(way, _) = pick else { return };
+        if !nav::can_press(&self.flags, row) {
+            return;
+        }
         self.change_from_pointer(cx, way != Way::Back);
     }
 }
@@ -161,6 +146,10 @@ fn entry_of(cx: &Cx, row: &Row) -> MenuEntry {
         (None, Title::Label(label)) => Text::Game(label).resolve().unwrap_or_default(),
         (None, title @ Title::Key(_)) => title.text(),
     };
+    // A section title: its text across the row, in the colour of highlighted text, with no value.
+    if row.setting.is_heading() {
+        return MenuEntry::title(label);
+    }
     let value = match control_of(cx, row.setting) {
         Control::Slider(percent) => MenuValue::Slider(percent),
         Control::Toggle => {
@@ -173,5 +162,5 @@ fn entry_of(cx: &Cx, row: &Row) -> MenuEntry {
             MenuValue::Choice { text, arrows: !acts }
         }
     };
-    MenuEntry { label, enabled: row.setting.enabled_in(cx.settings, &cx.caps), value, icon: None }
+    MenuEntry { label, enabled: row.setting.enabled_in(cx.settings, &cx.caps), value, icon: None, flags: row.flags() }
 }

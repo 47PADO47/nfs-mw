@@ -104,6 +104,14 @@ pub struct AoSettings {
     pub compare: bool,
     /// Depth-aware mip sampling for distant horizon taps; false retains the direct-depth reference.
     pub depth_mips: bool,
+    /// XeGTAO thin occluder compensation, 0 to 1: a horizon tap's offset along the view direction counts this much
+    /// more towards the falloff distance, so an occluder well in front of the receiver (a duct under a ceiling, a
+    /// post before a wall) stops darkening the surface behind it. 0 is the reference default.
+    pub thin_occluders: f32,
+    /// A shading normal whose cosine to the surface's depth normal is below this gives way to the depth normal, so a
+    /// smoothed low-poly face does not occlude itself. 0 always keeps the shading normal. The default (about 70 degrees)
+    /// catches the badly smoothed boxes of the original models and leaves the noisier depth normals of distant ground alone.
+    pub normal_guard: f32,
 }
 
 impl Default for AoSettings {
@@ -115,6 +123,8 @@ impl Default for AoSettings {
             radius: 1.25,
             compare: false,
             depth_mips: false,
+            thin_occluders: 0.5,
+            normal_guard: 0.35,
         }
     }
 }
@@ -125,6 +135,8 @@ impl AoSettings {
         Self {
             intensity: finite_clamp(self.intensity, 0.0, 1.0, defaults.intensity),
             radius: finite_clamp(self.radius, 0.25, 3.0, defaults.radius),
+            thin_occluders: finite_clamp(self.thin_occluders, 0.0, 1.0, defaults.thin_occluders),
+            normal_guard: finite_clamp(self.normal_guard, 0.0, 1.0, defaults.normal_guard),
             ..self
         }
     }
@@ -155,5 +167,7 @@ mod tests {
         assert_eq!(s.intensity, 0.75);
         assert_eq!(s.radius, 1.25);
         assert_eq!(AoSettings { intensity: 50.0, radius: -1.0, ..s }.sanitized().radius, 0.25);
+        assert_eq!(AoSettings { thin_occluders: f32::NAN, ..s }.sanitized().thin_occluders, 0.5);
+        assert_eq!(AoSettings { thin_occluders: 4.0, ..s }.sanitized().thin_occluders, 1.0);
     }
 }

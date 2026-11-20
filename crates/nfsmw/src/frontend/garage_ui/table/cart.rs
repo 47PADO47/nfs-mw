@@ -184,7 +184,7 @@ impl Cart {
         let baseline = state.baseline.clone();
         let mut selection = state.cart.clone();
         for row in &self.disabled {
-            rows::restore(*row, &baseline, &mut selection);
+            rows::restore(*row, &state.model, &baseline, &mut selection);
         }
         state.model.draft = selection.clone();
         crate::garage::menu_rows::clear_missing_decal_surfaces(&mut state.model);

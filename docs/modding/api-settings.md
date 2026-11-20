@@ -13,11 +13,13 @@ in the game window.
 - **Option.** A row of the settings page with an id (`a-z`, `0-9`, `_`, `.`, `-`; at most 128 bytes), a label and a kind.
 - **Kind.** `List` (one of several values; each value has an id, which is saved, and a label) or `Toggle` (on or off).
 - **Menu.** Only the gameplay settings take options in this delivery (`BB_SETTING_MENU_GAMEPLAY`).
-- **The game's own options.** The game declares its options by id and kind. `nitrous_variant`, `tire_smoke_variant`, `collision_spark_variant`, `xenon_spark_variant` and `wind_variant` are lists
-  with one value, `original` ("Original"): one such option for every kind of effect that has variants; see
+- **Section.** An option can be listed under a **section**: a centred title in the menu with the mod's rows under it (see
+  [Sections](#sections)). Without one, it is in the first section, which has no title.
+- **The game's own options.** The game declares its options by id and kind. `nitrous_variant`, `tire_smoke_variant`, `collision_spark_variant`, `xenon_spark_variant`, `wind_variant`, `trees_variant` and `grading_variant` (shown as "Color Grading" on the Video page, not Gameplay; its one value is "Off") are lists
+  with one value, `original` ("Original"): one such option for every kind of effect that has variants (the trees are models of the world, not an effect, with the same option and folder); see
   [effect-variants.md](effect-variants.md) (the mechanism, the profile of each kind and how to add a kind) and
   [nitrous-variants.md](nitrous-variants.md). The game's other gameplay rows (`hud_layout`,
-  `ui_style`, `ui_theme`, `speed_units`, `minimap`, `language`, `rear_view_mirror`, `turn_signals`, `cop_health_bars`) are
+  `ui_style`, `ui_theme`, `speed_units`, `riding_style_road`, `riding_style_motard`, `riding_style_offroad`, `brake_fingers`, `clutch_fingers`, `minimap`, `language`, `rear_view_mirror`, `turn_signals`, `cop_health_bars`, `rider_gear`) are
   declared too, so that a clash of kinds is seen, but their values are the game's own and a mod cannot add to them.
 
 ## `add_option`: exactly what it does
@@ -38,6 +40,22 @@ before.
 A **list with one value is not shown** in the menu; a list with more than one value is shown. A toggle is always shown. This is
 the one rule for every list: the game's "Nitrous variant", "Tire smoke variant", "Collision spark variant" and "Restored spark variant" have the single value "Original" until a
 mod adds another, so they are invisible without such a mod.
+
+### Sections
+
+The gameplay page is a list of sections ([menu-sections.md](../specs/menu-sections.md)): the first has no title and holds the
+game's ordinary rows; the game then has **Experimental** and **RIDE 6**; a mod's sections follow, in the order the mods registered
+their options. An option's `section` (a title, or a message id of the mod's catalogue) puts its row under that title.
+
+- No `section` (or an empty one) is the first section, after the game's rows, as before the key existed. Nothing changes for a mod
+  that does not use it, and a mod built before the key (its `BbSettingOption.size` is 72) loads and has no section.
+- The section is read when the option is **created**. Values a mod adds to an option the game has (`nitrous_variant` and the other
+  effect variants) do not move the game's row: it stays where the game has it.
+- Two options with the same title text are in one section, whichever mod declared them, and a title equal to a section the game has
+  (Experimental, RIDE 6) joins it. Title text is compared as the player sees it.
+- A section whose options are all hidden (a list with one value) shows no title.
+- A title is at most 128 bytes. It can be shown in the player's language like a label: write a message id of the mod's catalogue
+  ([translations.md](translations.md)).
 
 ### The chosen value
 
@@ -77,6 +95,10 @@ if let Some(settings) = ctx.settings() {
     )?;
     // An on/off option.
     settings.add_toggle("extra_hud", "Extra HUD", false, |_ctx, on| { /* ... */ })?;
+    // The mod's own options together under a title of their own (a message id of the mod's catalogue, or plain text).
+    let mine = settings.section("my-mod-section");
+    mine.add_toggle("shiny", "Shiny", true, |_ctx, _on| { /* ... */ })?;
+    mine.add_option("palette", "Palette", &[SettingValue { id: "warm", label: "Warm" }, SettingValue { id: "cool", label: "Cool" }])?;
     let chosen: String = settings.get("flame_color")?; // the value id, or "on" / "off"
     // settings.remove_option(id)?;  Registrations left are removed when the mod unloads.
 }
@@ -89,7 +111,9 @@ if let Some(settings) = ctx.settings() {
 
 `BbSettings` (`abi::iface::settings`): `head`, `ctx`, `add_option`, `remove_option`, `get`, in that order; fields are only ever
 appended. `BbSettingOption` is size-prefixed (`size`, `kind`, `menu`, `reserved`, `id`, `label`, `values`, `value_count`,
-`default_on`, `pad`) and `BbSettingValue` is `{ id, label }`. The callback is `fn(user, BbStr)` with the value id. The ids of
+`default_on`, `pad`, then `section`, a `BbStr`, 88 bytes in all) and `BbSettingValue` is `{ id, label }`. The host takes any `size`
+from 72 (`BB_SETTING_OPTION_V0_SIZE`, the struct before `section`): a smaller size is `ARG`, a size that does not cover `section` has
+no section, and bytes past the declared size are never read. The callback is `fn(user, BbStr)` with the value id. The ids of
 the kinds (`TOGGLE` 0, `LIST` 1) and of the menu (`GAMEPLAY` 0) are never reused. The layout is locked by a snapshot test
 (`abi/iface/tests.rs`). **Versioning:** a new interface is a new id at 1.0: no table of an existing interface changes and the
 ABI minor (`0.1`) stays, so every mod built before loads as it did, and a mod that wants `bb.settings` lists it under

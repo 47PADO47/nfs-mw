@@ -68,6 +68,16 @@ impl WorldScene {
         } else {
             input
         };
+        // The helmet camera of a bike looks up and down with the right stick too, which also shifts: the stick looks, the keys and
+        // the buttons shift.
+        let helmet_input;
+        let input = match self.bike_helmet_active() {
+            true => {
+                helmet_input = input.without_stick_shift();
+                &helmet_input
+            }
+            false => input,
+        };
         let trace = blackbox_trace::scope("World: update / shading and effects set-up");
         self.update_car_shading(renderer);
         if let Some(traffic) = self.traffic.as_ref() {
@@ -184,6 +194,7 @@ impl WorldScene {
         let trace = blackbox_trace::scope("World: update / focus, rain and atmosphere");
         self.update_extra_view(camera_dt);
         self.feed_focus(renderer, sim_dt, camera_dt);
+        self.feed_grading(renderer);
         self.update_pursuit_reference(renderer);
         self.update_jump_chase(renderer);
         self.update_pursuit_trace(sim_dt);
@@ -196,6 +207,14 @@ impl WorldScene {
         let exposed = !(environment.tunnel || environment.overpass || environment.garage || environment.dynamic);
         self.rain.update_view(sim_dt, lens.position, lens.forward, exposed);
         self.wet_road.step_rain(sim_dt, self.rain.intensity());
+        let splash_rain = if exposed { self.rain.visible_intensity() } else { 0.0 };
+        let splash_centre = self.players.lead().map_or(lens.position, |drive| drive.position());
+        self.rain_splash.step(
+            sim_dt,
+            splash_rain,
+            splash_centre,
+            super::effects::rain_splash::ground_query(self.residency.collision()),
+        );
         if let Some(traffic) = &mut self.traffic {
             traffic.step_rain(
                 self.physics.database(),

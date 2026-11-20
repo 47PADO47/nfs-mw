@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "note": "The 26 vehicles whose CHASSIS data asset is not in the RIDE 6 install (docs/modding/ride6-bikes-batch.md, 'Borrowed visuals'). Each takes the meshes and textures of the lender, a bike of the 293 that is the same model, a variant of it or the nearest one of the family; its own physics asset (physics: Brand/Name of the DataAsset in the install, null where the install has none and the lender's is used) and the cameras and sound the install has for it.",
+  "borrowed": [
+    {"vehicle": "Aprilia_RS-457-Trofeo-2024", "lender": "Aprilia_RS-457-2024", "physics": "Aprilia/Aprilia_RS457Trofeo_2024"},
+    {"vehicle": "Aprilia_RSV4-Factory-1100-2025", "lender": "Aprilia_RSV4-Factory-1100-2019", "physics": null},
+    {"vehicle": "Aprilia_Tuono-V4-Factory-E5-2021", "lender": "Aprilia_Tuono-V4-Factory-E5-RM-2021", "physics": "Aprilia/Aprilia_TuonoV4FactoryE5_2021"},
+    {"vehicle": "BMW_M-1000-R-2023", "lender": "BMW_S-1000-R-2021", "physics": "BMW/BMW_M1000R_2023"},
+    {"vehicle": "BMW_R-100-GS-1000-1987", "lender": "BMW_R-1300-GS-2024", "physics": "BMW/BMW_R100GS1000_1987"},
+    {"vehicle": "BMW_S-1000-R-2020", "lender": "BMW_S-1000-R-2021", "physics": "BMW/BMW_S1000R_2020"},
+    {"vehicle": "Ducati_Hypermotard-950-2019", "lender": "Ducati_Hypermotard-698-Mono-2024", "physics": "Ducati/Ducati_Hypermotard950_2019"},
+    {"vehicle": "Ducati_Monster-Plus-2021", "lender": "Ducati_Monster-1200-S-2019", "physics": "Ducati/Ducati_MonsterPlus_2021"},
+    {"vehicle": "Ducati_Panigale-V2-2021", "lender": "Ducati_Panigale-V4-2018", "physics": "Ducati/Ducati_PanigaleV2_2021"},
+    {"vehicle": "Ducati_Panigale-V4-S-RM-2025", "lender": "Ducati_Panigale-V4-S-2025", "physics": "Ducati/Ducati_PanigaleV4S-RM_2025"},
+    {"vehicle": "Honda_CBR-600-RR-HRC-2021", "lender": "Honda_CBR-600RR-HRC-RM-2021", "physics": "Honda/Honda_CBR600RRHRC_2021"},
+    {"vehicle": "Honda_XVR-750-Africa-Twin-1990", "lender": "Honda_CRF1100L-Africa-Twin-ES-2024", "physics": "Honda/Honda_XVR750AfricaTwin_1990"},
+    {"vehicle": "Husqvarna_701-Supermoto-2025", "lender": "KTM_690-SMC-R-2026", "physics": null},
+    {"vehicle": "Husqvarna_FS-450-2022", "lender": "KTM_450-SMR-2022", "physics": "Husqvarna/Husqvarna_FS450_2022"},
+    {"vehicle": "Kawasaki_Ninja-ZX-10RR-Performance-2024", "lender": "Kawasaki_Ninja-ZX-10RR-2021", "physics": "Kawasaki/Kawasaki_NinjaZX10RRPerformance_2024"},
+    {"vehicle": "MV-Agusta_Brutale-800-RR-2021", "lender": "MV-Agusta_Brutale-1000-RR-2021", "physics": "MV-Agusta/MV-Agusta_Brutale800RR_2021"},
+    {"vehicle": "MV-Agusta_F3-800-RR-2022", "lender": "MV-Agusta_F3-675-RM-2019", "physics": "MV-Agusta/MV-Agusta_F3800RR_2022"},
+    {"vehicle": "MV-Agusta_LXP-Orioli-2024", "lender": "MV-Agusta_Rush-1000-2024", "physics": "MV-Agusta/MV-Agusta_LXP-Orioli-2024"},
+    {"vehicle": "MV-Agusta_Rush-1000-2021", "lender": "MV-Agusta_Rush-1000-2024", "physics": "MV-Agusta/MV-Agusta_Rush1000_2021"},
+    {"vehicle": "Suzuki_DR-800-S-Big-1994", "lender": "Aprilia_Tuareg-Rally-2024", "physics": null},
+    {"vehicle": "Suzuki_TL-1000-R-RM-1998", "lender": "Suzuki_TL-1000-R-1998", "physics": "Suzuki/Suzuki_TL1000R_RM_1998"},
+    {"vehicle": "Triumph_Street-Triple-RS-2024", "lender": "Triumph_Street-Triple-RS-2020", "physics": "Triumph/Triumph_StreetTripleRS_2024"},
+    {"vehicle": "Triumph_Trident-660-2021", "lender": "Triumph_Street-Triple-RS-2020", "physics": "Triumph/Triumph_Trident660_2021"},
+    {"vehicle": "Vyrus_Alyen-2020", "lender": "Vyrus_986-M2-2017", "physics": "Vyrus/Vyrus_Alyen_2020"},
+    {"vehicle": "Yamaha_MT-10-SP-2024", "lender": "Yamaha_MT10-ABS-2020", "physics": "Yamaha/Yamaha_MT-10SP_2024"},
+    {"vehicle": "Yamaha_XTZ-750-Super-Tenere-1989", "lender": "BMW_R-1300-GS-2024", "physics": "Yamaha/Yamaha_XTZ750SuperTenere_1989"}
+  ]
+}

@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use super::bike::Bike;
 use super::bike_check;
+use super::components::{self, Components};
 use super::cop::{self, CopClass, CopWave};
 use super::customization::{self, Customization};
 use super::damage_parts::{self, DamagePart, Wing};
@@ -101,6 +102,8 @@ pub struct CarManifest {
     /// How the car joins the game's traffic (`role = "traffic"`, or a `[traffic]` table next to another role). `None`: it is
     /// not traffic.
     pub traffic: Option<Traffic>,
+    /// The slots the car offers and the parts it binds (`[[slot]]`, `[parts]`, ADR 0014). `None`: the car has no components.
+    pub components: Option<Components>,
 }
 
 /// The file as serde reads it. Unknown keys are an error, so a key the game does not support (an `[override]`
@@ -142,6 +145,10 @@ struct Raw {
     light_bar: Option<Vec<lamp_flares::RawBar>>,
     #[serde(default)]
     traffic: Option<traffic::Raw>,
+    #[serde(default)]
+    slot: Option<Vec<blackbox_components::Slot>>,
+    #[serde(default)]
+    parts: Option<std::collections::BTreeMap<String, components::RawPart>>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -216,6 +223,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
     let lamp_flares = lamp_flares::check_flares(raw.lamp_flare)?;
     let light_bars = lamp_flares::check_bars(raw.light_bar)?;
     let traffic = traffic::check(raw.traffic, role.is_traffic())?;
+    let components = components::check(raw.slot, raw.parts)?;
     if kind == Kind::Bike {
         if role != Role::Player || traffic.is_some() {
             return Err(ContentError::BikeNotPlayer);
@@ -244,6 +252,7 @@ fn validate(stem: &str, raw: Raw) -> Result<CarManifest, ContentError> {
         lamp_flares,
         light_bars,
         traffic,
+        components,
     })
 }
 

@@ -53,16 +53,8 @@ fn a_weaker_racer_is_never_raised() {
 
 #[test]
 fn the_skill_adds_the_catch_up_and_stays_in_range() {
-    let mut state = RacerState::new(
-        1,
-        performance(80.0, 1.2),
-        AiVehicle::default(),
-        performance(80.0, 1.2),
-        1.0,
-        0.8,
-        0.0,
-        NitrousLimits::default(),
-    );
+    let mut state =
+        RacerState::new(1, performance(80.0, 1.2), AiVehicle::default(), performance(80.0, 1.2), 1.0, 0.8, 0.0);
     state.glue = 0.5;
     assert_eq!(state.skill(), 1.0);
     assert!((state.cheat() - 0.15).abs() < 1e-6);
@@ -76,16 +68,8 @@ fn the_skill_adds_the_catch_up_and_stays_in_range() {
 
 #[test]
 fn catch_up_increases_level_road_acceleration_and_does_not_become_a_grade() {
-    let mut state = RacerState::new(
-        1,
-        performance(80.0, 1.2),
-        AiVehicle::default(),
-        performance(80.0, 1.2),
-        0.0,
-        1.0,
-        0.0,
-        NitrousLimits::default(),
-    );
+    let mut state =
+        RacerState::new(1, performance(80.0, 1.2), AiVehicle::default(), performance(80.0, 1.2), 0.0, 1.0, 0.0);
     let ordinary = state.action_acceleration(40.0, 0.0, false);
     state.glue = 0.75;
     let boosted = state.action_acceleration(40.0, 0.0, false);
@@ -98,16 +82,8 @@ fn catch_up_increases_level_road_acceleration_and_does_not_become_a_grade() {
 
 #[test]
 fn native_steering_drag_applies_to_non_drag_computer_racers_only() {
-    let mut state = RacerState::new(
-        1,
-        performance(80.0, 1.2),
-        AiVehicle::default(),
-        performance(80.0, 1.2),
-        0.0,
-        1.0,
-        0.0,
-        NitrousLimits::default(),
-    );
+    let mut state =
+        RacerState::new(1, performance(80.0, 1.2), AiVehicle::default(), performance(80.0, 1.2), 0.0, 1.0, 0.0);
     assert_eq!(state.steering_drag(), Some(0.23));
     state.glue = 0.75;
     assert!((state.steering_drag().unwrap() - 0.33125).abs() < 1e-6);

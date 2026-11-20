@@ -74,3 +74,4 @@ mod race_tests;
 #[cfg(test)]
 mod tests;
 mod view_args;
+mod view_settings;

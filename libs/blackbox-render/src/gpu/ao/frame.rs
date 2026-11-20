@@ -19,6 +19,7 @@ impl Renderer {
             self.ao = None;
             return;
         }
+        let jittered = self.jittered();
         let Some(surfaces) = &self.surfaces else { return };
         let targets = &surfaces.targets;
         let ao = self
@@ -47,6 +48,7 @@ impl Renderer {
                 size: targets.size,
                 frame,
                 settings: self.graphics.ao,
+                jittered,
             },
         );
     }

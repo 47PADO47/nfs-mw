@@ -113,6 +113,45 @@ impl CollisionWorld {
         self.revision = self.revision.wrapping_add(1);
     }
 
+    /// Adds (or replaces) a section's pack and lists its instances in the grid, which must have been made for a world whose
+    /// packs come and go ([`Grid::empty`]): the ground reference, the candidate windows and the readiness test then see the pack
+    /// as they see the city's. A pack whose section does not fit a grid reference (above 65,535) is added ungridded. The
+    /// instances are listed by the box of their centre and half extents (a tilted one by its radius).
+    pub fn insert_into_grid(&mut self, pack: CollisionPack) {
+        let section = pack.section;
+        let boxes: Vec<([f32; 2], [f32; 2])> = pack
+            .instances
+            .iter()
+            .map(|inst| {
+                let c = inst.position();
+                let (hx, hz) = if inst.needs_cross() {
+                    (inst.broad_radius(), inst.broad_radius())
+                } else {
+                    (inst.half_width, inst.half_length)
+                };
+                ([c[0] - hx, c[2] - hz], [c[0] + hx, c[2] + hz])
+            })
+            .collect();
+        let (Some(grid), Ok(section16)) = (self.grid.as_mut(), u16::try_from(section)) else {
+            return self.insert_ungridded(pack);
+        };
+        grid.remove_section(section);
+        for (index, (low, high)) in boxes.iter().enumerate() {
+            if let Ok(index) = u16::try_from(index) {
+                grid.add(InstanceRef::new(section16, index), *low, *high);
+            }
+        }
+        self.insert(pack);
+    }
+
+    /// Removes a pack added by [`CollisionWorld::insert_into_grid`] and its instances from the grid.
+    pub fn remove_from_grid(&mut self, section: u32) -> Option<CollisionPack> {
+        if let Some(grid) = self.grid.as_mut() {
+            grid.remove_section(section);
+        }
+        self.remove_ungridded(section).or_else(|| self.remove(section))
+    }
+
     /// Adds a pack outside the grid: every ray cast and ground query tests it. The list is small, so it is tested in turn.
     pub fn insert_ungridded(&mut self, mut pack: CollisionPack) {
         pack.apply_group_exclusion();

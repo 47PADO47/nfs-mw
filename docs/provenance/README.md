@@ -17,6 +17,8 @@ Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 
 | Module | Spec | Restricted sources read |
 |---|---|---|
+| [Fairhaven world and RIDE 6 tracks](chameleon-world.md) | [formats/chameleon-world.md](../formats/chameleon-world.md), [formats/ride6-tracks.md](../formats/ride6-tracks.md), [plans/tracks-and-fairhaven-feasibility.md](../plans/tracks-and-fairhaven-feasibility.md) | The 2012 install's `HAWAII` bundles (measured); `NFS13.exe` type-name and file-name strings only (Ghidra); the RIDE 6 install through CUE4Parse |
+| [2012 tyre marks, water and wet road](chameleon-rain-water.md) | [formats/chameleon-tyre-marks.md](../formats/chameleon-tyre-marks.md), [formats/chameleon-rain-water.md](../formats/chameleon-rain-water.md), [modding/effect-variants-marks-rain.md](../modding/effect-variants-marks-rain.md) | The 2012 install's `SURFACELIST`, `GLOBALEFFECTS`, `SHADERS` and `ENVIRONMENT` bundles (measured); `NFS13.exe` strings and one cross reference (Ghidra) |
 | [Cached terrain reference](vehicle-ground-reference.md) | [specs/vehicle-ground-reference.md](../specs/vehicle-ground-reference.md) | Original PC body triangle-list/query cache and CC0 world collision lifecycle |
 | [Jump stabilizers](vehicle-jump-stabilizers.md) | [specs/vehicle-jump-stabilizers.md](../specs/vehicle-jump-stabilizers.md) | Original PC chassis/world-position routines and CC0 rigid-body cache lifecycle |
 | [Controls list packages](controls-packages.md) | [specs/controls-remap.md](../specs/controls-remap.md) | The install's own `Options_PC_Controller.fng` and `Pause_PC_Controller.fng` object tables (`nfsmw dump-screen`) |
@@ -35,6 +37,7 @@ Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 | [FairBusts reset penalty](fairbusts-reset.md) | [specs/fairbusts-reset.md](../specs/fairbusts-reset.md) | `speed.exe` Ghidra pass (`kResetPenaltyBlock` at 0x0044447C, constants 15, 90, 0.25, 4.0); NFSMWFairBusts summary (MIT, key names only) |
 | [Pursuit breaker moment](pursuit-breaker-moment.md) | [specs/pursuit-breaker-moment.md](../specs/pursuit-breaker-moment.md) | Private `speed.exe` inspection of the NIS activity, ICE playback and marker choice; CC0 structure names; installed camera packs and markers |
 | [Game Moment Camera](game-moment-camera.md) | [specs/game-moment-camera.md](../specs/game-moment-camera.md) | Private `speed.exe` inspection of the camera director, its moment cameras and the option; CC0 names; the installed symbol map |
+| [CustomHUD gauges](custom-hud-gauges.md) | [specs/custom-hud-gauges.md](../specs/custom-hud-gauges.md) | Ghidra on the third-party `CustomHud.asi` (2022 build) and its skin files; nothing copied |
 | [Pursuit breakers](pursuit-breakers.md) | [specs/pursuit-breakers.md](../specs/pursuit-breakers.md) | Original PC 1.3 event dispatch, explosions, models and installed hierarchies |
 | [Trailer constraints](trailer-constraints.md) | [specs/trailer-constraints.md](../specs/trailer-constraints.md) | Original PC 1.3 isolated joint/angle routines and installed bounds |
 | [PC object contacts](pc-object-contact.md) | [specs/pc-object-contact.md](../specs/pc-object-contact.md) | Original PC 1.3 executable (private inspection and emulation), dbalatoni13/nfsmw collision layouts (CC0) |

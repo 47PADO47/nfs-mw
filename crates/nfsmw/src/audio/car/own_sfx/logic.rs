@@ -103,6 +103,12 @@ pub fn backfire_chance(rpm_pct: f32) -> f32 {
     0.03 + 0.22 * rpm_pct * rpm_pct
 }
 
+/// The level a backfire bang asks for at `rpm_pct`: half at idle, the whole at the limiter. A lift-off's backfire is at it
+/// ([`lift_off`]) and so is a pop the host makes (a burnout's, `OwnSfx::exhaust_pop`).
+pub fn backfire_level(rpm_pct: f32) -> f32 {
+    0.5 + 0.5 * rpm_pct.clamp(0.0, 1.0)
+}
+
 /// The chance that a lift-off with no backfire still pops once or twice.
 const LONE_POP_CHANCE: f32 = 0.06;
 
@@ -113,7 +119,7 @@ pub fn lift_off(spool: f32, rpm_pct: f32, rng: &mut Rng) -> LiftOff {
     let blowoff = (spool >= BLOWOFF_MIN_SPOOL).then(|| 0.5 + 0.5 * spool.min(1.0));
     let chance = backfire_chance(rpm_pct);
     let roll = rng.unit();
-    let backfire = (roll < chance).then_some(0.5 + 0.5 * rpm_pct);
+    let backfire = (roll < chance).then_some(backfire_level(rpm_pct));
     let count = match roll {
         r if r < chance => 1 + rng.below(3),
         r if r < chance + LONE_POP_CHANCE => 1 + rng.below(2),

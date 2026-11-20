@@ -4,6 +4,7 @@
 mod benchmark;
 mod bindings;
 #[cfg(test)]
+#[cfg(test)]
 mod contact_tests;
 #[cfg(test)]
 mod convergence_tests;
@@ -44,6 +45,23 @@ struct Params {
     sampling: [u32; 4],
     fog: [f32; 4],
     view: [f32; 16],
+    /// XeGTAO thin occluder compensation, the shading normal guard, then unused.
+    tuning: [f32; 4],
+}
+
+/// A number from the environment, read once, for tuning and comparisons.
+fn env_override(name: &'static str, cell: &'static std::sync::OnceLock<Option<f32>>) -> Option<f32> {
+    *cell.get_or_init(|| std::env::var(name).ok().and_then(|v| v.trim().parse().ok()).filter(|v: &f32| v.is_finite()))
+}
+
+/// `BLACKBOX_AO_THIN_OCCLUDERS` overrides the thin occluder compensation and `BLACKBOX_AO_NORMAL_GUARD` the normal
+/// guard (each 0 to 1; 0 turns it off).
+fn tuning(settings: &AoSettings) -> [f32; 4] {
+    static THIN: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
+    static GUARD: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
+    let thin = env_override("BLACKBOX_AO_THIN_OCCLUDERS", &THIN).map_or(settings.thin_occluders, |v| v.clamp(0.0, 1.0));
+    let guard = env_override("BLACKBOX_AO_NORMAL_GUARD", &GUARD).map_or(settings.normal_guard, |v| v.clamp(0.0, 1.0));
+    [thin, guard, 0.0, 0.0]
 }
 
 struct Images {
@@ -82,6 +100,8 @@ pub(super) struct AmbientOcclusion {
     depth: depth::DepthPyramid,
     temporal: Option<temporal::History>,
     phase: u32,
+    /// Frames drawn under a temporal upscaler, which steps the spatial methods' sample phases.
+    spin: u32,
     fallback_depth: wgpu::TextureView,
     pub mask: wgpu::TextureView,
     pub size: (u32, u32),
@@ -95,6 +115,8 @@ pub(super) struct Draw<'a> {
     pub normals: &'a wgpu::TextureView,
     pub frame: &'a FrameParams,
     pub settings: AoSettings,
+    /// The frame is jittered for a temporal upscaler, which accumulates what it is given over frames.
+    pub jittered: bool,
 }
 
 impl AmbientOcclusion {
@@ -110,6 +132,7 @@ impl AmbientOcclusion {
             images: None,
             temporal: None,
             phase: 0,
+            spin: 0,
             inputs: None,
             depth: depth::DepthPyramid::new(device, (1, 1)),
             fallback_depth: depth::DepthPyramid::new(device, (1, 1)).view,
@@ -162,15 +185,18 @@ impl AmbientOcclusion {
         }
         let images = self.images.as_ref().expect("AO images exist");
         let tan_y = (fov_y * 0.5).tan();
-        let [fog_start, fog_end] = draw.frame.fog_range();
+        self.spin = match draw.jittered && !settings.method.temporal() && animated_noise() {
+            true => self.spin % 64 + 1,
+            false => 0,
+        };
         let params = Params {
             sizes: [draw.size.0 as f32, draw.size.1 as f32, size.0 as f32, size.1 as f32],
             projection: [tan_y * aspect, tan_y, near, f32::from(u8::from(settings.depth_mips))],
             effect: [settings.radius, settings.intensity, 40.0, 100.0],
             sampling: [divisor, slices, steps, u32::from(settings.compare)],
             fog: [
-                fog_start,
-                fog_end,
+                self.spin as f32,
+                0.0,
                 f32::from(u8::from(settings.method.is_xe())),
                 match settings.method.temporal() {
                     true => self.phase as f32,
@@ -178,6 +204,7 @@ impl AmbientOcclusion {
                 },
             ],
             view: draw.frame.view.to_cols_array(),
+            tuning: tuning(&settings),
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
         let depth_size = match settings.depth_mips {
@@ -276,6 +303,13 @@ impl AmbientOcclusion {
         pass.set_bind_group(0, temporal_group.as_ref().unwrap_or(&inputs[2]), &[]);
         pass.draw(0..3, 0..1);
     }
+}
+
+/// Whether the spatial methods step their sample phases each frame under a temporal upscaler.
+/// `BLACKBOX_AO_ANIMATED_NOISE=0` keeps them fixed, for comparing the two.
+fn animated_noise() -> bool {
+    static ANIMATED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ANIMATED.get_or_init(|| std::env::var("BLACKBOX_AO_ANIMATED_NOISE").as_deref() != Ok("0"))
 }
 
 pub(crate) fn sources() -> [(&'static str, String); 6] {

@@ -190,7 +190,13 @@ fn rival_entry(bin: u8, status: RivalStatus, bounty: u32) -> MenuEntry {
         bounty: grouped(i64::from(bounty)),
         status,
     };
-    MenuEntry { label: name, enabled: true, value: MenuValue::Rival(info), icon: None }
+    MenuEntry {
+        label: name,
+        enabled: true,
+        value: MenuValue::Rival(info),
+        icon: None,
+        flags: crate::ui::theme::EntryFlags::ROW,
+    }
 }
 
 /// Whether the holder with this GUID has the focus.
@@ -416,10 +422,7 @@ impl ScreenLogic for BioLogic {
         self.vertical = cx.screen_list_look(ListScreen::Blacklist);
         // One open message by the context (`career-safehouse-2.md` 11.1 and 11.6): the Blacklist sequence's hides the Back
         // prompt and the side groups, the plain one shows them. The bio panel shows on its own message.
-        let opened = match self.sequence {
-            true => RIVAL_OPENED_CAREER,
-            false => RIVAL_OPENED_PLAIN,
-        };
+        let opened = if self.sequence { RIVAL_OPENED_CAREER } else { RIVAL_OPENED_PLAIN };
         post_opening(cx, &[opened, RIVAL_BIO_CONTENT]);
         if self.sequence {
             self.first_visit = enter_first_bin_on_open();

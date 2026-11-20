@@ -34,9 +34,9 @@ const TRACK_GAP: f32 = 6.0;
 const TRACK_WIDTH: f32 = 2.0;
 
 /// The colour key and alpha of a row's text: the primary colour when selected, the secondary otherwise, at half alpha
-/// when disabled.
+/// when disabled. An entry with accent text (a section title, an action) is in the primary colour selected or not.
 pub(super) fn row_colour(entry: &MenuEntry, selected: bool) -> (&'static str, f32) {
-    match (entry.enabled, selected) {
+    match (entry.enabled, selected || entry.flags.accent_text) {
         (false, _) => (keys::TEXT_SECONDARY, DISABLED),
         (true, true) => (keys::TEXT, 1.0),
         (true, false) => (keys::TEXT_SECONDARY, 1.0),
@@ -78,6 +78,14 @@ impl Parts<'_, '_> {
             let (colour, alpha) = row_colour(entry, selected);
             if pictures > 0.0 {
                 self.picture(entry, y);
+            }
+            // A centred entry (a section title, an action) has its text across the row's plate and no value.
+            if entry.flags.centered {
+                let plate = frame.row_rect(y, wide);
+                let room = (plate.w - 2.0 * (frame.text_left() - plate.min_x())).max(0.0);
+                let label = Label::label(entry.label.clone(), fitted(&entry.label, room, frame.sizing()));
+                self.text(label.colour(colour).opacity(alpha), (plate.x, y), Align::Centre);
+                continue;
             }
             let room = (frame.label_room(wide) - pictures).max(0.0);
             let fit = fitted(&entry.label, room, frame.sizing());

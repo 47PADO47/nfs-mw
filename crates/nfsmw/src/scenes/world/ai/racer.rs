@@ -105,9 +105,11 @@ pub struct RacerThink {
     pub speed: f32,
 }
 
-/// The car's nitrous as the think sees it: the tank level (0..1) and whether the button is held.
+/// The car as the think sees it beyond its state: the slope under it (the forward axis's height), the nitrous tank
+/// level (0..1) and whether the nitrous button is held.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct TankView {
+    pub slope_forward_y: f32,
     pub tank: f32,
     pub held: bool,
 }
@@ -130,10 +132,9 @@ impl RacerState {
         bias: f32,
         base_skill: f32,
         speed: f32,
-        nitrous: NitrousLimits,
     ) -> Self {
         Self {
-            nitrous,
+            nitrous: NitrousLimits::default(),
             nitrous_timer: NitrousTimer::default(),
             nitrous_on: false,
             last_speed: None,
@@ -194,6 +195,12 @@ impl RacerState {
         potential_acceleration(table * scale, &self.limits, self.skill(), nos, slope_forward_y)
     }
 
+    /// Gives the racer the nitrous it may use.
+    pub fn with_nitrous(mut self, nitrous: NitrousLimits) -> Self {
+        self.nitrous = nitrous;
+        self
+    }
+
     /// The nitrous button the racer holds (its last think's choice).
     pub fn nitrous(&self) -> bool {
         self.nitrous_on
@@ -230,7 +237,6 @@ impl RacerState {
         car: &CarState,
         traffic: impl IntoIterator<Item: Into<blackbox_roads::Neighbour>>,
         check_off_path: bool,
-        slope_forward_y: f32,
         tank: TankView,
     ) -> RacerThink {
         let (net, index, rng) = (ctx.net, ctx.index, &mut *ctx.rng);
@@ -300,7 +306,7 @@ impl RacerState {
         let skill = self.skill();
         let potential = potential_speed(&self.limits, curvature, skill, None);
         let reference = speed.abs().max(self.governor.speed_limit);
-        let accel = self.action_acceleration(reference, slope_forward_y, burning);
+        let accel = self.action_acceleration(reference, tank.slope_forward_y, burning);
         let wanted = self.governor.update(speed, potential, accel, skill, self.think_delta);
         let view = NitrousView {
             speed,

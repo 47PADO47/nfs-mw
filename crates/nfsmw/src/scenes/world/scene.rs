@@ -31,6 +31,9 @@ impl Scene for WorldScene {
     fn apply_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.apply_garage_selection(renderer, selection)
     }
+    fn vehicle(&mut self) -> Option<&mut dyn crate::viewer::VehicleScene> {
+        Some(self)
+    }
     fn begin_garage(&mut self, renderer: &mut dyn RenderBackend) -> Result<()> {
         anyhow::ensure!(self.garage_entry_allowed(), "Auto shops are unavailable during an event or pursuit");
         self.begin_garage_session(renderer)
@@ -107,8 +110,7 @@ impl Scene for WorldScene {
         self.scene_ui(ctx)
     }
 
-    /// Whether any of the panels above has something to draw (see `ui_panels::Panels`). The scene's readout line is the
-    /// metrics overlay's, so the UI pass asks the metrics for it.
+    /// Whether a panel has something to draw (`ui_panels::Panels`). The readout line is the metrics overlay's, asked there.
     fn wants_ui(&self) -> bool {
         self.panels().any()
     }
@@ -121,11 +123,9 @@ impl Scene for WorldScene {
     fn clip_playing(&self) -> bool {
         self.story_movie.is_playing()
     }
-
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
         self.scene_set_tire_effects(smoke, skid_marks)
     }
-
     fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
         self.update_car_shading(renderer);
         self.update_shadow_casters(renderer);

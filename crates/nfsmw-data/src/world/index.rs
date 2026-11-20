@@ -91,6 +91,29 @@ impl WorldIndex {
         })
     }
 
+    /// This index as the base of a second world (`docs/specs/second-world.md`): the shared sets stay (the sky, the common
+    /// models and textures) and everything of the city goes: the map tiles and the zones that list them, the collision
+    /// grid, the roads and their zones and barriers, the scenery groups and overrides. `track` becomes the world's id.
+    pub fn without_city(mut self, track: &str) -> Self {
+        self.track = track.to_owned();
+        self.sections.retain(|section| !section.is_spatial());
+        self.visible = VisibleSections {
+            lod_offset: self.visible.lod_offset,
+            region: Vec::new(),
+            boundaries: Vec::new(),
+            drivable: Vec::new(),
+            loading: Vec::new(),
+        };
+        self.collision_grid = None;
+        self.road_network = None;
+        self.track_zones = None;
+        self.track_barriers.clear();
+        self.scenery_groups.clear();
+        self.override_groups.clear();
+        self.scenery_overrides.clear();
+        self
+    }
+
     /// Indices of the shared (non-spatial) sections.
     pub fn shared(&self) -> impl Iterator<Item = usize> + '_ {
         self.sections.iter().enumerate().filter(|(_, s)| !s.is_spatial()).map(|(i, _)| i)

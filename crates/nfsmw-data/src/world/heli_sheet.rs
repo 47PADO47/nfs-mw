@@ -16,6 +16,15 @@ const BUFFER: usize = 256 * 1024;
 /// The id that marks a compressed blob in place of a header; the walk does not follow those.
 const BARE_JDLZ: u32 = blackbox_chunk::BARE_JDLZ_ID;
 
+/// [`read`] once per session: later calls while the file is unchanged (same resolved path, size and modification
+/// time, see [`crate::memo`]) get a copy of the first read instead of walking the stream file again.
+pub fn cached(dir: &GameDir, stream_file: &str) -> anyhow::Result<HeliSheet> {
+    crate::memo(dir, &[stream_file], || Ok(Memo(read(dir, stream_file)?))).map(|hit| hit.0.clone())
+}
+
+/// The memo entry type of [`shared`], private so no other memo of a `HeliSheet` shares its entries.
+struct Memo(HeliSheet);
+
 /// Reads the sheet of the stream file `stream_file` (relative to the install). Sections whose sheet does not parse are
 /// skipped and counted in the log.
 pub fn read(dir: &GameDir, stream_file: &str) -> io::Result<HeliSheet> {
@@ -57,4 +66,44 @@ pub fn read(dir: &GameDir, stream_file: &str) -> io::Result<HeliSheet> {
         log::warn!("helicopter sheet: {skipped} section sheets did not parse");
     }
     Ok(HeliSheet::new(triangles))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A stream file of one unrelated chunk and one `HeliSheet` chunk holding a single triangle.
+    fn stream() -> Vec<u8> {
+        let mut sheet = vec![0x11; 4];
+        sheet.extend_from_slice(&[11, 0, 0, 0, 11, 0, 0, 0]);
+        sheet.extend_from_slice(&7u32.to_le_bytes());
+        sheet.extend_from_slice(&1u32.to_le_bytes());
+        sheet.extend_from_slice(&[0; 8]);
+        for word in [0i16, 160, 0, 0, 0, 160, 160, 160, 320] {
+            sheet.extend_from_slice(&word.to_le_bytes());
+        }
+        sheet.extend_from_slice(&[0, 0]);
+        let mut out = Vec::new();
+        out.extend_from_slice(&0x1234_5678u32.to_le_bytes());
+        out.extend_from_slice(&4u32.to_le_bytes());
+        out.extend_from_slice(&[1, 2, 3, 4]);
+        out.extend_from_slice(&HELI_SHEET.to_le_bytes());
+        out.extend_from_slice(&(sheet.len() as u32).to_le_bytes());
+        out.extend_from_slice(&sheet);
+        out
+    }
+
+    #[test]
+    fn cached_sheet_equals_a_fresh_read_on_every_call() {
+        let root = std::env::temp_dir().join(format!("nfsmw-data-heli-sheet-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("TRACKS")).unwrap();
+        std::fs::write(root.join("TRACKS/STREAML2RA.BUN"), stream()).unwrap();
+        let dir = GameDir::open(&root).unwrap();
+        let fresh = read(&dir, "TRACKS/STREAML2RA.BUN").unwrap();
+        assert_eq!(fresh.len(), 1);
+        assert_eq!(cached(&dir, "TRACKS/STREAML2RA.BUN").unwrap(), fresh);
+        assert_eq!(cached(&dir, "TRACKS/STREAML2RA.BUN").unwrap(), fresh, "a memo hit is the same sheet");
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

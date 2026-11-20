@@ -6,7 +6,13 @@ before the Rust implementation. Required wherever the only source is decompiled 
 
 Loose prop scenery contacts: [prop-world-barriers.md](prop-world-barriers.md).
 
+The CustomHUD plugin's gauge skins (the mod `scripts/CustomHud.asi`): [custom-hud-gauges.md](custom-hud-gauges.md), with the file
+format in [../formats/custom-hud-skin.md](../formats/custom-hud-skin.md).
+
 Player countdown follow-up: [clutch state and comparison boundaries](player-countdown-drivetrain.md).
+
+Vehicle components (ADR 0014): [vehicle-components/](vehicle-components/README.md) (data model, resolution, manifest, runtime and worked
+examples for the 2005, 2012 and RIDE 6 vehicles; the plan is [plans/vehicle-components.md](../plans/vehicle-components.md)).
 
 Driving extensions: [performance-upgrades.md](performance-upgrades.md),
 [speedbreaker.md](speedbreaker.md), [vehicle-jump-stabilizers.md](vehicle-jump-stabilizers.md),
@@ -75,7 +81,9 @@ textured sparks and contact glow separately from the experimental restoration.
 
 [Post-processing](post-processing.md) specifies the optional bloom, tone mapping and FXAA passes (new design).
 
-[UI themes](ui-themes.md) specifies the themeable HUD and menus: the component model, the neutral draw tree, the element slots, the Original fallback, the `UiStyle` setting and the `bb.ui` mod hook (new design, see [ADR 0008](../decisions/0008-ui-themes.md)). [UI theme menus](ui-themes-menus.md) covers the menu cell, the Original menu adapters and the slot map the frontend plugin fills in T12. [UI theme custom](ui-themes-custom.md) covers the Custom radio card and the retired egui radio path. [UI theme Remastered menus](ui-themes-remastered-menus.md) covers the vertical icon menus of the Remastered style. [UI theme Remastered screens](ui-themes-remastered-screens.md) covers its dialogs, key list, credits, Blacklist, minimap and radio card. [Custom HUD 2026](custom-hud/README.md) is the from-scratch rewrite of the Custom style ([ADR 0013](../decisions/0013-custom-hud.md)): tokens, OS fonts, layout, the telemetry cluster, the centred map, the race and pursuit layouts, notifications, world markers, the `[custom_hud]` settings and what is not shown. [Custom HUD scenarios](custom-hud-scenarios.md) covers the deterministic `--hud-scenario` fixtures and the HUD screenshot matrix.
+[Colour grading](colour-grading.md) specifies the 3D look-up table stage, the `grading_variant` kind and the 2012 cubes' selection by hour and rain (new design).
+
+[UI themes](ui-themes.md) specifies the themeable HUD and menus: the component model, the neutral draw tree, the element slots, the Original fallback, the `UiStyle` setting and the `bb.ui` mod hook (new design, see [ADR 0008](../decisions/0008-ui-themes.md)). [UI theme menus](ui-themes-menus.md) covers the menu cell, the Original menu adapters and the slot map the frontend plugin fills in T12. [Menu sections](menu-sections.md) covers the section titles of the option pages (Gameplay, Video) and the abstract menu model they are built on ([ADR 0015](../decisions/0015-menu-sections.md)). [UI theme custom](ui-themes-custom.md) covers the Custom radio card and the retired egui radio path. [UI theme Remastered menus](ui-themes-remastered-menus.md) covers the vertical icon menus of the Remastered style. [UI theme Remastered screens](ui-themes-remastered-screens.md) covers its dialogs, key list, credits, Blacklist, minimap and radio card. [Custom HUD 2026](custom-hud/README.md) is the from-scratch rewrite of the Custom style ([ADR 0013](../decisions/0013-custom-hud.md)): tokens, OS fonts, layout, the telemetry cluster, the centred map, the race and pursuit layouts, notifications, world markers, the `[custom_hud]` settings and what is not shown. [Custom HUD scenarios](custom-hud-scenarios.md) covers the deterministic `--hud-scenario` fixtures and the HUD screenshot matrix.
 
 [Contrast-adaptive sharpening](cas-sharpening.md) specifies a CAS pass for native resolution, from AMD's MIT algorithm as read in a ReShade pack (new design; overlaps RCAS, see the spec).
 

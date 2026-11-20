@@ -431,11 +431,11 @@ impl AiCar {
                     &state,
                     neighbours,
                     (self.steps + self.stagger).is_multiple_of(4),
-                    match self.stand_in.active {
-                        true => 0.0,
-                        false => view.forward.y,
+                    racer::TankView {
+                        slope_forward_y: if self.stand_in.active { 0.0 } else { view.forward.y },
+                        tank: self.sim.telemetry().nos,
+                        held: self.controls.nos,
                     },
-                    racer::TankView { tank: self.sim.telemetry().nos, held: self.controls.nos },
                 );
                 self.target = think.target;
                 self.speed = think.speed;

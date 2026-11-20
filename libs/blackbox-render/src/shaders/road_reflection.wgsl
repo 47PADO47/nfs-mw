@@ -17,9 +17,10 @@ fn road_delta(p:vec3<f32>,size:vec2<i32>)->f32 {
 }
 // `footprint` is the receiver's world-space pixel size. The caller takes the derivatives in uniform control
 // flow, so this march may run behind per-pixel branches (such as skipping unreflective pixels).
-fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,pool:f32,footprint:f32)->vec3<f32> {
+// `trace`: whether the reflection weighs enough to march; otherwise the probe alone answers.
+fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,pool:f32,footprint:f32,trace:bool)->vec3<f32> {
     let roughness=mix(0.32,0.07,pool);
-    if road_control.x<0.5 || globals.fog_range.w>0.5 { return road_probe_at(world,ray,roughness); }
+    if !trace || road_control.x<0.5 || globals.fog_range.w>0.5 { return road_probe_at(world,ray,roughness); }
     // A fixed centimetre bias can hit the receiver's own depth texel on distant roads.
     let origin = world+normal*max(0.06,footprint*0.25);
     let size = vec2<i32>(textureDimensions(road_depth));
@@ -29,7 +30,8 @@ fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,pool:f32,f
     var previous = 0.15;
     var previous_delta = -1e6;
     // Preserve sampling density as range increases, rather than stretching the same sparse rays.
-    let steps = u32(clamp(ceil(road_control.z*0.6),96.0,480.0));
+    // 128 steps at the default 320 range (two thirds of the former count) plus eight bisections: see docs/rain.md.
+    let steps = u32(clamp(ceil(road_control.z*0.4),64.0,320.0));
     for (var i=1u;i<=steps;i++) {
         let f = f32(i)/f32(steps);
         let t = 0.15+f*f*road_control.z;
@@ -39,7 +41,7 @@ fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,pool:f32,f
         // A front-to-back crossing is necessary. A ray starting behind foreground geometry is a miss.
         if previous_delta<0.0 && delta>=0.0 {
             var low = previous; var high = t;
-            for (var j=0u;j<7u;j++) {
+            for (var j=0u;j<8u;j++) {
                 let middle = (low+high)*0.5;
                 let hit = road_project(clip_origin+clip_ray*middle);
                 if road_delta(hit,size)>=0.0 { high=middle; continue; }

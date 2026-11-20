@@ -43,7 +43,8 @@ pub(super) fn load_with_shared(
         // Only the wanted textures are copied or decompressed; the others are skipped before their pixels are read.
         let packs = blackbox_tpk::read_texture_packs_filtered(&file, |hash| wanted.contains(&hash))
             .with_context(|| format!("parsing textures in {rel}"))?;
-        for pack in packs {
+        for mut pack in packs {
+            crate::texture_packs::apply_file(dir, &rel, &mut pack.textures);
             for t in pack.textures {
                 textures.entry(t.name_hash).or_insert(t);
             }

@@ -79,6 +79,12 @@ GPUOpen-Effects/FidelityFX-FSR — https://github.com/GPUOpen-Effects/FidelityFX
   reciprocal and reciprocal square root helpers of ffx_a.h. The MIT notice is kept at the
   top of that file. The upstream header files are not vendored.
 
+Bend Studio screen space shadows — https://www.bendstudio.com/blog/inside-bend-screen-space-shadows/ — Apache-2.0
+  Copyright 2023 Sony Interactive Entertainment.
+  bend_sss_gpu.h and bend_sss_cpu.h (2023 release) ported into libs/blackbox-render:
+  src/shaders/screen_shadow.wgsl (WriteScreenSpaceShadow, ComputeWavefrontExtents) and
+  src/gpu/contact/wavefront.rs (BuildDispatchList). Both files carry the Apache notice and state their changes.
+
 GPUOpen-LibrariesAndSDKs/FidelityFX-SDK — https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK — MIT
   Copyright (C) 2024 Advanced Micro Devices, Inc.
   Pinned to the tag v1.1.4 (commit c6efa6bf7f2027b3ec94f28578bb5965eabb9e55), whose FSR 3 upscaler is
@@ -454,6 +460,13 @@ https://www.advances.realtimerendering.com/s2015/index.html
 Tatarchuk and Isidoro, Artist-Directable Real-Time Rain Rendering in City Environments:
 https://advances.realtimerendering.com/s2006/Chapter3-Artist-Directable_Real-Time_Rain_Rendering_in_City_Environments.pdf
 Rendering references only. No code or assets copied.
+
+Specular occlusion from screen-space AO
+---------------------------------------
+Sebastien Lagarde and Charles de Rousiers, Moving Frostbite to Physically Based Rendering 3.0
+(SIGGRAPH 2014 Physically Based Shading course notes), specular occlusion approximation:
+https://blog.selfshadow.com/publications/s2014-shading-course/
+The published formula is evaluated in blackbox-render's world and glossy shaders. No code copied.
 
 Enhanced exhaust appearance
 --------------------------

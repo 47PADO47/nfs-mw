@@ -2,26 +2,27 @@
 use super::tests::scene_shading;
 use crate::gpu::test_support;
 use blackbox_gfx::{
-    AoQuality, AoSettings, BlendMode, GlossyMaterial, GraphicsSettings, Instance, PixelFormat, RenderBackend, Shading,
-    TextureDesc, Upscaler,
+    AoQuality, AoSettings, BlendMode, GlossyMaterial, GraphicsSettings, Instance, PixelFormat, RenderBackend,
+    RenderExperiments, Shading, TextureDesc, Upscaler,
 };
 use blackbox_gfx_testkit::mesh::{MeshBuilder, prelit};
 use glam::{Mat4, Vec3};
 
 #[test]
 #[ignore = "needs a GPU"]
-fn depth_reuse_preserves_cutout_transparency_and_falls_back_for_biased_mips() {
+fn depth_reuse_preserves_cutout_transparency_under_biased_mips() {
     let _serial = test_support::serial();
     let size = (319, 237);
     let Some(mut r) = test_support::headless(size) else { return };
     let material = r.create_glossy_material(&GlossyMaterial::default());
-    // Different alpha coverage at each mip makes a prepass/colour LOD mismatch observable.
-    let mips: Vec<Vec<u8>> = (0..5)
+    // Different alpha coverage at each mip makes a prepass/colour LOD mismatch observable: 4-texel blocks of each
+    // level, flipped per level, on a texture minified enough on screen that the LOD bias changes the level.
+    let mips: Vec<Vec<u8>> = (0..9)
         .map(|level| {
-            let width = 16 >> level;
+            let width = 256 >> level;
             (0..width * width)
                 .flat_map(|pixel| {
-                    let alpha = match (pixel / width + pixel % width + level) % 2 {
+                    let alpha = match ((pixel / width) / 4 + (pixel % width) / 4 + level) % 2 {
                         0 => 0,
                         _ => 255,
                     };
@@ -32,12 +33,18 @@ fn depth_reuse_preserves_cutout_transparency_and_falls_back_for_biased_mips() {
         .collect();
     let texture = r.create_texture(&TextureDesc {
         label: "depth reuse cutout mips",
-        width: 16,
-        height: 16,
+        width: 256,
+        height: 256,
         format: PixelFormat::Rgba8,
         mips: mips.iter().map(Vec::as_slice).collect(),
     });
-    for shading in [Shading::Lit, Shading::Prelit, Shading::Glossy(material)] {
+    // Glossy cutouts sample without the bias; the scenery families with it.
+    let shadings = [Shading::Lit, Shading::Prelit, Shading::World, Shading::Tree, Shading::WorldPrelit];
+    for (shading, original) in
+        shadings.into_iter().flat_map(|s| [(s, false), (s, true)]).chain([(Shading::Glossy(material), false)])
+    {
+        // Original world materials route trees and prelit world cutouts to their own prepass alpha rules.
+        r.set_render_experiments(RenderExperiments { original_world_materials: original, ..r.experiments });
         let (frame, mut instances) = scene_shading(&mut r, size, false, Shading::Prelit);
         let mut mesh = MeshBuilder::new();
         mesh.state(Some(texture), BlendMode::AlphaTest, shading);
@@ -59,10 +66,11 @@ fn depth_reuse_preserves_cutout_transparency_and_falls_back_for_biased_mips() {
             r.render(&frame, &instances).unwrap();
             let shared = r.read_output().unwrap().unwrap().rgba;
             let depth_is_shared = r.surfaces.as_ref().unwrap().targets.depth == *r.targets.depth_view();
-            assert_eq!(depth_is_shared, scale == 1.0, "biased alpha-test mips require separate depth");
+            assert!(depth_is_shared, "the prepass samples cutouts with the colour pass's bias");
             r.set_prepass_depth_reuse(false);
             r.render(&frame, &instances).unwrap();
-            assert_eq!(shared, r.read_output().unwrap().unwrap().rgba, "changed {shading:?} at scale {scale}");
+            let separate = r.read_output().unwrap().unwrap().rgba;
+            assert_eq!(shared, separate, "changed {shading:?} (original {original}) at scale {scale}");
         }
     }
 }

@@ -48,10 +48,13 @@ share that map, including reflection faces and mirrors. The atmosphere and sun d
 are still evaluated per pixel in each view, keeping the solar disk sharp.
 
 The map updates whenever wind time, cloud coverage or sunlight changes. Wind and
-slow sun drift rebuild one of four horizontal row bands per frame, cycling, so each
-texel is still a complete single-frame march (at most three frames old, no blending
-with history). A visible jump in coverage, sunset warmth or sun direction, or a
-camera move of 32 m, rebuilds every row at once, including at frozen time. The light
+slow sun drift rebuild one of eight horizontal row bands per frame, cycling, so each
+texel is still a complete single-frame march (at most seven frames old, no blending
+with history). Only the frame's own view marches a band; its reflection faces, mirror
+and road capture share the map. A visible jump in coverage, sunset warmth or sun
+direction rebuilds every row at once, including at frozen time. Each band is marched
+from the eye of its own frame, so the map follows a moving camera; only a held map
+(no wind) rebuilds every row after a camera move of 32 m. The light
 march through each cloud sample uses four steps. Nearby eyes share one
 origin: their cloud parallax is approximated because the cloud base is 2 km high.
 Cloud detail has a fixed angular resolution and is bilinearly reconstructed;
@@ -91,3 +94,12 @@ A fixed midpoint replaces the interleaved screen pattern; longer horizon paths
 use up to 384 samples instead of a fixed 96. This improves the source image
 without temporal reconstruction. The shared angular map can still limit distant
 silhouettes; this does not extend the day/night orbit.
+
+## Sky variants
+
+A mod's [sky variant](modding/sky-variants.md) (the 2012 mod's **NFS Most Wanted 2012**, Options > Gameplay > Sky) puts cloud domes into
+the shared cloud map in place of the march: two equirectangular pictures of the upper hemisphere, blended by the hour of the day clock and
+chosen by the cloud cover, lit by a tint, and turned so the sun painted in a dome is under the drawn sun. The atmosphere, the solar disk, the sun
+glare, the fog and the stars stay as described above; the moon is the variant's picture at night in the full day/night cycle. While a variant is
+chosen the sky is the Enhanced one (the Original PC layers cannot show a panorama) and the procedural cloud shadows are off. Without a
+variant nothing here changes.

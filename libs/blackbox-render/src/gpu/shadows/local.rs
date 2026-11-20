@@ -5,6 +5,7 @@ use blackbox_gfx::{ExperimentStats, FrameParams, Instance, LocalLight, Projectio
 use bytemuck::Zeroable;
 use glam::{Mat4, Vec3};
 
+mod cache;
 mod light_grid;
 
 #[repr(C)]
@@ -26,6 +27,9 @@ pub(in crate::gpu) struct Params {
 pub(in crate::gpu) struct Local {
     resolution: u32,
     depth: Shadows,
+    cache: cache::LampCache,
+    /// Shadowed lights of the last frame that reused their kept static depth.
+    pub(in crate::gpu) reused: u32,
     view: wgpu::TextureView,
     layers: Vec<wgpu::TextureView>,
 }
@@ -74,6 +78,8 @@ impl Renderer {
                         self.pipeline_cache.as_ref(),
                         capacity,
                     ),
+                    cache: Default::default(),
+                    reused: 0,
                     view,
                     layers,
                 }
@@ -129,6 +135,11 @@ impl Renderer {
             .find(|l| l.upper_plane.is_none() && l.casts_shadow)
             .map(|l| Vec3::from_array(l.position).distance(frame.camera_position));
         let mut stats = ExperimentStats::default();
+        let mut reused = 0u32;
+        local.cache.begin(capacity, texture_resolution, casters.len());
+        depth.cache.begin(casters.len());
+        let mut fixed = std::mem::take(&mut depth.fixed);
+        let mut moving = std::mem::take(&mut depth.moving);
         for (slot, light) in self.local_lights.iter().enumerate() {
             let position = Vec3::from_array(light.position);
             let direction = Vec3::from_array(light.direction).normalize();
@@ -193,33 +204,114 @@ impl Renderer {
                 }
                 depth.selected.push(index);
             }
-            depth.scratch.upload(
-                &self.device,
-                &self.queue,
-                &mut depth.instances[slot],
-                casters,
-                &depth.selected,
-                depth.store.then_some(&depth.caster_slots),
+            let slots = depth.store.then_some(depth.caster_slots.as_slice());
+            // A light that kept its projection since the previous frame keeps the depth of its unmoving casters.
+            let projection = matrix.to_cols_array().map(f32::to_bits);
+            fixed.clear();
+            moving.clear();
+            if local.cache.still(projection) && keep_static_depth() {
+                for &index in &depth.selected {
+                    match local.cache.resting(index, casters) {
+                        true => fixed.push(index),
+                        false => moving.push(index),
+                    }
+                }
+            }
+            if fixed.is_empty() {
+                local.cache.set_layer(slot, None);
+                depth.scratch.upload(
+                    &self.device,
+                    &self.queue,
+                    &mut depth.instances[slot],
+                    casters,
+                    &depth.selected,
+                    slots,
+                );
+                depth.draw_selected(
+                    self,
+                    encoder,
+                    slot,
+                    &local.layers[slot],
+                    resolution as f32,
+                    wgpu::LoadOp::Clear(1.0),
+                    &depth.instances[slot].buffer,
+                    &depth.selected,
+                    casters,
+                    &mut stats,
+                );
+                continue;
+            }
+            let fingerprint = depth.cache.fingerprint(self, matrix, &fixed, casters);
+            let kept = local.cache.kept(&self.device, resolution, projection, fingerprint);
+            if kept.stale {
+                let buffer = &mut depth.static_instances[slot];
+                depth.scratch.upload(&self.device, &self.queue, buffer, casters, &fixed, slots);
+                depth.draw_selected(
+                    self,
+                    encoder,
+                    slot,
+                    &kept.image,
+                    resolution as f32,
+                    wgpu::LoadOp::Clear(1.0),
+                    &depth.static_instances[slot].buffer,
+                    &fixed,
+                    casters,
+                    &mut stats,
+                );
+            }
+            if !kept.stale {
+                reused += 1;
+            }
+            if !kept.stale && moving.is_empty() && local.cache.holds(slot, projection, fingerprint) {
+                continue;
+            }
+            let mut destination = local.layers[slot].texture().as_image_copy();
+            destination.origin.z = slot as u32;
+            encoder.copy_texture_to_texture(
+                kept.image.texture().as_image_copy(),
+                destination,
+                wgpu::Extent3d { width: resolution, height: resolution, depth_or_array_layers: 1 },
             );
+            local.cache.set_layer(slot, moving.is_empty().then_some((projection, fingerprint)));
+            if moving.is_empty() {
+                continue;
+            }
+            depth.scratch.upload(&self.device, &self.queue, &mut depth.instances[slot], casters, &moving, slots);
             depth.draw_selected(
                 self,
                 encoder,
                 slot,
                 &local.layers[slot],
                 resolution as f32,
-                wgpu::LoadOp::Clear(1.0),
+                wgpu::LoadOp::Load,
                 &depth.instances[slot].buffer,
-                &depth.selected,
+                &moving,
                 casters,
                 &mut stats,
             );
         }
+        depth.fixed = fixed;
+        depth.moving = moving;
+        local.cache.end();
+        local.reused = reused;
         params.options = [self.local_lights.len() as f32, shadow_count as f32, options.local_shadow_filter, night];
         self.queue.write_buffer(&self.shared.shadows.buffer, offset, bytemuck::bytes_of(&params));
         blackbox_trace::global().counter(
             "Local lamp shadows",
-            &[("lights", self.local_lights.len() as f64), ("caster_draws", f64::from(stats.shadow_draws))],
+            &[
+                ("lights", self.local_lights.len() as f64),
+                ("caster_draws", f64::from(stats.shadow_draws)),
+                ("reused_maps", f64::from(reused)),
+                ("kept_mib", f64::from(local.cache.mib())),
+            ],
         );
         self.local_shadows = Some(local);
     }
+}
+
+/// Whether still lights keep the depth of their resting casters. `BLACKBOX_LAMP_SHADOW_CACHE=0` redraws every map
+/// in full each frame, for comparing the two.
+fn keep_static_depth() -> bool {
+    static KEEP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *KEEP.get_or_init(|| std::env::var("BLACKBOX_LAMP_SHADOW_CACHE").as_deref() != Ok("0"))
 }

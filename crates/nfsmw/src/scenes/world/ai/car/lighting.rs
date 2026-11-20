@@ -69,6 +69,24 @@ impl AiCar {
         }
     }
 
+    /// The lamps, frame and lamp state of the car's light bar while it runs, for the light it casts; `None` when the
+    /// bar is off or the car has no siren lamps. The state carries the same `time` as the flares, so both flash
+    /// together. Reads only.
+    pub(in crate::scenes::world::ai) fn light_bar(
+        &self,
+        alpha: f32,
+    ) -> Option<(&crate::scenes::world::car_lights::CarLights, glam::Mat4, LampState)> {
+        if !self.emergency_lights() {
+            return None;
+        }
+        let lamps = self.rig.lights();
+        if !lamps.lamps().iter().any(|lamp| crate::scenes::world::local_lights::siren_colour(lamp.kind).is_some()) {
+            return None;
+        }
+        let state = LampState { time: self.lamp_time(alpha), ..self.lamp_state() };
+        Some((lamps, self.pose(alpha).transform(), state))
+    }
+
     pub fn flares(&self, alpha: f32, view: FlareView, out: &mut Vec<TexturedEffect>) {
         let state = LampState { time: self.lamp_time(alpha), ..self.lamp_state() };
         let world = self.pose(alpha).transform();

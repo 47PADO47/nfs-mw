@@ -69,6 +69,7 @@ fn spawn_car(scene: &mut WorldScene, focus: super::Focus, car: &str, rest: &[&st
     if !metres.is_finite() || metres.abs() > 1000.0 {
         return Err("the distance is from -1000 to 1000 metres".into());
     }
+    not_placing(scene)?;
     let cars = nfsmw_data::car::list(&scene.dir);
     let name = nfsmw_data::car::pick_folder(&cars, car).unwrap_or(car).to_owned();
     let at = [focus.position[0] + focus.heading.cos() * metres, focus.position[1] + focus.heading.sin() * metres];
@@ -170,6 +171,7 @@ fn cops_listing(scene: &WorldScene) -> String {
 /// out and nothing overlaps the spot; when the cop budget is full the lowest-priority cop is taken off the road first.
 fn queue_cop(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, name: &str) -> Result<String, String> {
     use super::cop_manager::requests::Role;
+    not_placing(scene)?;
     load_cop_models(scene, renderer, &[name.to_owned()])?;
     let focus = scene.traffic_focus();
     let body = focus.body.ok_or("not driving (use the drive command first)")?;
@@ -181,6 +183,15 @@ fn queue_cop(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, name: &st
     };
     traffic.queue_cop_spawn(name, body.position + forward * 40.0, forward, role);
     Ok(format!("a {name} is asked for as {role:?}: {}", traffic.fleet_status()))
+}
+
+/// An error while the driven car still waits for its place on the road: a distance ahead of it means nothing yet (an
+/// `--exec` line runs on the first frame; `wait ready` before it holds it until the car is placed).
+fn not_placing(scene: &WorldScene) -> Result<(), String> {
+    if scene.players.lead().is_some_and(|drive| drive.waiting_for_road().is_some()) {
+        return Err("the car is not on the road yet (put `wait ready` before this line)".into());
+    }
+    Ok(())
 }
 
 /// Starts a chase at `heat` against `player`: loads the cop models of its wave and gives the wave to the traffic.
@@ -341,10 +352,21 @@ pub(in crate::scenes::world) fn scripted_cops(scene: &mut WorldScene, renderer: 
 /// `signals [props]`: the traffic lights of the signalled approaches, matched to the real traffic-light props of the map
 /// or not. An approach with no matched prop shows no light.
 pub(in crate::scenes::world) fn signals_command(scene: &mut WorldScene, args: &[&str]) -> Result<String, String> {
-    const USAGE: &str = "usage: signals [props]";
+    const USAGE: &str = "usage: signals [props | force red|amber|green|off]";
     let traffic = scene.traffic.as_mut().ok_or("this track has no road network")?;
     match args {
         [] | ["props"] => Ok(traffic.signal_props_status()),
+        ["force", colour] => {
+            let light = match *colour {
+                "red" => Some(blackbox_roads::Light::Red),
+                "amber" => Some(blackbox_roads::Light::Amber),
+                "green" => Some(blackbox_roads::Light::Green),
+                "off" => None,
+                _ => return Err(USAGE.into()),
+            };
+            traffic.force_signal(light);
+            Ok(format!("signal lamps: {colour}"))
+        }
         _ => Err(USAGE.into()),
     }
 }

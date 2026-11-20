@@ -29,9 +29,10 @@ impl SharedAssets {
             let bytes = dir
                 .read_range(&index.stream_file, u64::from(section.file_offset), section.size as usize)
                 .with_context(|| format!("reading section {}", section.name))?;
-            for pack in blackbox_tpk::read_texture_packs_filtered(&bytes, |hash| needed.contains(&hash))
+            for mut pack in blackbox_tpk::read_texture_packs_filtered(&bytes, |hash| needed.contains(&hash))
                 .with_context(|| format!("selected textures in section {}", section.name))?
             {
+                crate::texture_packs::apply_file(dir, &index.stream_file, &mut pack.textures);
                 for texture in pack.textures {
                     textures.entry(texture.name_hash).or_insert(texture);
                 }

@@ -23,6 +23,7 @@ fn variant<'a>() -> OptionSpec<'a> {
         label: "Nitrous variant",
         values: vec![ValueSpec { id: "mw2012", label: "NFS Most Wanted 2012" }],
         default_on: false,
+        section: "",
     }
 }
 
@@ -106,8 +107,14 @@ fn the_mods_callback_runs_with_the_new_value() {
 #[test]
 fn a_clash_of_kinds_is_refused_and_a_setting_the_game_lacks_is_appended() {
     let (bridge, _, port) = setup();
-    let toggle =
-        OptionSpec { id: NITROUS_VARIANT, kind: OptionKind::Toggle, label: "x", values: vec![], default_on: false };
+    let toggle = OptionSpec {
+        id: NITROUS_VARIANT,
+        kind: OptionKind::Toggle,
+        label: "x",
+        values: vec![],
+        default_on: false,
+        section: "",
+    };
     assert_eq!(port.add_option("m", &toggle, None), Err(BB_ERR_EXISTS));
     assert!(visible(&bridge).is_empty());
 
@@ -117,6 +124,7 @@ fn a_clash_of_kinds_is_refused_and_a_setting_the_game_lacks_is_appended() {
         label: "Flame colour",
         values: vec![ValueSpec { id: "blue", label: "Blue" }, ValueSpec { id: "red", label: "Red" }],
         default_on: false,
+        section: "",
     };
     port.add_option("m", &new, None).unwrap();
     let at = visible(&bridge)[0];
@@ -129,12 +137,36 @@ fn a_clash_of_kinds_is_refused_and_a_setting_the_game_lacks_is_appended() {
 fn a_toggle_the_mod_adds_is_shown_and_flips() {
     let (bridge, _, port) = setup();
     let (seen, handler) = recorder();
-    let toggle =
-        OptionSpec { id: "extra_hud", kind: OptionKind::Toggle, label: "Extra HUD", values: vec![], default_on: true };
+    let toggle = OptionSpec {
+        id: "extra_hud",
+        kind: OptionKind::Toggle,
+        label: "Extra HUD",
+        values: vec![],
+        default_on: true,
+        section: "",
+    };
     port.add_option("m", &toggle, Some(handler)).unwrap();
     let at = visible(&bridge)[0];
     assert!(info(&bridge, at).unwrap().on);
     change(&bridge, at, true);
     assert!(!info(&bridge, at).unwrap().on);
     assert_eq!(*seen.borrow(), ["off"]);
+}
+
+#[test]
+fn an_option_reports_the_section_its_mod_declared_in_the_players_language() {
+    let (bridge, _, port) = setup();
+    let in_section = OptionSpec {
+        id: "extra_hud",
+        kind: OptionKind::Toggle,
+        label: "Extra HUD",
+        values: vec![],
+        default_on: false,
+        section: "RIDE 6",
+    };
+    port.add_option("m", &in_section, None).unwrap();
+    let plain = OptionSpec { id: "plain", section: "", ..in_section.clone() };
+    port.add_option("m", &plain, None).unwrap();
+    let sections: Vec<String> = visible(&bridge).into_iter().map(|at| info(&bridge, at).unwrap().section).collect();
+    assert_eq!(sections, ["RIDE 6", ""], "no section is the default section");
 }

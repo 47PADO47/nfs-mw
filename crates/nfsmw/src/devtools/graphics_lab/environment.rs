@@ -209,15 +209,16 @@ fn sky_tuning(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
 
 /// The local lamp options the full day/night cycle switches on, as they were before.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct LampOptions([bool; 5]);
+pub(super) struct LampOptions([bool; 6]);
 
-fn lamps(o: &mut RenderExperiments) -> [&mut bool; 5] {
+fn lamps(o: &mut RenderExperiments) -> [&mut bool; 6] {
     [
         &mut o.local_lamps,
         &mut o.local_street_lights,
         &mut o.local_headlights,
         &mut o.local_traffic_headlights,
         &mut o.local_tail_lights,
+        &mut o.local_emergency_lights,
     ]
 }
 

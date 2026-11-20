@@ -3,6 +3,10 @@
 //! The console's state is the [`Console`] resource and the log buffer, both plain data. Typed lines are
 //! parsed into [`parse::Command`]s and run by [`exec`]; [`view`] is the thin egui panel over all of it.
 
+mod dev_cmd;
+mod dev_parse;
+#[cfg(test)]
+mod dev_tests;
 #[cfg(test)]
 mod environment_sync_tests;
 mod exec;
@@ -48,8 +52,8 @@ pub struct Console {
     history_at: Option<usize>,
     /// Seconds since start until which the lines are held (`wait <seconds>` in a startup list).
     pub wait_until: Option<f32>,
-    /// Lines to run next frame.
-    pending: Vec<String>,
+    /// Lines to run next frame, each marked when a script (`--exec`, a mod) queued it rather than the player.
+    pending: Vec<(String, bool)>,
     /// The scene's own commands, for `help` and Tab.
     scene_commands: &'static [(&'static str, &'static str)],
     /// The mouse was captured when the console opened; give it back on close.
@@ -77,7 +81,7 @@ impl Console {
 pub fn start(app: &mut App, exec: Vec<String>, open: bool) {
     let world = app.world_mut();
     let mut console = world.resource_mut::<Console>();
-    console.pending.extend(exec);
+    console.queue_lines(exec);
     if open {
         console.open = true;
         console.restore_capture = false;

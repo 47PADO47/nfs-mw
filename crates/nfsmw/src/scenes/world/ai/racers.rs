@@ -131,8 +131,8 @@ impl TrafficWorld {
             nitrous.boost,
             nitrous.bottle_time
         );
-        let mut state =
-            RacerState::new(spec.id, own, spec.ai, spec.player, spec.bias, spec.base_skill, spec.speed, nitrous);
+        let mut state = RacerState::new(spec.id, own, spec.ai, spec.player, spec.bias, spec.base_skill, spec.speed)
+            .with_nitrous(nitrous);
         state.held = spec.held;
         let start = Start { stagger: spec.id as u32 % 8, speed: spec.speed, cruise: Cruise::default(), patrol: false };
         let ground = WorldGround { collision, surfaces };

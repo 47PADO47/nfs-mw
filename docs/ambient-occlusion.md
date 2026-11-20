@@ -100,14 +100,15 @@ One shared geometry prepass precedes three AO passes and the colour draw:
 2. Denoise with a 5-by-5 spatial filter. Plane distance and normal agreement reject
    samples across silhouettes rather than blurring them into foreground objects.
 3. Bilaterally upsample four nearby AO samples into a full-resolution R8 visibility
-   mask. Scene shaders apply it to ambient lighting before fog. Direct sunlight,
-   sun highlights, environment reflections and blended surfaces are unchanged.
+   mask. Scene shaders apply it to ambient lighting before fog, and as specular
+   occlusion to environment reflections (see below). Direct sunlight, sun and
+   lamp highlights and blended surfaces are unchanged.
 
 Normal-mapped opaque and cutout pavement/road materials now consume that mask too.
 Previously their prepass contributed to AO, but their colour shader omitted the
 ambient multiplier, leaving the ground bright beside an occluded pole. Regression
 fixtures cover bump and reflective receivers, both estimators, transparent exclusion,
-and preservation of direct sunlight, specular highlights and reflected images.
+and preservation of direct sunlight and specular highlights.
 
 The default contact radius is 1.25 world units. Its screen cap scales with scene
 height (96 pixels at 1080p, 192 at 4K), preserving angular reach across resolutions. A
@@ -119,7 +120,33 @@ unoccluded ambient light and the full GTAO visibility. The former 45% reduction 
 has been removed; approximately 34% intensity matches the previous default 75% response.
 The prelit world's ambient share remains an approximation (35% of its lighting).
 Custom Glossy treats the rig's fill/back lights as ambient illumination. Original
-PC car materials bypass screen-space AO. Direct sunlight and reflections remain unchanged.
+PC car materials bypass screen-space AO, including its specular occlusion. Direct sunlight remains unchanged.
+
+## Specular occlusion
+
+Without it, environment and wet-road reflections kept their full strength where AO is dark: under a raised body,
+at the base of a wall or in a crevice the floor still mirrored the bright sky. The same mask now scales the
+environment reflection terms by the specular occlusion approximation of Lagarde and de Rousiers ("Moving Frostbite
+to Physically Based Rendering", SIGGRAPH 2014 course notes; credited in NOTICE):
+`saturate(pow(NdotV + ao, exp2(-16 * roughness - 1)) - 1 + ao)`. It is exactly one where the mask is one, so AO off
+(and reflection captures, the mirror view and blended surfaces, which read no mask) leave every pixel as before;
+the AO intensity setting, already in the mask, sets its strength. Rough lobes follow the AO value, mirror-like
+ones fade mainly at grazing angles. There is no option: it only acts where AO is on.
+
+- Normal-mapped world materials: the legacy reflection capture uses roughness 0.32 (a dry road's broad
+  reflection, the rough end of the wet road's range); the enhanced wet road uses the roughness of its environment
+  lookup, 0.32 for a damp film to 0.07 for a pool. The whole reflected term is scaled, including screen-traced or
+  planar-captured geometry, so the reflection of an object standing in its own contact darkens near its base too.
+- Untouched: sun specular, local-lamp highlights and glints, and every car material. Custom Glossy paint was
+  scaled at first, but the mask reads a car's own curves and wing as occluders: in the game it took about 15% of
+  the sky reflection off the boot of a sunlit car and made the paint look flat, so cars keep their full reflection.
+
+Measured on an RTX 3070 at 2560x1440 (synthetic wet floor with a box, a raised slab and a wall, XeGTAO High,
+120-frame batches) the cost is within the 0.01 ms measurement noise. AO off renders byte-identical to before.
+With AO on, the wet floor changes by up to 83/255 under the slab (4.4% of pixels change), half intensity by up to
+28/255; the legacy capture fixture, whose reflection saturates, changes by up to 199/255 under the slab. GPU tests
+check that the reflection fades in contacts, never brightens, is unchanged on open floor, and that sun specular and
+glossy glints are unchanged.
 
 Static sampling avoids animated grain. There is no accumulation to ghost behind
 cars or survive a camera cut. Smoke, sparks, other effect particles and the UI
@@ -145,8 +172,8 @@ contact shading and smooth raised-body ground gradients, small camera-move stabi
 bounded darkening, unchanged open planes and sky, unchanged UI,
 fog suppression, identical repeated frames and camera-return captures, exact
 on/off round trips, odd sizes, render scaling and 2D projection bypass. Integration
-tests distinguish direct-only and ambient-only surfaces, preserve glossy highlights
-and reflections, and exercise combined AO/contact/SMAA resize and live toggles.
+tests distinguish direct-only and ambient-only surfaces, preserve glossy highlights,
+check specular occlusion of reflections, and exercise combined AO/contact/SMAA resize and live toggles.
 
 ```sh
 cargo test -p blackbox-render gpu::ao::tests -- --ignored --nocapture
@@ -192,6 +219,38 @@ ambient composition. There are no bent
 normals, TAA, history accumulation or animated noise. The port does not promise the
 quality or cost of Intel's full renderer. Open surfaces, ground contacts, material
 coverage, repeated frames and live method switches are covered by GPU regressions.
+
+## Stepped sample phases under a temporal upscaler
+
+While the frame is jittered for a temporal upscaler (DLSS, FSR 3), `xegtao` steps each
+pixel's slice angle by the golden ratio and its radial phase by the plastic number's ratio every frame, so
+the frames the upscaler accumulates cover both evenly instead of repeating one fixed pattern. Without an
+upscaler the phases stay fixed, as before, since nothing would average the change. `xegtao-temporal` keeps
+its own per-frame seed. `BLACKBOX_AO_ANIMATED_NOISE=0` keeps the phases fixed for comparison. NVIDIA's
+spatiotemporal blue noise textures were considered and not used: their licence allows research and evaluation
+only. A GPU test checks that the phases step only under an upscaler and that contacts and open sky survive;
+whether it reads as less grain or as shimmer in motion is a judgment for the game.
+
+## Hanging structures and smoothed low-poly normals
+
+Two corrections keep overhead structures from darkening the surfaces around them, measured in the tunnel at
+`--at -8,2146` (ceiling ducts hung below the vault and a steel gantry, 3840x2160, DLSS Balanced, XeGTAO High):
+
+- **Smoothed shading normals.** Many original models smooth the vertex normals of box-shaped parts (the tunnel
+  ducts lean more than 70 degrees off their side faces). A face then lies above its own tangent plane and
+  occludes itself: the side faces of the ducts went near black. Every AO method now compares the authored normal
+  with the face's depth normal and uses the depth normal when their cosine is below `normal_guard` (0.35, about 70
+  degrees). The threshold sits above the noise of depth normals on distant ground: from 0.5 up, the 4K moving-camera
+  ground test (`moving_camera_4k_ao_noise_stays_bounded_at_fixed_ground_points`) rises above its bound; at 0.35 and
+  below it is unchanged.
+- **Thin occluders (XeGTAO).** Intel's thin occluder compensation stretches a tap's view-space depth offset by
+  `1 + thin_occluders` (0.5) before the falloff, so a blocker well in front of the receiver, such as a duct below the
+  ceiling, fades out sooner. The reference default is 0; the `gtao` method already used a fixed 1.3 stretch.
+
+Together they cut the tunnel pixels darkened by more than 40 % from 4.77 % to 1.81 % (mean visibility 0.931 to
+0.951), with no change on the open highway at `--at 2418,3415` (0.36 % either way) and no measurable frame time cost
+(10.9 to 11.1 ms in interleaved runs). Measured against the same frame with AO off. `BLACKBOX_AO_NORMAL_GUARD` and `BLACKBOX_AO_THIN_OCCLUDERS` (0 to 1, 0 turns each off) override
+them for comparisons.
 
 ## Larger alternatives
 
@@ -278,3 +337,18 @@ is already quieter in the DX12 fixture; percentage improvements measured on
 Vulkan are not universal API guarantees. Optional diagnostic exports
 separate raw estimates, filtered estimates and resolved history. These checks
 do not replace driving and fine-geometry review; residual grain can remain.
+
+## Cost at 4K (2026-11-16)
+
+XeGTAO at quality high runs at half resolution (1920x1080 at 3840x2160) with 4 slices of 8 steps per side, then
+four intermediate and one final edge-aware denoise at half resolution and a full-resolution bilateral composite.
+Measured in game on an RTX 3070 (Vulkan), night rain at the street lamp, AO timestamp 2.72 ms; removing one part at
+a time: estimate about 1.5 ms, the five denoise passes 0.4 ms, the composite 0.4 ms, the depth pyramid nothing
+measurable. Sky pixels and pixels beyond the 100 m fade already leave the estimate, the denoise and the composite
+early.
+
+Tried and not kept: skipping the exact-depth confirmation of a coarse blocker when it could not raise the horizon
+(the result is the same bit for bit) saved nothing, and the estimate did not get cheaper with the pyramid emptied
+either: its cost is the scattered full-resolution depth reads of 64 taps per pixel. Fewer steps, fewer slices or a
+lower resolution would change the AO beyond the screenshot noise floor (it is deterministic), so the budget was left
+as it is.

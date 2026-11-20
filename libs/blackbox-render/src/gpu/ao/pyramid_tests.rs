@@ -107,6 +107,7 @@ fn odd_depth_reduction_keeps_last_column_and_rejects_foreground_depth_blending()
             sampling: [1, 4, 6, 0],
             fog: [0.0; 4],
             view: Mat4::IDENTITY.to_cols_array(),
+            tuning: [0.0; 4],
         }),
     );
     let mut encoder = r.device.create_command_encoder(&Default::default());
