@@ -1,4 +1,5 @@
-//! `bb.handling` on the mod side: read the table, and register a Rust closure as the tyre hook.
+//! `bb.handling` on the mod side: read the table, and register a Rust closure as the tyre hook. The suspension and controls hooks
+//! are in `handling_suspension.rs` and `handling_controls.rs`; they share the helpers here.
 
 use core::cell::RefCell;
 use core::ffi::c_void;
@@ -7,8 +8,9 @@ use core::ptr::null_mut;
 
 use super::{HostTable, finish, read_or, status_result};
 use crate::abi::{
-    BB_ERR_ARG, BB_TYRE_HANDLED, BB_TYRE_NOT_HANDLED, BbHandling, BbHandlingRegisterTyreFn, BbHandlingUnregisterTyreFn,
-    BbStatus, BbTyreHook, BbTyreQuery, BbTyreResult,
+    BB_ERR_ARG, BB_TYRE_HANDLED, BB_TYRE_NOT_HANDLED, BbHandling, BbHandlingRegisterControlsFn,
+    BbHandlingRegisterSuspensionFn, BbHandlingRegisterTyreFn, BbHandlingUnregisterControlsFn,
+    BbHandlingUnregisterSuspensionFn, BbHandlingUnregisterTyreFn, BbStatus, BbTyreHook, BbTyreQuery, BbTyreResult,
 };
 use crate::sdk::ctx::Keep;
 use crate::sdk::{Ctx, Error, HandlingHookId, Interface, ModResult, Role, TyreQuery, TyreResult, guard};
@@ -16,9 +18,13 @@ use crate::sdk::{Ctx, Error, HandlingHookId, Interface, ModResult, Role, TyreQue
 /// The function pointers of one `bb.handling` table, read once.
 #[derive(Clone, Copy)]
 pub(crate) struct HandlingFns {
-    ctx: *mut c_void,
-    register_tyre: Option<BbHandlingRegisterTyreFn>,
-    unregister_tyre: Option<BbHandlingUnregisterTyreFn>,
+    pub(super) ctx: *mut c_void,
+    pub(super) register_tyre: Option<BbHandlingRegisterTyreFn>,
+    pub(super) unregister_tyre: Option<BbHandlingUnregisterTyreFn>,
+    pub(super) register_suspension: Option<BbHandlingRegisterSuspensionFn>,
+    pub(super) unregister_suspension: Option<BbHandlingUnregisterSuspensionFn>,
+    pub(super) register_controls: Option<BbHandlingRegisterControlsFn>,
+    pub(super) unregister_controls: Option<BbHandlingUnregisterControlsFn>,
 }
 
 /// Read the `bb.handling` table the host offered.
@@ -29,15 +35,19 @@ pub(crate) fn read(iface: Interface) -> HandlingFns {
             ctx: read_or(&iface, offset_of!(BbHandling, ctx), null_mut()),
             register_tyre: read_or(&iface, offset_of!(BbHandling, register_tyre), None),
             unregister_tyre: read_or(&iface, offset_of!(BbHandling, unregister_tyre), None),
+            register_suspension: read_or(&iface, offset_of!(BbHandling, register_suspension), None),
+            unregister_suspension: read_or(&iface, offset_of!(BbHandling, unregister_suspension), None),
+            register_controls: read_or(&iface, offset_of!(BbHandling, register_controls), None),
+            unregister_controls: read_or(&iface, offset_of!(BbHandling, unregister_controls), None),
         }
     }
 }
 
 /// A registered hook: the closure, and what its trampoline needs to call it.
-struct HookEntry<F> {
-    host: HostTable,
-    keep: Keep,
-    handler: RefCell<F>,
+pub(super) struct HookEntry<F> {
+    pub(super) host: HostTable,
+    pub(super) keep: Keep,
+    pub(super) handler: RefCell<F>,
 }
 
 /// Register a closure as the tyre hook. The closure is kept in `keep` until the mod unloads.
@@ -77,14 +87,14 @@ pub(crate) fn unregister_tyre(fns: &HandlingFns, id: HandlingHookId) -> ModResul
 ///
 /// # Safety
 /// `query` must be non-null and valid for reads of the bytes its size word declares.
-unsafe fn read_query(query: *const BbTyreQuery) -> Option<BbTyreQuery> {
+pub(super) unsafe fn read_query<T: Copy + Default>(query: *const T) -> Option<T> {
     // SAFETY: the size word is the first field and the host wrote it.
     let declared = unsafe { query.cast::<u32>().read_unaligned() } as usize;
     if declared < size_of::<u32>() {
         return None;
     }
-    let mut out = BbTyreQuery::default();
-    let len = declared.min(size_of::<BbTyreQuery>());
+    let mut out = T::default();
+    let len = declared.min(size_of::<T>());
     // SAFETY: `query` is valid for `declared` bytes and `out` for its whole size; `len` is at most both.
     unsafe { core::ptr::copy_nonoverlapping(query.cast::<u8>(), core::ptr::from_mut(&mut out).cast::<u8>(), len) };
     Some(out)
@@ -94,11 +104,11 @@ unsafe fn read_query(query: *const BbTyreQuery) -> Option<BbTyreQuery> {
 ///
 /// # Safety
 /// `result` must be non-null and valid for writes of the bytes its size word declares.
-unsafe fn write_result(result: *mut BbTyreResult, answer: &BbTyreResult) {
+pub(super) unsafe fn write_result<T: Copy>(result: *mut T, answer: &T) {
     // SAFETY: the size word is the first field and the host wrote it.
     let allowed = unsafe { result.cast::<u32>().read_unaligned() } as usize;
     let word = size_of::<u32>();
-    let len = allowed.min(size_of::<BbTyreResult>());
+    let len = allowed.min(size_of::<T>());
     if len <= word {
         return;
     }
@@ -136,6 +146,7 @@ fn mod_query(wire: &BbTyreQuery) -> TyreQuery {
         tyre_condition: wire.tyre_condition,
         ambient_temperature_c: wire.ambient_temperature_c,
         road_temperature_c: wire.road_temperature_c,
+        camber_rad: wire.camber_rad,
     }
 }
 
@@ -172,7 +183,7 @@ where
         return BB_TYRE_NOT_HANDLED;
     };
     // SAFETY: the host passes a query valid for the bytes its size word declares.
-    let Some(wire) = (unsafe { read_query(query) }) else {
+    let Some(wire) = (unsafe { read_query::<BbTyreQuery>(query) }) else {
         return BB_ERR_ARG;
     };
     let question = mod_query(&wire);

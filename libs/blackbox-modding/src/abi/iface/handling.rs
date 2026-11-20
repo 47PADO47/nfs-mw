@@ -1,13 +1,19 @@
-//! `bb.handling` 1.0: a mod replaces how a vehicle's tyres turn load, slip and torque into forces (catalogue:
-//! docs/modding/api-handling.md).
+//! `bb.handling`: a mod replaces how a vehicle's tyres, suspension and controls produce the forces and commands of the physics
+//! step (catalogue: docs/modding/api-handling.md).
 //!
-//! The interface is generic: it names no game and assumes no model. A mod registers one callback; the host calls it once
-//! per wheel per physics tick for the vehicles it applies to, and the callback answers with that wheel's forces and its new
-//! spin, or declines. Everything the callback needs about the car comes in the query, or from `bb.vehicles` `spec`.
+//! The interface is generic: it names no game and assumes no model. A mod registers up to three optional hooks, one per
+//! concern, and the host calls each for the vehicles it applies to. Each callback answers, or declines and the host runs its own
+//! code. Everything a callback needs about the car comes in the query, or from `bb.vehicles` `spec`.
 //!
-//! Later minors append more hooks to the table (`register_suspension` and `unregister_suspension`, `register_controls` and
-//! `unregister_controls`, and so on): a hook is two function pointers appended after `unregister_tyre`, plus its own
-//! `#[repr(C)]` query and result structs that follow the rules below. Nothing already in the table moves.
+//! | Hook | Since | Called | Replaces |
+//! |---|---|---|---|
+//! | tyre | 1.0 | once per wheel per tick | the tyre forces of a wheel |
+//! | suspension (`handling_suspension.rs`) | 1.1 | once per axle per tick | the spring force of an axle |
+//! | controls (`handling_controls.rs`) | 1.2 | once per vehicle per tick | the pedals, brake split and steering target |
+//!
+//! A hook is two function pointers appended to the table, plus its own `#[repr(C)]` query, result and registration structs
+//! that follow the rules below. Nothing already in the table moves, so a mod built for an older minor reads only the fields its
+//! `head.size` covers.
 //!
 //! Struct rules: each query, result and registration struct starts with `size: u32` (the bytes of the writer's layout),
 //! holds fixed-width fields only, and ends with reserved words that are zero today. A reader that is older than the writer
@@ -17,6 +23,8 @@
 use core::ffi::c_void;
 
 use super::BbIface;
+use super::handling_controls::{BbHandlingRegisterControlsFn, BbHandlingUnregisterControlsFn};
+use super::handling_suspension::{BbHandlingRegisterSuspensionFn, BbHandlingUnregisterSuspensionFn};
 use crate::abi::BbStatus;
 
 /// The callback answered for the wheel: its result is valid.
@@ -84,8 +92,12 @@ pub struct BbTyreQuery {
     /// The sprung mass the host attributes to this wheel (kg): a quarter of the vehicle mass. Appended in 1.0 before release,
     /// taking the first reserved word.
     pub corner_mass_kg: f32,
+    /// The camber of the wheel this tick (rad, positive when the top of the wheel leans away from the centre line of the car, on
+    /// either side), as the suspension hook answered for it; 0 when no suspension hook answered. Appended in 1.1, taking the
+    /// second reserved word; a host older than 1.1 leaves it 0.
+    pub camber_rad: f32,
     /// Zero today.
-    pub reserved: [u32; 7],
+    pub reserved: [u32; 6],
 }
 
 /// What the callback answers for one wheel. Size-prefixed: the host sets `size` to its layout and zeroes the rest before
@@ -148,7 +160,8 @@ pub type BbHandlingRegisterTyreFn =
 /// `unregister_tyre`: remove the hook by handle. The built-in tyres run from the next tick.
 pub type BbHandlingUnregisterTyreFn = unsafe extern "C" fn(ctx: *mut c_void, id: u64) -> BbStatus;
 
-/// The `bb.handling` table. Field order is part of the ABI; new hooks are appended after the last field.
+/// The `bb.handling` table. Field order is part of the ABI; new hooks are appended after the last field. 1.0 is the first 32
+/// bytes, 1.1 adds 16 and 1.2 another 16.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct BbHandling {
@@ -160,4 +173,12 @@ pub struct BbHandling {
     pub register_tyre: Option<BbHandlingRegisterTyreFn>,
     /// Remove the tyre hook.
     pub unregister_tyre: Option<BbHandlingUnregisterTyreFn>,
+    /// Register the suspension hook. Appended in 1.1.
+    pub register_suspension: Option<BbHandlingRegisterSuspensionFn>,
+    /// Remove the suspension hook. Appended in 1.1.
+    pub unregister_suspension: Option<BbHandlingUnregisterSuspensionFn>,
+    /// Register the controls hook. Appended in 1.2.
+    pub register_controls: Option<BbHandlingRegisterControlsFn>,
+    /// Remove the controls hook. Appended in 1.2.
+    pub unregister_controls: Option<BbHandlingUnregisterControlsFn>,
 }

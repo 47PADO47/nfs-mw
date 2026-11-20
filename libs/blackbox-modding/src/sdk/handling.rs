@@ -1,12 +1,14 @@
-//! `Handling`: replace how a vehicle's tyres turn load, slip and torque into forces (catalogue:
-//! docs/modding/api-handling.md).
+//! `Handling`: replace how a vehicle's tyres, suspension and controls work (catalogue: docs/modding/api-handling.md).
 //!
-//! The hook is one closure, called once per wheel per physics tick. It names no model: what it computes is the mod's own.
+//! A mod registers up to three hooks, each a closure: the tyre hook (once per wheel per physics tick), the suspension hook (once
+//! per axle per tick, `handling_suspension.rs`) and the controls hook (once per tick, `handling_controls.rs`). None names a
+//! model: what it computes is the mod's own.
 
 use super::ctx::Keep;
 use super::ffi::HostTable;
 use super::ffi::handling::{self as host_handling, HandlingFns};
-use super::{Ctx, HandlingHookId, ModResult, Role};
+use super::ffi::{handling_controls as host_controls, handling_suspension as host_suspension};
+use super::{ControlsQuery, ControlsResult, Ctx, HandlingHookId, ModResult, Role, SuspensionQuery, SuspensionResult};
 
 /// What the host tells the hook about one wheel for one tick. SI units. The wheel frame has a forward axis (the wheel's
 /// heading, steering included) and a lateral axis that points to the right of it.
@@ -57,6 +59,9 @@ pub struct TyreQuery {
     pub ambient_temperature_c: f32,
     /// Road surface temperature (degrees Celsius).
     pub road_temperature_c: f32,
+    /// The camber of the wheel this tick (rad, positive when the top leans away from the centre line of the car, on either
+    /// side), as the suspension hook answered for it; 0 when no suspension hook answered, and on a host older than 1.1.
+    pub camber_rad: f32,
 }
 
 /// What the hook answers for one wheel. Every number must be finite; the ranges are in the catalogue.
@@ -103,5 +108,37 @@ impl Handling {
     /// Remove the tyre hook this mod registered. The built-in tyres run from the next tick.
     pub fn unregister_tyre(&self, id: HandlingHookId) -> ModResult<()> {
         host_handling::unregister_tyre(&self.fns, id)
+    }
+
+    /// Register the suspension hook (`bb.handling` 1.1): `hook` is called once per axle per tick, the front axle first, for the
+    /// vehicles the host applies hooks to (the player's car in the first version). Return `None` to leave an axle to the
+    /// built-in spring. One hook per mod; a second call answers `Error::Exists`; `Error::Unsupported` on a host older than 1.1;
+    /// `Error::Denied` in an online session. The hook is removed when the mod unloads.
+    pub fn register_suspension<F>(&self, hook: F) -> ModResult<HandlingHookId>
+    where
+        F: FnMut(&mut Ctx, &SuspensionQuery) -> Option<SuspensionResult> + 'static,
+    {
+        host_suspension::register_suspension(&self.fns, self.host, &self.keep, hook)
+    }
+
+    /// Remove the suspension hook this mod registered. The built-in springs run from the next tick.
+    pub fn unregister_suspension(&self, id: HandlingHookId) -> ModResult<()> {
+        host_suspension::unregister_suspension(&self.fns, id)
+    }
+
+    /// Register the controls hook (`bb.handling` 1.2): `hook` is called once per tick for the vehicles the host applies hooks to
+    /// (the player's car in the first version). Return `None` to leave the controls as the host shaped them. One hook per mod; a
+    /// second call answers `Error::Exists`; `Error::Unsupported` on a host older than 1.2; `Error::Denied` in an online session.
+    /// The hook is removed when the mod unloads.
+    pub fn register_controls<F>(&self, hook: F) -> ModResult<HandlingHookId>
+    where
+        F: FnMut(&mut Ctx, &ControlsQuery) -> Option<ControlsResult> + 'static,
+    {
+        host_controls::register_controls(&self.fns, self.host, &self.keep, hook)
+    }
+
+    /// Remove the controls hook this mod registered. The controls stay as the host shapes them from the next tick.
+    pub fn unregister_controls(&self, id: HandlingHookId) -> ModResult<()> {
+        host_controls::unregister_controls(&self.fns, id)
     }
 }

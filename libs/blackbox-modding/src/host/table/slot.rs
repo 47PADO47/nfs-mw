@@ -44,11 +44,6 @@ impl<T: ?Sized> Slot<T> {
         self.registered.borrow_mut().push(handle);
     }
 
-    /// Whether the mod has a handle registered and not removed.
-    pub(crate) fn has_registered(&self) -> bool {
-        !self.registered.borrow().is_empty()
-    }
-
     /// Forget a handle the mod removed itself.
     pub(crate) fn forget(&self, handle: u64) {
         self.registered.borrow_mut().retain(|known| *known != handle);

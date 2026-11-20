@@ -143,10 +143,11 @@ impl Ctx {
         Some(Engine::new(ffi::engine::read(iface)))
     }
 
-    /// The handling interface (`bb.handling`), when the host offers it: a tyre hook that replaces how the player's tyres turn
-    /// load, slip and torque into forces.
+    /// The handling interface (`bb.handling`), when the host offers it: hooks that replace how the player's tyres, suspension and
+    /// controls work. The table is requested at any minor of this major: a host older than the SDK offers fewer hooks, and the
+    /// `register_*` call of a hook it lacks answers `Error::Unsupported`.
     pub fn handling(&self) -> Option<Handling> {
-        let iface = self.query_interface(IFACE_HANDLING, IFACE_HANDLING_VERSION.0, IFACE_HANDLING_VERSION.1)?;
+        let iface = self.query_interface(IFACE_HANDLING, IFACE_HANDLING_VERSION.0, 0)?;
         Some(Handling::new(ffi::handling::read(iface), self.host, self.keep.clone()))
     }
 

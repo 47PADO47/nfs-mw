@@ -151,6 +151,7 @@ fn query(wheel: u32) -> TyreQuery {
         tyre_condition: 1.0,
         ambient_temperature_c: 20.0,
         road_temperature_c: 25.0,
+        camber_rad: -0.04,
     }
 }
 
@@ -176,6 +177,7 @@ fn a_registered_hook_reaches_the_backend_and_answers() {
     assert_eq!((seen.wheel_index, seen.loaded, seen.vehicle_revision, seen.surface_tag), (2, 1, 9, 5));
     assert_eq!((seen.vertical_load_n, seen.wheel_spin, seen.wheel_radius_m), (3500.0, 60.0, 0.33));
     assert_eq!((seen.drive_torque_nm, seen.patch_lateral_velocity), (300.0, -0.5));
+    assert_eq!(seen.camber_rad, -0.04, "the camber the suspension hook answered reaches the tyre hook");
     assert_eq!(hook.stats().calls(), 1);
     assert_eq!(hook.stats().faults(), 0);
 }

@@ -69,6 +69,13 @@ pub use iface::{
     BbContentReadLazyFn, BbContentReportFn, BbContentRescanFn, IFACE_CONTENT, IFACE_CONTENT_VERSION,
 };
 pub use iface::{
+    BB_CONTROLS_FLAG_STEER, BB_CONTROLS_HANDLED, BB_CONTROLS_NOT_HANDLED, BB_SUSPENSION_HANDLED,
+    BB_SUSPENSION_NOT_HANDLED, BbControlsHook, BbControlsHookFn, BbControlsQuery, BbControlsResult,
+    BbHandlingRegisterControlsFn, BbHandlingRegisterSuspensionFn, BbHandlingUnregisterControlsFn,
+    BbHandlingUnregisterSuspensionFn, BbSuspensionHook, BbSuspensionHookFn, BbSuspensionQuery, BbSuspensionResult,
+    BbSuspensionWheel, BbSuspensionWheelResult,
+};
+pub use iface::{
     BB_DRIVE_ALL, BB_DRIVE_FRONT, BB_DRIVE_REAR, BB_SPEC_GEARS, BB_TYRE_FLAG_ALL_ROLES, BB_TYRE_HANDLED,
     BB_TYRE_NOT_HANDLED, BbHandling, BbHandlingRegisterTyreFn, BbHandlingUnregisterTyreFn, BbTyreHook, BbTyreHookFn,
     BbTyreQuery, BbTyreResult, IFACE_HANDLING, IFACE_HANDLING_VERSION,

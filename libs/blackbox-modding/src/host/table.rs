@@ -26,9 +26,15 @@ mod engine;
 #[cfg(test)]
 mod engine_tests;
 mod handling;
+mod handling_controls_model;
+#[cfg(test)]
+mod handling_hooks_tests;
 mod handling_model;
+mod handling_suspension_model;
 #[cfg(test)]
 mod handling_tests;
+#[cfg(test)]
+mod handling_wire_tests;
 mod hud;
 #[cfg(test)]
 mod hud_tests;
@@ -103,7 +109,7 @@ pub use config::ConfigBackend;
 pub use content::{ContentBackend, LazyFiles, MAX_LAZY_FILE_BYTES};
 pub use engine::{EngineBackend, EnginePhase, EngineState};
 pub use handling::HandlingBackend;
-pub use handling_model::{CALLBACK_BUDGET, HookStats, TyreHook};
+pub use handling_model::{CALLBACK_BUDGET, ControlsHook, HookStats, ModHook, SuspensionHook, TyreHook, WireQuery};
 pub use hud::{HudBackend, MAX_MESSAGE_SECS, MessageStyle};
 pub use i18n::{I18nArg, I18nBackend, MAX_ARGS as MAX_I18N_ARGS};
 pub use input::{HotkeyHandler, InputBackend};

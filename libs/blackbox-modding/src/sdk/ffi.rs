@@ -18,6 +18,10 @@ mod content_tests;
 pub(crate) mod engine;
 mod event;
 pub(crate) mod handling;
+pub(crate) mod handling_controls;
+pub(crate) mod handling_suspension;
+#[cfg(all(test, feature = "host"))]
+mod handling_tests;
 pub(crate) mod hud;
 pub(crate) mod i18n;
 pub(crate) mod input;

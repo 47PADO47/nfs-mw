@@ -36,6 +36,8 @@ pub mod ffi;
 mod guard;
 mod handle;
 mod handling;
+mod handling_controls;
+mod handling_suspension;
 mod hud;
 mod i18n;
 mod iface;
@@ -66,6 +68,8 @@ pub use handle::{
     VehicleId, WorldId,
 };
 pub use handling::{Handling, TyreQuery, TyreResult};
+pub use handling_controls::{ControlsQuery, ControlsResult};
+pub use handling_suspension::{SuspensionQuery, SuspensionResult, SuspensionWheelQuery, SuspensionWheelResult};
 pub use hud::{Hud, MessageStyle};
 pub use i18n::{Arg as I18nArg, I18n};
 pub use iface::Interface;

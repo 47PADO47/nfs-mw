@@ -285,6 +285,23 @@ fn the_linear_probe_registers_reads_the_spec_and_drives_a_real_car() {
 }
 
 #[test]
+fn the_fixture_built_for_one_zero_loads_against_the_one_two_host() {
+    let mut registry = InterfaceRegistry::new();
+    registry.add_handling(Rc::new(Game::default()));
+    let offered =
+        registry.offers().into_iter().find(|offer| offer.id == "bb.handling").expect("bb.handling is offered");
+    assert_eq!((offered.version.major, offered.version.minor), (1, 2), "the host offers suspension and controls too");
+    let rig = rig("one-zero", None, false);
+    assert_eq!(
+        rig.runtime.loaded().len(),
+        1,
+        "a mod that asks for an older minor still loads: {:?}",
+        rig.runtime.rejected()
+    );
+    assert_eq!(rig.game.hooks.borrow().len(), 1, "and registers its tyre hook as before");
+}
+
+#[test]
 fn the_probe_declines_a_vehicle_that_is_not_the_players() {
     let rig = rig("role", None, false);
     let hook = hook_of(&rig);

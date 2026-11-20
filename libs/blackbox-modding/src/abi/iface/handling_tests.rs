@@ -1,4 +1,4 @@
-//! Layout snapshot of `bb.handling` 1.0 and of the `bb.vehicles` 1.3 spec (ADR 0005 section 9). Changing a number here is an
+//! Layout snapshot of `bb.handling` 1.0 to 1.2 and of the `bb.vehicles` 1.3 spec (ADR 0005 section 9). Changing a number here is an
 //! ABI change.
 
 #![cfg(target_pointer_width = "64")]
@@ -10,18 +10,25 @@ use crate::abi::*;
 #[test]
 fn id_and_version_are_locked() {
     assert_eq!(IFACE_HANDLING, "bb.handling");
-    assert_eq!(IFACE_HANDLING_VERSION, (1, 0));
+    assert_eq!(IFACE_HANDLING_VERSION, (1, 2));
     assert_eq!([BB_TYRE_HANDLED, BB_TYRE_NOT_HANDLED, BB_TYRE_FLAG_ALL_ROLES as i32], [1, 0, 1]);
+    assert_eq!([BB_SUSPENSION_HANDLED, BB_SUSPENSION_NOT_HANDLED], [1, 0]);
+    assert_eq!([BB_CONTROLS_HANDLED, BB_CONTROLS_NOT_HANDLED, BB_CONTROLS_FLAG_STEER as i32], [1, 0, 1]);
 }
 
 #[test]
 fn handling_table() {
-    assert_eq!(size_of::<BbHandling>(), 32);
+    assert_eq!(size_of::<BbHandling>(), 64);
     assert_eq!(align_of::<BbHandling>(), 8);
     assert_eq!(offset_of!(BbHandling, head), 0);
     assert_eq!(offset_of!(BbHandling, ctx), 8);
     assert_eq!(offset_of!(BbHandling, register_tyre), 16);
     assert_eq!(offset_of!(BbHandling, unregister_tyre), 24);
+    // 1.1 appends the suspension pair after the 32 bytes of 1.0, and 1.2 the controls pair after them.
+    assert_eq!(offset_of!(BbHandling, register_suspension), 32);
+    assert_eq!(offset_of!(BbHandling, unregister_suspension), 40);
+    assert_eq!(offset_of!(BbHandling, register_controls), 48);
+    assert_eq!(offset_of!(BbHandling, unregister_controls), 56);
 }
 
 #[test]
@@ -62,7 +69,8 @@ fn tyre_query() {
     assert_eq!(offset_of!(BbTyreQuery, ambient_temperature_c), 80);
     assert_eq!(offset_of!(BbTyreQuery, road_temperature_c), 84);
     assert_eq!(offset_of!(BbTyreQuery, corner_mass_kg), 88);
-    assert_eq!(offset_of!(BbTyreQuery, reserved), 92);
+    assert_eq!(offset_of!(BbTyreQuery, camber_rad), 92);
+    assert_eq!(offset_of!(BbTyreQuery, reserved), 96);
 }
 
 #[test]
@@ -114,4 +122,104 @@ fn vehicle_spec() {
     assert_eq!(offset_of!(BbVehicleSpec, reserved), 136);
     assert_eq!([BB_DRIVE_FRONT, BB_DRIVE_REAR, BB_DRIVE_ALL], [0, 1, 2]);
     assert_eq!(BB_SPEC_GEARS, 8);
+}
+
+#[test]
+fn suspension_hook_registration() {
+    assert_eq!(size_of::<BbSuspensionHook>(), 56);
+    assert_eq!(align_of::<BbSuspensionHook>(), 8);
+    assert_eq!(offset_of!(BbSuspensionHook, size), 0);
+    assert_eq!(offset_of!(BbSuspensionHook, flags), 4);
+    assert_eq!(offset_of!(BbSuspensionHook, user), 8);
+    assert_eq!(offset_of!(BbSuspensionHook, callback), 16);
+    assert_eq!(offset_of!(BbSuspensionHook, reserved), 24);
+}
+
+#[test]
+fn suspension_wheel_query() {
+    assert_eq!(size_of::<BbSuspensionWheel>(), 40);
+    assert_eq!(align_of::<BbSuspensionWheel>(), 4);
+    assert_eq!(offset_of!(BbSuspensionWheel, loaded), 0);
+    assert_eq!(offset_of!(BbSuspensionWheel, compression_m), 4);
+    assert_eq!(offset_of!(BbSuspensionWheel, compression_speed_mps), 8);
+    assert_eq!(offset_of!(BbSuspensionWheel, steer_angle_rad), 12);
+    assert_eq!(offset_of!(BbSuspensionWheel, body_accel_up_mps2), 16);
+    assert_eq!(offset_of!(BbSuspensionWheel, tyre_lateral_force_n), 20);
+    assert_eq!(offset_of!(BbSuspensionWheel, static_load_n), 24);
+    assert_eq!(offset_of!(BbSuspensionWheel, reserved), 28);
+}
+
+#[test]
+fn suspension_query() {
+    assert_eq!(size_of::<BbSuspensionQuery>(), 144);
+    assert_eq!(align_of::<BbSuspensionQuery>(), 4);
+    assert_eq!(offset_of!(BbSuspensionQuery, size), 0);
+    assert_eq!(offset_of!(BbSuspensionQuery, axle_index), 4);
+    assert_eq!(offset_of!(BbSuspensionQuery, role), 8);
+    assert_eq!(offset_of!(BbSuspensionQuery, vehicle_revision), 12);
+    assert_eq!(offset_of!(BbSuspensionQuery, dt), 16);
+    assert_eq!(offset_of!(BbSuspensionQuery, rest_travel_m), 20);
+    assert_eq!(offset_of!(BbSuspensionQuery, max_travel_m), 24);
+    assert_eq!(offset_of!(BbSuspensionQuery, corner_mass_kg), 28);
+    assert_eq!(offset_of!(BbSuspensionQuery, wheels), 32);
+    assert_eq!(offset_of!(BbSuspensionQuery, reserved), 112);
+}
+
+#[test]
+fn suspension_result() {
+    assert_eq!(size_of::<BbSuspensionWheelResult>(), 20);
+    assert_eq!(offset_of!(BbSuspensionWheelResult, body_force_n), 0);
+    assert_eq!(offset_of!(BbSuspensionWheelResult, tyre_load_n), 4);
+    assert_eq!(offset_of!(BbSuspensionWheelResult, camber_rad), 8);
+    assert_eq!(offset_of!(BbSuspensionWheelResult, reserved), 12);
+    assert_eq!(size_of::<BbSuspensionResult>(), 76);
+    assert_eq!(align_of::<BbSuspensionResult>(), 4);
+    assert_eq!(offset_of!(BbSuspensionResult, size), 0);
+    assert_eq!(offset_of!(BbSuspensionResult, wheels), 4);
+    assert_eq!(offset_of!(BbSuspensionResult, reserved), 44);
+}
+
+#[test]
+fn controls_hook_registration() {
+    assert_eq!(size_of::<BbControlsHook>(), 56);
+    assert_eq!(align_of::<BbControlsHook>(), 8);
+    assert_eq!(offset_of!(BbControlsHook, size), 0);
+    assert_eq!(offset_of!(BbControlsHook, flags), 4);
+    assert_eq!(offset_of!(BbControlsHook, user), 8);
+    assert_eq!(offset_of!(BbControlsHook, callback), 16);
+    assert_eq!(offset_of!(BbControlsHook, reserved), 24);
+}
+
+#[test]
+fn controls_query() {
+    assert_eq!(size_of::<BbControlsQuery>(), 112);
+    assert_eq!(align_of::<BbControlsQuery>(), 4);
+    assert_eq!(offset_of!(BbControlsQuery, size), 0);
+    assert_eq!(offset_of!(BbControlsQuery, role), 4);
+    assert_eq!(offset_of!(BbControlsQuery, vehicle_revision), 8);
+    assert_eq!(offset_of!(BbControlsQuery, dt), 12);
+    assert_eq!(offset_of!(BbControlsQuery, throttle), 16);
+    assert_eq!(offset_of!(BbControlsQuery, brake), 20);
+    assert_eq!(offset_of!(BbControlsQuery, handbrake), 24);
+    assert_eq!(offset_of!(BbControlsQuery, steer), 28);
+    assert_eq!(offset_of!(BbControlsQuery, forward_speed), 32);
+    assert_eq!(offset_of!(BbControlsQuery, yaw_rate), 36);
+    assert_eq!(offset_of!(BbControlsQuery, lateral_accel), 40);
+    assert_eq!(offset_of!(BbControlsQuery, longitudinal_accel), 44);
+    assert_eq!(offset_of!(BbControlsQuery, wheel_loaded_mask), 48);
+    assert_eq!(offset_of!(BbControlsQuery, slip_ratio), 52);
+    assert_eq!(offset_of!(BbControlsQuery, slip_angle), 68);
+    assert_eq!(offset_of!(BbControlsQuery, reserved), 84);
+}
+
+#[test]
+fn controls_result() {
+    assert_eq!(size_of::<BbControlsResult>(), 64);
+    assert_eq!(align_of::<BbControlsResult>(), 4);
+    assert_eq!(offset_of!(BbControlsResult, size), 0);
+    assert_eq!(offset_of!(BbControlsResult, flags), 4);
+    assert_eq!(offset_of!(BbControlsResult, throttle), 8);
+    assert_eq!(offset_of!(BbControlsResult, brake), 12);
+    assert_eq!(offset_of!(BbControlsResult, steer_target_rad), 28);
+    assert_eq!(offset_of!(BbControlsResult, reserved), 32);
 }
