@@ -1,0 +1,23 @@
+# The economy compound preset (docs/specs/ac-handling/parameter-mapping.md section 5.2). Design values, not measurements.
+schema = 1
+kind = "compound"
+name = "economy"
+level_ref = 0.60
+grip_slope = 0.55
+
+[tyre]
+mu_y0 = 1.00
+mu_x_ratio = 1.05
+exp_y = 0.90
+exp_x = 0.92
+peak_angle_deg = 9.0
+flex = 0.25
+cx_ratio = 1.2
+fall_y = 0.88
+fall_x = 0.85
+q_y = 1.0
+q_x = 1.2
+speed_sens = 0.0015
+relax_len = 0.40
+# The host's drivetrain is stable only with the wheel inertia its own tyres use: see NOTES.md, "Spec questions", item 1.
+inertia_scale = 1.0

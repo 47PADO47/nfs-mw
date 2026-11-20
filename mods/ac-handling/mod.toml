@@ -1,0 +1,33 @@
+# An Assetto Corsa-style handling mod (mods/ac-handling/README.md). It targets the feel of Assetto Corsa with its own model,
+# written from our own specs (docs/specs/ac-handling/). An independent project, not affiliated with or endorsed by Kunos
+# Simulazioni or 505 Games. Off until the player switches it on.
+
+[mod]
+id = "nfsmw.ac-handling"
+name = "AC handling (Assetto Corsa-style)"
+version = "0.1.0"
+authors = ["nfs-mw contributors"]
+license = "MIT OR Apache-2.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["nfsmw"]
+
+[requires.interfaces]
+"bb.handling" = "1.0"
+"bb.vehicles" = "1.3"
+
+[optional.interfaces]
+"bb.settings" = "1.0"
+"bb.menus" = "1.0"
+"bb.input" = "1.0"
+"bb.commands" = "1.0"
+"bb.hud" = "1.0"
+"bb.config" = "1.0"
+
+[library]
+windows = "ac_handling.dll"
+linux = "libac_handling.so"
+macos = "libac_handling.dylib"

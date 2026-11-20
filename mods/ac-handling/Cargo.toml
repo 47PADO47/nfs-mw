@@ -1,0 +1,25 @@
+[package]
+name = "ac-handling"
+description = "Native mod: an Assetto Corsa-style handling model (tyre forces with wheel-local substeps) for the player's car, switched on by the player. Independent project, not affiliated with Kunos Simulazioni or 505 Games."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+blackbox-modding = { workspace = true, features = ["sdk"] }
+serde.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+# The integration tests load the built library with the real loader against a fake host and drive a real vehicle on it.
+blackbox-modding = { workspace = true, features = ["host"] }
+blackbox-vehicle.workspace = true
+log.workspace = true
+
+[lints]
+workspace = true

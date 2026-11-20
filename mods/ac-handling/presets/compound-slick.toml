@@ -1,0 +1,23 @@
+# The slick compound preset (docs/specs/ac-handling/parameter-mapping.md section 5.2). Design values, not measurements.
+schema = 1
+kind = "compound"
+name = "slick"
+level_ref = 1.55
+grip_slope = 1.00
+
+[tyre]
+mu_y0 = 1.60
+mu_x_ratio = 1.12
+exp_y = 0.80
+exp_x = 0.84
+peak_angle_deg = 7.0
+flex = 0.15
+cx_ratio = 1.8
+fall_y = 0.78
+fall_x = 0.74
+q_y = 2.0
+q_x = 2.4
+speed_sens = 0.0008
+relax_len = 0.26
+# The host's drivetrain is stable only with the wheel inertia its own tyres use: see NOTES.md, "Spec questions", item 1.
+inertia_scale = 1.0

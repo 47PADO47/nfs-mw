@@ -1,0 +1,23 @@
+# The sport compound preset (docs/specs/ac-handling/parameter-mapping.md section 5.2). Design values, not measurements.
+schema = 1
+kind = "compound"
+name = "sport"
+level_ref = 1.00
+grip_slope = 0.55
+
+[tyre]
+mu_y0 = 1.20
+mu_x_ratio = 1.10
+exp_y = 0.85
+exp_x = 0.88
+peak_angle_deg = 8.0
+flex = 0.20
+cx_ratio = 1.4
+fall_y = 0.85
+fall_x = 0.82
+q_y = 1.2
+q_x = 1.4
+speed_sens = 0.0012
+relax_len = 0.34
+# The host's drivetrain is stable only with the wheel inertia its own tyres use: see NOTES.md, "Spec questions", item 1.
+inertia_scale = 1.0

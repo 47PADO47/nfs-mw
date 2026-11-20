@@ -1,0 +1,23 @@
+# The semislick compound preset (docs/specs/ac-handling/parameter-mapping.md section 5.2). Design values, not measurements.
+schema = 1
+kind = "compound"
+name = "semislick"
+level_ref = 1.25
+grip_slope = 0.80
+
+[tyre]
+mu_y0 = 1.35
+mu_x_ratio = 1.12
+exp_y = 0.82
+exp_x = 0.86
+peak_angle_deg = 7.5
+flex = 0.18
+cx_ratio = 1.6
+fall_y = 0.82
+fall_x = 0.78
+q_y = 1.5
+q_x = 1.8
+speed_sens = 0.0010
+relax_len = 0.30
+# The host's drivetrain is stable only with the wheel inertia its own tyres use: see NOTES.md, "Spec questions", item 1.
+inertia_scale = 1.0
