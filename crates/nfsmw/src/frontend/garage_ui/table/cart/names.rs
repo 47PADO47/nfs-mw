@@ -6,6 +6,13 @@ use nfsmw_data::car::customization::{Category as Part, Choice};
 use nfsmw_data::car::physics::PerformanceCategory as Hardware;
 
 pub(super) fn label(row: Row, model: &Model, selected: &Selection) -> String {
+    if let Row::Gear(part) = row {
+        return format!("{}: {}", part.label(), gear_name(part, selected.gear.get(part)));
+    }
+    // A vehicle's component slot is named by the slot and the component fitted, not by the original category's words.
+    if let Some((slot, component)) = crate::garage::menu_slots::describe(model, row, selected) {
+        return format!("{slot}: {component}");
+    }
     let Some(car) = model.cars.iter().find(|car| car.folder == selected.car) else { return String::new() };
     let Some(catalog) = car.parts.as_ref() else { return String::new() };
     let category = match row {
@@ -103,6 +110,12 @@ pub(super) fn label(row: Row, model: &Model, selected: &Selection) -> String {
         _ => String::new(),
     };
     format!("{category}: {detail}")
+}
+
+/// The name of the gear item `id` of `part`: its entry in the catalogue, the rider's own gear for the empty id.
+fn gear_name(part: crate::garage::rider_gear::Part, id: &str) -> String {
+    let entries = crate::garage::rider_gear::loaded().map(|catalogue| catalogue.entries(part)).unwrap_or_default();
+    entries.into_iter().find(|entry| entry.id == id).map_or_else(|| id.to_owned(), |entry| entry.label)
 }
 
 fn game(label: u32, fallback: &str) -> String {

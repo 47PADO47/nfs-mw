@@ -11,6 +11,7 @@ use crate::hud::{HudEvent, LABEL_KMH, MapBlip, ModMessageTone, RACE_SPEEDTRAP, g
 use crate::i18n::t;
 use crate::scenes::world::players::{LEAD, PlayerId};
 use crate::scenes::world::{WorldScene, space};
+use crate::settings::SpeedUnits;
 
 /// How close the car has to come to a speed trap's place to be inside it when the record states no `Radius`. It does on
 /// all 39: 20 m, 25 m on one and 30 m on two (`docs/formats/gameplay-races.md`).
@@ -19,6 +20,32 @@ const DEFAULT_RADIUS: f32 = 20.0;
 const MESSAGE_SECS: f32 = 3.0;
 /// The language label of a crossing below the threshold: `HUD_TOO_SLOW`.
 const LABEL_TOO_SLOW: u32 = 0x0FD7_F0B5;
+
+/// What a trap was when a car drove into it: it completes only when it is armed (its bin has been entered) and not done.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TrapState {
+    Armed,
+    /// Done before: a trap never completes twice.
+    Done,
+    /// Its bin is not entered yet: it says "too slow" at any speed (`docs/specs/career-milestones.md` section 3.7).
+    NotArmed {
+        bin: u8,
+    },
+}
+
+/// The line the console log gets when a car drives into a speed camera: the speed it was judged at and the speed the camera asks, in the
+/// units the player chose (`speed_units`). The camera asks more than a car does at the start of the career: its target is 130 to 320 km/h.
+fn camera_line(passed: bool, kmh: f32, target_kmh: f32, units: SpeedUnits, state: TrapState) -> String {
+    let (speed, name) = units.of_kmh(kmh);
+    let (target, _) = units.of_kmh(target_kmh);
+    let verdict = if passed { "passed" } else { "too slow" };
+    let why = match (passed, state) {
+        (true, _) | (false, TrapState::Armed) => String::new(),
+        (false, TrapState::Done) => " (already done)".to_owned(),
+        (false, TrapState::NotArmed { bin }) => format!(" (not armed: bin {bin} is not entered yet)"),
+    };
+    format!("speed camera: {verdict}, {speed:.0} {name}, target {target:.0} {name}{why}")
+}
 
 /// The traps each player's car is inside, by key: a trap fires when a car enters it, not while it stays.
 #[derive(Default)]
@@ -109,8 +136,14 @@ impl WorldScene {
         let outcome = self.career.handle.with(|career| {
             let trap = career.traps.iter_mut().find(|trap| trap.key() == key)?;
             let bin = trap.bin();
+            let target = f32::from(trap.threshold_kmh());
+            let state = match (trap.done(), trap.is_active()) {
+                (true, _) => TrapState::Done,
+                (false, true) => TrapState::Armed,
+                (false, false) => TrapState::NotArmed { bin },
+            };
             let crossing = trap.crossing(kmh);
-            let Crossing::Passed { bounty, .. } = crossing else { return Some((crossing, 0)) };
+            let Crossing::Passed { bounty, .. } = crossing else { return Some((crossing, 0, target, state)) };
             let credit = trap_credit(career.settings.car_handle, guest_handle, who);
             if let Some(record) = credit.and_then(|handle| career.stable.career_for_handle_mut(handle)) {
                 award_player_bounty(record, bounty);
@@ -121,10 +154,11 @@ impl WorldScene {
             let count = career.blacklist.bin(bin).map_or(0, |record| record.challenges.len());
             let count = u8::try_from(count).unwrap_or(u8::MAX);
             phone.queue_bin_messages(&mut career.settings.sms, bin_messages(bin, BinMoment::Challenges(count)));
-            Some((crossing, bounty))
+            Some((crossing, bounty, target, state))
         });
         match outcome.flatten() {
-            Some((Crossing::Passed { speed_kmh, .. }, bounty)) => {
+            Some((Crossing::Passed { speed_kmh, .. }, bounty, target, state)) => {
+                log::info!("{}", camera_line(true, speed_kmh, target, SpeedUnits::current(), state));
                 log::info!("career: speed trap {key:#x} passed at {speed_kmh:.0} km/h, bounty {bounty}");
                 self.career.trap_photo = Some(crate::viewer::PhotoReport {
                     kind: crate::viewer::PhotoKind::SpeedTrap,
@@ -143,7 +177,8 @@ impl WorldScene {
                     self.hud_feed.push(HudEvent::SpeedTrap { kmh: speed_kmh, passed: true });
                 }
             }
-            Some((Crossing::TooSlow, _)) => {
+            Some((Crossing::TooSlow, _, target, state)) => {
+                log::info!("{}", camera_line(false, kmh, target, SpeedUnits::current(), state));
                 set_mod_message(&crate::i18n::game_or_error(LABEL_TOO_SLOW), ModMessageTone::Warning, MESSAGE_SECS);
                 if who == LEAD {
                     self.hud_feed.push(HudEvent::SpeedTrap { kmh, passed: false });
@@ -199,6 +234,34 @@ mod tests {
         watch.entered(guest, vec![7]);
         watch.keep(&[LEAD]);
         assert_eq!(watch.entered(guest, vec![7]), vec![7], "entered again after rejoining");
+    }
+
+    #[test]
+    fn the_console_line_names_the_speed_and_the_target_in_the_players_units() {
+        let armed = TrapState::Armed;
+        assert_eq!(
+            camera_line(false, 143.2, 180.0, SpeedUnits::Metric, armed),
+            "speed camera: too slow, 143 km/h, target 180 km/h"
+        );
+        assert_eq!(
+            camera_line(true, 214.0, 180.0, SpeedUnits::Metric, armed),
+            "speed camera: passed, 214 km/h, target 180 km/h"
+        );
+        assert_eq!(
+            camera_line(false, 143.0, 225.0, SpeedUnits::Imperial, armed),
+            "speed camera: too slow, 89 mph, target 140 mph",
+            "both in miles per hour for an imperial player"
+        );
+    }
+
+    #[test]
+    fn a_camera_that_cannot_complete_says_why_it_was_too_slow() {
+        let line = |state| camera_line(false, 300.0, 180.0, SpeedUnits::Metric, state);
+        assert_eq!(
+            line(TrapState::NotArmed { bin: 9 }),
+            "speed camera: too slow, 300 km/h, target 180 km/h (not armed: bin 9 is not entered yet)"
+        );
+        assert_eq!(line(TrapState::Done), "speed camera: too slow, 300 km/h, target 180 km/h (already done)");
     }
 
     #[test]

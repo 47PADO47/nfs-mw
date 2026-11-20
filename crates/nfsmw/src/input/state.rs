@@ -19,11 +19,21 @@ pub struct ActionState {
     typing: bool,
     /// Physical wheel movement in lines, separate from viewer Zoom bindings such as the D-pad.
     menu_scroll: f32,
+    /// The shift up and shift down values (in that order) from everything but a pad's stick or other analog axis (keys, buttons,
+    /// paddles), summed and held to 0..1 as the action is: what [`ActionState::without_stick_shift`] leaves. Subtracting the
+    /// stick's part from the clamped sum would be wrong (a key and the stick together clamp to 1).
+    shift_without_stick: [f32; 2],
 }
 
 impl Default for ActionState {
     fn default() -> Self {
-        Self { now: [0.0; Action::ALL.len()], before: [0.0; Action::ALL.len()], typing: false, menu_scroll: 0.0 }
+        Self {
+            now: [0.0; Action::ALL.len()],
+            before: [0.0; Action::ALL.len()],
+            typing: false,
+            menu_scroll: 0.0,
+            shift_without_stick: [0.0; 2],
+        }
     }
 }
 
@@ -107,6 +117,17 @@ impl ActionState {
         self.update(bindings, &snapshot, ui_focus);
     }
 
+    /// This frame without the gear shifts a pad's stick gave (the right stick pushed up or down is the shift by default): a camera
+    /// that looks around with that stick, the bike's helmet camera, takes the push for the look, and the keys, the buttons and
+    /// the paddles still shift.
+    pub fn without_stick_shift(&self) -> Self {
+        let mut out = self.clone();
+        for (action, kept) in [Action::ShiftUp, Action::ShiftDown].into_iter().zip(self.shift_without_stick) {
+            out.now[action.index()] = kept;
+        }
+        out
+    }
+
     /// The action's value: a signed amount for axes, 0 or 1 for buttons.
     pub fn value(&self, action: Action) -> f32 {
         self.now[action.index()]
@@ -138,6 +159,7 @@ impl ActionState {
         self.typing = ui_focus;
         self.menu_scroll = if ui_focus { 0.0 } else { snapshot.scroll };
         self.now = [0.0; Action::ALL.len()];
+        self.shift_without_stick = [0.0; 2];
         for b in &bindings.0 {
             // Alt+Enter is the fullscreen chord (`app/window/hotkey.rs`): the Enter in it is not the interact press.
             if b.action == Action::Interact && is_alt_enter(b, snapshot) {
@@ -151,8 +173,13 @@ impl ActionState {
                     f32::from(u8::from(snapshot.pad_axes.get(&axis).copied().unwrap_or(0.0) * b.scale >= threshold));
                 continue;
             }
-            self.now[b.action.index()] += b.value(snapshot);
+            let value = b.value(snapshot);
+            self.now[b.action.index()] += value;
+            if !matches!(b.source, Source::PadAxis(_)) && matches!(b.action, Action::ShiftUp | Action::ShiftDown) {
+                self.shift_without_stick[usize::from(b.action == Action::ShiftDown)] += value;
+            }
         }
+        self.shift_without_stick = self.shift_without_stick.map(|sum| sum.clamp(0.0, 1.0));
         for a in Action::ALL {
             if a.is_bounded() {
                 self.now[a.index()] = self.now[a.index()].clamp(-1.0, 1.0);

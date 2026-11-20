@@ -123,5 +123,6 @@ limits, especially indoors; this is not local GI or exact per-pixel ray tracing.
 
 For reproducible comparisons, `environment clouds <0..1|location>` and
 `environment hour <0..24>` use the same session state as F8 Environment. They do
-not save weather or alter rain. Original-game night/tunnel exposure parity remains
+not save weather. `environment rain <on|off>` forces the rain at full amount (F8 Environment > Rain) or
+returns to the location's own weather, for the session. Original-game night/tunnel exposure parity remains
 separate from this custom lighting calibration.

@@ -84,14 +84,14 @@ upcoming bend known from the track spline) are not played either; section 7.
 
 `ride6-rider-import` writes one graph per type (`graph_race.json`, `graph_naked.json`, `graph_motard.json`, `graph_scooter.json`,
 `graph_enduro.json`) next to the shared `graph.json` (the motard's, for a bike without a kind), and `styles.json` listing them with
-the walk's numbers. `ride6-bike-import contacts` writes, for each bike, `contacts.json` with `style`: the type's name, the
+the walk's and the standstill's numbers. `ride6-bike-import contacts` writes, for each bike, `contacts.json` with `style`: the type's name, the
 blueprint's `BikeType`, where it came from (`correction-table` or `input-handler`) and the handler class. The game reads the bike's
 `style.name`, looks it up in `styles.json` and plays that graph; a bike or a rig without them plays `graph.json`.
 
-The riding style written is 0 for every type but the supermoto (the clips of the first row of the table in section 1) and 2 for the
-supermoto (old school, the only style whose inside foot leaves the peg): a choice, as the setting is the rider's and the data has
-no default for it. `ride6-rider-import --style N` writes row N into every type's graph. Each entry of `styles.json` carries the
-style it was built for (`riding_style`) and the game reads it for the foot override.
+**The riding style is the player's setting** (section 8): every graph carries the lean sets of all three styles (a `Select` node over
+the sitting pose, indexed by the graph's `riding_style` parameter) and the game fills the parameter from the bike's group's setting
+(`riding_style_road`, `riding_style_motard` or `riding_style_offroad`; section 8). A type whose three styles play the same clips (the scooter) has one lean set. Before the setting
+existed the importer wrote one style per type (0, the supermoto's 2).
 
 ## 4. The reverse walk (animation)
 
@@ -114,7 +114,8 @@ Here (`crates/nfsmw/src/scenes/world/drive/rider/reverse.rs`): the graph's param
 riding pose, 0 to 1), `reverse_start` (the seconds), `reverse_loop` (0 while the start clip plays, 1 after) and `reverse_cycle` (the
 loop clip's phase, wrapped by the clip's length) are made from the bike's signed speed with the numbers of `styles.json`. The
 leg that is down is not modelled: the both-feet start clip and the `Retro_Loop_R` clip are played (choice; the blueprint's
-`StandingLeg_Initialized` is a state of its start-up animations). The fade in and out of the walk takes a quarter of a second
+`StandingLeg_Initialized` is a state of its start-up animations). The rider's legs are let off the pegs by the walk's weight so that
+the clip's feet show ([ride6-rider-standstill.md](ride6-rider-standstill.md), section 4); with the pegs' IK still on they stayed on the pegs. The fade in and out of the walk takes a quarter of a second
 (choice; the transition time of the state machine is in cooked data not read).
 
 ## 5. The reverse (physics)
@@ -156,7 +157,7 @@ stays at idle. The bike keeps itself upright at walking pace as it does standing
 |---|---|
 | The clip names of each type and riding style | Data (`SET Animations`) |
 | The type = override, else the handler | Data for the override; the handler rule is an inference (18 of the 21 overrides repeat it; the engine's own default may be the camera folder's kind for five race-modified naked bikes) |
-| Riding style 0 for every type but the supermoto (2) | Choice (the setting is the rider's); 2 for the foot out |
+| Riding style: the player's setting, balanced by default | Data for the three values (the `LEAN_STYLE` option) and for balanced being the first; the default is a choice |
 | Aero centre pose = `AeroPose_Low` (`race_aeroPose_Down`, `naked_aeroPose_Down`) | Choice (the blueprint has two aero poses, low and high, chosen by a tuck variation function) |
 | Enduro poses = `enduro_standard_pose`, `enduro_aeroPose` | Inference from the order of the assignments in `SET Animations` |
 | Scooter lean set = the on-road one | Choice (the off-road set is chosen by `TrackCategoryAnimationModifier`) |
@@ -173,7 +174,61 @@ stays at idle. The bike keeps itself upright at walking pace as it does standing
   bones of the suit only), the leg-out layers (they need the bend ahead), the bump and imbalance layers of every type, the
   look-back clips, the start and stop animations of the feet (the clips of every type are in the export but not in the pack's
   graph), the leg that is down (left, right or both) and the female rider's sets (`race_F_*`).
-- The riding style as a setting: a type plays one style (0, the supermoto 2).
 - The pre-turn leg-out and the knee-to-ground trace ([ride6-rider-knee-foot.md](ride6-rider-knee-foot.md), section 4).
 - The scooter's off-road lean set, the bagger's (type 5 is played as naked, as the blueprint does) and the endurance variants.
 - `HasReverse` and the request conditions that depend on the gear and the rear brake.
+
+## 8. The riding style (the setting)
+
+RIDE 6's riding style page (`WBP_RidingStylePage`, the global option asset `data/options/GameOptions/RidingStyle`) has four options [D]:
+
+| Option (`OptionLabel`) | Values | Shown as |
+|---|---|---|
+| `LEAN_STYLE` | 0, 1, 2 | `RIDER-DATA_RIDING-STYLE_CORNERING_BALANCED_TITLE`, `..._SHOULDERS-OUT_TITLE`, `..._OLD-SCHOOL_TITLE`: **balanced, shoulders out, old school** (the animation blueprint's `RidingStyle`) |
+| `START_LEG` | -1, 1, 0 | the foot put down at a standstill: left foot, right foot, both feet (`StandingLeg`, [ride6-rider-standstill.md](ride6-rider-standstill.md)) |
+| `LEG_OUT` | 0, 1 | braking leg out: no, yes (the leg-out layers `*_leg_out_*`: not played here) |
+| `BRAKE_FINGERS` | 1, 2, 4 | the fingers on the brake lever ([ride6-rider-hands.md](ride6-rider-hands.md)) |
+
+The page offers presets (`graphics/Bindings/Rider/RIDING_STYLE`, rows `Balanced`, `ElbowOut`, `BodyOut`, `ShouldersOut`, `OldSchool`): the
+other three options for each: Balanced `START_LEG` 1 (right), `LEG_OUT` 1; ShouldersOut `START_LEG` -1 (left), `LEG_OUT` 0; OldSchool 0 and 0;
+`BRAKE_FINGERS` 2 in all (ElbowOut and BodyOut have no `LEAN_STYLE` value). The anim data table `RidingStyle_DT` repeats three of them with
+`StartLeg` 1, 0, 0 and `BrakeFingers` 3, 2, 2; the bindings table is the one the page reads and was taken.
+
+**Here** there are **three** riding style settings, one per class of bike, and two settings for the fingers (Gameplay options, from the top: Rider
+Gear, **Riding Style: Road**, **Riding Style: Motard**, **Riding Style: Offroad**, **Brake Fingers**, **Clutch Fingers**):
+
+| Setting (config key, `NFSMW_` variable, console `set`) | Values | Default | Origin |
+|---|---|---|---|
+| `riding_style_road` (`NFSMW_RIDING_STYLE_ROAD`) | `balanced`, `shoulders-out`, `old-school` | `balanced` | Data for the values (`LEAN_STYLE` 0 to 2); the default is the first value and the first preset (choice) |
+| `riding_style_motard` (`NFSMW_RIDING_STYLE_MOTARD`) | the same | `balanced` | the same |
+| `riding_style_offroad` (`NFSMW_RIDING_STYLE_OFFROAD`) | the same | `balanced` | the same |
+| `brake_fingers` (`NFSMW_BRAKE_FINGERS`) | `1`, `2`, `4` | `2` | Data (`BRAKE_FINGERS`; 2 is the blueprint's default and every preset's) |
+| `clutch_fingers` (`NFSMW_CLUTCH_FINGERS`) | `2`, `4` | `2` | Ours: RIDE 6 has no clutch option; the values are the two left-hand clips that exist ([ride6-rider-hands.md](ride6-rider-hands.md)) |
+
+RIDE 6's page keeps the three pictures sets of the style apart: `RoadOptionToPictureMap` (the `Sportive_*` pictures), `MotardOptionToPictureMap` and
+`OffroadOptionToPictureMap` (`Enduro_*`) of `WBP_RidingStylePage` [D], so the three groups are the game's own. Whether the page stores one style per group
+or one for the rider could not be read (the page's picture choice is native code); one per group is what the player asked for. The old single setting
+(`riding_style`, `NFSMW_RIDING_STYLE`, console `set riding_style`) still works as **a migration**: it sets all three at once and a class's own key wins
+over it; nothing writes it any more.
+
+**Which bike is in which group** (`scenes/world/drive/rider/choices.rs`, from the bike's `contacts.json` `style`: the graph's name and the input handler):
+
+| Group | Bikes | Rule |
+|---|---|---|
+| Road | superbikes and sport bikes, nakeds, classics, cruisers (the bagger plays the naked set) | kind `race`, `naked` (and anything the table does not know) |
+| Motard | the supermotos: KTM 450 SMR, 690 SMC R, Honda CRF 450 R SMT, ... | kind `motard`, **or** the input handler `Motard` (8 bikes). The CRF 450 R SMT is type `enduro` in the correction table (it plays the enduro graph, its old-school set is the enduro's) but runs the supermoto's handler, and the player counts it a 450 supermoto |
+| Offroad | touring, adventure and enduro bikes, scooters | kind `enduro` (a `Maxienduro` handler) or `scooter` |
+
+A bike with no kind plays the rig's shared graph, which is the supermoto's, and takes the motard group. The setting of the bike's group sets, for that bike:
+
+- the lean set of the graph (the table of section 1: `race_Rossi_*`, `race_Lorenzo_*`, `race_Schwantz_*`; `naked_Balanced_*`, `naked_ShoulderOut_*`,
+  `naked_Old_School_*`; `motard_Leaning_Knee_*`, `motard_Leaning_*`, `motard_Old_School_*`; the enduro's own old-school set; the scooter has one);
+- whether the inside foot leaves the peg in a lean: old school on a supermoto or an enduro bike ([ride6-rider-knee-foot.md](ride6-rider-knee-foot.md));
+- the foot put down at a standstill from `START_LEG` of the preset: balanced the right foot, shoulders out the left, old school both
+  (`standstill::leg_of`).
+
+Why the row was hard to find: the single row sat 17th of 23 in a list that shows 8, so it needed nine presses of Down to appear (checked offscreen
+with `nfsmw view-screen Options.fng --category gameplay`; the row was there and worked). The rider's rows are now 6th to 11th, one scroll from the top.
+
+`LEG_OUT` is not an option here: the leg-out layers are not played. The race bikes' names for the three styles are riders' names (Rossi, Lorenzo,
+Schwantz); the page calls them by the three titles above.

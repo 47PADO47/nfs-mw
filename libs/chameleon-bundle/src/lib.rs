@@ -6,9 +6,11 @@
 //! (a car's materials name textures that live in a shared texture bundle), so a reader resolves ids over every bundle
 //! it has opened.
 //!
-//! This crate takes `&[u8]` and never opens files.
+//! This crate takes `&[u8]` and never opens files. A bundle too big to hold in memory is read through [`Ranges`], a reader the
+//! caller supplies, which is asked only for the table of resources and for the blocks of the resources that are read.
 
 mod bundle;
+mod data;
 mod debug;
 mod entry;
 mod error;
@@ -21,6 +23,7 @@ mod types;
 mod tests;
 
 pub use bundle::{Bundle, Resource};
+pub use data::Ranges;
 pub use debug::{DebugName, parse_debug_names};
 pub use entry::{Entry, HANDLE_FLAG, Import, ImportKind};
 pub use error::{Error, Result};

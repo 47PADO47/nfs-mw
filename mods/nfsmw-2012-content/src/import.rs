@@ -4,23 +4,23 @@
 //! parallel. The pool leaves one core to the game, which keeps running while this does.
 
 use std::path::Path;
+use std::sync::Mutex;
 
 use anyhow::{Context, Result, bail};
 use chameleon_bundle::Bundle;
-use chameleon_vehicle::{
-    Lod, PaintPackGroup, PoliceMarks, VehiclePaint, driver_setup, read_drift_handling, read_stats,
-};
+use chameleon_vehicle::{PaintPackGroup, PoliceMarks, VehiclePaint, read_drift_handling};
 use rayon::prelude::*;
 
 use crate::config::{Config, Role};
 use crate::drift_stats::DriftKeys;
 use crate::emit::{CarEntry, CarFiles, ModFolder};
-use crate::fit::{Fit, to_car_space};
+use crate::lazy::{self, CarRecipe, Part, Recipe};
 use crate::police::PoliceRole;
+use crate::prepare::{self, Prepared};
 use crate::shared::SharedSet;
-use crate::source::{CarFile, Source, SourceCar};
+use crate::source::{CarFile, Source};
 use crate::stats::ImportedStats;
-use crate::{brands, cameras, convert, names, nitrous, paints, sounds, two_colour, variants, wheels};
+use crate::{brands, cameras, convert, names, nitrous, paints, sounds, variants};
 
 /// Threads the conversion may use at most: more would only add memory (each car in flight holds its meshes).
 const MAX_THREADS: usize = 6;
@@ -103,19 +103,34 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     if wanted.is_empty() && !config.traffic {
         bail!("no car of the 2012 install matches the settings");
     }
-    let folder = ModFolder::create(out)?;
+    let folder = ModFolder::create(out)?.lazy(config.lazy);
     let shared = SharedSet::open(source, config);
     // Every car sits one of the install's characters at the seat its bundle names; the figures are read once, when first asked.
     if !source.has_characters() {
         log::warn!("the 2012 install has no character bundle: the cars have no driver");
     }
+    // What the maker of the lazy files needs for each car, when the run writes lazy files (`lazy.rs`).
+    let recipes = Mutex::new(Vec::new());
     let results: Vec<Result<ImportedCar>> =
-        wanted.par_iter().map(|car| import_car(source, car, config, &folder, &shared)).collect();
+        wanted.par_iter().map(|car| import_car(source, car, config, &folder, &shared, &recipes)).collect();
     write_nitrous(source, out);
     crate::ignition::write_shared(source, out);
     crate::tire_smoke::write_variant(source, out);
     crate::spark_assets::write(source, out);
     crate::wind_assets::write(source, out);
+    crate::grading::write(source, out);
+    crate::trees::write(source, config, out);
+    if config.road_textures
+        && let Err(error) = crate::road_textures::write(out)
+    {
+        log::warn!("the road textures are not written: {error:#}");
+    }
+    crate::signs::write(source, config, out);
+    if config.skid_marks {
+        crate::marks_assets::write(source, out);
+    }
+    crate::rain_assets::write(source, out, config.rain_splash, config.rain_drops, config.wet_road);
+    crate::sky::write(source, config, out);
     let makes: Vec<&str> =
         wanted.iter().zip(&results).filter(|(_, done)| done.is_ok()).map(|(car, _)| car.make.as_str()).collect();
     let written = brands::write_all(source, &folder, &makes);
@@ -123,6 +138,10 @@ fn convert_all(config: &Config, source: &Source, out: &Path) -> Result<Report> {
     // The plate designs, one set for every car (their manifests name its index).
     crate::plate_designs::write(source, &folder);
     shared.write(folder.root())?;
+    if config.lazy {
+        let cars = recipes.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
+        Recipe::new(config, source.root(), cars).write(folder.root())?;
+    }
     let mut report = Report::default();
     for (car, result) in wanted.iter().zip(results) {
         match result {
@@ -183,53 +202,11 @@ fn import_car(
     config: &Config,
     folder: &ModFolder,
     shared: &SharedSet,
+    recipes: &Mutex<Vec<CarRecipe>>,
 ) -> Result<ImportedCar> {
-    let mut car = source.load(named.file)?;
-    // What the car is comes from its own bundle; the user's multipliers, if any, change it below.
-    let bytes = source.bundle_bytes(named.file)?;
-    let mut car_stats = read_stats(&Bundle::parse(&bytes)?).context("the stats of the car could not be read")?;
-    let body = car.vehicle.body.first().context("the car has no body")?;
-    let (rear_end, front_end) = body
-        .iter()
-        .flat_map(|mesh| mesh.vertices.iter().map(|v| v.position[2]))
-        .fold((f32::MAX, f32::MIN), |(low, high), z| (low.min(z), high.max(z)));
-    let placed = wheels::place(&car.vehicle, (rear_end, front_end), car_stats.axle_z)
-        .context("the wheel layout of the car could not be measured")?;
-    // The stats' wheelbase and weight distribution are those of the hubs the wheels are drawn on.
-    car_stats.axle_z = placed.axles;
-    placed.seat_hubs(&mut car.vehicle);
-    let fit = Fit::own(placed.layout);
-    let driver = seat_driver(source, &mut car, &bytes);
-    let driver_poses = crate::driver_poses::bake(source, &bytes);
-    // A car with two-colour paint packs offers each as a livery (and takes the texture coordinates of their pictures); any
-    // other car offers the pictures of its livery bundles, or its own.
-    let pictures = two_colour::apply(source, named.file, &mut car, &named.id).unwrap_or_else(|| {
-        let livery_names = variants::livery_names(source, named.file, &named.liveries);
-        variants::pictures(source, &car, &named.id, &named.liveries, &livery_names)
-    });
-    // The mid-detail level of the car's low-detail bundle becomes its `C` level (`low_detail.rs`); a car with liveries keeps its own.
-    if pictures.is_empty() {
-        crate::low_detail::add_mid(source, named.file, &mut car);
-    }
-    // The 2012 coronas become the lamp sprites of the car and, on a police car, its light bar (`lamp_coronas.rs`); their pictures
-    // go into the car's texture pack with the liveries.
-    let coronas = crate::lamp_coronas::build(
-        &|rel| source.install_file(rel),
-        &bytes,
-        &car.lamps,
-        &|p| fit.apply(to_car_space(p)),
-        &named.id,
-    );
-    let mut options = convert::Options {
-        max_texture_size: config.max_texture_size,
-        liveries: pictures.iter().map(|(choice, picture)| (choice.texture.clone(), picture.clone())).collect(),
-        driver,
-        driver_poses,
-    };
-    if let Some(coronas) = &coronas {
-        options.liveries.extend(coronas.sprites.iter().cloned());
-    }
-    let built = convert::build(&car, &fit, &named.id, &options)?;
+    let settings = prepare::Settings { max_texture_size: config.max_texture_size, driver_poses: config.driver_poses };
+    let Prepared { car, bytes, stats: car_stats, placed, fit, pictures, coronas, built, front_end } =
+        prepare::prepare(source, named.file, &named.id, &named.liveries, &settings)?;
     let mut stats = ImportedStats::of(&car_stats);
     // How the car slides, for the drift assist of the 2012 cars (`drift_nitrous.rs`); a car whose data does not read keeps the generic.
     stats.drift = read_drift_handling(&Bundle::parse(&bytes)?).ok().map(|handling| DriftKeys::of(&handling));
@@ -263,9 +240,25 @@ fn import_car(
             + &placed.manifest_table()
             + coronas.as_ref().map_or("", |coronas| coronas.manifest.as_str()),
     };
+    // A lazy run writes a stub where the geometry and the textures go, and the maker converts the car again when the game reads
+    // them; the recipe says how (`lazy.rs`).
+    let stubs = config.lazy.then(|| {
+        recipes.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(CarRecipe {
+            id: named.id.clone(),
+            file: named.file.number,
+            liveries: named.liveries.iter().map(|file| file.number).collect(),
+            idle_rpm: entry.stats.idle_rpm,
+            redline_rpm: entry.stats.redline_rpm,
+        });
+        (lazy::stub(&lazy::car_key(&named.id, Part::Geometry)), lazy::stub(&lazy::car_key(&named.id, Part::Textures)))
+    });
+    let (geometry, textures) = match &stubs {
+        Some((geometry, textures)) => (geometry.as_slice(), textures.as_slice()),
+        None => (built.geometry.as_slice(), built.textures.as_slice()),
+    };
     let files = CarFiles {
-        geometry: &built.geometry,
-        textures: &built.textures,
+        geometry,
+        textures,
         bounds: &built.bounds,
         engine: sounds.engine.as_ref(),
         effects: sounds.effects.as_ref(),
@@ -314,17 +307,6 @@ fn offered_paints(source: &Source, named: &Named, own: &[VehiclePaint]) -> Vec<V
         all.extend(in_order(file, &source.paints_of(file)));
     }
     all
-}
-
-/// The driver of `car` (the bundle `bytes`): the character the game seats in it (the officer in a police car), seated where the setup says, at every level
-/// of detail, with the figure's textures added to the car's. `None` when the car has no driver (the BMW 1M, whose setup
-/// marks no seat), or the install has no figure for its character.
-fn seat_driver(source: &Source, car: &mut SourceCar, bytes: &[u8]) -> Option<Vec<Lod>> {
-    let setup = driver_setup(&Bundle::parse(bytes).ok()?)?;
-    let seat = setup.seat?;
-    let figure = source.driver_figure(setup.character)?;
-    car.textures.extend(figure.textures.iter().map(|(id, texture)| (*id, texture.clone())));
-    Some(figure.driver.seated(seat))
 }
 
 #[cfg(test)]

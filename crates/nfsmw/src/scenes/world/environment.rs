@@ -108,6 +108,12 @@ mod tests {
 /// Reproducible comparisons use the same state as the Environment panel.
 pub(super) fn command(world: &mut WorldScene, args: &[&str]) -> Result<String, String> {
     use crate::viewer::Scene;
+    // `rain on` is the forced rain of F8 Environment at full amount, `rain off` the location's own weather; the rain and the
+    // wet it leaves build up as the world runs.
+    if let ["rain", mode @ ("on" | "off")] = args {
+        world.rain.configure(*mode == "on", 1.0);
+        return Ok(format!("Environment: rain {mode}"));
+    }
     let mut state = world.environment().ok_or("environment unavailable")?;
     apply(&mut state, args)?;
     world.set_environment(state);
@@ -141,7 +147,7 @@ fn apply(state: &mut crate::viewer::Environment, args: &[&str]) -> Result<(), St
             state.sun_mode = SunMode::CustomClock;
             state.hour = hour;
         }
-        _ => return Err("usage: environment clouds <0..1|location> | hour <0..24>".into()),
+        _ => return Err("usage: environment clouds <0..1|location> | hour <0..24> | rain <on|off>".into()),
     }
     Ok(())
 }

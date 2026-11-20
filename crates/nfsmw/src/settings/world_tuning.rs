@@ -25,6 +25,8 @@ pub struct WorldTuning {
     pub speedbreaker: SpeedbreakerTuning,
     /// The high-speed radial blur: on or off, and its strength.
     pub motion_blur: MotionBlur,
+    /// The colour grading strength, 0 to 1 (`grading_strength`).
+    pub grading_strength: f32,
     pub rain_droplet_scale: f32,
     /// The restored sparks and the speed trail (`[xenon_effects]`).
     pub xenon_effects: XenonEffects,
@@ -55,6 +57,7 @@ impl Default for WorldTuning {
             tail_trail_style: TailTrailStyle::default(),
             speedbreaker: SpeedbreakerTuning::default(),
             motion_blur: MotionBlur::default(),
+            grading_strength: super::grading::DEFAULT_STRENGTH,
             rain_droplet_scale: 0.5,
             xenon_effects: XenonEffects::default(),
             camera_shake: hud::DEFAULT_CAMERA_SHAKE,
@@ -82,6 +85,7 @@ impl From<&Settings> for WorldTuning {
             tail_trail_style: s.tail_trail_style,
             speedbreaker: s.speedbreaker,
             motion_blur: MotionBlur::from(s),
+            grading_strength: s.grading_strength,
             rain_droplet_scale: s.rain_droplet_scale,
             xenon_effects: s.xenon_effects,
             camera_shake: s.hud_options.camera_shake,

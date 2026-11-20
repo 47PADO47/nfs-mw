@@ -2,6 +2,7 @@
 
 use glam::{Quat, Vec3};
 
+use super::release::{MAX_RELEASE_SPEED, MAX_RELEASE_SPIN, release_velocity};
 use super::{Bike, BikeInput, BikeSpec, FallKind, VELOCITY_FRAMES};
 use crate::FIXED_STEP;
 use crate::ground::FlatGround;
@@ -161,4 +162,29 @@ fn a_lean_over_the_limit_is_a_low_side_and_a_velocity_against_the_heading_is_a_h
     plain.body_mut().set_orientation(turned);
     until_off(&mut plain, &ground);
     assert_eq!(plain.fall_kind(), Some(FallKind::LowSide));
+}
+
+#[test]
+fn the_release_velocity_adds_the_turn_of_the_frame_but_only_so_far() {
+    let (v, arm) = (Vec3::new(0.0, 0.0, 30.0), Vec3::new(0.0, 0.6, -0.2));
+    // An ordinary spin adds what it does.
+    let spin = Vec3::new(1.0, 0.0, 0.0);
+    assert!((release_velocity(v, spin, arm) - (v + spin.cross(arm))).length() < 1e-5);
+    // A collision's spike of 80 rad/s would add 48 m/s: held to a quarter of the speed and 3 m/s.
+    let spike = release_velocity(v, Vec3::new(80.0, 0.0, 0.0), arm);
+    assert!((spike - v).length() <= 30.0 * 0.25 + 3.0 + 1e-4, "{spike}");
+    // And nothing leaves faster than a bike can go.
+    assert!(release_velocity(Vec3::new(0.0, 0.0, 400.0), Vec3::ZERO, arm).length() <= MAX_RELEASE_SPEED + 1e-3);
+}
+
+#[test]
+fn a_fall_in_a_violent_spin_does_not_throw_the_rider_faster_than_the_bike() {
+    let (mut bike, ground) = bike_at(40.0);
+    run(&mut bike, &ground, 1.0);
+    bike.body_mut().angular_velocity = Vec3::new(90.0, 0.0, 60.0);
+    bike.body_mut().set_orientation(Quat::from_rotation_z(1.4));
+    until_off(&mut bike, &ground);
+    let release = bike.take_rider_release().expect("the rider is released");
+    assert!(release.velocity.length() <= 40.0 * 1.25 + 3.0 + 2.0, "{}", release.velocity);
+    assert!(release.angular_velocity.length() <= MAX_RELEASE_SPIN + 1e-3);
 }
