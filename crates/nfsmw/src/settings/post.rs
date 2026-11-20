@@ -55,6 +55,10 @@ impl PostBloom {
 
 /// What the renderer is asked to run for `settings`.
 pub fn post_effects(settings: &Settings) -> PostSettings {
+    let enhanced = f32::from(
+        settings.appearance.style != super::VisualStyle::OriginalPc
+            && settings.renderer == super::RendererKind::Blackbox,
+    );
     PostSettings {
         auto_exposure: settings.appearance.auto_exposure.then_some(blackbox_gfx::settings::post::AutoExposure {
             compensation_ev: 0.0,
@@ -64,6 +68,9 @@ pub fn post_effects(settings: &Settings) -> PostSettings {
             darken_rate: 3.0,
             neutral_log_luminance: [-4.0, -1.0],
         }),
+        sun_glare: settings.appearance.optics.sun_glare * enhanced,
+        physical_bloom: settings.appearance.optics.physical_bloom * enhanced,
+        lens_flare: settings.appearance.optics.lens_flare * enhanced,
         vignette: settings.appearance.vignette,
         colour_treatment_override: settings.visual_treatment.parameter_override(),
         colour_treatment: settings

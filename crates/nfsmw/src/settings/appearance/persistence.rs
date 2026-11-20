@@ -47,6 +47,7 @@ struct Stored {
     quality: Quality,
     treatment_strength: Option<f32>,
     auto_exposure: bool,
+    optics: Optics,
     vignette: f32,
     dlss_model: DlssModel,
     lighting: Lighting,
@@ -60,6 +61,7 @@ impl Default for Stored {
             quality: Quality::High,
             treatment_strength: None,
             auto_exposure: false,
+            optics: Default::default(),
             vignette: 0.0,
             dlss_model: DlssModel::Auto,
             lighting: Default::default(),
@@ -92,6 +94,7 @@ pub(super) fn read(value: &toml::Value, origin: &str) -> Option<Appearance> {
         quality: stored.quality,
         treatment_strength: stored.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
         auto_exposure: stored.auto_exposure,
+        optics: stored.optics,
         vignette: match stored.vignette.is_finite() {
             true => stored.vignette.clamp(0.0, 1.0),
             false => 0.0,
@@ -108,6 +111,7 @@ pub(super) fn value(value: Appearance) -> anyhow::Result<toml::Value> {
         quality: value.quality,
         treatment_strength: value.treatment_strength.filter(|v| v.is_finite()).map(|v| v.clamp(0.0, 1.0)),
         auto_exposure: value.auto_exposure,
+        optics: value.optics,
         vignette: match value.vignette.is_finite() {
             true => value.vignette.clamp(0.0, 1.0),
             false => 0.0,

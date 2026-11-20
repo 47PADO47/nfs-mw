@@ -105,6 +105,25 @@ fn appearance(ui: &mut egui::Ui, settings: &mut Settings) {
         &[PostBloom::Off, PostBloom::Low, PostBloom::Medium, PostBloom::High],
         defaults.post_bloom,
     );
+    ui.add_enabled_ui(settings.appearance.style != crate::settings::VisualStyle::OriginalPc, |ui| {
+        let optics = &mut settings.appearance.optics;
+        for (label, strength) in [
+            ("Physical bloom", &mut optics.physical_bloom),
+            ("Lens flare", &mut optics.lens_flare),
+            ("Sun glare", &mut optics.sun_glare),
+        ] {
+            ui.horizontal(|ui| {
+                let mut enabled = *strength > 0.0;
+                if ui.checkbox(&mut enabled, label).changed() {
+                    *strength = match enabled {
+                        true => 0.3,
+                        false => 0.0,
+                    };
+                }
+                ui.add(egui::Slider::new(strength, 0.0..=1.0).text("Strength"));
+            });
+        }
+    });
     ui.horizontal_wrapped(|ui| {
         ui.label("Visual Treatment:");
         for (label, value) in [

@@ -1,6 +1,13 @@
 //! Canonical style/quality requests shared by the menu, F8 and render bridge.
 mod budgets;
 pub mod display;
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Optics {
+    pub physical_bloom: f32,
+    pub lens_flare: f32,
+    pub sun_glare: f32,
+}
 mod persistence;
 pub mod registry;
 pub(crate) mod shadows;
@@ -120,6 +127,7 @@ pub struct Appearance {
     pub lighting: RenderExperiments,
     pub treatment_strength: Option<f32>,
     pub auto_exposure: bool,
+    pub optics: Optics,
     pub vignette: f32,
     pub dlss_model: DlssModel,
 }
@@ -131,6 +139,7 @@ impl Default for Appearance {
             quality: Default::default(),
             treatment_strength: None,
             auto_exposure: false,
+            optics: Optics::default(),
             vignette: 0.0,
             dlss_model: DlssModel::Auto,
             lighting: RenderExperiments { original_world_materials: true, ..Default::default() },
@@ -162,6 +171,7 @@ impl Settings {
             ..Default::default()
         };
         self.appearance.auto_exposure = false;
+        self.appearance.optics = Default::default();
         self.appearance.treatment_strength = None;
         self.graphics_preset = GraphicsPreset::Custom;
         self.car_shading = CarShading::Glossy;
