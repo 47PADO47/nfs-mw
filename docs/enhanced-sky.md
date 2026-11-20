@@ -23,7 +23,7 @@ time still holds sunlight while wind continues in unpaused gameplay.
 - The visible disk defaults to 2 times its 0.53-degree baseline. Its size does not
   control shadow softness. SDR sky highlights use a shoulder before adding the
   cloud-attenuated disk, retaining contrast against bright haze/clouds. HDR keeps
-  above-white radiance. No lens flare or screen-space sun glare is added.
+  above-white radiance. Optional [lens flare and sun glare](bloom-flare.md) are separate native controls.
 - A continuous weather coverage field changes cloud density, rather than fading
   separate cloud images. Wind advects periodic 3D gradient/cellular noise. Bounded
   height-dependent wind shear bends the field without stretching it during long
