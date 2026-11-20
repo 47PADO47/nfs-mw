@@ -1,3 +1,23 @@
+// Five-group first downsample adapted from Bevy 0.20, Bevy contributors.
+// MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 // Bloom: bright areas are blurred through a chain of half-size images and added back.
 //
 // params.a = (threshold, knee, intensity, 0).
@@ -12,7 +32,9 @@
 const MAX_TAP: f32 = 32.0;
 
 fn tap(tex: texture_2d<f32>, uv: vec2<f32>) -> vec3<f32> {
-    return min(textureSampleLevel(tex, samp, uv, 0.0).rgb, vec3<f32>(MAX_TAP));
+    let c = textureSampleLevel(tex, samp, uv, 0.0).rgb;
+    if params.b.y > 0.0 { return min(c, vec3<f32>(8192.0)); }
+    return min(c, vec3<f32>(MAX_TAP));
 }
 
 fn threshold(c: vec3<f32>) -> vec3<f32> {
@@ -37,10 +59,24 @@ fn down13(tex: texture_2d<f32>, uv: vec2<f32>, bright: bool) -> vec3<f32> {
     );
     for (var i = 0; i < 13; i++) {
         var c = tap(tex, uv + o[i] * d);
-        if (bright) {
+        if (bright && params.b.y <= 0.0) {
             c = threshold(c);
         }
         t[i] = c;
+    }
+    if bright && params.b.y > 0.0 {
+        let groups = array(
+            t[0]+t[1]+t[3]+t[4], t[1]+t[2]+t[4]+t[5],
+            t[3]+t[4]+t[6]+t[7], t[4]+t[5]+t[7]+t[8], t[9]+t[10]+t[11]+t[12]);
+        var sum = vec3<f32>(0.0);
+        var total = 0.0;
+        for (var i = 0; i < 5; i++) {
+            let colour = groups[i] * 0.25;
+            let weight = select(0.125, 0.5, i == 4) / (1.0 + dot(colour, vec3<f32>(0.2126,0.7152,0.0722)));
+            sum += colour * weight;
+            total += weight;
+        }
+        return sum / total;
     }
     let corners = t[0] + t[2] + t[6] + t[8];
     let edges = t[1] + t[3] + t[5] + t[7];
@@ -69,11 +105,32 @@ fn fs_up(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(sum / 16.0, 0.0);
 }
 
+fn flare_sample(uv: vec2<f32>) -> vec3<f32> {
+    let edge = min(uv, 1.0-uv);
+    let fade = smoothstep(0.0, 0.08, min(edge.x,edge.y));
+    let c = textureSampleLevel(src2, samp, uv, 0.0).rgb * params.b.w;
+    return max(c - vec3<f32>(select(0.0, 0.8, params.b.y > 0.0)), vec3<f32>(0.0)) * fade;
+}
+
+fn optics(base: vec3<f32>, glow: vec3<f32>, uv: vec2<f32>) -> vec3<f32> {
+    var lit = base + glow * params.a.z;
+    if params.b.y > 0.0 {
+        lit = mix(base, glow * params.b.w, 0.12 * params.b.y);
+    }
+    if params.b.z <= 0.0 { return lit; }
+    let axis = uv - 0.5;
+    let direction = axis / max(length(axis), 0.0001);
+    let ghost = flare_sample(0.5 - axis * 1.4) + flare_sample(0.5 - axis * 0.65);
+    let ring = uv - direction * 0.32;
+    let halo = vec3<f32>(flare_sample(ring + direction*0.003).r, flare_sample(ring).g, flare_sample(ring-direction*0.003).b);
+    return lit + (ghost + halo) * (0.04 * params.b.z);
+}
+
 @fragment
 fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
     let base = textureLoad(src, vec2<i32>(in.clip.xy), 0);
     let glow = textureSampleLevel(src2, samp, in.uv, 0.0).rgb;
-    return vec4<f32>(base.rgb + glow * params.a.z, 1.0);
+    return vec4<f32>(optics(base.rgb, glow, in.uv), 1.0);
 }
 
 // The ACES fit of tonemap.wgsl, kept identical to it (a test compares the two texts).
@@ -86,6 +143,6 @@ fn aces(x: vec3<f32>) -> vec3<f32> {
 fn fs_composite_tonemap(in: VsOut) -> @location(0) vec4<f32> {
     let base = textureLoad(src, vec2<i32>(in.clip.xy), 0);
     let glow = textureSampleLevel(src2, samp, in.uv, 0.0).rgb;
-    let lit = base.rgb + glow * params.a.z;
+    let lit = optics(base.rgb, glow, in.uv);
     return vec4<f32>(aces(max(lit, vec3<f32>(0.0)) * params.b.x), 1.0);
 }

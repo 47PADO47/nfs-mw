@@ -114,7 +114,13 @@ pub struct PostSettings {
     pub tonemap: Tonemap,
     /// Linear scale applied before the tone-mapping curve ([`MIN_EXPOSURE`]..=[`MAX_EXPOSURE`]; 1.0 is neutral).
     pub exposure: f32,
-    /// How much of the blurred bright areas is added back (0.0 turns bloom off; at most [`MAX_BLOOM_INTENSITY`]).
+    /// Procedural solar veil, as a fraction of maximum strength.
+    pub sun_glare: f32,
+    /// Fraction of maximum energy-conserving scatter. Zero restores legacy bloom.
+    pub physical_bloom: f32,
+    /// Strength of ghosts and the chromatic halo from the bloom chain.
+    pub lens_flare: f32,
+    /// Legacy additive bloom intensity.
     pub bloom_intensity: f32,
     /// The brightness above which pixels bloom (0.0..=[`MAX_BLOOM_THRESHOLD`]; a soft knee starts a little below).
     pub bloom_threshold: f32,
@@ -130,6 +136,9 @@ impl Default for PostSettings {
             vignette: 0.0,
             tonemap: Tonemap::Off,
             exposure: 1.0,
+            sun_glare: 0.0,
+            physical_bloom: 0.0,
+            lens_flare: 0.0,
             bloom_intensity: 0.0,
             bloom_threshold: DEFAULT_BLOOM_THRESHOLD,
             antialiasing: Antialiasing::Off,
@@ -149,6 +158,9 @@ impl PostSettings {
             auto_exposure: self.auto_exposure.filter(|tuning| tuning.valid()),
             colour_treatment: pick(self.colour_treatment, 0.0, 0.0, 1.0),
             colour_treatment_override: self.colour_treatment_override.filter(|value| value.is_valid()),
+            sun_glare: pick(self.sun_glare, 0.0, 0.0, 1.0),
+            physical_bloom: pick(self.physical_bloom, 0.0, 0.0, 1.0),
+            lens_flare: pick(self.lens_flare, 0.0, 0.0, 1.0),
             vignette: pick(self.vignette, 0.0, 0.0, 1.0),
             exposure: pick(self.exposure, defaults.exposure, MIN_EXPOSURE, MAX_EXPOSURE),
             bloom_intensity: pick(self.bloom_intensity, defaults.bloom_intensity, 0.0, MAX_BLOOM_INTENSITY),
@@ -161,16 +173,21 @@ impl PostSettings {
     /// on display-range colours, so the scene can be drawn in the surface's own format without it.
     pub fn needs_hdr(&self) -> bool {
         self.auto_exposure.is_some()
+            || self.sun_glare > 0.0
             || self.effects().iter().any(|e| matches!(e, PostEffect::Bloom | PostEffect::Tonemap))
     }
 
     /// The enabled effects in the order they run.
     pub fn effects(&self) -> Vec<PostEffect> {
         let mut effects = Vec::new();
+        let optics = self.physical_bloom > 0.0 || self.lens_flare > 0.0;
+        if optics {
+            effects.push(PostEffect::Bloom);
+        }
         if self.colour_treatment > 0.0 {
             effects.push(PostEffect::SceneTreatment);
         }
-        if self.bloom_intensity > 0.0 {
+        if self.bloom_intensity > 0.0 && !optics {
             effects.push(PostEffect::Bloom);
         }
         if self.tonemap != Tonemap::Off {

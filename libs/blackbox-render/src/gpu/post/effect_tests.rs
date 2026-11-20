@@ -327,6 +327,10 @@ fn check(backend: wgpu::Backends) {
         assert!(mapped.iter().all(|&p| near(p, expected, 2)), "exposure {exposure}: {:?} vs {expected:?}", mapped[0]);
     }
 
+    let physical = PostSettings { physical_bloom: 1.0, ..PostSettings::default() };
+    let paint = gpu.run(&mut gpu.chain_with(physical), size, flat);
+    assert!(paint.iter().all(|&p| near(p, [255, 128, 64, 255], 1)), "constant paint gains no light");
+
     // Bloom: a bright square spills light onto its black surroundings; below the threshold nothing changes.
     let square = "let on = abs(pos.x - 32.0) < 6.0 && abs(pos.y - 32.0) < 6.0;
                   return select(vec4<f32>(0.0, 0.0, 0.0, 1.0), vec4<f32>(4.0, 4.0, 4.0, 1.0), on);";

@@ -36,7 +36,10 @@ pub(super) fn mip_sizes(size: (u32, u32)) -> Vec<(u32, u32)> {
 /// The parameter block: `a` = (threshold, knee, intensity).
 pub(super) fn params(settings: &PostSettings) -> Params {
     let threshold = settings.bloom_threshold;
-    Params { a: [threshold, threshold * KNEE, settings.bloom_intensity * INTENSITY_SCALE, 0.0], b: [0.0; 4] }
+    Params {
+        a: [threshold, threshold * KNEE, settings.bloom_intensity * INTENSITY_SCALE, 0.0],
+        b: [0.0, settings.physical_bloom, settings.lens_flare, 0.0],
+    }
 }
 
 struct Level {
@@ -105,6 +108,7 @@ impl PostPass for BloomPass {
         let mut block = *params;
         block.b[0] = tonemap.unwrap_or(0.0);
         let chain = chain.get_or_make((io.input_size, format), || Chain::new(ctx.device, io.input_size, format));
+        block.b[3] = 1.0 / chain.levels.len().max(1) as f32;
         filter.set_params(ctx.queue, &block);
         let levels = &chain.levels;
         let mut draw = |entry, src, target: &wgpu::TextureView, blend| {
