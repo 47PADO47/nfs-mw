@@ -34,6 +34,51 @@ pub struct SkyState {
     pub celestial_sun: Option<[f32; 3]>,
     pub moon_direction: [f32; 3],
     pub night_amount: f32,
+    /// What the panoramic sky shows now, when [`SkyPanorama`] pictures are set and the procedural sky is on.
+    pub panorama: Option<SkyPanoramaState>,
+}
+
+/// The pictures of a panoramic sky: two cloud domes the sky blends between, and the moon. A dome is an equirectangular picture
+/// of the upper hemisphere: the full width is 360 degrees of azimuth, the top row the zenith and the bottom row the horizon;
+/// the colour is the light of the clouds and the alpha their cover. The moon picture is a square with the disc in the middle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SkyPanorama {
+    pub a: TextureHandle,
+    pub b: TextureHandle,
+    pub moon: Option<TextureHandle>,
+}
+
+/// How the panorama is drawn this frame (`SkyPanorama`): the blend from `a` to `b` and what each is lit by.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SkyPanoramaState {
+    /// 0 is the first dome, 1 the second.
+    pub blend: f32,
+    /// How far each dome is turned about the vertical, in turns of the full circle.
+    pub rotation: [f32; 2],
+    /// What each dome's linear colour is multiplied by, the exposure included.
+    pub tint: [[f32; 3]; 2],
+    /// A multiplier of the clouds' cover.
+    pub gain: f32,
+    /// Half the moon picture's width as an angle in radians, and its brightness.
+    pub moon_size: f32,
+    pub moon_brightness: f32,
+}
+
+impl SkyPanoramaState {
+    fn sanitized(self) -> Self {
+        let finite = |value: f32, default: f32| match value.is_finite() {
+            true => value,
+            false => default,
+        };
+        Self {
+            blend: finite(self.blend, 0.0).clamp(0.0, 1.0),
+            rotation: self.rotation.map(|turns| finite(turns, 0.0).rem_euclid(1.0)),
+            tint: self.tint.map(|tint| tint.map(|value| finite(value, 0.0).clamp(0.0, 16.0))),
+            gain: finite(self.gain, 1.0).clamp(0.0, 8.0),
+            moon_size: finite(self.moon_size, 0.0173).clamp(0.002, 0.1),
+            moon_brightness: finite(self.moon_brightness, 1.0).clamp(0.0, 8.0),
+        }
+    }
 }
 
 impl Default for SkyState {
@@ -51,6 +96,7 @@ impl Default for SkyState {
             celestial_sun: None,
             moon_direction: [0.0, 0.0, 1.0],
             night_amount: 0.0,
+            panorama: None,
         }
     }
 }
@@ -79,6 +125,7 @@ impl SkyState {
                 false => [0.0, 0.0, 1.0],
             },
             night_amount: finite(self.night_amount, 0.0).clamp(0.0, 1.0),
+            panorama: self.panorama.map(SkyPanoramaState::sanitized),
             ..self
         }
     }

@@ -133,9 +133,16 @@ impl Suspension {
     ///
     /// `effective_mass` is the mass the force moves along the axis (kg): the damper is applied implicitly against it, so a
     /// stiff damper on a light effective mass slows the motion without overshooting it at any step size.
+    #[cfg(test)]
     pub fn force(&self, total: f32, speed: f32, dt: f32, effective_mass: f32) -> f32 {
-        let slope = self.damper_slope(total, speed);
-        let damper = self.damper_force(total, speed) / (1.0 + slope * dt / effective_mass.max(1e-3));
+        self.force_scaled(total, speed, dt, effective_mass, 1.0)
+    }
+
+    /// [`Suspension::force`] with the damper's force and slope multiplied by `damping` (1: the data's damper; the arcade help raises it on
+    /// loose ground, `docs/specs/ride6-bike-rough-ground.md`).
+    pub fn force_scaled(&self, total: f32, speed: f32, dt: f32, effective_mass: f32, damping: f32) -> f32 {
+        let slope = self.damper_slope(total, speed) * damping;
+        let damper = self.damper_force(total, speed) * damping / (1.0 + slope * dt / effective_mass.max(1e-3));
         self.spring_force(total) + damper
     }
 

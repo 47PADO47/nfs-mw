@@ -17,12 +17,13 @@ mod loading;
 mod lockstep;
 mod parts;
 mod ready;
+mod replace;
 mod shadow_support;
+mod shared_textures;
 mod shared_upload;
 pub(super) mod start;
 mod texture_detail;
 mod traffic_support;
-mod trees;
 mod upload;
 use crate::modding::content::scenery::MapPack;
 
@@ -74,6 +75,8 @@ pub struct Residency {
     shared_ready: bool,
     /// The shared sets while they go to the GPU over several frames.
     shared_upload: Option<shared_upload::SharedUpload>,
+    /// What the replacements show in place of the shared textures (`residency/shared_textures.rs`).
+    shared_textures: shared_textures::SharedTextures,
     /// Whether the residency has been complete once (`complete`): from then on the world is shown, and uploads use the
     /// smaller budget.
     settled: bool,
@@ -117,6 +120,10 @@ pub struct Residency {
     /// The mods' map packs, by `index - mod_base`, and one streamer each for their files.
     mod_packs: Vec<MapPack>,
     mod_streamers: Vec<Streamer>,
+    /// For each pack, the streamer that reads it and the pack's section in that streamer; and, per streamer, the pack of each
+    /// of its sections (`mod_tiles::spawn_streamers`).
+    mod_routes: Vec<(usize, usize)>,
+    mod_owners: Vec<Vec<usize>>,
     /// The map packs the camera wants (near an anchor, or pinned), as residency indices.
     mod_wanted: Vec<usize>,
     /// Map packs an interior holds loaded (`pin`).
@@ -126,11 +133,14 @@ pub struct Residency {
     unwanted_scratch: Vec<usize>,
     /// Scratch for `request_wanted`.
     request_scratch: Vec<usize>,
+    /// The world is a second world: its collision grid starts empty and each map pack's instances are listed in it as the
+    /// pack arrives (`CollisionWorld::insert_into_grid`).
+    dynamic_grid: bool,
     /// Uploads wait for every request and go in tile order (`residency/lockstep.rs`); a session's rule.
     lockstep: bool,
-    /// Which trees pack the residency last looked at (`residency/trees.rs`), and the resident tiles it has asked the streamer
+    /// Which replacements the residency last looked at (`residency/replace.rs`), and the resident tiles it has asked the streamer
     /// for again because the pack changed.
-    trees_seen: Option<usize>,
+    replace_seen: Option<usize>,
     refresh: HashSet<usize>,
 }
 
@@ -166,9 +176,8 @@ impl Residency {
         let shared_total = sections.iter().filter(|section| !section.is_spatial()).count();
         let mod_base = sections.len();
         let zones = Zones::new(visible, &sections);
-        // A mod pack is a section of its own file: its streamer reads that file from offset 0, as entry 0.
-        let mod_streamers =
-            mod_packs.iter().map(|pack| Streamer::spawn(pack.path.clone(), vec![pack.section.clone()], 1)).collect();
+        let mod_tiles::ModStreamers { streamers: mod_streamers, routes: mod_routes, owners: mod_owners } =
+            mod_tiles::spawn_streamers(&mod_packs);
         sections.extend(mod_packs.iter().map(|pack| pack.section.clone()));
         let tiles = started.requested.iter().map(|&i| (i, TileState::Requested)).collect();
         Self {
@@ -185,6 +194,7 @@ impl Residency {
             shared_placed: Vec::new(),
             shared_ready: false,
             shared_upload: None,
+            shared_textures: Default::default(),
             settled: false,
             tiles,
             arrived: VecDeque::new(),
@@ -209,14 +219,17 @@ impl Residency {
             mod_base,
             mod_packs,
             mod_streamers,
+            mod_routes,
+            mod_owners,
             mod_wanted: Vec::new(),
             pinned: HashSet::new(),
             keep_scratch: HashSet::default(),
             unwanted_scratch: Vec::new(),
             request_scratch: Vec::new(),
             lockstep: false,
-            trees_seen: None,
+            replace_seen: None,
             refresh: HashSet::new(),
+            dynamic_grid: false,
         }
     }
 
@@ -238,6 +251,10 @@ impl Residency {
             self.finish_shared(renderer);
             return;
         }
+        if !self.has_zone && self.zones.is_empty() {
+            // A second world has no zones: its map packs stand in for them, and nothing waits for a zone.
+            self.has_zone = true;
+        }
         if self.zones.update_many(centres) {
             // A change only ever enters a zone: `Zones::update` keeps the current one when the camera leaves it.
             self.has_zone = true;
@@ -247,7 +264,8 @@ impl Residency {
         }
         self.update_traffic_support();
         self.update_mod_wanted(x, y);
-        self.sync_trees(renderer);
+        self.sync_replace(renderer);
+        self.advance_shared_textures(renderer);
         self.upload_arrived(renderer);
         self.unload_unwanted(renderer);
         self.request_wanted();

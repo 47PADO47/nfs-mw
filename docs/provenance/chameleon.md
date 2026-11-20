@@ -47,6 +47,16 @@ read of the nine bundles) was measured with a Python replay of the import-table 
 blocks of the model, its renderables, its materials and the first texture of each, nothing else. No decompiled code was used. Findings:
 [formats/chameleon-vegetation.md](../formats/chameleon-vegetation.md).
 
+## The soundtrack
+
+`UI/SONGS/` was found by listing the install's files that are not bundles (the 58 `.SPS` streams next to `SONGS.BNDL`). The song
+table was read with the Python scratch reader of the container: each song is a `Wave` resource whose main block names its stream, and an
+80-byte Genesys object that imports it; the titles and artists were found by searching the English string table for the names of artists
+the game is known to play and seeing that their ids sit right after the song objects' keys, and the allocation rule was checked on the
+43 songs (the few that do not fit are in [formats/chameleon-sound.md](../formats/chameleon-sound.md#the-soundtrack-uisongs)). The stream
+format and its repacking to MP3 are described in [formats/chameleon-sound.md](../formats/chameleon-sound.md); no executable was read for this.
+No decompiled code and no song is in the repository: the mod writes a playlist of paths, and the game decodes the install's own files.
+
 ## Known limits
 
 The Genesys objects (gameplay data), damage and crumple data, collision hulls, skeletons, lamp locators and the

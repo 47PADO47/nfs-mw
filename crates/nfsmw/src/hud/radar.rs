@@ -55,6 +55,15 @@ impl Binding {
         self.dt += dt.max(0.0);
     }
 
+    /// Hides the disc and the detector's layout for good (a world with no map). The rear-view mirror's own backing follows the
+    /// mirror, as it does everywhere.
+    pub fn hide(&mut self, rt: &mut Runtime, mirror: bool) {
+        script(rt, self.mirror_backing, if mirror { APPEAR } else { HIDE });
+        for object in [self.backing, self.group].into_iter().flatten() {
+            rt.set_hidden(object, true);
+        }
+    }
+
     pub fn apply(&mut self, rt: &mut Runtime, state: &HudState, mirror: bool) {
         let detecting = state.pursuit.is_none_or(|p| p.cooldown_shown());
         script(rt, self.mirror_backing, if mirror { APPEAR } else { HIDE });

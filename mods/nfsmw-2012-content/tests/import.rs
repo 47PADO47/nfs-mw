@@ -48,8 +48,11 @@ fn a_start_converts_in_the_background_and_the_next_start_does_not() {
 
     let folder = dir.join("files/CARS").join(&car.id);
     let geometry = std::fs::read(folder.join("GEOMETRY.BIN")).unwrap();
-    let (solids, errors) = blackbox_solid::read_solids_lossy(&geometry).unwrap();
+    let (mut solids, errors) = blackbox_solid::read_solids_lossy(&geometry).unwrap();
     assert!(errors.is_empty(), "{errors:?}");
+    // The file leaves out the second level where it is the first; the game reads it back as a copy (`levels.rs`).
+    assert!(!solids.iter().any(|solid| solid.name.ends_with("_B")), "a second level is written only when it differs");
+    nfsmw_data::car::mods::levels::alias_second_level(&mut solids);
     for stem in ["KIT00_BODY", "KIT00_FRONT_TIRE"] {
         for letter in ['A', 'B', 'C', 'D'] {
             let name = format!("{}_{stem}_{letter}", car.id);

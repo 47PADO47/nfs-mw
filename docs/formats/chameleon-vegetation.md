@@ -80,7 +80,7 @@ The bark maps (`104F49`, `27FFC`, `71314`, `E3770`, ...) are opaque pictures of 
 
 ## The species of the variant
 
-Eleven of the 40 models carry the variant ([`trees/species.rs`](../../mods/nfsmw-2012-content/src/trees/species.rs)). The others are
+Eleven of the 40 models carry the trees variant, and eight more the bushes ([the bushes](#the-bushes); [`trees/species.rs`](../../mods/nfsmw-2012-content/src/trees/species.rs)). The others are
 copies of the same species at other sizes, or models whose resources are not in the bundles around them (`0x4DA8A407`, the blossom
 tree, and `0xF0C5A212` miss a material or a texture in every bundle that holds them), or stands of trees of 80 to 300 m radius
 (`0xEE68B20`, `0x9A045F0A`, `0x944B51E8`, `0xDF534A75`, `0xDCCDD936`) that are whole stands, not trees.
@@ -99,9 +99,115 @@ tree, and `0xF0C5A212` miss a material or a texture in every bundle that holds t
 | `DEAD` | `0x0C41AAF0` | `TRK_UNIT146` | 4 | r 11.8 | bare tree |
 | `BUSH` | `0xFAC87374` | `TRK_UNIT1` | 4 | r 3.4 | round bush |
 
+### The levels that stand
+
+The coarsest level of some species is **not a tree that stands on the ground**: it is a crown alone, with no trunk and a lowest point
+that is metres above the model's origin (measured on the converted models, lowest and highest z of the level, metres, in 2005 space)
+**[verified]**:
+
+| Species, level | Lowest to highest | What it is |
+|---|---|---|
+| `AUTUMN` L3 | 1.2 to 4.8 | a small crown blob, a fifth of the tree's 23 m |
+| `BROADLEAF_L` L3 | 7.8 to 22.0 | a crown alone from 7.8 m up (its trunk is two triangles) |
+| `SPRUCE` L3 | 3.0 to 13.6 | crossed cards from 3 m up |
+| `DEAD` L3 | 2.3 to 15.1 | the branch cards, no trunk |
+
+Fitted to the 2005 far-tree solids (`1Z`), such a level hovered: `XT_CT_FALLTREED_1Z_JG_00` (a tree 25 m tall and 17 m wide in the 2005
+game) became a crown **70 m wide and 14 m tall, 4.8 m above the ground** (the model's 3.6 m blob scaled by the 4x limit), seen from afar as dark
+flat discs floating over the countryside; `XT_TREEMAPLEX_1Z_LL_00` got a crown from 12 m up. The converter therefore stops a species at the
+first level that does not stand (its lowest point at most a tenth of its own top, and its top at least 60 percent of the finest level's,
+`trees/build.rs`, `stands`) and the far solids take the coarsest level that does, so no solid of the variant hovers
+([effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)). The pack is 12 KB smaller.
+
 For each of them the model, its renderables and materials, the vertex descriptors and shaders (`SHADERS.BNDL`) and the textures resolve in a pool of the
 named bundle, `HAWAII/GLOBALRESOURCES.BNDL` and `SHADERS.BNDL` **[verified]**. The converter reads the bundles in that order (by ranges,
 [below](#what-the-conversion-costs)) and needs no other.
+
+## The bushes
+
+The census of the **models with a `Tree_*` material** (every `HAWAII/` bundle, the shaders of `SHADERS.BNDL`, a scratch Python reader built on
+`tools/chameleon_bundle.py` and `tools/chameleon_export.py`) finds **42 models**, not 40: the 40 of the first census and two more that the
+first one counted as one. 11 are the trees above, 8 are **low growth** (2 to 3.2 m tall, a footprint of 3 to 7 m) and are the bushes of
+the variant, and the rest are other trees (the large round bush `0x228F2FBA`, 7.2 m, and the thin-crowned `0x437640D7` and `0xE343E2A6` are trees
+for the eye), stands of 60 to 350 m, planters (`0xF86CFC31`, `0xFD63F5E8`: a street lamp with a hanging basket, a concrete trough with shrubs) and one
+arena prop. The eight were told apart **by looking at them**: a scratch software renderer (numpy, Pillow: the model's cards with their cut-out
+textures, two views and the levels of detail) drew a contact sheet of every model under 7 m. **[verified]** for the sizes and the pictures,
+the species names are ours.
+
+| Key | Model id | Read from | Levels | Finest level (w x d x h, triangles) | Texture | Picture |
+|---|---|---|---|---|---|---|
+| `BUSH` | `0xFAC87374` | `TRK_UNIT1` | 4 | 6.2 x 4.5 x 3.2, 38 | `27EDF` | dark round bush (already of the first trees) |
+| `SHRUB_GREEN` | `0x697E287C` | `TRK_UNIT33` | 3 | 4.1 x 4.0 x 2.7, 123 | `104F52` | green deciduous shrub, a clump of stems |
+| `HEDGE` | `0xA807609B` | `TRK_UNIT158` | 3 | 6.7 x 2.6 x 2.0 above its origin (its stems root 0.9 m below it), 220 | `104F52` | a hedge of upright leafy stems, 6.7 m of it |
+| `SHRUB_STRIP` | `0x5EE210C0` | `TRK_UNIT33` | 3 | 6.8 x 3.6 x 2.9, 116 | `15AB07` | olive shrub in a strip of two humps |
+| `DRY_SHRUB` | `0x8CA31079` | `TRK_UNIT113` | 3 | 3.6 x 4.3 x 2.3, 84 | `27ECA` | twiggy brown shrub, grass at its foot |
+| `DARK_SHRUB` | `0x345185D4` | `TRK_UNIT115` | 3 | 4.5 x 4.3 x 3.1, 474 | `27ED9` | dark, spiky evergreen shrub |
+| `PALE_SHRUB` | `0x7AC64A1F` | `TRK_UNIT68` | 4 | 3.0 x 3.2 x 3.1, 172 | `27EFA` | thin-stemmed shrub with pale, yellowish leaves |
+| `GRASS_TALL` | `0x8F4BEEBD` | `TRK_UNIT158` | 3 | 3.3 x 7.3 x 2.6, 136 | `15C521` | a strip of tall grass tufts |
+| `GRASS_CLUMP` | `0xCD874A5B` | `TRK_UNIT22` | 3 | 2.1 x 2.6 x 2.3, 8 | `15C521` | ornamental grass: 8 triangles of long blades |
+
+Each is in its bundle with every resource it needs but the shared ones (`GLOBALRESOURCES.BNDL`, `SHADERS.BNDL`): the bundle named is the smallest that
+passes that check, found by the same reader as above **[verified]**. The same rules as for the trees apply (`trees/build.rs`): a level that does not
+stand is dropped. No model has bark. There is a second, near-identical hedge, `0xCCEA1CBC` (4 levels), that is **not** used: it stands in a concrete
+trough (a bark-role mesh of `WorldPBR_*` with the texture `71965`), and in the game the trough came out as tan boards sticking out of the hedge (the first
+screenshots, `hedge1`), so the plain hedge `0xA807609B` replaced it.
+The 2012 game has **no fern, no flowerbed and no reed**: `XT_FERN` keeps the 2005 look.
+
+**The 2005 side** (a report of the solids of `STREAML2RA.BUN` by name, `report_the_solids_of_some_families` in `replace/real_tests.rs`;
+solids, of which world-space copies, the width of the long side of a copy at the median and the 90th percentile, metres):
+
+| Family | Solids (copies) | Width p50 / p90 | Vertices p50 | Effect | Replaced by |
+|---|---|---|---|---|---|
+| `XT_CT_BUSH_1B_JG_00` | 176 (175) | 78 / 153 | 100 | 0 | `SHRUB_GREEN` |
+| `XT_BUSH_FOREST_1A/2A_JG_00` | 125 (122) | 75 / 162 | 176 | 0 | `DARK_SHRUB` |
+| `XT_GC_BUSH_1B_00` | 47 (46) | 47 / 115 | 124 | 0 | `SHRUB_STRIP` |
+| `XT_CT_BUSHMULLB_1B_00`, `XT_BUSHGROUP`, `XT_BUSHMULLD` | 25, 44, 11 | 32 to 69 | 84 to 330 | 0 / 6 | `BUSH` |
+| `XT_BUSHREDA_1B_LL_00`, `XT_BUSHB_1C_AL_00` | 18, 1 | 95 | 144 | 0 | `DARK_SHRUB`, `SHRUB_GREEN` |
+| `XT_BUSHYELLOWFLOWERS` | 19 | 20 to 57 | 56 to 112 | 6 | `PALE_SHRUB` |
+| the hedges: `XT_HEDGE*`, `XT_HEDGEA4M/A8M`, `XT_HEDGEMUL_*`, `XW_HEDGESTADIUM` | 137 | 20 to 77 | 270 to 820 | 0 | `HEDGE` |
+| the grasses: `XT_GRASSA/B/C`, `XT_GRASSPATCH`, `XT_BEACHGRASS`, `XO_GRASSCLUMPCT` | 221 | 35 to 70 | 90 to 180 | 0 / 6 | `GRASS_TALL`, `GRASS_CLUMP` |
+
+Almost all of them are **world-space copies of a stretch** (a patch of undergrowth along a slope, a hedge along a house) with a few hundred vertices
+and a footprint of tens of metres, so the fit of the trees (one copy for each stretch of the old vertices, `fit = "row"`) applies as it is; the fit of
+a hedge row is the hedge model 6.7 m long, repeated along the stretch at the old height. Measured on the real tiles with the pack
+(`report_what_the_trees_do_to_the_installed_world`): of the 58 names (**832 solids, 774 of them world-space copies**: 474 bush, 137 hedge, 221 grass) **no solid keeps
+its own model, and the new footprint is 1.0 to 1.5 times the old** (median 1.01: the 1.5 is the `spread` of the bushes' limits) and 0.8 to 1.4 times as tall
+**[verified]** on the real tiles. What was looked at in the game, and where it differs from the 2005 look: [below](#what-was-looked-at).
+
+### Clearance **[ours]**
+
+The bushes' limits (`spread` 1.5) make a copy up to half as wide again as the old stretch, and playing showed it: grass clumps and
+hedges grew through the guard rails and concrete barriers they stand beside. The bushes set therefore asks for **clearance**
+(`[fit] clearance = true`, [`api-replace.md`](../modding/api-replace.md#clearance)): each copy is narrowed until it clears the walls, rails,
+barriers and buildings (`XW_`, `XB_`) of its section, to no less than the width of the stretch it replaces, and a copy rooted inside one is
+left out. The trees do not ask for it (a crown may overhang a rail). The mod's conversion number went up with it, so an installed 2012
+mod converts again on the next start. The ignored test `report_how_many_bushes_are_made_smaller_to_clear_their_neighbours`
+(`crates/nfsmw/src/modding/content/replace/clear_real_tests.rs`) rewrites every section of the installed world and prints how many
+copies near an object were narrowed, held or left out.
+
+### What was looked at
+
+Offscreen screenshots of the real world (`nfsmw view-world --muted --wait-for-load --at x,y --height 2.5 --heading 0 --pitch -8`, the camera 2.5 m above the
+ground, the places are the camera's `--at`; the same place with the Bushes setting Original and then NFS Most Wanted 2012). Where, and what was seen:
+
+| Place (x, y) | 2005 family | Before | After |
+|---|---|---|---|
+| 2166, 1368 (a road median) | `XT_CT_BUSH` | one long clipped dark hedge block | three separate round green shrubs with gaps (a patch is a row of copies, not a block) |
+| 2478, 4077 (under a viaduct) | `XT_BUSH_FOREST_1A` | thin dark twiggy bushes | lush spiky evergreen shrubs (`DARK_SHRUB`), larger and lighter than the old |
+| 1992, 1070 (a roadside bank) | `XT_GC_BUSH` | brown-orange leaf mass | pale leafy `SHRUB_STRIP` clumps at the foot, the autumn trees unchanged |
+| 1236, -55 (planters of a street) | `XT_HEDGE` | flat-topped clipped boxes | rounded leafy clumps, soil showing between them |
+| 1067, 135 (a stadium walk) | `XW_HEDGESTADIUM` | a dark clipped box | a leafy hedge filling the planter |
+| 460, 4206 and 4034, 3356 (a garden bed, a hedge along a lot) | `XT_HEDGEA4M`, `XT_HEDGEA8M` | clipped dark boxes | light green leafy hedges, bright against the dark old ones |
+| 895, 25 (a park) | `XT_BUSHYELLOWFLOWERS` | blobby yellow-green bushes | thin-stemmed shrubs with pale leaves (`PALE_SHRUB`), a clear gain |
+
+Findings: a 2012 bush is **brighter and leafier** than the 2005 ones (the 2012 leaves are lit by the game's tree shader like the trees' ones, with the grey ramp
+of `trees/light.rs`), and a **patch is a few separate shrubs, not a solid block**: the old hedge boxes were continuous, the copies are one for each stretch of the old
+vertices and leave gaps where the old stretch had fewer than three vertices. That is the look of the 2012 game's own hedges, but it is **less dense than the
+old** (open question below). The grasses were fitted (221 solids, no solid kept) but **no place with visible grass was looked at** **[unconfirmed]**.
+
+**Cost:** the pack grows by about 0.7 MB (3.5 MB in all: 0.9 MB of models, 2.5 MB of pictures) **[verified]** (it was 2.8 MB). The frame cost on dense tiles and the vertex totals
+(`report_what_the_trees_do_to_the_installed_world` now prints the old and new vertex and triangle counts of every solid) were **not measured yet** **[unconfirmed]**: the one
+`--bench-seconds` run taken was on a busy machine (p50 6.6 ms, p95 21 ms, with the bushes off).
 
 ## How the 2012 world places them **[not read]**
 
@@ -149,7 +255,7 @@ vertices the same way, because the 2012 vertices have no normals that can be rea
 | Leaf groups | effect 6, flags `0x4008`; texture `AlphaUsageType` 1 (punch-through), `Flags` bit 1, from BC1 or BC3 as they are | `trees/build.rs`, `Palette::add_foliage` |
 | Bark groups | effect 0, flags `0x4000`; opaque texture that repeats | `Palette::add_bark` |
 | Normals and colours | crown normals and the grey ramp above for leaves; smooth normals (area-weighted, shared at seams) and `0x38` for bark | `trees/light.rs` |
-| Levels | `1A`/`1B` the finest level of a single tree, `1C` the second, `1Z` the last; a row takes one level coarser (`A`/`B` the second, `C` the third) | `trees/stock.rs` (`level`) |
+| Levels | `1A`/`1B` the finest level of a single tree, `1C` the second, `1Z` the last level **that stands** ([above](#the-levels-that-stand)); a row takes one level coarser (`A`/`B` the second, `C` the third) | `trees/stock.rs` (`level`), `trees/build.rs` |
 | Meshes left out | the `WorldShadow_*` stand-ins | `trees/read.rs` (`classify`) |
 | Species per solid | the families of `trees/stock.rs`: for example the cedars and the tall conifer, the poplars and the cypresses the columnar tree, the fall trees and the Japanese maple the autumn tree, the dead trees the bare tree, the bushes the round bush, the tree lines and canopies rows of the broadleaf trees, the evergreen lines rows of the small spruce | `trees/stock.rs` |
 
@@ -160,9 +266,60 @@ when `<NAME>` is: the game finds its swap by the name before `_DEINST`, and fits
 floor and height), see [effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees). The 84 solids of the shared
 library `X0` are replaced like the tiles' (by name, fitted to their own bounds).
 
-The fit of a model to the solid it replaces (scale to the old height, stand on the old floor, copies along a row) is in
-[effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees); it is done by the game, from the bounds of the solid
+The fit of a model to the solid it replaces (scale to the old height, stand on the old floor, one copy for each stretch of the old
+geometry, never wider than the old footprint, or the solid keeps its own tree) is in
+[effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees); it is done by the game, from the vertices of the solid
 it replaces, so the mod never reads the 2005 install.
+
+## Standing on the ground
+
+The playtest after the first fit rules (quoted as written): "some trees are still in the middle of the street attached to nothing at the
+bottom and some trees sit to low/are the wrong models because around the map in some places the trees leaves are kinda blocking the street
+view". Three symptoms, and what in the fit makes each **[verified]** from reading `replace/place.rs` and the vertex data of the tile solids
+(the numbers of the audit below are **[unconfirmed]** until it has been run):
+
+| Symptom | Cause in the fit |
+|---|---|
+| A tree in the street, its trunk ending in the air | A copy of a stretch stands on **the lowest vertex of the old cell** it replaces. A 2005 tree line is crowns without trunks whose lowest leaves are 7 to 8 m up (`XT_CT_TREELINE1_1B_00` from 7.4 m, the canopy from 8 m), so a 2012 tree stood on that floor has its trunk end that high; over a road it is a trunk with a crown, hovering in the middle of the street |
+| A tree too low (sunk) | The lowest vertex of a cell on a slope is under the ground at the cell's middle, where the trunk stands: the foot sinks by the slope across the cell |
+| A tree on the road, a crown that blocks the view | The foot is the middle of the cell's vertices, which may be on the carriageway (the old crown reached over the road from a trunk beside it); the 2012 crowns are up to 1.25 times as wide as the old (`spread`) and begin at 3.5 m on the broadleaf tree, and nothing looked at the road |
+
+**What the fit now reads** (`[fit] settle`, [api-replace.md](../modding/api-replace.md#settling), `replace/settle.rs`): the terrain of the tile
+(`ground.rs`: the triangles of the `TRN_*` solids, 6,792 of the world's solids and 637,000 triangles, which are in world coordinates; the
+collision of a tile holds the roads and walls but not the hills, which is why the earlier look through the collision found a floor under only
+186 of 881 trees), the world's road network (`roads.rs`: centre lines as pieces of about 4 m with the half width of the lanes a vehicle drives on:
+traffic, shoulder, parking, plain road, centre and drivable zones; sidewalks, medians and barriers are not carriageway) and the tops of walls and
+buildings (an instance of `XW_`/`XB_`, or a world-space copy of one: a tree line whose crowns begin at a wall's top stands on the wall). The
+constants and why:
+
+| Constant | Value | Why |
+|---|---|---|
+| `FOOT_TOLERANCE` | 0.3 m | the playtest brief's own limit for a trunk base that floats or sinks |
+| `MAX_DROP`, `MAX_RISE` | 12 m, 3 m | the crowns of the tree lines hang 7 to 8 m up; a cell's lowest vertex is under the ground by a few metres on a slope |
+| `TRUNK_MARGIN`, `MAX_SHIFT` | 1 m, 5 m | a trunk stands a metre outside the edge of the carriageway; a copy that would have to move further, or onto another road, is left out |
+| `LEVEL_WINDOW` | 3 m | a road whose height is within 3 m of the foot is the one the tree stands by; a bridge over it is another road |
+| `CROWN_CLEARANCE`, `OVERHANG` | 4.5 m, 0.5 m | a crown that hangs under 4.5 m over a road may reach no more than half a metre over the carriageway; the audit's own flag is under 3.5 m (a bus) |
+| `NARROW_FLOOR` | 0.5 | a crown that would have to lose more than half its width takes its copy with it |
+
+Species and families were looked at against the same complaint: `XT_CT_TREELINE1*` (the broadleaf tree), `XT_EVRGRN_TREELINE*` (the small
+spruce), the fall-tree fillers (the thin autumn tree), `XT_CT_TREECANOPY` (the large broadleaf tree) and the cedars, poplars and cypresses
+(the tall conifer and the columnar tree) are the families the 2005 names say they are; **no family was changed**: what the player reads as "the
+wrong model" is first the floating and sunk copies and the crowns over the road, and that is what the settling mends. A tree line is replaced by
+the second level of detail of its species (the row takes one level coarser), which is a coarser model than a single tree's, an open question.
+
+**The audit** (`replace/audit.rs`, the ignored test `audit_the_trees_of_the_installed_world` in `replace/audit_real_tests.rs`): for every
+copy that the trees set makes in the installed world, as the set was (no settling) and as it is, it reads the terrain under the foot, the
+road network and the wall tops, and flags a copy whose foot floats more than 0.3 m above the terrain (and no wall top holds it), sinks more than
+0.3 m under it, is on a carriageway, or whose crown reaches more than the allowed overhang over a carriageway with its underside under 3.5 m. It
+also judges the single trees the scenery places (their foot is their instance), which settling does not move. Run:
+`NFSMW_GAME_DIR=... NFSMW_TREES_DIR=<the mod's files/TREES/MW2012> NFSMW_TREES_REPORT=<name>.tsv cargo test -p nfsmw audit_the_trees -- --ignored`;
+it writes `<name>.audit.txt` (the totals and the families, before and after) and `<name>.audit.tsv` (every flagged copy: kind, tile, solid, x, y,
+foot, ground and flags: the places to look at with `nfsmw view-world --at x,y --height 3 --pitch -5`).
+
+| What | Before | After |
+|---|---|---|
+| World-space copies, flagged of all | not measured **[unconfirmed]** | not measured **[unconfirmed]** |
+| Floating, sunk, on the road, crown low over a road | not measured | not measured |
 
 ## What the conversion costs
 
@@ -179,7 +336,7 @@ the texture's pixels). The shaders are the 1.8 MB `SHADERS.BNDL` the car convers
 | Time to read them | 0.02 s of a Python replay on a warm cache, including the inflating; a cold disk adds the seeks of the small reads | **[verified]** (warm) |
 | Textures the species use (diffuse pictures) | 17, 3.24 MB at the 1,024 pixel limit of `max_texture_size` (2.85 MB at 512, 0.72 MB at 256) | **[verified]** from the headers |
 | Models | the vertex and index data of the species' renderables is 0.60 MB in the 2012 layout (the pack's solids, of the vertices the triangles use, with 36-byte vertices and without the shadow stand-ins, are about as big) | upper bound **[verified]**, the pack **[unconfirmed]** |
-| Written to the mod's `files/TREES/MW2012/` | about 3.5 to 4 MB in three files (`GEOMETRY.BIN`, `TEXTURES.BIN` once, `profile.toml` of 78 swaps, a few KB) | **[unconfirmed]**: the conversion logs the real figure |
+| Written to the mod's `files/TREES/MW2012/` | 2.8 MB in three files (`GEOMETRY.BIN` 739 KiB, `TEXTURES.BIN` 1,996 KiB once, `profile.toml` of 81 swaps, 7 KB) | **[verified]**: 0.69 s on the install, 2,668 KiB read of 342,435 KiB |
 
 Nothing is duplicated: each texture is one entry of `TEXTURES.BIN` (named by the 2012 resource id), one decoded copy in memory
 (the pack's compressed pictures, until the world drops the pack) and one on the GPU (the shared sets), whatever number of tiles
@@ -197,7 +354,16 @@ nothing: the mod's fingerprint says the files are right).
 - The resources of the blossom tree `0x4DA8A407` and of `0xF0C5A212` are not in the bundle of any unit that holds the model: another
   bundle must hold their material or texture (not searched).
 - The 2005 world's own placement of the replaced solids is unchanged, so a 2012 tree stands where the 2005 tree stood; the crowns are
-  fitted to the old bounds and not to the old silhouette (decided for the rows: [effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)).
+  fitted to the cells of the old vertices, not to the old silhouette ([effect-variants.md](../modding/effect-variants.md#profile-format-of-the-trees)).
+  The real ground under a tree-line's crowns was first not read: a collision query of the tile found it under only 186 of the 881 replaced
+  solids (the terrain is not in a tile's collision), and where it was found the old crowns' floor was at the ground or below it (median
+  3 m below). Trying to hang the crown of a replacement on the old floor and let its trunk reach down put the trunks through a wall in a
+  screenshot, so a replacement's foot stood on the old floor of its stretch. It is now read from the tile's `TRN_*` solids
+  ([above](#standing-on-the-ground)), and a foot that a wall's top holds up stays where the wall puts it.
+- Whether the `TRN_*` solids are the whole visible ground of a tile (a tile with none, or a road that is not in them, keeps the old placement
+  for the step that needs it), and whether a tree line should take the same level of detail as a single tree.
+- The bushes' density: a hedge row is a row of separate copies; a per-set overlap (more copies, narrower cells) would close the gaps in planters but is a
+  new field of the replacement API (`copies`, `overlap`), not built. The grasses were not looked at in the game (`XT_GRASS*`, `XT_BEACHGRASS`, `XO_GRASSCLUMPCT`).
 - Whether every name of the 99 base names that is a tree (and not a panorama or a stand) is in `trees/stock.rs`: the families were
   listed from the names of the tree solids that were looked at; a name the list lacks keeps the game's look.
 - The conversion's output size and time on the real install: the figures below are estimates from the headers; the log line `trees variant:

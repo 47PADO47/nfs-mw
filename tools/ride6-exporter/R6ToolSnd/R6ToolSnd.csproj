@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Our own pak reader for RIDE 6's sound: extracts the Wwise files of the .pak containers and resolves every chassis's
+       audio data (docs/modding/ride6-bikes-sound.md). Built on CUE4Parse (Apache-2.0, FabianFG), cloned OUTSIDE the
+       repository; point CUE4PARSE_DIR at the clone (default C:\r6work\tools\CUE4Parse). See ../README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>R6ToolSnd</AssemblyName>
+    <RootNamespace>R6ToolSnd</RootNamespace>
+    <CUE4PARSE_DIR Condition="'$(CUE4PARSE_DIR)' == ''">C:\r6work\tools\CUE4Parse</CUE4PARSE_DIR>
+    <CUE4PARSE_SKIP_NATIVE>true</CUE4PARSE_SKIP_NATIVE>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(CUE4PARSE_DIR)\CUE4Parse\CUE4Parse.csproj" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+</Project>

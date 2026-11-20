@@ -6,10 +6,11 @@
 //! the wheelbase on the origin and the lowest tyre point on the ground; a wheel solid has the hub on the origin, its axle
 //! along y, and sits on the plane y = 0 of the car frame.
 
-/// The solid letters and the finest export level of detail of the chassis each body may use. A body takes the finest
-/// level from this number on whose vertices fit one solid (the most the game's solids hold is 60,000; the full-detail
-/// chassis has 135,000, level 1 has 78,000, level 2 44,000), so A and B are level 2 and C and D are level 3. A wheel
-/// solid takes the export level of its letter's position (A is 0, D is 3): its meshes are small.
+/// The solid letters and the finest export level of detail of the chassis each body may use. A body takes the finest level from this
+/// number on whose solids fit (the frame is as many solids as it needs, [`crate::chunks`]; the bars and the fork one each), so `A` is
+/// level 0, the whole mesh of the game, for every bike unless its bars or fork alone exceed a solid; `B` starts at level 2 (level 1 is
+/// two thirds of the triangles of level 0 and costs a third of the file again for a distance nobody sees the difference at) and `C`
+/// and `D` at level 3. A wheel solid takes the export level of its letter's position (A is 0, D is 3): its meshes are small.
 pub const LEVELS: [(char, u32); 4] = [('A', 0), ('B', 2), ('C', 3), ('D', 3)];
 
 /// The deepest level of detail of the chassis the importer reads: the engine builds levels 4 and up from a composite
@@ -17,7 +18,7 @@ pub const LEVELS: [(char, u32); 4] = [('A', 0), ('B', 2), ('C', 3), ('D', 3)];
 pub const COARSEST_CHASSIS_LEVEL: u32 = 3;
 
 /// Where the bike sits in the car's frame: the middle of the wheelbase on the origin, the tyres on the ground.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Frame {
     /// The middle of the wheelbase along the export x axis.
     pub centre: f32,

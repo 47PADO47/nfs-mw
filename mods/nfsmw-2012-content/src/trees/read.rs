@@ -70,17 +70,27 @@ fn expect(pool: &Pool, id: u64, kind: ResourceKind) -> Result<Resource> {
 
 /// Read the model `model` out of `pool`. Fails when a resource it needs is not in the pool or does not decode.
 pub fn read_model(pool: &Pool, model: u64) -> Result<TreeModel> {
+    read_model_with(pool, model, classify)
+}
+
+/// The same with another rule for which meshes are drawn and how (the signs, `signs/`, have their own).
+pub fn read_model_with(pool: &Pool, model: u64, classify: fn(Option<&str>) -> Option<Role>) -> Result<TreeModel> {
     let resource = expect(pool, model, ResourceKind::Model)?;
     let model = Model::parse(&resource.blocks[0], &resource.imports)?;
     let mut textures = HashMap::new();
     let mut levels = Vec::with_capacity(model.lods.len());
     for &lod in &model.lods {
-        levels.push(read_level(pool, lod, &mut textures)?);
+        levels.push(read_level(pool, lod, &mut textures, classify)?);
     }
     Ok(TreeModel { levels, textures })
 }
 
-fn read_level(pool: &Pool, lod: u64, textures: &mut HashMap<u64, Texture>) -> Result<Level> {
+fn read_level(
+    pool: &Pool,
+    lod: u64,
+    textures: &mut HashMap<u64, Texture>,
+    classify: fn(Option<&str>) -> Option<Role>,
+) -> Result<Level> {
     let resource = expect(pool, lod, ResourceKind::Renderable)?;
     let renderable = Renderable::parse(&resource.blocks[0], &resource.imports)?;
     let is_descriptor = |id: u64| pool.kind(id) == Some(ResourceKind::VertexDescriptor.id());

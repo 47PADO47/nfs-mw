@@ -12,10 +12,13 @@ pub enum PostSetting {
     Aa,
     MotionBlur,
     MotionBlurStrength,
+    /// How far the colour grading of a mod goes (`grading_strength`); listed with the grading choice (`mod_options::video_rows`).
+    GradingStrength,
 }
 
 impl PostSetting {
-    pub const ALL: [Self; 5] = [Self::Aa, Self::Tonemap, Self::Bloom, Self::MotionBlur, Self::MotionBlurStrength];
+    pub const ALL: [Self; 6] =
+        [Self::Aa, Self::Tonemap, Self::Bloom, Self::MotionBlur, Self::MotionBlurStrength, Self::GradingStrength];
 
     pub fn title(self) -> Title {
         Title::Key(match self {
@@ -24,6 +27,7 @@ impl PostSetting {
             Self::Aa => "options-anti-aliasing",
             Self::MotionBlur => "options-motion-blur",
             Self::MotionBlurStrength => "options-motion-blur-strength",
+            Self::GradingStrength => "options-grading-strength",
         })
     }
 
@@ -33,6 +37,7 @@ impl PostSetting {
             Self::MotionBlurStrength => {
                 Data::Text(crate::i18n::fmt::percent((s.motion_blur_strength * 100.0).round() as i64))
             }
+            Self::GradingStrength => Data::Text(crate::i18n::fmt::percent((s.grading_strength * 100.0).round() as i64)),
             Self::MotionBlur => Data::Label(match s.motion_blur {
                 true => LABEL_ON,
                 false => LABEL_OFF,
@@ -76,6 +81,15 @@ impl PostSetting {
             Self::MotionBlur => {
                 s.motion_blur = !s.motion_blur;
                 changed.motion_blur = Some(s.motion_blur);
+            }
+            Self::GradingStrength => {
+                let (lo, hi) = crate::settings::grading::STRENGTH_RANGE;
+                let step = match forward {
+                    true => 0.1,
+                    false => -0.1,
+                };
+                s.grading_strength = (((s.grading_strength + step) * 10.0).round() / 10.0).clamp(lo, hi);
+                changed.grading_strength = Some(s.grading_strength);
             }
             Self::MotionBlurStrength => {
                 let (lo, hi) = MOTION_BLUR_STRENGTH_RANGE;
@@ -142,5 +156,21 @@ mod tests {
         assert_eq!(PostSetting::MotionBlur.data(&s), Data::Label(LABEL_OFF));
         assert_eq!(changed.motion_blur, Some(false));
         assert_eq!(changed.motion_blur_strength, Some(2.0));
+    }
+
+    #[test]
+    fn the_grading_strength_row_steps_a_tenth_within_0_and_1() {
+        let mut s = Settings::from(Partial::default());
+        let mut changed = Partial::default();
+        assert_eq!(PostSetting::GradingStrength.data(&s), Data::Text("100%".into()));
+        assert!(!PostSetting::GradingStrength.step(&mut s, &mut changed, true), "stops at the top");
+        assert!(PostSetting::GradingStrength.step(&mut s, &mut changed, false));
+        assert_eq!(PostSetting::GradingStrength.data(&s), Data::Text("90%".into()));
+        for _ in 0..20 {
+            PostSetting::GradingStrength.step(&mut s, &mut changed, false);
+        }
+        assert_eq!(s.grading_strength, 0.0, "stops at the bottom, rounded to a tenth");
+        assert_eq!(changed.grading_strength, Some(0.0));
+        assert_eq!(PostSetting::GradingStrength.title(), Title::Key("options-grading-strength"));
     }
 }

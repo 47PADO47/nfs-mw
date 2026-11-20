@@ -1,7 +1,7 @@
 //! A measuring tool, not a test: poses the rider of a scratch mod folder on one bike exactly as the game does and writes where
 //! its bones and skin end up (in the bike skeleton's frame) to a text file, for the Python plots of the fitting work.
 //!
-//! `R6_PROBE_FILES=<mod>/files R6_PROBE_CAR=<ID> R6_PROBE_OUT=<file> cargo test -p nfsmw probe -- --ignored --nocapture`
+//! `R6_PROBE_FILES=<mod>/files R6_PROBE_CAR=<ID> R6_PROBE_OUT=<file> [R6_PROBE_HANDS=wrist,clutch,brake,style] cargo test -p nfsmw probe -- --ignored --nocapture`
 
 use std::fmt::Write as _;
 
@@ -41,8 +41,24 @@ fn probe() {
     resolved.seat = super::seat::Seat::new(&attach, &pack);
     // The model's frame is the skeleton's frame for this probe (no offset): the plots use the skeleton's own.
     let frame = Frame::new(&attach.rider_root_in_bike.transform(), Vec3::ZERO);
-    let targets = pose::rider_targets(&attach, &frame, None);
-    let values = Values { speed_kmh: params_in.first().copied().unwrap_or(0.0), ..Values::default() };
+    let mut targets = pose::rider_targets(&attach, &frame, None);
+    // The hands' state: `R6_PROBE_HANDS=wrist,clutch,brake,riding_style` (the throttle roll, the levers 0 to 1, the style 0 to 2).
+    let hands: Vec<f32> = std::env::var("R6_PROBE_HANDS")
+        .ok()
+        .map(|s| s.split(',').filter_map(|v| v.parse().ok()).collect())
+        .unwrap_or_default();
+    let hand = |at: usize| hands.get(at).copied().unwrap_or(0.0);
+    pose::roll_wrist(&attach, &mut targets, hand(0));
+    let values = Values {
+        speed_kmh: params_in.first().copied().unwrap_or(0.0),
+        clutch: hand(1),
+        clutch_alpha: f32::from(hand(1) > 0.0),
+        brake: hand(2),
+        brake_alpha: f32::from(hand(2) > 0.0),
+        riding_style: hand(3),
+        brake_fingers: 1.0,
+        ..Values::default()
+    };
     let names = &graph.param_names;
     let params = super::param_values(names, &values);
     let goals = Goals { targets: &targets, body: Body::REST, frame: &frame, release: [0.0; 2] };

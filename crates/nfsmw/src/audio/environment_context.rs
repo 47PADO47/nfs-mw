@@ -9,20 +9,40 @@ use glam::Vec3;
 use super::environment::EnvironmentContext;
 
 const REVERB: u32 = bstring_hash("Reverb");
+const SPEECH: u32 = bstring_hash("Speech");
+/// The speech map's id outside every named place (the layer's default set).
+pub const NO_SPEECH_PLACE: i32 = -1;
 const ENCLOSURES: [u32; 5] = [3, 4, 5, 7, 10];
 
 /// Installed metadata only; no collision/roof-derived environment guesses.
 #[derive(Debug, Clone)]
 pub struct EnvironmentMap {
     reverb: Option<Layer>,
+    /// The layer that names places for the police radio (`spatial-parameter-maps.md`, `ai-pursuit-speech.md` 6.3).
+    speech: Option<Layer>,
     pub zones: Option<TrackZones>,
 }
 
 impl EnvironmentMap {
     pub fn read(metadata: &[u8]) -> Result<Self> {
-        let reverb = Layer::read_all(metadata)?.into_iter().find(|layer| layer.name_hash == REVERB);
+        let layers = Layer::read_all(metadata)?;
+        let reverb = layers.iter().find(|layer| layer.name_hash == REVERB).cloned();
+        let speech = layers.into_iter().find(|layer| layer.name_hash == SPEECH);
         let zones = TrackZones::read(metadata)?;
-        Ok(Self { reverb, zones })
+        Ok(Self { reverb, speech, zones })
+    }
+
+    /// The raw id of the speech map's set at `position` (physics space): [`NO_SPEECH_PLACE`] outside every named place
+    /// or without the map.
+    pub fn speech_place(&self, position: Vec3) -> i32 {
+        if !position.is_finite() {
+            return NO_SPEECH_PLACE;
+        }
+        let point = to_zone_space(position);
+        self.speech
+            .as_ref()
+            .and_then(|layer| layer.integer(layer.set_at(point.x, point.y)?, 1))
+            .unwrap_or(NO_SPEECH_PLACE)
     }
 
     pub fn map_available(&self) -> bool {
@@ -90,7 +110,7 @@ mod tests {
     }
 
     fn map(zones: Vec<TrackZone>) -> EnvironmentMap {
-        EnvironmentMap { reverb: None, zones: Some(TrackZones { zones }) }
+        EnvironmentMap { reverb: None, speech: None, zones: Some(TrackZones { zones }) }
     }
 
     #[test]

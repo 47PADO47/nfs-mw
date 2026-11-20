@@ -85,3 +85,27 @@ fn a_fresh_brake_press_from_a_stop_starts_the_engine_like_the_throttle() {
         "one start with the car's ignition sound"
     );
 }
+
+#[test]
+fn the_delay_setting_picks_how_long_a_standing_vehicle_waits() {
+    for &(id, _, seconds) in &super::DELAYS {
+        let mut controller = controller();
+        controller.set_delay(seconds);
+        let steps = (seconds / DT) as usize;
+        assert!(run(&mut controller, true, idle(), "KTM450", steps - 3).is_empty(), "{id} s: too early");
+        assert_eq!(run(&mut controller, true, idle(), "KTM450", 6), [Action::Stop], "{id} s: one stop");
+    }
+}
+
+#[test]
+fn the_delay_values_are_plain_ids_the_first_is_the_old_five_seconds_and_a_wrong_id_is_the_default() {
+    assert_eq!(super::DELAYS[0].2, 5.0);
+    assert!(super::DELAYS.windows(2).all(|pair| pair[1].2 > pair[0].2));
+    for (id, label, seconds) in super::DELAYS {
+        assert!(id.bytes().all(|b| b.is_ascii_digit()), "{id}");
+        assert!(label.starts_with("nfsmw2012-engine-delay-"));
+        assert_eq!(super::delay_seconds(id), seconds);
+    }
+    assert_eq!(super::delay_seconds("7"), 5.0);
+    assert_eq!(super::delay_seconds(""), 5.0);
+}

@@ -44,6 +44,7 @@ mod installed_breaker;
 mod installed_catchup;
 mod installed_city_catchup;
 mod installed_city_placement;
+mod installed_collapse;
 mod installed_course;
 mod installed_hiding;
 mod installed_physical_catchup;

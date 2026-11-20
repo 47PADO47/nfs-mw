@@ -11,9 +11,13 @@
 //! The setting `trees` (default `true`) turns the conversion, and the value in the gameplay setting, off.
 
 mod build;
-mod light;
-mod ranges;
-mod read;
+pub mod bushes;
+#[cfg(test)]
+mod bushes_tests;
+pub(crate) mod light;
+mod manifest;
+pub(crate) mod ranges;
+pub(crate) mod read;
 #[cfg(test)]
 mod real_tests;
 pub mod species;
@@ -57,16 +61,25 @@ fn try_write(source: &Source, config: &Config, out: &Path) -> Result<()> {
         bail!("none of the trees could be read");
     }
     let pack = build::build(&models, config.max_texture_size)?;
+    let profile = manifest::profile_text(&sets(config)[0].1, &pack.species);
     let folder = out.join("files").join(FOLDER);
     std::fs::create_dir_all(&folder).with_context(|| format!("creating {}", folder.display()))?;
     let mut written = 0;
     for (file, bytes) in [
         (build::GEOMETRY_FILE, pack.geometry.as_slice()),
         (build::TEXTURES_FILE, pack.textures.as_slice()),
-        ("profile.toml", pack.profile.as_bytes()),
+        ("profile.toml", profile.as_bytes()),
     ] {
         std::fs::write(folder.join(file), bytes).with_context(|| format!("writing {file}"))?;
         written += bytes.len();
+    }
+    // The sets declared through the one replacement API, written last so that a host that reads them finds the files in place: the
+    // trees, and the bushes when they are a set of their own (`bushes.rs`).
+    let replace_folder = out.join(blackbox_modding::content::REPLACE_FOLDER);
+    std::fs::create_dir_all(&replace_folder).with_context(|| format!("creating {}", replace_folder.display()))?;
+    for (file, set) in sets(config) {
+        let text = manifest::replace_manifest(&set, &pack.species);
+        std::fs::write(replace_folder.join(file), text.as_bytes()).with_context(|| format!("writing {file}"))?;
     }
     let names: Vec<String> = pack.species.iter().map(|(key, levels)| format!("{key} ({levels})")).collect();
     log::info!("trees variant: {}", names.join(", "));
@@ -80,6 +93,28 @@ fn try_write(source: &Source, config: &Config, out: &Path) -> Result<()> {
         started.elapsed().as_millis()
     );
     Ok(())
+}
+
+/// The sets the conversion declares, each with the file of its manifest in `replace/`: the trees, which are also the profile the
+/// older hosts read, and the bushes when the setting `bushes` is on (`bushes.rs`). The trees come first.
+fn sets(config: &Config) -> Vec<(&'static str, manifest::Set<'static>)> {
+    let mut sets = vec![("trees-mw2012.toml", trees_set(config.bushes))];
+    if config.bushes {
+        sets.push(("bushes-mw2012.toml", bushes::set()));
+    }
+    sets
+}
+
+/// The trees set: the families of `stock::tree_families` (the old round bushes among them unless `bushes_apart`).
+pub fn trees_set(bushes_apart: bool) -> manifest::Set<'static> {
+    manifest::Set {
+        kind: "trees",
+        kind_label: "Trees",
+        value: VARIANT,
+        value_label: LABEL,
+        limits: manifest::TREE_LIMITS,
+        families: stock::tree_families(bushes_apart).collect(),
+    }
 }
 
 /// What reading the species cost: the bytes asked of the bundles' files and the size of those files.

@@ -2,7 +2,7 @@ use super::{PerformanceCategory as Category, PerformancePackage};
 use anyhow::{Context, Result, ensure};
 use blackbox_attrib::{CollectionRef, Database, Value, vlt_hash};
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CategoryOptions {
     pub max_level: u8,
     pub missing_endpoints: bool,
@@ -11,7 +11,7 @@ pub struct CategoryOptions {
     pub stock_present: bool,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PerformanceCatalog {
     pub categories: [CategoryOptions; 7],
 }

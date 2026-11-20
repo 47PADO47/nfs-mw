@@ -89,6 +89,11 @@ impl Machine {
         self.core.state
     }
 
+    /// The cops that see the player, as the machine counted them at its last step.
+    pub fn los_count(&self) -> usize {
+        self.core.los_count
+    }
+
     /// The machine is idle: no pursuit, nothing said, nothing to wait for.
     pub fn is_idle(&self) -> bool {
         self.core.state == PursuitState::Inactive && self.core.focus == Focus::Pursuit && self.roster.actors.is_empty()

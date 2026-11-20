@@ -15,6 +15,7 @@ fn list<'a>(id: &'a str, values: &[(&'a str, &'a str)]) -> OptionSpec<'a> {
         label: "Label",
         values: values.iter().map(|(id, label)| ValueSpec { id, label }).collect(),
         default_on: false,
+        section: "",
     }
 }
 
@@ -63,8 +64,14 @@ fn values_integrate_in_order_without_duplicates_and_the_games_stay_first() {
 #[test]
 fn another_kind_is_refused_and_nothing_changes() {
     let mut model = game();
-    let toggle =
-        OptionSpec { id: "nitrous_variant", kind: OptionKind::Toggle, label: "x", values: vec![], default_on: true };
+    let toggle = OptionSpec {
+        id: "nitrous_variant",
+        kind: OptionKind::Toggle,
+        label: "x",
+        values: vec![],
+        default_on: true,
+        section: "",
+    };
     assert_eq!(model.add_option("mod.a", &toggle), Err(AddError::KindMismatch { existing: OptionKind::List }));
     assert_eq!(ids(model.get("nitrous_variant").unwrap()), ["original"]);
     let as_list = list("turn_signals", &[("x", "X")]);
@@ -94,6 +101,7 @@ fn a_bad_spec_is_refused() {
         label: "x",
         values: vec![ValueSpec { id: "a", label: "A" }],
         default_on: false,
+        section: "",
     };
     assert!(matches!(model.add_option("m", &toggle), Err(AddError::Invalid(_))));
     assert_eq!(model.options().len(), 3);
@@ -129,4 +137,20 @@ fn resolve_and_step_walk_the_values() {
     assert_eq!(toggle.resolve(None), "on");
     assert_eq!(toggle.resolve(Some("garbage")), "on");
     assert_eq!(toggle.step("on", true), "off");
+}
+
+#[test]
+fn a_new_option_keeps_the_section_it_was_declared_in_and_a_merge_does_not_move_a_row() {
+    let mut model = game();
+    let in_section = OptionSpec { section: "NFS: Most Wanted (2012)", ..list("own", &[("a", "A"), ("b", "B")]) };
+    model.add_option("mod.a", &in_section).unwrap();
+    assert_eq!(model.get("own").unwrap().section.as_deref(), Some("NFS: Most Wanted (2012)"));
+    model.add_option("mod.a", &list("plain", &[("a", "A"), ("b", "B")])).unwrap();
+    assert_eq!(model.get("plain").unwrap().section, None, "no section is the default section");
+    let moved = OptionSpec { section: "Elsewhere", ..list("nitrous_variant", &[("mw2012", "M")]) };
+    model.add_option("mod.a", &moved).unwrap();
+    assert_eq!(model.get("nitrous_variant").unwrap().section, None, "the game's row stays in the default section");
+    let long = "s".repeat(129);
+    let too_long = OptionSpec { section: &long, ..list("other", &[("a", "A")]) };
+    assert!(matches!(model.add_option("mod.a", &too_long), Err(AddError::Invalid(_))));
 }

@@ -109,6 +109,8 @@ pub struct PlayerFeed {
     pub up_y: f32,
     /// The id of the place under the car on the speech map (an off-road moment), when the track has one.
     pub offroad: Option<u8>,
+    /// The raw id of the speech map's set under the car, -1 outside every named place.
+    pub speech_map_id: i32,
 }
 
 impl Default for PlayerFeed {
@@ -125,6 +127,7 @@ impl Default for PlayerFeed {
             handbrake: 0.0,
             up_y: 1.0,
             offroad: None,
+            speech_map_id: -1,
         }
     }
 }

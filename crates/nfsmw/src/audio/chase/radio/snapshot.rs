@@ -109,6 +109,7 @@ pub fn snapshot(feed: &PursuitFeed, level: &LevelSpeech) -> Snapshot {
             commentable: described,
             metric: false,
             offroad_id: player.offroad,
+            speech_map_id: player.speech_map_id,
         },
         cops: speech.cops().iter().map(cop).collect(),
         heli: speech.heli.as_ref().map(heli),

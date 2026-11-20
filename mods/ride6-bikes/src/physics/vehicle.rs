@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
 
+use super::borrow::{Borrowed, nearest_compound};
 use super::node::Node;
 
 /// Where the grip tables and tyre assets live in the content tree of the dump.
@@ -22,6 +23,8 @@ pub struct Vehicle {
     name: String,
     props: Value,
     linked: HashMap<String, Value>,
+    /// The fields the data leaves unset that were taken from a similar model ([`super::borrow`]).
+    borrowed: Vec<Borrowed>,
 }
 
 /// A package path as the dump spells it, in the case-insensitive form the lookups use. The asset names of RIDE 6 differ in
@@ -46,7 +49,7 @@ impl Vehicle {
                 linked.insert(key(&path), entry);
             }
         }
-        let mut vehicle = Self { name, props, linked };
+        let mut vehicle = Self { name, props, linked, borrowed: Vec::new() };
         vehicle.complete_tyres(tyre_tables)?;
         Ok(vehicle)
     }
@@ -58,6 +61,29 @@ impl Vehicle {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// The fields taken from a similar model, in the order they were taken.
+    pub fn borrowed(&self) -> &[Borrowed] {
+        &self.borrowed
+    }
+
+    /// Whether the skeleton is the data's own (`bOverrideSkeletonData`) and its `RakeTrailOverride` list is empty (the Italjet Dragster
+    /// 200 CC): the vehicle then has no rake and trail.
+    pub fn lacks_rake_trail(&self) -> bool {
+        let skeleton = self.props.get("Skeleton");
+        let overridden =
+            skeleton.and_then(|s| s.get("bOverrideSkeletonData")).and_then(Value::as_bool).unwrap_or(false);
+        let list = skeleton.and_then(|s| s.get("RakeTrailOverride")).and_then(Value::as_array);
+        overridden && list.is_some_and(Vec::is_empty)
+    }
+
+    /// Give the skeleton the rake (degrees) and trail (centimetres) of another vehicle's data, and record the choice.
+    pub fn borrow_rake_trail(&mut self, rake: f64, trail: f64, borrowed: Borrowed) {
+        if let Some(skeleton) = self.props.get_mut("Skeleton") {
+            skeleton["RakeTrailOverride"] = serde_json::json!([{"Rake": rake, "Trail": trail}]);
+        }
+        self.borrowed.push(borrowed);
     }
 
     /// The vehicle's own resolved properties.
@@ -135,6 +161,7 @@ impl Vehicle {
                 self.ensure(&model, tyre_tables)?;
             }
             self.complete_sections(&path, tyre_tables)?;
+            self.borrow_sections(&path, tyre_tables)?;
         }
         Ok(())
     }
@@ -173,6 +200,54 @@ impl Vehicle {
             }
         }
         Ok(())
+    }
+
+    /// A tyre whose strips are all unset references (the Bagger rain tyres of the Indian Challenger RR: `[null, null, null]` in the
+    /// game's own asset) takes the strips of the nearest compound of its folder that has them ([`nearest_compound`]), and the choice is
+    /// recorded. A tyre with no list, or an empty one, is left as it is (it has no strips).
+    fn borrow_sections(&mut self, tyre: &str, tyre_tables: Option<&Path>) -> Result<()> {
+        let list = self.linked.get(&key(tyre)).and_then(|e| e.get("Properties")).and_then(|p| p.get("TireSections"));
+        let unset = list.and_then(Value::as_array).is_some_and(|l| !l.is_empty() && l.iter().all(Value::is_null));
+        let (Some(dir), true) = (tyre_tables, unset) else { return Ok(()) };
+        let Some(file) = table_file(dir, tyre) else { return Ok(()) };
+        let stem = file.file_stem().and_then(|s| s.to_str()).unwrap_or_default().to_owned();
+        let Some((prefix, compound)) = stem.split_once('_') else { return Ok(()) };
+        let Some(folder) = file.parent() else { return Ok(()) };
+        let mut siblings: Vec<(String, Value)> = Vec::new();
+        let mut names: Vec<PathBuf> = fs::read_dir(folder)?.flatten().map(|e| e.path()).collect();
+        names.sort();
+        for path in names {
+            let other = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default().to_owned();
+            let Some((other_prefix, other_compound)) = other.split_once('_') else { continue };
+            let json = path.extension().is_some_and(|e| e == "json");
+            if !json || other_prefix != prefix || other_compound == compound {
+                continue;
+            }
+            let Some(entry) = read_entry(&path)? else { continue };
+            let has_strips =
+                entry["Properties"]["TireSections"].as_array().is_some_and(|l| l.iter().any(|s| !s.is_null()));
+            if has_strips {
+                siblings.push((other, entry));
+            }
+        }
+        let known: Vec<&str> = siblings.iter().filter_map(|(name, _)| name.split_once('_').map(|(_, c)| c)).collect();
+        let Some(best) = nearest_compound(compound, &known) else { return Ok(()) };
+        let Some((name, entry)) =
+            siblings.iter().find(|(name, _)| name.split_once('_').is_some_and(|(_, c)| c == best))
+        else {
+            return Ok(());
+        };
+        let sections = entry["Properties"]["TireSections"].clone();
+        if let Some(properties) = self.linked.get_mut(&key(tyre)).and_then(|e| e.get_mut("Properties")) {
+            properties["TireSections"] = sections;
+        }
+        let family = folder.file_name().and_then(|f| f.to_str()).unwrap_or_default();
+        self.borrowed.push(Borrowed {
+            field: format!("{stem}.TireSections"),
+            source: format!("{family}/{name}"),
+            rule: "the nearest compound of the tyre's own family that has strips, rain to slick".to_owned(),
+        });
+        self.complete_sections(tyre, tyre_tables)
     }
 
     fn ensure(&mut self, object_path: &str, tyre_tables: Option<&Path>) -> Result<()> {
@@ -214,9 +289,13 @@ fn table_file(dir: &Path, object_path: &str) -> Option<PathBuf> {
 
 fn read_from_tables(dir: &Path, object_path: &str) -> Result<Option<Value>> {
     let Some(file) = table_file(dir, object_path) else { return Ok(None) };
-    let text = fs::read_to_string(&file).with_context(|| format!("reading {}", file.display()))?;
+    read_entry(&file)
+}
+
+/// The first export of a dump file: the dump writes a list of the package's exports; a tyre asset and a grip table have one.
+fn read_entry(file: &Path) -> Result<Option<Value>> {
+    let text = fs::read_to_string(file).with_context(|| format!("reading {}", file.display()))?;
     let exports: Value = serde_json::from_str(&text).with_context(|| format!("{} is not JSON", file.display()))?;
-    // The dump writes a list of the package's exports; a tyre asset and a grip table have one.
     Ok(exports.get(0).cloned())
 }
 
@@ -274,5 +353,59 @@ mod tests {
         assert_eq!(vehicle.road_row("FrontWheel").unwrap().f("A0").unwrap(), 2.5);
         assert!(Vehicle::parse(&value.to_string(), None).unwrap().road_row("FrontWheel").is_err());
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// A tyre family folder `TireData/Bag/` with the compounds `(name, strips)`; a strip list of `None` is three unset references.
+    fn family(tag: &str, compounds: &[(&str, Option<&str>)]) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("ride6-bikes-sections-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("TireData/Bag")).unwrap();
+        std::fs::create_dir_all(dir.join("TireSections/Bag")).unwrap();
+        for (name, strips) in compounds {
+            let list = match strips {
+                Some(strip) => {
+                    json!([{"ObjectPath": format!("/PhysicsRide6/Physics/Tire/TireSections/Bag/{strip}.0")}])
+                }
+                None => json!([null, null, null]),
+            };
+            let data = json!([{"Properties": {"TireSections": list}}]);
+            std::fs::write(dir.join(format!("TireData/Bag/Front_{name}.json")), data.to_string()).unwrap();
+            if let Some(strip) = strips {
+                let section = json!([{"Properties": {"EfficiencyLimit": 0.5}}]);
+                std::fs::write(dir.join(format!("TireSections/Bag/{strip}.json")), section.to_string()).unwrap();
+            }
+        }
+        dir
+    }
+
+    fn bagger(compound: &str) -> Value {
+        let path = format!("/PhysicsRide6/Physics/Tire/TireData/Bag/Front_{compound}.0");
+        json!({"Name": "Test_Bike", "Properties": {"FrontWheel": {"TireData": {"ObjectPath": path}}}, "Linked": {}})
+    }
+
+    #[test]
+    fn a_tyre_whose_strips_are_all_unset_takes_those_of_the_nearest_compound_and_says_so() {
+        let dir = family("rain", &[("Rain", None), ("Hard", Some("Hard_Strip")), ("Medium", Some("Medium_Strip"))]);
+        let vehicle = Vehicle::parse(&bagger("Rain").to_string(), Some(&dir)).unwrap();
+        let tyre = vehicle.target(&vehicle.props().req("FrontWheel").unwrap().req("TireData").unwrap()).unwrap();
+        let strips = tyre.req("TireSections").unwrap().items().unwrap();
+        assert_eq!(strips.len(), 1);
+        let section = vehicle.target(&strips[0]).unwrap();
+        assert_eq!(section.f("EfficiencyLimit").unwrap(), 0.5, "the strip's own asset was loaded too");
+        let [choice] = vehicle.borrowed() else { panic!("one choice expected") };
+        assert_eq!(choice.field, "Front_Rain.TireSections");
+        assert_eq!(choice.source, "Bag/Front_Medium");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_tyre_with_strips_or_with_no_compound_to_borrow_from_is_left_alone() {
+        let dir = family("own", &[("Medium", Some("Medium_Strip")), ("Hard", Some("Hard_Strip"))]);
+        assert!(Vehicle::parse(&bagger("Medium").to_string(), Some(&dir)).unwrap().borrowed().is_empty());
+        std::fs::remove_dir_all(dir).unwrap();
+        let alone = family("alone", &[("Rain", None)]);
+        let vehicle = Vehicle::parse(&bagger("Rain").to_string(), Some(&alone)).unwrap();
+        assert!(vehicle.borrowed().is_empty());
+        std::fs::remove_dir_all(alone).unwrap();
     }
 }

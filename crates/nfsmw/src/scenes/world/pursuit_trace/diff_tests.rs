@@ -29,6 +29,9 @@ fn cop(key: u32, kind: &'static str) -> CopFrame {
         support: None,
         action: None,
         speed_limit: None,
+        reverse_gear: false,
+        goal_slot: None,
+        goal_arrived: false,
     }
 }
 

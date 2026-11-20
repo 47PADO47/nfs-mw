@@ -16,6 +16,7 @@ use crate::garage::{Car, Category, Model, Selection};
 mod camera;
 mod checkout;
 pub(super) mod command;
+mod options;
 use crate::car_names as names;
 mod pause_tuning;
 mod persistence;
@@ -26,6 +27,8 @@ pub(super) mod session;
 mod showroom;
 
 pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
+    // The rider's gear a mod offers (`RIDER/GEAR/gear.json`): the Visual category lists its pages for a bike.
+    crate::garage::rider_gear::scan(dir);
     let tables = CarTables::load(dir)?;
     let ratings = nfsmw_data::car::physics::ratings::RatingBook::load(dir)?;
     let mut frontend = physics.database().clone();
@@ -55,7 +58,7 @@ pub(crate) fn catalog(dir: &GameDir, physics: &PhysicsData) -> Result<Model> {
         // A mod car's upgrades, bars and package texts come from its own stats (nothing of a stock car's record).
         let own_stats = car_mods::stats(&folder);
         let performance = match own_stats {
-            Some(stats) => PerformanceCatalog::from_stats(stats),
+            Some(stats) => car_mods::components::catalog::performance(&folder, stats),
             None => PerformanceCatalog::read(physics.database(), &car_type.type_name)?,
         };
         let details_name = own_stats.map_or(car_type.type_name.as_str(), |_| folder.as_str());
@@ -176,8 +179,15 @@ impl WorldScene {
         let tunings = selection.tuning.normalized()?;
         let changed_performance = selection.performance != self.garage.applied.performance;
         let changed_parts = selection.parts != self.garage.applied.parts;
-        let physics = match changed_performance || selection.car != self.last_car {
-            true => Some(self.physics.car_with_performance(&entry.physics_name, selection.performance)?),
+        // A part of a car with components can change a number of its physics (a bike's exhaust or brake discs), so its parts count.
+        let with_components = car_mods::components::of(&entry.folder).is_some();
+        let physics = match changed_performance || selection.car != self.last_car || (with_components && changed_parts)
+        {
+            true => Some(self.physics.car_with_customization(
+                &entry.physics_name,
+                selection.performance,
+                &selection.parts,
+            )?),
             false => None,
         };
         if let Some(physics) = &physics {

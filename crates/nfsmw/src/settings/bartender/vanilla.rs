@@ -11,9 +11,9 @@ pub const BUST_SPEED_KPH: [f32; 10] = [9.0, 12.0, 19.0, 20.0, 25.0, 25.0, 19.0, 
 /// The fine of each infraction, in the order of `blackbox_pursuit::Infraction::ALL` (`infractions`, install-verified).
 pub const FINES: [u32; 8] = [150, 350, 1000, 350, 300, 100, 300, 75];
 
-/// The heat a chase keeps after an escape, as a share of the heat it had (`EvadeSuccessHeatAdjust` of the default
-/// collection, `ai-pursuit-heat.md` 2.3).
-pub const EVADE_HEAT_ADJUST: f32 = 0.95;
+/// The share of the live heat an escape keeps: all of it, as in the original, whose `EvadeSuccessHeatAdjust` (0.95, the
+/// default collection) cools the career records only (`ai-pursuit-heat.md` section 3.3).
+pub const EVADE_HEAT_ADJUST: f32 = 1.0;
 
 /// Cop cars chasing at once, at most. The rewrite's cap since the cop manager was built; the Bartender notes give the
 /// stock car loader's limit as 8 (`docs/mods/nfsmwbartender.md` section 4). A config may set another value.

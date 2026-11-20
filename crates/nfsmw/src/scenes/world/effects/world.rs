@@ -62,6 +62,7 @@ impl WorldScene {
         self.object_fx.maintain(renderer, &self.dir, self.physics.database());
         self.car_damage_fx.maintain(renderer, &self.dir);
         self.impact_fx.maintain(renderer, &self.dir);
+        self.rain_splash.maintain(renderer, &self.dir);
         let cutscene = self.cutscene_playing();
         let environment = self.environment_effects(renderer);
         let mut street_glows = Vec::with_capacity(self.street_glows.len() * 18);
@@ -81,7 +82,7 @@ impl WorldScene {
             super::street_lamps::append(&mut street_glows, &mut street_lenses, lamp, flare_view, glow_strength);
         }
         let rain = self.rain_effects(position);
-        let helmet_camera = self.bike_helmet_active();
+        let rider_visibility = self.bike_rider_visibility();
         let Some(drive) = self.players.lead_mut() else {
             let mut layer = EffectLayer { light_fog: [fog_strength, weather], ..EffectLayer::default() };
             layer.fog_shelters = shelters;
@@ -100,7 +101,9 @@ impl WorldScene {
                 traffic.lamp_glows(position, forward, self.residency.props(), &mut layer.glows);
             }
             rain.append(&mut layer);
+            self.rain_splash.geometry(forward, &mut layer);
             renderer.set_effects(&layer);
+            self.rain_splash.reclaim(&mut layer);
             return;
         };
         drive.flames.set_enhanced(self.tuning.enhanced_exhaust && renderer.info().renderer == "blackbox");
@@ -112,7 +115,7 @@ impl WorldScene {
         drive.maintain_rider(renderer, &self.dir);
         let arrested = self.traffic.as_ref().is_some_and(|traffic| traffic.arrest_active());
         drive.set_rider_hidden(arrested);
-        drive.set_first_person(helmet_camera);
+        drive.set_rider_visibility(rider_visibility);
         drive.effects.set_tint(self.tuning.smoke_tint);
         let mut appearance = self.garage.applied.exhaust.clone();
         appearance.set_style(self.tuning.exhaust_style);
@@ -202,7 +205,9 @@ impl WorldScene {
         self.object_fx.textured(position, forward, &mut layer.textured);
         self.car_damage_fx.textured(position, forward, &mut layer.textured);
         self.impact_fx.textured(forward, &mut layer.textured);
+        self.rain_splash.geometry(forward, layer);
         renderer.set_effects(layer);
+        self.rain_splash.reclaim(layer);
         drive.flames.reclaim(layer);
         if let Some(traffic) = self.traffic.as_mut() {
             traffic.reclaim_cop_flames(layer);
