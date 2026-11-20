@@ -444,3 +444,5 @@ This applies linear-light indirect shading and material-specific glass, carbon,
 metal, rubber and coated paint layers. The clearcoat experiment remains a separate
 switch, with coverage and roughness selected per material. See
 [car materials](specs/custom-car-materials.md) and [matte tuning](specs/custom-paint-response.md).
+
+[Per-car environment lighting](per-car-environment.md) estimates shelter around individual vehicles.

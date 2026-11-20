@@ -482,3 +482,5 @@ Copyright (C) 2011-2016, MIT. https://github.com/ashima/webgl-noise
 License: libs/blackbox-gpu-passes/LICENSE-FLAME-NOISE.
 Pyrotechnique by Elodin Systems (Apache-2.0) was a visual/workflow reference only:
 https://github.com/elodin-sys/pyrotechnique . No code or assets copied.
+
+Per-car environment lighting uses the project’s blackbox-collision queries and native glossy shader. Original implementation, no external code ported.
