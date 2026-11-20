@@ -46,15 +46,15 @@ A spec stays under 500 lines; split by concern.
 
 | File | Covers | Stage | Status |
 |---|---|---|---|
-| `tyre-force.md` | slip curve with peak and fall-off, load sensitivity, combined slip, friction ellipse, surface scaling | 0, used by 2 | written |
-| `wheel-dynamics.md` | wheel spin, slip ratio and angle relaxation, low-speed handling, the substep rule | 0, 2 | written |
+| `tyre-force.md` | slip curve with peak and fall-off, load sensitivity, combined slip, friction ellipse, surface scaling | 0, used by 2 | written, revised 2026-11-20 (camber input) |
+| `wheel-dynamics.md` | wheel spin, slip ratio and angle relaxation, low-speed handling, the substep rule | 0, 2 | written, revised 2026-11-20 (inertia 1.0, vectors) |
 | `tyre-thermal.md` | core and surface temperature, pressure law, wear and grip as a function of each | 0, 5 | written |
-| `suspension.md` | spring, damper (bump and rebound), anti-roll, camber gain, roll centre, hub motion | 0, 3 | written |
-| `aids.md` | traction control, ABS, stability control, brake bias; levels and their meaning | 0, 4 | written |
-| `steering.md` | steering ratio, speed-sensitive lock, rate limit, self-aligning torque to a force-feedback signal | 0, 4 | written |
-| `parameter-mapping.md` | which NFS attributes feed which parameters; presets per compound class and car class; per-car override keys | 0, 2 | written |
-| `targets.md` | the reference scalars and tolerance bands, with the scenario each comes from | 0 | written |
-| `scenarios.md` | the scripted inputs behind `targets.md`, runnable by the harness and by `--drive-script` | 0, 2 | written |
+| `suspension.md` | spring, damper (bump and rebound), anti-roll, camber gain, roll centre, hub motion | 0, 3 | written, revised 2026-11-20 (built hook) |
+| `aids.md` | traction control, ABS, stability control, brake bias; levels and their meaning | 0, 4 | written, revised 2026-11-20 (built hook) |
+| `steering.md` | steering ratio, speed-sensitive lock, rate limit, self-aligning torque to a force-feedback signal | 0, 4 | written, revised 2026-11-20 (built hook) |
+| `parameter-mapping.md` | which NFS attributes feed which parameters; presets per compound class and car class; per-car override keys | 0, 2 | written, revised 2026-11-20 (car id, forced compound, `tuning/`) |
+| `targets.md` | the reference scalars and tolerance bands, with the scenario each comes from | 0 | written, revised 2026-11-20 (re-derived at inertia 1.0) |
+| `scenarios.md` | the scripted inputs behind `targets.md`, runnable by the harness and by `--drive-script` | 0, 2 | written, revised 2026-11-20 (convention E, S5 ladder) |
 
 ## Conventions every file follows
 
@@ -67,7 +67,9 @@ A spec stays under 500 lines; split by concern.
 | Aligning torque `mz` | positive turns the wheel's heading towards +x (right), i.e. increases a rightward steering angle; the host's `aligning_torque_nm` has the same sign |
 | Camber | **outward positive** in the suspension, thermal and steering specs (the top of the wheel leaning away from the car); the tyre force function takes it in the wheel frame (positive = top towards +x) and the mod converts: `+` on the right wheels, `-` on the left |
 | Grip multipliers | the player's setting is `grip_gain`; the thermal factor is `grip_scale(T_eff, P, w)`; the tyre force function receives their product (and `tyre_condition`) as `grip` |
-| Steering | positive to the right; no steering lock or camber exists in the host's tyre query (stage 2: camber 0) |
+| Steering | positive to the right; the host's tyre query has no steering lock (the patch velocity is already in the wheel frame); its `camber_rad` (since 1.1) is outward positive and 0 until the suspension hook is on |
+| Wheel inertia | the host's constant (10 kg m^2) times `inertia_scale`, default 1.0: the host's drivetrain is unstable below about 0.5 ([wheel-dynamics.md](wheel-dynamics.md)) |
+| Car identity | the spec has no name: a car is `spec-<kg>-<cm>-<kW>` ([parameter-mapping.md](parameter-mapping.md) 2.1) |
 
 ## About `targets.md`
 
@@ -84,6 +86,6 @@ unknown, the line says `unmeasured` and the matching test is skipped, not guesse
 | Why and how | [ADR 0016](../../decisions/0016-handling-hooks.md), [the plan](../../plans/ac-handling.md) |
 | What the model is | this folder |
 | The model | `mods/ac-handling/src/` (pure functions, unit tests from the test vectors) |
-| Presets and per-car overrides | `mods/ac-handling/presets/`, `mods/ac-handling/cars/` (TOML) |
+| Presets and per-car overrides | `mods/ac-handling/presets/`, `mods/ac-handling/tuning/` (TOML; not `cars/`, which the host reads as car manifests) |
 | What was read and when | `docs/provenance/ac-handling.md`, `NOTICE` |
 | The host interface | [docs/modding/api-handling.md](../../modding/api-handling.md) (`bb.handling`, and the `spec` of `bb.vehicles` 1.3) |

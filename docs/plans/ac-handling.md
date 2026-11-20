@@ -92,7 +92,7 @@ parallel (different files, different sessions).
   the default build as the other mods are; own `README.md`; `mod.toml` requiring `bb.handling` and `bb.vehicles`.
 - **Model.** From the tyre spec: slip curve, load sensitivity, combined slip, relaxation, wheel-local substeps. The
   substep count is a constant of the model chosen by the spec (and a setting for testing), not a host concern.
-- **Data.** `presets/*.toml` per compound class and car class; `cars/<car>.toml` overrides; a loader with
+- **Data.** `presets/*.toml` per compound class and car class; `tuning/<car>.toml` overrides; a loader with
   `deny_unknown_fields` and ranges, like the manifest loaders; an unknown car uses its class preset and logs it once.
 - **Toggles.** `bb.settings` master toggle (default off) and preset list; `bb.menus` grip scale; hotkey and console
   command. Switching applies at a frame boundary and re-seeds the tyre state (cold, at the ambient temperature).

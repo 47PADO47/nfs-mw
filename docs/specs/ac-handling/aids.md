@@ -4,10 +4,11 @@ Sources: van Zanten, "Bosch ESP Systems: 5 Years of Experience", SAE 2000-01-163
 Sources: Rajamani, "Vehicle Dynamics and Control" (Springer, 2nd ed. 2012), public literature, understanding (slip ratio thresholds of ABS and traction control)
 Sources: rustyAC, https://github.com/thesupersupersigma/rustyAC, `crates/rustyac-physics/src/car/aids.rs`, `brakes.rs` and `docs/port/`, GPL-3.0-or-later (per its LICENSING.md; the repo also carries MIT/Apache files for unrelated parts), understanding of behaviour and facts (periodic check with a 0.05 s default period; traction control cuts the engine while the driven wheel slip ratio exceeds a limit, above 1 m/s; ABS releases a locking wheel's brake for one period when its slip ratio is below minus a limit, only above 20 km/h, with 4, 2 or 1 channels; stability control as a yaw moment proportional to mass, the rear-minus-front slip angle difference, a user gain and a constant 30, only above 5 km/h; brake bias as the front share of the brake torque); no code, comments or structure taken
 Sources: this repository, `libs/blackbox-vehicle/src/brakes/mod.rs`, `vehicle/assists.rs`, `vehicle/drive_assists.rs` (what the host does with pedals today), MIT OR Apache-2.0, facts
-Written by: spec author session (Claude, stage 0 part 2), 2026-11-20   Implemented by: not yet
+Written by: spec author session (Claude, stage 0 part 2), 2026-11-20; revised by the spec maintainer session, 2026-11-20 to the built hook   Implemented by: not yet
 
 Part of [the AC handling specs](README.md), [ADR 0016](../../decisions/0016-handling-hooks.md). Implements the aid stages of the
-`controls` hook (`bb.handling` 1.2); steering is in [steering.md](steering.md). Axes: x right, y up, z forward; wheels FL FR RL RR.
+`controls` hook (`bb.handling` 1.2, as built: [api-handling-controls.md](../../modding/api-handling-controls.md)); steering is in
+[steering.md](steering.md). Axes: x right, y up, z forward; wheels FL FR RL RR.
 
 ## 1. Purpose and scope
 
@@ -26,33 +27,47 @@ through), and anything on a vehicle the mod does not handle (cops, traffic).
 
 ## 2. Inputs and outputs
 
-Called once per tick for the player's vehicle. The tyre state comes from the **previous** tick (the controls stage runs before the
-tyre stage); the mod owns the tyre hook, so it has these values itself.
+Called once per tick for the player's vehicle, after the host has shaped the driver's input and before the engine, the brakes and the
+steering of that tick are set. It is not called on a tick the vehicle does not respond to (a frozen body) nor for a vehicle whose
+engine is blown or which is disabled (the host's own rule, full brake and no throttle, applies). The tyre state in the query is
+that of the **previous** tick.
 
-| Input | Unit | Meaning |
+**Host contract (revised to the built hook).** Where the first draft assumed otherwise: (1) the pedals in the query are **after the
+host's input shaping, not raw**: the dead zone is applied (a pedal under 5 % reads 0, over 95 % reads 1), the pedals are already
+swapped while the car reverses (the brake pedal is then the throttle of reverse), and the idle hold counts as a brake request; the
+aids therefore apply no dead zone of their own and need no reverse logic (every threshold uses `abs(v)` and the slip ratio is
+signed so that spinning is positive in either direction of travel). (2) The slip ratio and slip angle are fields of the query
+(`slip_ratio`, `slip_angle`), the previous tick's tyre results, so the mod need not rebuild them from its own tyre state; the slip
+angle is **in turns**. (3) The brake output is a **demand per wheel** from 0 to **1.5** and the host refuses a result above 1.5
+(a fault), so the clamp of 4.5 is mandatory; the host's brake-balance slider and its launch-stand rule (gas and brake together at a
+crawl) are **not** applied on top of a handled answer, by design: the mod's bias is the only bias, and the mod does not rebuild the
+launch-stand rule (a burnout with both pedals is possible). (4) The result has no handbrake field: the handbrake request still acts on
+the rear wheels in the host as before, and a blown tyre still brakes fully. (5) The result carries a `flags` word; the aids never
+set `BB_CONTROLS_FLAG_STEER`: a mod that filters only the pedals leaves the steering to the host ([steering.md](steering.md) sets the
+flag when its own model is on, in the same answer). (6) The hook has no yaw-torque output.
+
+| Input (query field) | Unit | Meaning |
 |---|---|---|
 | `dt` | s | the tick |
-| `throttle`, `brake`, `handbrake` | 0..1 | raw pedals |
-| `v` | m/s | body forward speed, `+` = forwards; the aids use `abs(v)` |
-| `kappa[4]` | 1 | slip ratio per wheel: `(wheel surface speed - ground speed) / ground speed`; `> 0` spinning, `< 0` locking |
-| `alpha[4]` | rad | slip angle per wheel: `atan2(lateral patch velocity, abs(longitudinal patch velocity))`, `+` = the patch slides to the right (+x). **Radians**: the mod computes it from the patch velocities of its own tyre calls; the host's `slip_angle` result is in turns, so a value read from there must be multiplied by `2 pi` |
-| `driven[4]` | bool | which wheels receive drive torque |
+| `throttle`, `brake`, `handbrake` | 0..1 | the driver's request **after the host's shaping** (see above) |
+| `v` (`forward_speed`) | m/s | speed along the heading, `+` = forwards, negative while moving backwards; the aids use `abs(v)` |
+| `kappa[4]` (`slip_ratio`) | 1 | per wheel, last tick: `(wheel surface speed - ground speed) / ground speed` along the wheel's direction of travel; `> 0` spinning, `< 0` locking, `-1` locked; the ground speed is floored at 0.5 m/s and the ratio limited to +-10; 0 for an airborne wheel |
+| `alpha_t[4]` (`slip_angle`) | turns | per wheel, last tick, `+` = the patch moves to the right of the wheel's heading; 0 for an airborne wheel. **The equations use radians: `alpha = 2 pi * alpha_t`** (the mod's own `slip_angle` result, `atan(sy_r) / 2 pi`, is what the host returns here) |
+| `wheel_loaded_mask` | bits | bit `i` set when wheel `i` pressed on the ground last tick; a wheel whose bit is clear is ignored by TC, ABS and ESC (its slip values are 0) |
+| `yaw_rate`, `lateral_accel`, `longitudinal_accel`, `steer` | | in the query; not used by the aids of this spec (ESC works on the slip angles); available to a later aid |
+| `driven[4]` | bool | which wheels receive drive torque (from the `spec`) |
 
-Constants of the vehicle (read once from the `spec`): `mass` (kg), `track_f` front track (m), `w_static[4]` static wheel loads (N),
-`beta_ref` = front share of the host's maximum brake torque (`T_f / (T_f + T_r)`).
+Constants of the vehicle (read from the `spec` when `vehicle_revision` changes): `mass` (kg), `track_f` front track (m), `w_static[4]`
+static wheel loads (N), `beta_ref` = front share of the host's maximum brake torque (`T_f / (T_f + T_r)`).
 
-| Output | Unit | Meaning |
+| Output (result field) | Unit | Meaning |
 |---|---|---|
-| `throttle_out` | 0..1 | replaces the pedal the host feeds to the engine |
-| `brake_out[4]` | 0..1.5 | per-wheel brake pedal equivalent: `1` is the maximum brake torque of **that** wheel (what the host calls `brake` on a tyre) |
-| `handbrake_out` | 0..1 | unchanged |
-| flags `tc_active`, `abs_active[4]`, `esc_active` | bool | for the HUD and sounds |
+| `throttle_out` (`throttle`) | 0..1 | replaces the throttle the engine is given |
+| `brake_out[4]` (`brake`) | 0..1.5 | brake demand per wheel, bias folded in: `1` is the full brake torque of **that** wheel; replaces the host's brake split for the tick. `brake_out = [brake; 4]` is exactly the host's own split |
+| `flags` | | `0` here (no steering target) |
+| `tc_active`, `abs_active[4]`, `esc_active` | bool | not sent to the host: for the HUD and sounds of the mod |
 
-**Contract notes against ADR 0016.** The ADR returns "filtered pedals, brake bias, steering". ABS and ESC act on single wheels, so
-the brake output is **per wheel**, and the bias is folded into it (a per-axle bias alone cannot express either). The host must
-then not apply its own brake-balance slider on top (the slider is `0` while the mod is active). The reference stability control
-is a yaw torque on the body, which the hook cannot apply; this spec gets the same effect from the brakes (section 4.4) and notes
-an optional torque output there.
+The brake lamp of the host shows the strongest demand (limited to 1), so a stability intervention with the pedal released lights it.
 
 ## 3. State
 
@@ -61,6 +76,7 @@ an optional torque output there.
 | `tc_acc` (s), `tc_cut` (bool) | 0, false | level changes, `abs(v) < v_tc`, preset change, teleport |
 | `abs_acc` (s), `abs_rel[4]` (bool) | 0, all false | level changes, `abs(v) < v_abs`, preset change |
 | `esc_y` (0..1), `esc_wheel` (0 or 1) | 0, 0 | level changes to 0, preset change |
+| (all of the above) | | `vehicle_revision` changes; a tick on which the hook was not called is not seen by the mod, so the timers carry on from the next call |
 | levels `L_tc`, `L_abs`, `L_esc`, bias `clicks` | from the menu (default 0, 0, 0, 0) | by the player |
 
 ## 4. Equations
@@ -119,7 +135,7 @@ yaws the car back, the way a production ESC does. The size of the demand is a ya
 ```
 fn esc_target() -> target:                      # 0..1, also sets esc_wheel when it acts
     if L_esc == 0 or abs(v) < v_esc: return 0
-    a_front = 0.5 * (alpha[0] + alpha[1])           # mean slip angle of the front axle
+    a_front = 0.5 * (alpha[0] + alpha[1])           # mean slip angle of the front axle, rad (alpha = 2 pi * the query's turns)
     a_rear  = 0.5 * (alpha[2] + alpha[3])
     delta   = abs(a_rear) - abs(a_front)        # rad; > 0 when the rear axle slides more than the front
     if delta <= 0: return 0                     # understeer or neutral: no action
@@ -144,7 +160,9 @@ control would apply to the body; here it only sizes the brake demand. **Optional
 
 ### 4.5 Clamp
 
-`brake_out[i] = clamp(b[i], 0, 1.5)`, `throttle_out = clamp(throttle_out, 0, 1)`.
+`brake_out[i] = clamp(b[i], 0, 1.5)`, `throttle_out = clamp(throttle_out, 0, 1)`. The clamp is **mandatory**: the host refuses
+a result with a demand above 1.5 or a non-finite field (a fault, five of which quarantine the hook), so an unclamped bias of 1.6667
+(vector BIAS, -100 clicks) must never leave the mod.
 
 ## 5. Constants
 
@@ -168,12 +186,16 @@ the part that is meant.
 | `beta_min`, `beta_max` | 0.30, 0.80 | 1 | design range of the bias |
 | `bias_step` | 0.005 | per click | design; the menu offers -20..+20 clicks |
 | `beta_base` | `beta_ref` | 1 | default: the host's own split |
-| brake clamp | 1.5 | pedal | the host's own bias slider already produces up to 1.5 |
+| brake clamp | 1.5 | pedal | the host's range for a demand: a result above it is refused |
+| `2 pi` | | rad per turn | the slip angle of the query is in turns |
 | `1e-6` | | s | slack so that three ticks of `1/60` reach `0.05` |
 
 ## 6. Test vectors
 
-Generated by a script that implements only section 4 (float64). Tolerance **1e-4 absolute**. `dt = 1/60`, `driven = [F,F,T,T]`,
+Generated by a script that implements only section 4 (float64). Tolerance **1e-4 absolute**. The pedals are the host's shaped
+values and the slip ratios the query's `slip_ratio`; the slip angles below are given in **radians** as the equations use them, and
+a test that goes through the query sends `alpha / 2 pi` turns (ESC1: `0.0031831`, `0.0159155`; ESC2: `-0.0015915`, `-0.0095493`),
+which the mod must convert back to within 1e-6 rad. `dt = 1/60`, `driven = [F,F,T,T]`,
 `mass = 1400`, `track_f = 1.52`, `w_static = [3740, 3740, 3000, 3000]`, `beta_base = beta_ref = 0.58` unless stated. Checks happen on
 ticks 3, 6, 9, 12, 15 (the third tick after the previous check).
 
@@ -224,6 +246,10 @@ wheels 0; `esc_active` from tick 1.
 `M = 1050`, `target = 0.3694`).
 **ESC3.** Level 4, `alpha = [0.10,0.10,0.02,0.02]` (understeer): all brakes 0, `esc_y = 0`. **ESC4.** Level 4, `v = 1.0` m/s (below 5 km/h): all 0.
 **ESC5.** After the 6 ticks of ESC1, set all slip angles to 0 (and `throttle = 0.5`): `esc_y` on the next 6 ticks: 0.6051, 0.3989, 0.2630, 0.1734, 0.1143, 0.0754, all on `brake_out[1]` (the wheel that was braked).
+**ESC7 (query units).** ESC1 sent as turns (`slip_angle = [0.0031831, 0.0031831, 0.0159155, 0.0159155]`): the same `brake_out[1]` to
+1e-4 (`0.3408` on tick 1). **TC6 (reverse).** TC1 with `v = -10`: the same `throttle_out` and `tc_cut` (the aids use `abs(v)`, the query's
+pedals are already swapped). **BIAS2 (range).** `brake = 1`, 100 clicks, ESC and ABS off: the result sent to the host is `[1.3793,
+1.3793, 0.4762, 0.4762]` (inside 0 to 1.5); at -100 clicks `[0.5172, 0.5172, 1.5, 1.5]`, never 1.6667. **FLAG.** Every answer has `flags = 0`.
 **ESC6.** Level 4 with ABS level 3, `v = 25`, `brake = 1`, `kappa = [-0.05,-0.30,-0.05,-0.05]`, `alpha` as ESC1, 6 ticks: front-right is
 locking, so ESC does not touch it: `brake_out = [1.0, 0.1, 1.0, 1.0]`, `abs_rel[1] = true`, `esc_y = 0.9179`.
 
@@ -241,3 +267,23 @@ locking, so ESC does not touch it: `brake_out = [1.0, 0.1, 1.0, 1.0]`, `abs_rel[
   same tyre model, which already shifts the peak.
 - Brake bias is fixed by the menu; there is no electronic brake-force distribution that follows the load.
 - Cars the aids should not touch (cops, traffic, a vehicle without `spec`) are `not handled` and keep the built-in controls.
+- A handled answer bypasses the host's brake-balance slider and its launch-stand rule (both pedals at a crawl): the mod does not
+  rebuild either, and the host's slider has no effect while the mod's controls hook is on (the mod's bias setting replaces it).
+- The host's handbrake still acts on the rear wheels beside the mod's demands (the result has no field for it): ABS cannot release
+  it, and the handbrake request is not filtered.
+- The hook is skipped on a tick the vehicle does not respond to; a dead-zone pedal under 5 % reads 0, so a light brake touch cannot
+  be biased or ABS-controlled.
+- The query's slip ratio floors the ground speed at 0.5 m/s and limits itself to +-10; the aids are off below 1 m/s (TC) and 5.556 m/s
+  (ABS), so the floor never matters to a threshold decision.
+
+## 8. Changes (revision of 2026-11-20, for the implementer's tests)
+
+| Item | Before | Now |
+|---|---|---|
+| pedals | "raw" | the host's shaped pedals (dead zone, reverse swap, idle hold); no reverse logic in the aids |
+| slip ratio, slip angle | from the mod's own tyre calls (radians) | query fields `slip_ratio`, `slip_angle`; the angle is in turns, `alpha = 2 pi * turns` |
+| `handbrake_out` | an output, unchanged | removed (the result has no such field; the host acts on the handbrake itself) |
+| result | pedals only | `throttle`, `brake[4]` (0 to 1.5, refused above), `flags` (0 here) |
+| brake balance | "slider 0 while the mod is active" | guaranteed by the host: a handled answer bypasses the slider and the launch-stand rule |
+| clamp 1.5 | a courtesy | mandatory (a refused answer is a fault) |
+| new vectors | | ESC7 (turns), TC6 (reverse), BIAS2 (range), FLAG; all earlier vectors unchanged |

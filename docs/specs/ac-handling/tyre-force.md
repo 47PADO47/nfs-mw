@@ -52,7 +52,7 @@ converts).
 | `fz` | N | vertical load, `>= 0`; `fz <= 0` gives all zero |
 | `sx` | 1 | **longitudinal theoretical slip** (section 4.1), positive when the patch is driven forward |
 | `sy` | 1 | **lateral theoretical slip**, positive when the patch slides towards +x (right) |
-| `gamma` | rad | camber in the wheel frame's own sign: positive when the top of the wheel leans towards +x (right). The suspension spec reports camber **outward positive** (a left wheel's top leaning left is positive), so the mod converts: `gamma = +camber_out` on the right wheels (indices 1 and 3), `-camber_out` on the left wheels (0 and 2). It is 0 in stage 2. From stage 3 it is the value the mod's own suspension code computed (the tyre query carries no camber) |
+| `gamma` | rad | camber in the wheel frame's own sign: positive when the top of the wheel leans towards +x (right). The suspension spec reports camber **outward positive** (a left wheel's top leaning left is positive), so the mod converts: `gamma = +camber_out` on the right wheels (indices 1 and 3), `-camber_out` on the left wheels (0 and 2). It is 0 until the suspension hook is on; from stage 3 it is the `camber_rad` of the tyre query (`bb.handling` 1.1: the suspension hook's answer for this wheel in the same tick, outward positive on either side, 0 when no suspension hook answered) converted as above |
 | `slide_speed` | m/s | speed of the rubber over the road, `hypot(wheel speed minus ground speed, lateral speed)` |
 | `speed` | m/s | patch speed, only to fade the aligning torque in at walking pace |
 | `surf_lat`, `surf_drive` | 1 | the host's surface multipliers (`SurfaceGrip.lateral`, `.drive`) |
@@ -296,8 +296,9 @@ Properties every implementation must satisfy (property tests, any parameter set 
   an extra multiplier on `mu` and, by `peak_follow`, on `s_p` through the `grip` input.
 - One curve family per tyre: no separate rise shape per compound, no data-driven lookup curves, no asymmetric lateral curve
   (left and right slip behave alike except through camber).
-- Camber is not an input of the host's tyre query: **it is 0 in stage 2**, and from stage 3 the mod passes in the value its own
-  suspension code computed on the previous tick. The camber numbers are design values, untested against any reference.
+- Camber is **0 in stage 2** (no suspension hook); from stage 3 it is the tyre query's `camber_rad` (since `bb.handling` 1.1, the
+  suspension hook's answer of the same tick), converted to the wheel frame's sign. The camber numbers are design values, untested
+  against any reference.
 - The aligning torque follows `fy` only: no `mx` (overturning), no longitudinal contribution, no pneumatic trail change with
   camber, no residual torque.
 - The friction ellipse is shared in normalised slip, not in force: a tyre far past its peak in one direction keeps a sliding

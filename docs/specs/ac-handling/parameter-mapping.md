@@ -12,7 +12,7 @@ Sources:
   tyre of that family has and what a plausible value is. Facts only (key meaning, a few default numbers marked `[U]`); no
   code, comment, table layout or file format was copied: the TOML schema below is ours.
 
-Written by: spec author session (Claude), 2026-11-20   Implemented by: (pending)
+Written by: spec author session (Claude), 2026-11-20; revised by the spec maintainer session, 2026-11-20 (car id, forced compound, `tuning/`, inertia default)   Implemented by: (pending)
 
 Part of [the AC handling specs](README.md). The parameters are consumed by [tyre-force.md](tyre-force.md) and
 [wheel-dynamics.md](wheel-dynamics.md).
@@ -22,7 +22,7 @@ Part of [the AC handling specs](README.md). The parameters are consumed by [tyre
 NFS data lacks most of what a simulation tyre needs: it has a static and a dynamic friction coefficient and a tyre size, no
 slip curve, no load sensitivity, no relaxation length. This file says (a) which of the host's numbers feed which parameter,
 (b) which **presets** supply the rest (one per tyre compound class, one modifier set per car class), (c) the **TOML
-schema** of `presets/*.toml` and `cars/<car>.toml` that holds them, and (d) the order in which they combine. The presets and
+schema** of `presets/*.toml` and `tuning/<car>.toml` that holds them, and (d) the order in which they combine. The presets and
 the per-car overrides are the **main tuning surface** of the mod: most of what the player calls the feel is set here.
 
 Out of scope: runtime settings (grip gain, preset choice: section 7), thermal and suspension parameters (their own specs).
@@ -30,8 +30,8 @@ Out of scope: runtime settings (grip gain, preset choice: section 7), thermal an
 ## 2. Inputs and outputs
 
 Input: the read-only `BbVehicleSpec` the host gives when the car (its `revision`) changes (all SI; `f32` unless noted; the field names
-are those of [api-handling.md](../../modding/api-handling.md) and the axle pairs are front then rear), and the car's name (lower
-case, as `bb.vehicles` reports it). Output: two `TyreParams` sets (front axle, rear axle) with every key of the table in
+are those of [api-handling.md](../../modding/api-handling.md) and the axle pairs are front then rear), and the derived **car id**
+of 2.1 (the spec carries no car name). Output: two `TyreParams` sets (front axle, rear axle) with every key of the table in
 section 5, built once per car change, then read-only.
 
 **Reference car** `ref_sport` (used by the vectors and by [scenarios.md](scenarios.md)): `mass_kg 1450`, `wheelbase_m 2.45`,
@@ -64,10 +64,30 @@ engine's, which is why `L` divides by 2.075.) The brake torques are **per wheel*
 no car identity, no handbrake torque, **no steering lock** and no compound name, so none of them can be used; where
 [steering.md](steering.md) needs a lock it takes a preset value (30 degrees by default, overridable per car).
 
+### 2.1 The car id
+
+`BbVehicleSpec` and the vehicle state carry no car name, so a car is named by its numbers; the id is the file name of its override
+(`tuning/<id>.toml`) and the name the log prints:
+
+```
+id = "spec-" + M + "-" + W + "-" + P
+M = round(mass_kg)    W = round(wheelbase_m * 100)    P = round(max_power_w / 1000)
+```
+
+Each field is widened from `f32` to `f64` first, the arithmetic is done in `f64`, and `round` is to the nearest integer with ties
+away from zero; each number is printed in decimal digits with no sign, padding or separator. If a field is not finite, or `mass_kg`
+or `wheelbase_m` is `<= 0`, or `max_power_w < 0`, the id is `spec-invalid` and no file is looked up. Examples: `ref_sport`
+`spec-1450-245-300` (`2.45f32 * 100 = 245.000005`); COMPACT_FWD `spec-1100-245-90`; SUPER `spec-1500-245-480`; HEAVY_AWD
+`spec-1900-245-300`; `max_power_w = 0` gives `spec-1450-245-0`. **Collisions:** the id resolves 1 kg, 1 cm and 1 kW, so two cars
+(trims) with the same rounded numbers share an id and a file. Only the override is shared: the automatic mapping is cached per
+`vehicle_revision` (section 3) and still follows each car's own grip. If a later spec version carries a lower-case car name, the
+lookup order becomes `tuning/<name>.toml`, then `tuning/<id>.toml`.
+
 ## 3. State
 
-None after construction. The mapping is a pure function of `(BbVehicleSpec, car name, files)`; the result is cached by car
-name. Changing the grip gain at run time does not rebuild it.
+None after construction. The mapping is a pure function of `(BbVehicleSpec, the forced compound if any, files)`; the result is
+cached by `vehicle_revision` (not by the id), so a car change always rebuilds it. Changing the grip gain at run time does not
+rebuild it; changing the `preset` setting does.
 
 ## 4. Equations
 
@@ -78,11 +98,23 @@ per axle a in {front, rear}:
   L_a    = peak_friction_a / 2.075                         (if not finite or <= 0: L_a = 1.0)
   rho_a  = sliding_friction_a / peak_friction_a            (if either is not finite or <= 0: rho_a = 0.89)
 compound = economy if L_front < 0.70; road if < 0.95; sport if < 1.15; semislick if < 1.40; slick otherwise
-           (the front axle chooses; a car file may force it with `compound = "..."`)
-per axle a, with the preset of that compound:
+           (the front axle chooses, unless the compound is forced, below)
+per axle a, with the preset C of that compound:
   mu_y0_a  = clamp( preset.mu_y0 + preset.grip_slope * (L_a - preset.level_ref), 0.6, 2.2 )
   fall_y_a = clamp( rho_a - 0.03, 0.6, 0.95 )     fall_x_a = clamp( rho_a - 0.06, 0.6, 0.95 )
 ```
+
+**Which compound, and what forcing it means.** The first of these that applies chooses it: (1) the player's setting `preset`
+when it is not `auto`; (2) the `compound` key of the car's tuning file; (3) the automatic choice above. A **forced** compound
+(1 or 2) is a tyre *fitted* to the car, not a label on the car's own grip, so it **re-bases the grip level** on the compound's
+reference: `L_front' = level_ref(C)` and `L_rear' = level_ref(C) + (L_rear - L_front)` (the car's front-to-rear difference is
+kept, the `rho` values stay the car's own), and these replace `L_a` in the `mu_y0` line. Equivalently, forcing `C` gives the same
+parameters as the automatic mapping of the same car whose front level is `level_ref(C)` (the reference levels 0.60, 0.80, 1.00,
+1.25, 1.55 each fall inside their own class, so a test can assert it). The front axle therefore gets exactly `preset.mu_y0`, and
+at a fixed car the front `mu_y0` rises with the compound (1.00, 1.10, 1.20, 1.35, 1.60): a forced `slick` is never below a
+forced `sport`, whatever the car's own grip. (Without re-basing a car of level 1.0 forced to `slick` would get
+`1.60 + 1.0 * (1.0 - 1.55) = 1.05`, less than `sport`'s 1.20: the defect this rule removes.) The rear axle keeps the order
+as long as `L_rear - L_front > -0.6`. The car class (4.2), the bias and `grip_gain` are not affected by forcing.
 
 All the other keys of the compound come from the preset file (5.2). The reference game's tyres have `rho` 0.85 to 0.9, our
 `fall` derivation therefore places the sliding level a few points below the game's own ratio; the longitudinal one lower (a
@@ -119,15 +151,18 @@ gradient on the reference car. Everything else is identical on both axles unless
 
 ```
 1. defaults (the "default" column of 5.1)
-2. the compound preset's keys (all keys of its [tyre] table)
-3. per axle: mu_y0 from its level and fall_y, fall_x from its rho (4.1)
+2. the compound preset's keys (all keys of its [tyre] table); the compound is chosen as in 4.1 (setting, car file, automatic)
+3. per axle: mu_y0 from its level (re-based when the compound is forced, 4.1) and fall_y, fall_x from its rho
 4. the car class (4.2): value = value * mul + add
 5. exp_y, exp_x clamped to [0.6, 1.0]
 6. the car file's [tyre] keys replace the value of BOTH axles (peak_angle_deg here is the axle MEAN, still unsplit)
 7. split of the mean peak angle by the bias (4.3): front = mean + bias/2, rear = mean - bias/2, with the bias from the car file's
    top-level `axle_angle_bias_deg` or the layout default
 8. the car file's [tyre.front] and [tyre.rear] keys replace the value of one axle (peak_angle_deg here is that axle's own, absolute)
-9. mu_x0 = mu_y0 * mu_x_ratio, k_vert = k_vert_per_width * tyre width of the axle
+9. clamp every key of both axles to its range of 5.1 (a car class `add`, the bias split or a car-file value can leave it: a mean
+   peak angle of 14 with a bias of 8 gives a front 18, clamped to 14); a file whose own keys are out of range is rejected (5.4),
+   the clamp only handles combinations
+10. mu_x0 = mu_y0 * mu_x_ratio, k_vert = k_vert_per_width * tyre width of the axle
 ```
 
 At run time `grip_gain` (a setting) multiplies `u_x`, `u_y` of [tyre-force.md](tyre-force.md) through its `grip` input; it is not a
@@ -164,7 +199,7 @@ loader.
 | `v_low_x`, `v_low_y` | m/s | 1.0, 0.4 | see wheel-dynamics | [D] |
 | `rr_c0`, `rr_c2`, `air_drag_nms` | | 0.012, 1.5e-6, 0.05 | see wheel-dynamics | [D] |
 | `stick_cap` | 1 | 0.5 | 0.1 to 1 | [D] |
-| `inertia_scale` | 1 | 0.3 | 0.05 to 2 | [D] |
+| `inertia_scale` | 1 | 1.0 | 0.05 to 2 (stable on the real host: 0.5 to 2) | [D] multiplies the host's wheel inertia; 1.0 because the host's drivetrain limit-cycles below 0.5 ([wheel-dynamics.md](wheel-dynamics.md) contract point 3) |
 
 `fz0 = 2000 N` is a constant of the model, not a key.
 
@@ -235,9 +270,9 @@ cx_ratio = 1.05
 [add]                           # value = value + add (after mul)
 peak_angle_deg = -0.5
 
-# cars/ferrari_f50.toml          the file name is the car name, lower case, no extension
+# tuning/spec-1450-245-300.toml  the file name is the car id of 2.1 (or the lower-case car name), no extension
 schema = 1
-compound = "sport"              # optional: forces the class instead of the level
+compound = "sport"              # optional: forces the compound instead of the level (4.1 re-bases the grip)
 class = "super"                 # optional
 axle_angle_bias_deg = 2.5       # optional
 [tyre]                          # optional: absolute values for both axles (step 7)
@@ -248,9 +283,11 @@ peak_angle_deg = 9.5
 mu_y0 = 1.30
 ```
 
-`presets/` ships with the mod (5 compounds, 4 classes) and is read from the mod folder; `cars/` holds overrides and may be
-empty: a car without a file uses the automatic mapping and the mod logs **once** that car, the class it chose and `L`
-(`ac-handling: car "x": L=1.00 -> sport/sport, no cars/x.toml`). A missing preset file falls back to the built-in copy of
+`presets/` ships with the mod (5 compounds, 4 classes) and is read from the mod folder; `tuning/` holds the per-car overrides and
+may be empty: a car without a file uses the automatic mapping and the mod logs **once** that car's id, the class it chose and `L`
+(`ac-handling: car "spec-1450-245-300": L=1.00 -> sport/sport, no tuning/spec-1450-245-300.toml`). The folder is named `tuning/`,
+not `cars/`: a mod's `cars/` folder is where the host reads **car manifests** ([modding README](../../modding/README.md), folder
+layout), so an override file there would be parsed by the host as a manifest and refused. A missing preset file falls back to the built-in copy of
 section 5.2, so the mod works with an empty `presets/` folder. The player's settings never write these files.
 
 ## 6. Test vectors
@@ -289,8 +326,31 @@ gives `mu_y0 = 1.0500`, `mu_x0 = 1.1340`, `q_y = 1.50`, `fall_y = 0.8616` (from 
 **Peak angle override** (steps 6 to 8): `ref_sport` with `[tyre] peak_angle_deg = 9.0` gives front 10.000 and rear 8.000 (the value is
 the mean, the bias 2.0 of a rear-driven car is split around it); adding `[tyre.rear] peak_angle_deg = 7.5` makes the rear exactly 7.500.
 
+**Forced compound** (4.1, the `preset` setting or a car file's `compound`): `mu_y0` of the front and the rear axle (`ref_sport`
+has equal axles; the rear-2.2 car is the per-axle example above with `L_rear - L_front = 0.0602`); in brackets the value the
+formula gives without re-basing (the defect):
+
+| Forced | `ref_sport` front = rear | rear-2.2 car: front, rear | COMPACT_FWD (`L = 0.6024`) | HEAVY_AWD (`L = 0.8193`) |
+|---|---|---|---|---|
+| economy | 1.0000 (1.2200) | 1.0000, 1.0331 | 1.0000 | 1.0000 |
+| road | 1.1000 (1.2100) | 1.1000, 1.1331 | 1.1000 | 1.1000 |
+| sport | 1.2000 (1.2000) | 1.2000, 1.2331 | 1.2000 (0.9813) | 1.2000 (1.1006) |
+| semislick | 1.3500 (1.1500) | 1.3500, 1.3982 | 1.3500 | 1.3500 |
+| slick | **1.6000** (1.0500) | 1.6000, 1.6602 | 1.6000 (0.6524) | 1.6000 (0.8693) |
+
+The `fall`, `q` and relaxation values of a forced compound are its preset's keys with the car's own `rho` (so the rows of the
+tables above change only in `mu_y0`, `mu_x0` and the keys of the compound). Precedence vector: a `preset` setting `slick` with a car
+file `compound = "road"` gives slick; with `preset = auto` the same file gives road; with neither, `ref_sport` gives sport.
+Invariant (property test): for each compound `C`, forcing `C` on any car equals the automatic mapping of that car with the front
+`peak_friction` set to `level_ref(C) * 2.075`, the rear shifted by the same difference, and both `sliding_friction` values scaled
+to keep each axle's `rho`.
+
+**Car id** (2.1): `ref_sport` `spec-1450-245-300`; `mass_kg 1449.5` gives `1450` (ties away from zero) and `1449.49` gives `1449`;
+`wheelbase_m 2.455` (`f32` 2.4549999) gives `245`; `max_power_w 299500` gives `300` (and `299499` gives `299`); a NaN mass gives
+`spec-invalid`.
+
 Loader tests (no numbers): an unknown key, a number out of range, a missing `schema`, a `name` that differs from the file name,
-`kind = "class"` with a `[tyre]` table, each fail the file and are logged once; an empty `cars/` and an empty `presets/` still
+`kind = "class"` with a `[tyre]` table, each fail the file and are logged once; an empty `tuning/` and an empty `presets/` still
 produce the vectors above.
 
 ## 7. Limits
@@ -300,7 +360,20 @@ produce the vectors above.
 - No identification of the tyre compound beyond the grip level: two cars with the same `peak_friction` get the same tyre.
 - The class thresholds (0.70, 0.95, 1.15, 1.40; 1250, 1800 kg; 0.285 m; 250 W/kg) and every `[D]` number are design values;
   the second half of tuning is done in the car files, with the scenarios of [scenarios.md](scenarios.md).
+- The car id names a car only by three rounded numbers (2.1); it cannot tell apart trims that share them.
 - Stage 2 targets five to eight cars; the others get the automatic mapping, which is plausible but untuned.
 - The settings that remain at run time are not part of the schema: `enabled` (master switch, default off), `preset`
-  (`auto` or a compound name, forces the compound for every car), `grip_gain` (0.5 to 1.5, default 1.0) and `substeps`
+  (`auto` or a compound name; forces the compound for every car and re-bases its grip level, 4.1; it outranks a car file's `compound`), `grip_gain` (0.5 to 1.5, default 1.0) and `substeps`
   (0 to 24, default 0); they live in `bb.settings` and `bb.menus`.
+
+## Changes (revision of 2026-11-20, for the implementer's tests)
+
+| Item | Before | Now |
+|---|---|---|
+| default `inertia_scale` | 0.3 | **1.0** (range 0.05 to 2 unchanged; stable 0.5 to 2 on the host) |
+| per-car folder | `cars/<car>.toml` | **`tuning/<id>.toml`** (the host reads `cars/` as car manifests) |
+| car name | "as `bb.vehicles` reports it" | derived id `spec-<kg>-<cm>-<kW>` (2.1); the mapping cache is by `vehicle_revision` |
+| forced compound | `mu_y0` from the car's own level (slick below sport) | re-based level: front `mu_y0 = preset.mu_y0` exactly (vector table above) |
+| compound precedence | not stated | setting, then car file, then automatic |
+| step 9 | derived values | clamp every key to its range, then the derived values (step 10); no existing vector changes |
+| `mu_y0`, class, per-axle, override, peak-angle vectors | | unchanged |

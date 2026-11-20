@@ -14,7 +14,7 @@ Sources:
 - This repository's `vehicle-suspension-tires.md` section 3, `docs/physics-timing.md` and `docs/decisions/0016-handling-hooks.md`:
   the host's tick, units and the hook contract.
 
-Written by: spec author session (Claude), 2026-11-20   Implemented by: (pending)
+Written by: spec author session (Claude), 2026-11-20; revised by the spec maintainer session, 2026-11-20 (inertia default, vectors)   Implemented by: (pending)
 
 Part of [the AC handling specs](README.md). The force at a given slip is [tyre-force.md](tyre-force.md); the constants of both
 are set by [parameter-mapping.md](parameter-mapping.md).
@@ -53,6 +53,7 @@ the symbols are the ones the equations use.
 | `wheel_radius_m`, `wheel_inertia_kgm2` | m, kg m^2 | the host's wheel (the inertia is multiplied by `inertia_scale`, section 5) |
 | `surface_lateral`, `surface_drive`, `surface_rolling` | 1 | the host's `SurfaceGrip` multipliers of the surface under the patch (`surf_lat`, `surf_drive`, `grip_rolling` below) |
 | `tyre_condition` | 1 | 1 for a sound tyre, 0.3 when blown: multiplies the user's grip scale (`grip = grip_scale * tyre_condition`) |
+| `camber_rad` | rad | camber of this wheel this tick, outward positive (section 4 converts it to the wheel frame's sign); 0 until the suspension hook is on |
 | `ambient_temperature_c`, `road_temperature_c` | deg C | held, unused until the thermal spec |
 | `vehicle_revision`, `surface_tag` | | a change of the revision re-seeds the state (section 3); the tag is unused |
 | `loaded` | bool | `false` = airborne: spin decays, no force |
@@ -68,7 +69,8 @@ the symbols are the ones the equations use.
 | `slip_angle` | turns | `atan(sy_r) / (2 pi)`, 1.0 = 360 degrees, the game's unit; 0 for an airborne wheel |
 | status | | `BB_TYRE_HANDLED`, or `BB_TYRE_NOT_HANDLED` to make the host run its own model for this wheel this tick |
 
-`handled = false` when: `role != 0`; no parameter set for the car; `dt <= 0` or `dt > 0.1`; `wheel_radius_m < 0.05` or
+`handled = false` when: `role != 0`; no parameter set for the car; `dt <= 0` or `dt > 0.1 * (1 + 1e-6)` (the host sends `dt` as `f32`, so
+0.1 s arrives as 0.100000001 and must still be handled); `wheel_radius_m < 0.05` or
 `wheel_inertia_kgm2 <= 0`; `corner_mass_kg <= 0`; any input is NaN or infinite; `vertical_load_n < 0`. A `not handled` call leaves the output
 fields at zero and marks the wheel's state `fresh` (section 3), so it re-seeds when handled again.
 
@@ -79,10 +81,25 @@ fields at zero and marks the wheel's state `fresh` (section 3), so it re-seeds w
    mod never runs on a guessed mass.
 2. **The patch velocity is that of the start of the tick** (the state the host holds when it calls the hook, before it integrates
    the body). It is held for the whole tick (4.9).
-3. **`wheel_inertia_kgm2` is the host's constant (10)**, which may stand for more than a road wheel. A real road wheel is about
-   1.2 to 2.5, so the mod scales it (`inertia_scale = 0.3`, giving 3). Whether the drivetrain's reflected inertia is on the host
-   side is unknown; the value is a tuning key.
-4. **Camber is not an input of the host's tyre query:** it is 0 in stage 2 ([tyre-force.md](tyre-force.md) section 7). **There is no
+3. **`wheel_inertia_kgm2` is the host's constant (10) and the mod uses it unscaled: the default `inertia_scale` is 1.** A bare
+   road wheel is only 1.2 to 2.5 kg m^2, but the host's 10 stands for the wheel *and the driveline it is coupled to* (an engine of
+   0.2 kg m^2 reflects `0.2 * (3.6 * 3.5)^2 = 32 kg m^2` to the driven axle in first gear [T]). The reason it is not scaled down is
+   the host's drivetrain loop: the host computes the next tick's drive torque from the spin this hook returns, so wheel and
+   powertrain form a feedback loop with one tick of delay. Driven on the real host (the real loader, a real vehicle with one gear
+   and one tyre, 60 Hz), a wheel of `I = 3` (`inertia_scale 0.3`) **limit-cycles** that loop: the drive torque swings tick by tick
+   between about +1800 and -1500 N m, the driven wheels' spin changes sign and the car crawls at about 2 m/s under full throttle;
+   the same at 0.35, 0.4 and 0.45; **0.5 and above is stable** (observed). A delayed feedback of gain `K dt / I` (K the loop's
+   stiffness in N m s/rad) is stable only below 2, so the lighter the wheel the stiffer the loop gets: the observed threshold, an
+   effective inertia between 4.5 and 5 kg m^2, puts `K` near 600 N m s/rad (our reasoning, not a measurement). The consequence
+   for the specification: the **default is 1.0**; `inertia_scale` stays a documented key (section 5) with a **stable range of 0.5 to 2
+   on the real host** (the product of the host's constant and the key is what matters, not the key; the threshold was not
+   measured at other tick rates and the reasoning above says it can only fall with `dt`, so 1.0 is safe at 144 and 240 Hz). A value
+   below 0.5 is accepted by the loader (the planar harness of [scenarios.md](scenarios.md) runs 0.3 and has no drivetrain loop) but
+   logs one warning. A host that integrated the wheel and the driveline together implicitly would lift the lower bound; that is
+   the host's change, not the mod's.
+4. **Camber is an input since `bb.handling` 1.1** (`camber_rad`, a query field, outward positive on either side, the suspension
+   hook's answer of the same tick, 0 when none answered or on an older host); the earlier text said the query had none. It is 0 in
+   stage 2 ([tyre-force.md](tyre-force.md) section 7) and the vectors below use none. **There is no
    steering-lock or steering-angle input either** and none is needed here: the patch velocity already arrives in the wheel frame.
    (Where a later spec needs a lock, [steering.md](steering.md), it is a preset value, not a host number.)
 5. The host also limits the lateral force so a tyre cannot reverse the patch's sideways motion within one tick. The mod's own
@@ -115,7 +132,9 @@ start-of-tick spin, `n_prev = 0`, then clears `fresh`. An airborne tick sets `sx
 ## 4. Equations
 
 Notation: `R` radius, `I = wheel_inertia_kgm2 * inertia_scale`, `Fz` load, `h = dt / N` the substep. `tyre_force` is
-[tyre-force.md](tyre-force.md) with the arguments `(radius, Fz, sx, sy, 0, slide_speed, speed, surf_lat, surf_drive, grip = 1)`;
+[tyre-force.md](tyre-force.md) with the arguments `(radius, Fz, sx, sy, gamma, slide_speed, speed, surf_lat, surf_drive, grip = 1)`,
+`gamma` being the wheel-frame camber of this tick (`+camber_rad` on wheels 1 and 3, `-camber_rad` on 0 and 2; 0 when the query's
+`camber_rad` is 0), held for the whole tick;
 `slide_speed = hypot(R w - Vx, Vy)` and `speed = hypot(Vx, Vy)` of the instant the force belongs to (`Vx`, `Vy` are the held patch
 velocities, `w` the spin of that instant); `grip = grip_gain * tyre_condition * grip_scale(T_eff, P, w_wear)` where `grip_gain` is the
 player's setting (1 by default) and the last factor is the thermal one (1 until stage 5); `surf_lat`, `surf_drive` are the host's
@@ -193,7 +212,7 @@ tyre torque `R |fx|` of the sliding patch plus the drive torque exceeds the brak
 ```
 sx_i1 = (R w' - Vx) / Wx                        instantaneous slip with the new spin (Wx frozen)
 sx_r' = sx_r + a (sx_i1 - sx_r)                 sy_r' = sy_r + a (sy_i - sy_r)
-Fend  = tyre_force(R, Fz, sx_r', sy_r', 0, hypot(R w' - Vx, Vy), speed, ...)
+Fend  = tyre_force(R, Fz, sx_r', sy_r', gamma, hypot(R w' - Vx, Vy), speed, ...)
 n_prev = Fend.n
 ```
 
@@ -276,9 +295,9 @@ A setting `substeps` (0 = automatic, 1 to 24) overrides it for tests.
 
 **Why this number.** *Stability* is not what sets it: the wheel-slip loop of 4.3 is solved linearly implicitly, so it is stable
 for any `h` whatever the tyre stiffness, and the slip lag of 4.2 is an exact backward Euler step, stable for any rate. (An
-explicit step would need `h < 2 I Wx / (R^2 S)`: with the launch vector `S = 1.28e5 N`, `Wx = 1`, `I = 3`, the stiff mode is
-`R^2 S / (I Wx) = 4.6e3 / s` and `h < 0.43 ms`, about 40 substeps per 60 Hz tick; with the host's unscaled inertia of 10
-the bound is 3.3 times looser.) What stays explicit is the frozen coefficients (`Wx`, `L`, `S`), the brake clamp and the end-of-substep
+explicit step would need `h < 2 I Wx / (R^2 S)`: with the launch vector `S = 1.28e5 N`, `Wx = 1` and the default `I = 10`, the
+stiff mode is `R^2 S / (I Wx) = 1.4e3 / s` and `h < 1.4 ms`, about 12 substeps per 60 Hz tick; with the light wheel of
+`inertia_scale 0.3` (`I = 3`) it is `4.6e3 / s`, `h < 0.43 ms` and about 40 substeps.) What stays explicit is the frozen coefficients (`Wx`, `L`, `S`), the brake clamp and the end-of-substep
 force, so the error is first order in `h` and **accuracy** sets `N`: at `h = 1/600 s` the mean force of the first tick of a
 brake, launch or cornering step is within 2.5 % of the peak force `mu Fz` of the 96-substep result, at every host `dt`
 (vectors W10). The cost is `4 wheels x 10 substeps x 4 force evaluations` per car per tick, 160 evaluations, a few
@@ -297,19 +316,21 @@ microseconds.
 | `rr_c0` | 1 | 0.012 | 0 to 0.05 | [D] rolling resistance coefficient of a road tyre |
 | `rr_c2` | s^2/m^2 | 1.5e-6 | 0 to 1e-5 | [D] its growth with speed squared (0.020 at 73 m/s) |
 | `air_drag_nms` | N m s | 0.05 | 0 to 1 | [D] bearing and air drag of a free wheel |
-| `inertia_scale` | 1 | 0.3 | 0.05 to 2 | [D] multiplies the host's wheel inertia (10), giving 3 kg m^2; see contract point 3 |
+| `inertia_scale` | 1 | 1.0 | 0.05 to 2 (stable on the real host: 0.5 to 2; a value below 0.5 logs a warning) | [D] multiplies the host's wheel inertia (10); 1.0 because the host's drivetrain limit-cycles below 0.5, see contract point 3 |
 | `substeps` | 1 | 0 (auto) | 0 to 24 | the section 4.9 rule |
 | `600` (substeps per second), `1e-3` (slope step), `0.3` (`Lg` floor) | | fixed | | [D] |
 
 ## 6. Test vectors
 
 Python double-precision script implementing only sections 4 and 5 of this file and of `tyre-force.md`. Common inputs:
-`R = 0.33`, host inertia 10 (so `I = 3`), `dt = 1/60` (`N = 10`) unless stated, the `sport` tyre of `tyre-force.md` (tyre width
-0.225), surfaces and `grip` 1, no camber, `corner_mass_kg = Fz / 9.81` (so the momentum limit has the same numbers as for a car at rest),
-fresh state at the first call. Tolerance: forces relative `1e-3` or `0.5 N`;
-spin `1e-3 rad/s`; `slip` `1e-3 m/s`; `traction` `1e-3`; `slip_angle` `1e-4`.
+`R = 0.33`, host inertia 10 with the default `inertia_scale = 1` (so `I = 10`), `dt = 1/60` (`N = 10`) unless stated, the
+`sport` tyre of `tyre-force.md` (tyre width 0.225), surfaces and `grip` 1, no camber, `corner_mass_kg = Fz / 9.81` (so the
+momentum limit has the same numbers as for a car at rest) except in the airborne rows W7, whose load is 0 and which send
+`corner_mass_kg = 350` (a zero mass would make section 2 decline the call), fresh state at the first call. Tolerance: forces
+relative `1e-3` or `0.5 N`; spin `1e-3 rad/s`; `slip` `1e-3 m/s`; `traction` `1e-3`; `slip_angle` `1e-5` turns absolute (the
+tables give it to six decimals).
 
-**One substep with every intermediate (`h = 1/600`, fresh state, `I = 3`)**:
+**One substep with every intermediate (`h = 1/600`, fresh state, `I = 10`)**:
 
 | | brake | launch | cornering with drive |
 |---|---|---|---|
@@ -319,70 +340,77 @@ spin `1e-3 rad/s`; `slip` `1e-3 m/s`; `traction` `1e-3`; `slip_angle` `1e-4`.
 | `L`, `lam`, `a` | 0.442, 67.8733, 0.101626 | 0.4675, 12.5, 0.020408 | 0.442, 45.7551, 0.070855 |
 | `F0.fx`, `F0.fy` | 0, 0 | 0, 0 | 0, -4304.6562 |
 | `S` | 119995.69 | 127819.09 | 45121.19 |
-| numerator, denominator of `dw` | 0, 3.073778 | 3.000000, 3.473452 | 1.000000, 3.029013 |
-| `w_nb` | 90.909091 | 0.863694 | 60.936201 |
-| `t_rr`, `db` | 17.6220, 1.398679 | 17.8200, 0.009900 | 16.6320, 0.009240 |
-| `w'` | 89.510412 | 0.853794 | 60.926961 |
-| `sx_r'`, `sy_r'` | -0.001564, 0 | 0.005750, 0 | 0.000375, 0.15 |
-| `F_end`: `fx`, `fy`, `mz`, `n` | -186.6388, 0, 0, 0.01298 | 707.1845, 0, 0, 0.04582 | 16.9286, -4304.6210, 12.8340, 0.88943 |
+| numerator, denominator of `dw` | 0, 10.073778 | 3.000000, 10.473452 | 1.000000, 10.029013 |
+| `w_nb` | 90.909091 | 0.286439 | 60.705771 |
+| `t_rr`, `db` | 17.6220, 0.419604 | 17.8200, 0.002970 | 16.6320, 0.002772 |
+| `w'` | 90.489487 | 0.283469 | 60.702999 |
+| `sx_r'`, `sy_r'` | -0.000469, 0 | 0.001909, 0 | 0.000113, 0.15 |
+| `F_end`: `fx`, `fy`, `mz`, `n` | -56.5260, 0, 0, 0.00389 | 242.2207, 0, 0, 0.01521 | 5.1139, -4304.6530, 12.8347, 0.88942 |
 
 **Whole ticks** (`wheel_tick`, state carried between ticks of a case):
 
 | # | Case and tick | `force_long` | `force_lat` | `aligning` | `wheel_spin` | `traction` | `slip` | `slip_angle` |
 |---|---|---|---|---|---|---|---|---|
-| W1 | free rolling, `Fz 4000, Vx 30, w = Vx/R` | -17.535 | 0 | 0 | 90.845 | 1.000 | -0.021 | 0 |
+| W1 | free rolling, `Fz 4000, Vx 30, w = Vx/R` | -5.903 | 0 | 0 | 90.883 | 1.000 | -0.0086 | 0 |
 | W5 | standstill, `Fz 4000`, nothing else | 0 | 0 | 0 | 0 | 1.000 | 0 | 0 |
-| W2 | launch (`Fz 4500, V 0, T_drive 1800`), tick 1 | 3733.630 | 0 | 0 | 2.396 | 0.972 | 0.791 | 0 |
-| | tick 2 | 4987.318 | 0 | 0 | 3.102 | 0.462 | 1.024 | 0 |
-| | tick 6 | 4544.176 | 0 | 0 | 8.912 | 0.181 | 2.941 | 0 |
-| W3 | brake (`Fz 4000, Vx 30, w = Vx/R, T_brake 2500`), tick 1 | -2059.031 | 0 | 0 | 80.872 | 1.000 | -3.312 | 0 |
-| | tick 2 | -4678.079 | 0 | 0 | 75.536 | 0.755 | -5.073 | 0 |
-| | tick 3 | -4399.293 | 0 | 0 | 69.643 | 0.469 | -7.018 | 0 |
-| | tick 6 | -4057.166 | 0 | 0 | 50.447 | 0.172 | -13.353 | 0 |
-| | tick 12 | -3881.672 | 0 | 0 | 9.935 | 0.020 | -26.721 | 0 |
-| W4 | lock-up (as W3, `T_brake 6000`), tick 1 | -3173.431 | 0 | 0 | 63.562 | 0.539 | -9.024 | 0 |
-| | tick 2 | -4108.696 | 0 | 0 | 37.702 | 0.136 | -17.558 | 0 |
-| | tick 3 | -3931.278 | 0 | 0 | 11.497 | 0.036 | -26.206 | 0 |
-| | tick 8 (locked, `w = 0` held) | -3848.027 | 0 | 0 | 0 | 0.004 | -30.000 | 0 |
-| W6 | creeping sideways, `Fz 4000, V 0, Vy 0.01` (cap 122.324) | 0 | -122.324 | | 0 | 1.000 | 0 | 0.004 |
-| | `Vy 0.05` (cap 611.621) | 0 | -611.621 | | 0 | 1.000 | 0 | 0.020 |
-| | `Vy 0.3` (cap 3669.725) | 0 | -3669.725 | | 0 | 0.225 | 0 | 0.102 |
-| W7a | airborne, `w 60`, no torque | 0 | 0 | 0 | 59.983 | 0 | 0 | 0 |
-| W7b | airborne, `w 60`, `T_brake 300` | | | | 58.317 | | | |
+| W2 | launch (`Fz 4500, V 0, T_drive 1800`), tick 1 | 2452.414 | 0 | 0 | 1.468 | 1.000 | 0.485 | 0 |
+| | tick 2 | 5256.930 | 0 | 0 | 1.520 | 0.857 | 0.501 | 0 |
+| | tick 6 | 4639.845 | 0 | 0 | 2.834 | 0.267 | 0.935 | 0 |
+| W3 | brake (`Fz 4000, Vx 30, w = Vx/R, T_brake 2500`), tick 1 | -792.789 | 0 | 0 | 87.176 | 1.000 | -1.232 | 0 |
+| | tick 2 | -3031.551 | 0 | 0 | 84.685 | 1.000 | -2.054 | 0 |
+| | tick 3 | -4358.273 | 0 | 0 | 82.900 | 1.000 | -2.643 | 0 |
+| | tick 6 | -4674.815 | 0 | 0 | 78.171 | 0.792 | -4.203 | 0 |
+| | tick 12 | -4215.627 | 0 | 0 | 67.380 | 0.363 | -7.764 | 0 |
+| W4 | lock-up (as W3, `T_brake 6000`), tick 1 | -1709.085 | 0 | 0 | 81.876 | 1.000 | -2.981 | 0 |
+| | tick 2 | -4588.763 | 0 | 0 | 74.407 | 0.739 | -5.446 | 0 |
+| | tick 3 | -4354.903 | 0 | 0 | 66.783 | 0.408 | -7.962 | 0 |
+| | tick 8 | -3940.644 | 0 | 0 | 27.748 | 0.063 | -20.843 | 0 |
+| | tick 12 (locked, `w = 0` from here on) | -3850.839 | 0 | 0 | 0 | 0.004 | -30.000 | 0 |
+| W6 | creeping sideways, `Fz 4000, V 0, Vy 0.01` (cap 122.324) | 0 | -122.324 | | 0 | 1.000 | 0 | 0.003978 |
+| | `Vy 0.05` (cap 611.621) | 0 | -611.621 | | 0 | 1.000 | 0 | 0.019792 |
+| | `Vy 0.3` (cap 3669.725) | 0 | -3669.725 | | 0 | 0.225 | 0 | 0.102416 |
+| W7a | airborne, `w 60`, no torque | 0 | 0 | 0 | 59.995 | 0 | 0 | 0 |
+| W7b | airborne, `w 60`, `T_brake 300` | | | | 59.495 | | | |
 | W7c | airborne, `w 0.5`, `T_brake 300` (locks) | | | | 0 | | | |
-| W8 | cornering `Fz 4000, Vx 20, Vy 3, w = Vx/R`, tick 1 | -11.067 | -4304.666 | 12.815 | 60.535 | 1.000 | -0.023 | 0.024 |
-| | tick 2 | -41.845 | -4304.616 | 12.742 | 60.520 | 1.000 | -0.028 | 0.024 |
-| | tick 5 | -51.944 | -4304.577 | 12.711 | 60.539 | 1.000 | -0.022 | 0.024 |
-| | tick 30 | -51.226 | -4304.580 | 12.713 | 60.537 | 1.000 | -0.023 | 0.024 |
-| W9 | reversing: W3 with `Vx = -30`, `w = Vx/R`, tick 1 | +2059.031 | 0 | 0 | -80.872 | 1.000 | +3.312 | 0 |
-| W9b | reversing launch, `T_drive = -1800`, tick 1 | -3733.630 | 0 | 0 | -2.396 | 0.972 | -0.791 | 0 |
+| W8 | cornering `Fz 4000, Vx 20, Vy 3, w = Vx/R`, tick 1 | -3.577 | -4304.663 | 12.828 | 60.580 | 1.000 | -0.0085 | 0.023701 |
+| | tick 2 | -16.273 | -4304.677 | 12.801 | 60.562 | 1.000 | -0.0146 | 0.023708 |
+| | tick 5 | -44.353 | -4304.616 | 12.732 | 60.541 | 1.000 | -0.0216 | 0.023720 |
+| | tick 30 | -50.644 | -4304.584 | 12.715 | 60.538 | 1.000 | -0.0224 | 0.023723 |
+| W9 | reversing: W3 with `Vx = -30`, `w = Vx/R`, tick 1 | +792.789 | 0 | 0 | -87.176 | 1.000 | +1.232 | 0 |
+| W9b | reversing launch, `T_drive = -1800`, tick 1 | -2452.414 | 0 | 0 | -1.468 | 1.000 | -0.485 | 0 |
 
-Notes: the W1 force is the rolling resistance (the wheel decelerates until a slip of `-0.021 m/s` produces it); W6 is capped
+Notes: the W1 force is the rolling resistance (the wheel decelerates until a slip of `-0.0086 m/s` produces it); W6 is capped
 in every row, as `kc m |Vy| / dt` is smaller than the force the stiff tyre would give; the lateral force of W8 is the mean of
 the relaxed lateral slip (initialised to the instantaneous `0.15`) and stays at `mu(4000) = 1.076` of the load, the tyre not
-yet at its peak (`n = 0.889`).
+yet at its peak (`n = 0.889`). The heavy wheel of W4 locks late (tick 12): its spin is still 27.7 rad/s at tick 8.
 
-**W10 substep convergence** at `dt = 1/60`. Mean `force_long` and end `wheel_spin` for the number of substeps `N`, against
-`N = 96` (state carried from a fresh wheel for `k` ticks). Acceptance (the unit test): at the automatic `N`, the mean force
-differs from the `N = 96` result by at most **2.5 % of the peak force** (`mu_x0 Fz`, 120 N at 4000 to 4500 N), going from `N`
-to `2N` changes it by at most **1.5 %** of the peak, and `R * wheel_spin` differs by at most **0.4 m/s**.
+**The `inertia_scale` key at 0.3** (`I = 3`, the light wheel of the earlier draft; the key must still be honoured and the planar
+harness may run it, section 5): W2 tick 1: `force_long` 3733.630, `wheel_spin` 2.396, `traction` 0.972, `slip` 0.791; W3 tick 1:
+-2059.031, 80.872, 1.000, -3.312; W4 tick 1: -3173.431, 63.562, 0.539, -9.024; W4 tick 8 (already locked, `w = 0`): -3848.027,
+0, 0.004, -30.000. All other columns as in the table above.
+
+**W10 substep convergence** at `dt = 1/60`, `I = 10`. Mean `force_long` and end `wheel_spin` for the number of substeps `N`,
+against `N = 96` (state carried from a fresh wheel for `k` ticks). Acceptance (the unit test): at the automatic `N`, the mean
+force differs from the `N = 96` result by at most **2.5 % of the peak force** (`mu_x0 Fz`, about 120 N at 4000 to 4500 N), going
+from `N` to `2N` changes it by at most **1.5 %** of the peak, and `R * wheel_spin` differs by at most **0.4 m/s**. (The worst
+cases at `N = 10`: 62.8 N, 27.5 N and 0.11 m/s.)
 
 | Case (`Fz`, `Vx`, `Vy`, `w`, `T_drive`, `T_brake`) | `N` = 1 | 2 | 5 | **10** | 20 | 40 | `N` = 96 (ref) |
 |---|---|---|---|---|---|---|---|
-| brake onset, tick 1 (4000, 30, 0, 90.909, 0, 2500): `fx` | -2335.19 | -2430.68 | -2156.01 | **-2059.03** | -2018.09 | -2000.43 | -1991.14 |
-| `wheel_spin` | 76.9223 | 79.8653 | 80.8737 | **80.8715** | 80.7624 | 80.6748 | 80.6125 |
-| launch, tick 1 (4500, 0, 0, 0, 1800, 0): `fx` | 1652.25 | 2746.15 | 3582.04 | **3733.63** | 3742.48 | 3727.15 | 3712.60 |
-| `wheel_spin` | 0.5987 | 1.0454 | 1.8260 | **2.3962** | 2.7415 | 2.9283 | 3.0389 |
-| launch, tick 6: `fx` | 5348.45 | 4749.23 | 4555.33 | **4544.18** | 4541.27 | 4540.38 | 4540.03 |
-| `wheel_spin` | 0.4131 | 3.0551 | 7.5632 | **8.9115** | 9.5138 | 9.7873 | 9.9344 |
-| cornering, tick 1 (4000, 20, 3, 60.606, 0, 0): `fx` | -14.88 | -12.09 | -11.40 | **-11.07** | -10.86 | -10.75 | -10.68 |
-| `fy` (all within 0.06 N of -4304.67) | | | | -4304.67 | | | -4304.67 |
-| lock-up, tick 3 (T_brake 6000): `fx` | -3941.84 | -3940.90 | -3934.85 | **-3931.28** | -3929.01 | -3927.73 | -3926.94 |
-| `wheel_spin` | 6.0069 | 10.5973 | 11.6338 | **11.4967** | 11.2830 | 11.1306 | 11.0274 |
+| brake onset, tick 1 (4000, 30, 0, 90.909, 0, 2500): `fx` | -1199.17 | -1003.07 | -846.06 | **-792.79** | -766.66 | -753.80 | -746.37 |
+| `wheel_spin` | 86.7131 | 87.0892 | 87.1896 | **87.1755** | 87.1542 | 87.1391 | 87.1288 |
+| launch, tick 1 (4500, 0, 0, 0, 1800, 0): `fx` | 1596.09 | 2203.26 | 2456.14 | **2452.41** | 2424.93 | 2404.07 | 2389.63 |
+| `wheel_spin` | 0.5703 | 0.9008 | 1.2905 | **1.4684** | 1.5641 | 1.6130 | 1.6417 |
+| launch, tick 6: `fx` | 5385.19 | 4901.57 | 4681.26 | **4639.85** | 4623.39 | 4616.10 | 4612.14 |
+| `wheel_spin` | 0.5323 | 1.3843 | 2.4610 | **2.8338** | 3.0144 | 3.1024 | 3.1527 |
+| cornering, tick 1 (4000, 20, 3, 60.606, 0, 0): `fx` | -4.46 | -3.83 | -3.70 | **-3.58** | -3.49 | -3.44 | -3.40 |
+| `fy` (all within 0.01 N of -4304.66) | | | | -4304.66 | | | -4304.66 |
+| lock-up, tick 3 (T_brake 6000): `fx` | -4418.05 | -4387.30 | -4364.55 | **-4354.90** | -4349.39 | -4346.41 | -4344.60 |
+| `wheel_spin` | 65.9910 | 66.7368 | 66.8547 | **66.7829** | 66.7161 | 66.6736 | 66.6458 |
 
 At the other host rates the automatic `N` is also inside the 2.5 % bound: `dt = 1/144, N = 5`, brake onset tick 1:
-`fx = -626.93` (96 substeps: `-525.60`), `wheel_spin = 85.5887` (`85.4885`); `dt = 1/240, N = 3`: `fx = -289.91` (`-205.38`),
-`wheel_spin = 87.5415` (`87.5080`).
+`fx = -199.08` (96 substeps: `-163.01`), `wheel_spin = 89.2093` (`89.1986`); `dt = 1/240, N = 3`: `fx = -89.18` (`-62.07`),
+`wheel_spin = 89.8720` (`89.8687`).
 
 Further properties (property tests): the outputs are finite for any finite inputs in range, including `Fz` jumping between
 0 and 9000 N, `|w| <= 250`, `|V| <= 60`, torques of 15 kN m, any `dt` of the table, any inertia from 1.2 to 30; the mirror
@@ -401,5 +429,19 @@ a standing wheel with no torque stays at `w = 0` with zero force; a wheel under 
   transient response is first order. High-frequency effects (tyre belt modes, shimmy) are absent.
 - No ABS, traction control or brake bias here ([aids.md](aids.md)); the brake and drive torques arrive from the host.
 - The wheel spin is one rigid inertia: no drivetrain compliance, no differential inside the mod.
+- The host's drivetrain reads the returned spin one tick late: the wheel must keep the effective inertia of contract point 3
+  (at least about 5 kg m^2 at 60 Hz) or the host's drive torque limit-cycles. The mod cannot see that loop.
 - Known to differ from the reference game: the exact low-speed lag behaviour (its floor on the lag rate is per step, ours per
   second), and everything thermal.
+
+## Changes (revision of 2026-11-20, for the implementer's tests)
+
+| Item | Before | Now |
+|---|---|---|
+| default `inertia_scale` | 0.3 (`I = 3`) | **1.0** (`I = 10`); range 0.05 to 2 kept, stable 0.5 to 2 on the host, warning below 0.5 |
+| common inputs of section 6 | `I = 3` | `I = 10`; airborne rows W7 send `corner_mass_kg = 350` |
+| one-substep table, W1 to W9b, W10 | computed at `I = 3` | all recomputed at `I = 10` (section 6); the `I = 3` values of W2, W3, W4 kept as the `inertia_scale 0.3` check |
+| `slip_angle` | 3 decimals, tolerance `1e-4` (contradictory) | 6 decimals, tolerance `1e-5` absolute |
+| W4 locks at | tick 8 | tick 12 (at `I = 10`; tick 4 at `I = 3`) |
+| `dt` guard | `dt > 0.1` | `dt > 0.1 * (1 + 1e-6)` |
+| W10 acceptance | 2.5 %, 1.5 %, 0.4 m/s | unchanged and met (worst 62.8 N, 27.5 N, 0.11 m/s) |

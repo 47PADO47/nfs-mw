@@ -4,10 +4,11 @@ Sources: Pacejka, "Tyre and Vehicle Dynamics" (Butterworth-Heinemann, 3rd ed. 20
 Sources: Milliken and Milliken, "Race Car Vehicle Dynamics" (SAE, 1995), public literature, understanding (steering ratio and lock, caster and steering feel)
 Sources: rustyAC, https://github.com/thesupersupersigma/rustyAC, `crates/rustyac-physics/src/car/chassis.rs` (steering and force-feedback parts), GPL-3.0-or-later (per its LICENSING.md; the repo also carries MIT/Apache files for unrelated parts), understanding of behaviour and facts (road wheel angle is steering lock times input divided by ratio; force feedback is the sum of the front steering torques, low-pass filtered, plus a term from steering rate times front wheel speed times wheel inertia, shaped by a power-law curve and reduced at low speed); no code, comments or structure taken
 Sources: this repository, `libs/blackbox-vehicle/src/steering/` (the host's steering shaping today), MIT OR Apache-2.0, facts
-Written by: spec author session (Claude, stage 0 part 2), 2026-11-20   Implemented by: not yet
+Written by: spec author session (Claude, stage 0 part 2), 2026-11-20; revised by the spec maintainer session, 2026-11-20 to the built hook   Implemented by: not yet
 
 Part of [the AC handling specs](README.md), [ADR 0016](../../decisions/0016-handling-hooks.md). Implements the steering stage of the
-`controls` hook (`bb.handling` 1.2); the aids are in [aids.md](aids.md). Axes: x right, y up, z forward; `+` steering is to the
+`controls` hook (`bb.handling` 1.2, as built: [api-handling-controls.md](../../modding/api-handling-controls.md)); the aids are in
+[aids.md](aids.md). Axes: x right, y up, z forward; `+` steering is to the
 right; yaw `+` is to the right (rotation about +y).
 
 ## 1. Purpose and scope
@@ -16,9 +17,10 @@ Turn the player's steering input into the target angle of the front wheels, with
 speed-sensitive lock and a rate limit for pad and keyboard, and (optionally) turn the tyres' self-aligning torque into a
 normalised force-feedback value.
 
-**Whether the game has a force-feedback output is not known** (plan, open items; checked in stage 5). The force-feedback signal
-below is specified completely so it can be built and tested, but it is an **optional output**: the mod computes it, the host may
-ignore it, and nothing else depends on it.
+**The hook has no force-feedback output** (the built result carries a throttle, four brake demands, a flags word and a steering
+target, nothing else). The force-feedback signal below is specified completely so it can be built and tested, but it is an
+**optional output of the mod itself** (a HUD gauge, a log, a future interface): it is computed and dropped, and nothing else depends
+on it.
 
 | In scope | Out of scope |
 |---|---|
@@ -29,33 +31,40 @@ ignore it, and nothing else depends on it.
 
 ## 2. Inputs and outputs
 
-One call per tick, for the player's vehicle. `device` is chosen in the menu: `wheel` (a steering wheel with a one-to-one
-mapping, the device's own filtering applies) or `pad` (gamepad stick or keyboard).
+One call per tick, for the player's vehicle, after the host has shaped the driver's input (see [aids.md](aids.md) section 2 for when
+the hook is skipped). `device` is chosen in the menu: `wheel` (a steering wheel with a one-to-one mapping, the device's own
+filtering applies) or `pad` (gamepad stick or keyboard); the query does not say.
 
 | Input | Unit | Meaning |
 |---|---|---|
 | `dt` | s | the tick |
-| `steer_in` | -1..1 | raw steering input, `+` = right |
-| `v` | m/s | body forward speed (`abs(v)` is used) |
-| `alpha_rear` | rad | mean slip angle of the two rear tyres, `+` = the patches slide to the right (from the mod's tyre state, in **radians**: the host's `slip_angle` is in turns, multiply by `2 pi`) |
-| `Mz[2]` | N m | self-aligning torque of FL and FR (`aligning_torque_nm` of the tyre result), last tick; **sign: `+` acts on the wheel to turn it to the right (to increase the steering angle)**. A tyre sliding to the right in a left turn produces `+` |
-| `omega[2]` | rad/s | spin of FL and FR (for the gyro term) |
+| `steer_in` (`steer`) | -1..1 | the steering request, `+` = right: the raw device value clamped to -1..1, **not** shaped by the host |
+| `v` (`forward_speed`) | m/s | speed along the heading (`abs(v)` is used) |
+| `alpha_rear` | rad | mean slip angle of the two rear tyres, `+` = the patches slide to the right: `2 pi * 0.5 * (slip_angle[2] + slip_angle[3])`, the query's `slip_angle` being **in turns**, last tick; 0 for an airborne wheel (a wheel whose `wheel_loaded_mask` bit is clear is left out of the mean) |
+| `Mz[2]` | N m | self-aligning torque of FL and FR (`aligning_torque_nm` of the tyre result), last tick; **sign: `+` acts on the wheel to turn it to the right (to increase the steering angle)**. A tyre sliding to the right in a left turn produces `+`. **Not in the controls query**: the mod keeps its own tyre hook's last results per wheel (0 when the tyre hook is off) |
+| `omega[2]` | rad/s | spin of FL and FR (for the gyro term), likewise the mod's own tyre results of the last tick |
+| `yaw_rate`, `lateral_accel` | | in the query, not used by this spec |
 
-| Output | Unit | Meaning |
+| Output (result field) | Unit | Meaning |
 |---|---|---|
-| `steer_target` | rad | target angle of the inside front wheel, `+` = right; the same quantity as the host's steering update returns, which the host splits with its Ackermann function |
-| `ffb` | -1..1 | optional force-feedback value; `+` = the wheel is pulled to the right |
+| `steer_target` (`steer_target_rad`) | rad | target angle of the inside front wheel, `+` = right; valid only with the flag below. The host splits it between the two front wheels with its own Ackermann geometry |
+| `flags` | | `BB_CONTROLS_FLAG_STEER` (1) **set** while this steering model is on (and the answer is handled); **clear** otherwise, and then the host keeps its own steering and ignores the field |
+| `ffb` | -1..1 | optional, mod-internal force-feedback value; `+` = the wheel is pulled to the right |
 | `col_torque` | N m | optional, the column torque behind `ffb` (logging, a HUD gauge) |
 
 **No steering lock in the host's data.** `BbVehicleSpec` has no steering lock, ratio or angle, so `theta_max` and `delta_max` are
-**preset values** (section 5 defaults, overridable per car in the car file), not read from the car; the target angle the host
-actually reaches is limited by its own lock.
+**preset values** (section 5 defaults, overridable per car in the tuning file), not read from the car. The host keeps a 45 degree
+mechanical limit; the result is refused above 1.5 rad (a fault), so the output is clamped to `delta_max <= 45 deg` anyway.
 
-**Contract notes against ADR 0016.** The ADR lists "steering" as an output without a unit. This spec fixes it as `steer_target`
-in radians and requires the host to **bypass its own steering shaping** (the speed-dependent range, rate and counter-steer window
-of `steering/human.rs`) for a vehicle whose `controls` hook answered, otherwise the lock is shaped twice. The host keeps Ackermann and
-the post-collision limit. Force feedback needs two things the ADR does not list: `Mz` with the sign above from the tyre hook and
-a place to send `ffb`, if the game has one.
+**Host contract (revised to the built hook).** The first draft asked the host to bypass its steering shaping for a vehicle whose
+hook answered; it is built, and it is the **flag** that does it: with `BB_CONTROLS_FLAG_STEER` set the host bypasses its own
+steering shaping (the speed-dependent range, the rate limit, the counter-steer window and the tuning slider), takes
+`steer_target_rad` as the angle of the inside front wheel and splits it with its Ackermann geometry; it keeps the 45 degree limit and
+its post-collision limit (after a hard hit the target is scaled down for up to a second), and a scripted manoeuvre that sets the
+angle itself still wins. A mod that wants only the pedals ([aids.md](aids.md)) leaves the flag clear: the two stages share one
+answer, so the mod sets the flag exactly when the steering model is switched on. The first draft also took `Mz` and `omega` as host
+inputs and `ffb` as an output the host would route; the host sends neither `Mz` nor `omega` in the controls query (they are the mod's
+own tyre results) and has no force-feedback output.
 
 ## 3. State
 
@@ -64,6 +73,11 @@ a place to send `ffb`, if the game has one.
 | `delta` current target angle (rad) | 0 | preset change, teleport, device change |
 | `delta_prev` previous tick's `delta` (rad) | 0 | same |
 | `y_mz` filtered column torque (N m) | 0 | same |
+
+`delta` is the only angle the mod knows: the controls query carries no wheel angle. When the model is switched on, or the car changes,
+`delta` is seeded with the inside front wheel's `steer_angle_rad` of the last suspension call ([suspension.md](suspension.md); the
+front wheel with the larger absolute angle, sign kept) when that hook is active, and with 0 otherwise, so the first answer does not
+snap the wheels (the host's rate limit is bypassed while the flag is set).
 
 ## 4. Equations
 
@@ -147,7 +161,7 @@ cue; no separate "fake understeer" term is added. `p_curve < 1` raises small for
 | `tau_ref` | 12 | N m | 3..40 | design: column torque of a full-scale force |
 | `tau_ff` | 0.02 | s | 0.005..0.1 | design |
 | `g_gyro` | 0.2 | 1 | 0..1 | design: the gyro term is a hint, not the main force |
-| `J_w` | 1.6 | kg m^2 | 0.5..4 | design: typical road wheel; use the tyre hook's inertia when present |
+| `J_w` | 1.6 | kg m^2 | 0.5..4 | design: typical road wheel; fixed, **not** the tyre hook's inertia (the host's 10 stands for wheel plus driveline and the tyre set's `inertia_scale` is 1.0, which would make the gyro term six times larger) |
 | `v_ls` | 2.8 (10 km/h) | m/s | 0..8 | design |
 | `m_ls` | 0.2 | 1 | 0..1 | design |
 | `g_ffb` | 1.0 | 1 | 0..3 | menu: force-feedback gain |
@@ -195,10 +209,27 @@ the lock is `delta_max` at every speed; the pad angle never changes by more than
 - Pad and keyboard only get the speed-sensitive lock and rate; a wheel device is trusted. A keyboard (digital) input reaches full
   lock at the rate limit, which at low speed is fast (0.17 s from centre to lock at standstill).
 - `steer_target` is one angle for the inside wheel; Ackermann, toe and the host's steering-geometry effects are the host's.
+- With the flag set the host's own steering shaping is off, including its rate limit and counter-steer window: everything of that
+  kind is this spec's (4.2). The post-collision limit stays the host's, and the mod does not see it: after a hit the host scales the
+  target down while `delta` keeps its own value.
+- `Mz` and `omega` are the mod's own tyre results; with the mod's tyre hook off (or a wheel airborne) they are 0 and `ffb` fades to 0.
 - Force feedback assumes the tyre hook reports `Mz` about the steering axis at the wheel. Caster and kingpin trail, power-steering
   assist and column friction are not modelled, so the feel depends on the tyre's pneumatic trail alone.
-- Nothing here is specific to a force-feedback standard; scaling to a device's torque range is the host's job. If the game has no
-  force-feedback output the signal is computed and dropped.
+- Nothing here is specific to a force-feedback standard; scaling to a device's torque range is the host's job. The built hook has
+  no force-feedback output, so the signal is computed and dropped (a HUD gauge may show it).
 - Speed sensitivity uses speed only; it does not look at steering rate, yaw rate or understeer.
 - Counter-steer help only widens the limit; it never steers for the player.
 - The constants are design values; none has been measured against a reference game. They are tuned in stage 4 on the owner's feel.
+
+## 8. Changes (revision of 2026-11-20, for the implementer's tests)
+
+| Item | Before | Now |
+|---|---|---|
+| host bypass of its steering shaping | required of the host "for a vehicle whose hook answered" | done by the flag `BB_CONTROLS_FLAG_STEER`; set only while the steering model is on, clear = host steering as usual |
+| `alpha_rear` | the mod's own radians | `2 pi` times the mean of the query's `slip_angle[2]`, `slip_angle[3]` (turns) |
+| `Mz`, `omega` | host inputs from the tyre hook | the mod's own last tyre results (not in the controls query) |
+| `ffb`, `col_torque` | outputs the host might route | mod-internal only: the result has no force-feedback field |
+| `steer_target` | radians, inside wheel | `steer_target_rad`, same meaning; refused above 1.5 rad, clamped to `delta_max` |
+| `delta` seed | 0 | the last suspension call's inside front `steer_angle_rad`, else 0 |
+| `J_w` | "use the tyre hook's inertia when present" | fixed 1.6 (independent of `inertia_scale`) |
+| vectors S1 to S10, F1 to F6 | | unchanged (same maths); a test that goes through the query sends `slip_angle` in turns and sets the flag |
