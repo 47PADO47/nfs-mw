@@ -8,11 +8,13 @@
 // `trace`: whether the reflection weighs enough to trace; otherwise the probe alone answers.
 fn road_environment_at(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,pool:f32,footprint:f32,trace:bool)->vec3<f32> {
     let roughness=mix(0.32,0.07,pool);
-    if !trace || road_control.x<0.5 || globals.fog_range.w>0.5 || rt_control.scene.x==0u || rt_control.tuning.x<=0.0 { return road_probe_at(world,ray,roughness); }
+    // A single ray resolves a mirror sample. Rough film receives its broad probe lobe.
+    let mirror = mix(1.0,smoothstep(0.0,0.85,pool),light.reflection.w);
+    if mirror<=0.0 || !trace || road_control.x<0.5 || globals.fog_range.w>0.5 || rt_control.scene.x==0u || rt_control.tuning.x<=0.0 { return road_probe_at(world,ray,roughness); }
     let result=trace_environment(world,normal,ray,max(0.03,footprint*0.1),road_control.z);
     if !result.found { return road_probe_at(world,ray,roughness); }
     let fade=1.0-smoothstep(road_control.z*(1.0-road_control.w),road_control.z,result.distance);
-    let weight=fade*rt_control.tuning.x;
+    let weight=fade*rt_control.tuning.x*mirror;
     let traced=clamp(result.radiance,vec3(0.0),vec3(1.0));
     if weight>=1.0 { return traced; }
     return mix(road_probe_at(world,ray,roughness),traced,weight);
