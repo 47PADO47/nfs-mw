@@ -80,6 +80,7 @@ pub const BUILT_IN: [(&str, &str); 71] = [
     ),
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),
+    ("auto_exposure <on|off>", "adapt exposure in dark scenes"),
     ("post_bloom <off|low|medium|high>", "glow around bright areas"),
     (
         "upscale_quality <auto|native|quality|balanced|performance|ultra_performance>",
@@ -171,6 +172,7 @@ const SET_SHORTHANDS: [&str; 49] = [
     "radio_hud",
     "radio-hud",
     "post_tonemap",
+    "auto_exposure",
     "post_bloom",
     "post_aa",
     "visual_treatment",

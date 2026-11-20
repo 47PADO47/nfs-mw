@@ -119,6 +119,7 @@ pub struct Appearance {
     pub quality: Quality,
     pub lighting: RenderExperiments,
     pub treatment_strength: Option<f32>,
+    pub auto_exposure: bool,
     pub vignette: f32,
     pub dlss_model: DlssModel,
 }
@@ -129,6 +130,7 @@ impl Default for Appearance {
             style: Default::default(),
             quality: Default::default(),
             treatment_strength: None,
+            auto_exposure: false,
             vignette: 0.0,
             dlss_model: DlssModel::Auto,
             lighting: RenderExperiments { original_world_materials: true, ..Default::default() },
@@ -159,6 +161,7 @@ impl Settings {
             lighting_debug: old.lighting_debug,
             ..Default::default()
         };
+        self.appearance.auto_exposure = false;
         self.appearance.treatment_strength = None;
         self.graphics_preset = GraphicsPreset::Custom;
         self.car_shading = CarShading::Glossy;
@@ -284,6 +287,7 @@ impl Settings {
         lighting.freeze_sun = expected.appearance.lighting.freeze_sun;
         lighting.lighting_debug = expected.appearance.lighting.lighting_debug;
         if self.appearance.treatment_strength.is_some()
+            || self.appearance.auto_exposure
             || lighting != expected.appearance.lighting
             || self.car_shading != expected.car_shading
             || self.visual_treatment != expected.visual_treatment

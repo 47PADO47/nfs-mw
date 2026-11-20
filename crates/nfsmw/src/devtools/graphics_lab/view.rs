@@ -129,6 +129,7 @@ fn appearance(ui: &mut egui::Ui, settings: &mut Settings) {
     if ui.add(egui::Slider::new(&mut strength, 0.0..=1.0).text("Treatment strength")).changed() {
         settings.appearance.treatment_strength = Some(strength);
     }
+    ui.checkbox(&mut settings.appearance.auto_exposure, "Auto exposure");
     ui.add(egui::Slider::new(&mut settings.appearance.vignette, 0.0..=1.0).text("Vignette intensity"));
     ui.small("The vignette is disabled while DLSS Frame Generation is active to avoid artifacts.");
     ui.small("Visual Treatment's original vignette is disabled; use the separate slider above.");

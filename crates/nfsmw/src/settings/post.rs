@@ -56,6 +56,14 @@ impl PostBloom {
 /// What the renderer is asked to run for `settings`.
 pub fn post_effects(settings: &Settings) -> PostSettings {
     PostSettings {
+        auto_exposure: settings.appearance.auto_exposure.then_some(blackbox_gfx::settings::post::AutoExposure {
+            compensation_ev: 0.0,
+            min_ev: -0.4,
+            max_ev: 0.85,
+            brighten_rate: 1.1,
+            darken_rate: 3.0,
+            neutral_log_luminance: [-4.0, -1.0],
+        }),
         vignette: settings.appearance.vignette,
         colour_treatment_override: settings.visual_treatment.parameter_override(),
         colour_treatment: settings

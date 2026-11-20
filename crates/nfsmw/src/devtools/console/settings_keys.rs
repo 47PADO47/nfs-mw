@@ -78,6 +78,7 @@ pub(super) const KEYS: [&str; 133] = [
     "motion_blur_strength",
     "grading_strength",
     "post_tonemap",
+    "auto_exposure",
     "post_bloom",
     "post_aa",
     "visual_treatment",
