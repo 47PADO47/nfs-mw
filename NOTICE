@@ -484,3 +484,4 @@ Pyrotechnique by Elodin Systems (Apache-2.0) was a visual/workflow reference onl
 https://github.com/elodin-sys/pyrotechnique . No code or assets copied.
 
 Per-car environment lighting uses the project’s blackbox-collision queries and native glossy shader. Original implementation, no external code ported.
+Moving spill shadows reuse the project’s native local-light renderer and vehicle marker system.

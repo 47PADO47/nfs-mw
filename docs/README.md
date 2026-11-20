@@ -287,3 +287,5 @@ Car rendering: [original material families](specs/car-material-shading.md),
 
 Projected shadows: [camera and strength](specs/original-projected-shadows.md),
 [world surface receivers](specs/world-surface-shadow-receivers.md).
+
+Moving vehicle lighting: [emitter audit and spill shadows](dynamic-lamp-shadows.md).

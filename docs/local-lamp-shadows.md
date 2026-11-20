@@ -156,7 +156,7 @@ daytime material and get additional night dimming; this does not identify every 
 
 Automatic player lights change at dusk/dawn; manual changes are retained until the next transition.
 Traffic beams fade with night. Tunnel lights remain available by day and night. The optional player
-tail-light spill uses intact rear markers and follows engine, headlights and braking. It is unshadowed
+tail-light spill uses intact rear markers and follows engine, headlights and braking. By default it is unshadowed
 and consumes the shared light budget. With enhanced lamp surfaces, the player's outer brake-lamp ON
 textures act as running tails when available; the centre brake lamp still follows the brake.
 
@@ -177,7 +177,7 @@ in the game or measured.
   neighbouring cars receive it. Its colour is scaled by the brightest lamp's level, the strength, and the same
   night fade as traffic beams.
 - Budget: the four nearest such cars within 150 m of the camera, nearest first, faded over the last 24 m before the
-  distance or count boundary like traffic beams. The lights are unshadowed (they never take a shadow slot and do not
+  distance or count boundary like traffic beams. By default the lights are unshadowed (they never take a shadow slot and do not
   make the shadow casters needed), and come out of the shared active-light limit after the player's lamps and the
   traffic beams, before the fixtures.
 - What it does not do: the flare sprites themselves are still not mirrored in screen-space road reflections. The
@@ -188,6 +188,8 @@ in the game or measured.
 Only the listed streetlight variants are covered. Park and iron-lamp fixtures were identified from the original installed meshes; their light parameters are independent approximations. Their physical lights and sprites can be disabled independently of tunnel fixtures;
 not all original lamp artwork illuminates itself. Baked daylight, an incomplete streetlight catalog,
 unshadowed-light leakage, light-budget transitions, and 4K driving performance remain limitations.
+
+The optional [moving spill shadows](dynamic-lamp-shadows.md) share two shadow slots between nearby bars and rear lamps.
 
 ## Where the local-light time goes (4K, 2026-11-16)
 
