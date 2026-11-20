@@ -8,6 +8,7 @@ use std::collections::HashMap;
 pub(super) struct CarEnvironment {
     pub enabled: bool,
     cars: HashMap<u32, Sample>,
+    enclosures: Vec<blackbox_roads::TrackZone>,
 }
 
 struct Sample {
@@ -16,6 +17,16 @@ struct Sample {
 }
 
 impl CarEnvironment {
+    pub fn from_zones(zones: Option<&blackbox_roads::TrackZones>) -> Self {
+        let enclosures = zones
+            .into_iter()
+            .flat_map(|track| &track.zones)
+            .filter(|zone| matches!(zone.kind, 3 | 7))
+            .cloned()
+            .collect();
+        Self { enclosures, ..Default::default() }
+    }
+
     pub fn apply(&mut self, now: f32, world: &CollisionWorld, probe: Option<Vec3>, instances: &mut [Instance]) {
         if !self.enabled {
             self.cars.clear();
@@ -38,12 +49,24 @@ impl CarEnvironment {
 
     fn sample(&mut self, now: f32, world: &CollisionWorld, group: u32, at: Vec3) -> f32 {
         let origin = Vec3::from_array(super::space::to_physics(at));
-        let sample = self.cars.entry(group).or_insert_with(|| Sample { time: now, occlusion: shelter(world, origin) });
+        let measure = || {
+            let point = blackbox_roads::to_zone_space(origin);
+            let enclosed = self
+                .enclosures
+                .iter()
+                .any(|zone| (zone.elevation == 0.0 || origin.y <= zone.elevation) && zone.contains(point));
+            let floor = match enclosed {
+                true => 0.45,
+                false => 0.0,
+            };
+            shelter(world, origin).max(floor)
+        };
+        let sample = self.cars.entry(group).or_insert_with(|| Sample { time: now, occlusion: measure() });
         let dt = now - sample.time;
         if dt < 1.0 / 30.0 {
             return sample.occlusion;
         }
-        let target = shelter(world, origin);
+        let target = measure();
         let rate = match target > sample.occlusion {
             true => 12.0,
             false => 6.0,
@@ -100,6 +123,30 @@ mod tests {
         let mut world = CollisionWorld::new(None);
         world.insert(CollisionPack { section: 7, instances: vec![instance], articles: vec![article], objects: vec![] });
         world
+    }
+
+    #[test]
+    fn a_tunnel_without_a_collision_ceiling_keeps_its_authored_shelter() {
+        use blackbox_roads::{TrackZone, TrackZones};
+        use glam::Vec2;
+        let min = Vec2::splat(-10.0);
+        let max = Vec2::splat(10.0);
+        let tunnel = TrackZone {
+            kind: 3,
+            position: Vec2::ZERO,
+            direction: Vec2::X,
+            elevation: 4.0,
+            visit_info: 0,
+            data: [0; 4],
+            bbox_min: min,
+            bbox_max: max,
+            polygon: vec![min, Vec2::new(max.x, min.y), max, Vec2::new(min.x, max.y)],
+        };
+        let mut environment = super::CarEnvironment::from_zones(Some(&TrackZones { zones: vec![tunnel] }));
+        let world = CollisionWorld::default();
+        assert_eq!(environment.sample(0.0, &world, 1, Vec3::ZERO), 0.45);
+        assert_eq!(environment.sample(0.0, &world, 2, Vec3::Z * 6.0), 0.0);
+        assert_eq!(environment.sample(0.0, &world, 3, Vec3::X * 12.0), 0.0);
     }
 
     #[test]
