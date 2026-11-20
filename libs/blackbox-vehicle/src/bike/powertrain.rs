@@ -60,6 +60,8 @@ pub struct Powertrain {
     /// The time the engine has been over the over-limit share (s) and the time since the last change began.
     over_limit_timer: f32,
     since_change: f32,
+    /// The clutch lever the rider's hand works as of the last step, 0 let go to 1 pulled in (not the slipper, which no hand works).
+    lever: f32,
 }
 
 /// What the wheel's solve needs to hand back to the powertrain.
@@ -103,7 +105,13 @@ impl Powertrain {
             brake_timer: 0.0,
             over_limit_timer: 0.0,
             since_change: 0.0,
+            lever: 0.0,
         }
+    }
+
+    /// The clutch lever as of the last step, 0 let go to 1 pulled in: the handler's own, before linearity and the slipper make an engagement.
+    pub fn clutch_pulled(&self) -> f32 {
+        self.lever
     }
 
     /// The gear in use, 1 for first.
@@ -356,6 +364,7 @@ impl Powertrain {
             lever = transmission.control.shift_clutch(self.progress());
         }
         lever = lever.max(self.launch(engine, transmission, input, lever, torque, coupled_rpm));
+        self.lever = lever.clamp(0.0, 1.0);
         let back = (-self.transmitted).max(0.0);
         let target = ramp(back, transmission.slipper_range) * transmission.slipper_intensity;
         self.slipper = transmission.control.filter_slipper(self.slipper, target, input.dt);

@@ -250,7 +250,8 @@ linkage records) **[decomp]**.
 - **Landing / bottom out** (`CARSFX_BottomOut`): hang time is tracked per axle pair (front wheels 0+1, rear 2+3,
   right 1+2, left 0+3). A landing sounds when an axle pair touches again after more than 0.12 s in the air
   (a "hard" landing after 0.7 s); a heavily leaning car (up vector dotted with world up below 0.8 and no
-  wheel down) landing on any side counts as hard. Intensity is
+  wheel down) landing on any side counts as hard. The port latches that state until exactly one wheel is down; a two-wheeler (reported as
+  two wheels twice, so never one wheel down) is excluded (`CarInput::two_wheeler`, [ride6-feel-round12.md](ride6-feel-round12.md), section 1.3). Intensity is
   `4 * ramp(compression_front_or_rear_sum, 0 .. 0.65) * 63.5` (AI cars use 127). The sample is a stitch sample;
   the volume is one of `{13000, 15000, 24000, 32767}` by `clamp(intensity >> 5, 0, 3)`.
   A bottom-out message from the physics plays a stitch sample chosen by intensity at mixer 1.

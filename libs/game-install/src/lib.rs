@@ -24,4 +24,4 @@ pub use discover::{
 };
 pub use spec::{GameSpec, KnownBuild, RegistryValue};
 pub use validate::Validation;
-pub use vfs::{GameDir, LayerError, LayerInfo, OpenError, Provider};
+pub use vfs::{GameDir, LayerError, LayerInfo, LazySource, MAX_STUB_BYTES, OpenError, Provider, lazy_stub};

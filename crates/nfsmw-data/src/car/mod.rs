@@ -336,10 +336,14 @@ fn read_solids(dir: &GameDir, folder: &str) -> Result<Vec<Solid>> {
         bail!("no car named {folder:?} (try `nfsmw list-cars`)");
     }
     // An add-on car can carry a few broken solids; the rest of the car still builds.
-    let (solids, failed) =
+    let (mut solids, failed) =
         blackbox_solid::read_solids_lossy(&read_unwrapped(dir, &path)?).with_context(|| format!("parsing {path}"))?;
     if !failed.is_empty() {
         log::warn!("{path}: {} solid(s) left out, the first: {}", failed.len(), failed[0]);
+    }
+    // A mod car may leave out the second level where it is the first (docs/modding/car-customization.md).
+    if mods::is_mod_car(folder) {
+        mods::levels::alias_second_level(&mut solids);
     }
     Ok(solids)
 }

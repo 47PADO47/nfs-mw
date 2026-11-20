@@ -93,9 +93,6 @@ struct MapParams<'w, 's> {
     pads: Query<'w, 's, (Entity, &'static Gamepad)>,
 }
 
-/// How long a menu step may take before it is logged as a stall.
-const SLOW_MENU_STEP: std::time::Duration = std::time::Duration::from_millis(250);
-
 #[allow(clippy::too_many_arguments)]
 fn update(
     mut fe: ResMut<Frontend>,
@@ -372,23 +369,29 @@ fn update(
             {
                 fe.screens.post_to_top(super::ids::QUIT_BUTTON, super::ids::MOUSE_LEFT_RELEASED);
             }
-            let started = std::time::Instant::now();
+            let mut phases = super::step_budget::Phases::start();
             let top = fe.screens.top().map(str::to_owned);
             // The split-screen Press Start screens seat the device that pressed Start (not while the gesture that opened them is held).
             let press = super::plugin_keys::start_press(scripted.is_some(), script_key, map.split.start_press);
             fe.screens.set_start_press(press.filter(|_| !fe.latch));
             let commands = fe.screens.update(dt, mask, &mut env);
+            phases.end("screens");
             fe.apply(commands, host, &mut env);
+            phases.end("commands");
             // The profile step of the boot flow is over when its last screen closed: the main menu follows.
             fe.garage_requests(host, &mut env, &mut garage);
+            phases.end("garage");
             fe.poll_startup(host, &mut env);
+            phases.end("startup");
             fe.end_game_frame(host, &mut env);
+            phases.end("end of game");
             fe.sync_backdrop(host);
             fe.sync_car_loading(host);
-            // A menu step that stalls the frame is worth a line in the log: it says which screen it started on.
-            let took = started.elapsed();
-            if took >= SLOW_MENU_STEP {
-                log::warn!("a menu step took {} ms (on {})", took.as_millis(), top.as_deref().unwrap_or("no screen"));
+            phases.end("backdrop");
+            // A menu step that stalls the frame is worth a line in the log: it says which screen it started on and which
+            // phase of the step took the time (`docs/architecture.md`, "Menu step budget").
+            if let Some(warning) = phases.warning(top.as_deref()) {
+                log::warn!("{warning}");
             }
         }
     }

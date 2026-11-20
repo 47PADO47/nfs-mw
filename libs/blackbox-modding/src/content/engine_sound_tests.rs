@@ -112,3 +112,24 @@ fn a_car_may_have_up_to_the_most_layers_and_no_more() {
     assert_eq!(parse(&layers(engine_sound::MAX_LAYERS)).unwrap().layers.len(), engine_sound::MAX_LAYERS);
     assert!(parse(&layers(engine_sound::MAX_LAYERS + 1)).is_err());
 }
+
+#[test]
+fn layers_off_load_are_a_set_of_their_own_and_may_share_rpms_with_the_set_under_load() {
+    let both = "{ file = \"SOUND/A.WAV\", rpm = 900.0 }, { file = \"SOUND/B.WAV\", rpm = 900.0, load = \"off\" },                 { file = \"SOUND/C.WAV\", rpm = 4000.0, load = \"off\" }";
+    let sound = parse(both).unwrap();
+    assert_eq!(sound.layers.iter().map(|layer| layer.off_load).collect::<Vec<_>>(), [false, true, true]);
+    assert!(
+        parse("{ file = \"SOUND/A.WAV\", rpm = 900.0, load = \"on\" }").unwrap().layers.iter().all(|l| !l.off_load)
+    );
+    let twice = "{ file = \"SOUND/A.WAV\", rpm = 900.0 }, { file = \"SOUND/B.WAV\", rpm = 4000.0, load = \"off\" },                  { file = \"SOUND/C.WAV\", rpm = 4000.0, load = \"off\" }";
+    assert!(parse(twice).is_err(), "two layers of the off-load set at one rpm");
+}
+
+#[test]
+fn a_layer_off_load_needs_a_layer_under_load_and_no_curves() {
+    assert!(parse("{ file = \"SOUND/A.WAV\", rpm = 900.0, load = \"off\" }").is_err());
+    assert!(parse("{ file = \"SOUND/A.WAV\", rpm = 900.0, load = \"sideways\" }").is_err());
+    let curved =
+        format!("{{ file = \"SOUND/A.WAV\", load = \"off\", {RISE} }}, {{ file = \"SOUND/B.WAV\", rpm = 900.0 }}");
+    assert!(parse(&curved).is_err(), "a layer with curves plays by them, not by the throttle's side");
+}

@@ -15,6 +15,24 @@ fn traffic_range_cycles_in_video_and_persists_without_adding_player_rows() {
     assert!(!rows(Category::Player, &caps).iter().any(|r| r.setting == Setting::TrafficPreset));
 }
 
+#[test]
+fn the_gameplay_page_keeps_the_rider_gear_switch_and_no_row_for_the_gear_itself() {
+    // The gear is bought in a bike's shop or set from the developer tools: no helmet, suit, gloves, boots or body row, in the main
+    // menu's options or the pause menu's (both list the same page).
+    let page = rows(Category::Gameplay, &crate::settings::test_caps::native());
+    assert!(
+        page.iter().any(|row| row.setting == Setting::RiderGear),
+        "the on/off switch of the external content stays"
+    );
+    let gear_rows = page
+        .iter()
+        .filter(
+            |row| matches!(row.title, Title::Key(id) if id.starts_with("options-rider-") && id != "options-rider-gear"),
+        )
+        .count();
+    assert_eq!(gear_rows, 0, "no row for a part of the gear");
+}
+
 fn defaults() -> Settings {
     Settings::from(Partial::default())
 }
@@ -63,7 +81,7 @@ fn toggles_flip_and_cycle_and_record_the_change() {
 fn every_category_has_rows() {
     assert_eq!(rows(Category::Audio, &crate::settings::test_caps::native()).len(), 6);
     assert!(rows(Category::Video, &crate::settings::test_caps::native()).len() < 40);
-    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 17);
+    assert_eq!(rows(Category::Gameplay, &crate::settings::test_caps::native()).len(), 25);
     assert_eq!(rows(Category::Player, &crate::settings::test_caps::native()).len(), 3);
     assert_eq!(rows(Category::Controls, &crate::settings::test_caps::native()).len(), 8);
     assert_eq!(rows(Category::Discord, &crate::settings::test_caps::native()).len(), 3);

@@ -86,7 +86,7 @@ fn without_the_weight_back_a_hard_start_stays_down() {
 }
 
 #[test]
-fn a_bike_with_no_wheelie_control_has_no_help_to_hold_it() {
+fn a_bike_with_no_wheelie_control_has_nothing_to_hold_it() {
     let mut spec = BikeSpec::example();
     spec.wheelie = None;
     let (mut bike, ground) = bike_at(spec, 6.0);
@@ -97,11 +97,12 @@ fn a_bike_with_no_wheelie_control_has_no_help_to_hold_it() {
         pitches(&mut with, &ground, 4.0, &throttle())
     };
     let free = pitches(&mut bike, &ground, 4.0, &throttle());
-    // Without the control no torque lifts the wheel (the reference's wheelie is that torque, `ride6-tricks.md`) and the clutch no longer
-    // jerks the drive: the power and the weight alone lift it far less than the control does.
+    // Without the control nothing holds the angle (the reference's wheelie is the assist's torque, `ride6-tricks.md`) and nothing cuts
+    // the throttle at the angle: the power and the weight alone take the front wheel of the bike (a sixth lighter than the data's,
+    // `choices::BIKE_MASS_SCALE`) past the angle the control holds it at.
     let free_worst = free.iter().cloned().fold(f32::MIN, f32::max);
     let held_worst = held.iter().cloned().fold(f32::MIN, f32::max);
-    assert!(free_worst < held_worst && !bike.fallen(), "{free_worst} {held_worst}");
+    assert!(free_worst > held_worst + 0.2, "{free_worst} {held_worst}");
 }
 
 #[test]

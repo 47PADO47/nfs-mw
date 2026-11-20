@@ -65,6 +65,9 @@ pub struct EngineLayer {
     /// For a Ginsu layer: the frequencies from idle to redline.
     pub span: Option<(f32, f32)>,
     pub volume: f32,
+    /// A layer of the set that plays with the throttle closed; the layers mixed by engine speed are two sets (under load,
+    /// off load) that the throttle crossfades, or one set when no layer is off load.
+    pub off_load: bool,
 }
 
 impl EngineLayer {
@@ -79,6 +82,7 @@ impl EngineLayer {
             rate: None,
             span: None,
             volume: 1.0,
+            off_load: false,
         }
     }
 }

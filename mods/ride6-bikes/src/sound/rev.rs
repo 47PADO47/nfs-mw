@@ -50,7 +50,13 @@ impl RevStream {
     /// The engine speed of a loop, rpm: a four-stroke engine has one cycle per two turns, so rpm is 120 times the cycle
     /// frequency (the highest loops of 293 bikes fall at 0.97 of the redline in the median, `docs/formats/ride6-audio.md`).
     pub fn rpm(&self) -> f32 {
-        self.cycle_hz() * RPM_PER_CYCLE_HZ
+        self.rpm_with(RPM_PER_CYCLE_HZ)
+    }
+
+    /// The engine speed of a loop when one cycle per second is `rpm_per_cycle_hz` rpm (120 for a cycle of two turns, 60 for
+    /// the models whose cycle is one turn, `rev_layers::rpm_per_cycle_hz`).
+    pub fn rpm_with(&self, rpm_per_cycle_hz: f32) -> f32 {
+        self.cycle_hz() * rpm_per_cycle_hz
     }
 }
 

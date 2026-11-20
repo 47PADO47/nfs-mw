@@ -124,3 +124,15 @@ fn bangs_ignore_bad_delays_and_never_pile_up() {
     bangs.advance(11.0);
     assert!(bangs.take() <= 16);
 }
+
+#[test]
+fn a_backfire_bang_is_half_loud_at_idle_and_full_at_the_limiter_and_a_lift_off_uses_that_level() {
+    assert_eq!(backfire_level(0.0), 0.5);
+    assert_eq!(backfire_level(1.0), 1.0);
+    assert_eq!(backfire_level(0.5), 0.75);
+    assert_eq!((backfire_level(-3.0), backfire_level(9.0)), (0.5, 1.0));
+    let mut rng = Rng::new(3);
+    let levels: Vec<f32> = (0..500).filter_map(|_| lift_off(0.0, 0.8, &mut rng).backfire).collect();
+    assert!(!levels.is_empty());
+    assert!(levels.iter().all(|&level| level == backfire_level(0.8)));
+}

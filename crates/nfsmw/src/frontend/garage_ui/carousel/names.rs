@@ -7,16 +7,35 @@ use crate::ui::Text;
 use nfsmw_data::car::customization::Category as Part;
 
 pub(super) fn refresh(cx: &mut Cx, page: Page, item: &Item, model: &Model) {
-    if matches!(item.row, Some(Row::Performance(_) | Row::Junkman(_))) {
+    // The original's package names are the 2005 cars'; a vehicle's own component keeps its name.
+    let own = item.row.is_some_and(|row| crate::garage::menu_slots::label(model, row).is_some());
+    if matches!(item.row, Some(Row::Performance(_) | Row::Junkman(_))) && !own {
         return;
     }
     let label = match item.row.zip(item.option) {
         Some((row, option)) => part(model, row, option, &item.label),
+        // A vehicle's component slot keeps its own name: the original category's would call an exhaust a spoiler.
+        None if component_slot(item.next, model) => item.label.clone(),
         None => category(page, item.next, model).unwrap_or_else(|| item.label.clone()),
     };
     for hash in [ids::ICON_TITLE, ids::ICON_TITLE_SHADOW] {
         cx.text_object(hash, &label);
     }
+}
+
+/// Whether `next` is the page of one of the slots of a vehicle that has components.
+fn component_slot(next: Option<Page>, model: &Model) -> bool {
+    let Some(Page::Choices {
+        row: row @ (Row::Part(_) | Row::Performance(_) | Row::Junkman(_) | Row::Slot(_)), ..
+    }) = next
+    else {
+        return false;
+    };
+    let row = match row {
+        Row::Junkman(category) => Row::Performance(category),
+        other => other,
+    };
+    crate::garage::menu_slots::label(model, row).is_some()
 }
 
 fn part(model: &Model, row: Row, option: usize, fallback: &str) -> String {

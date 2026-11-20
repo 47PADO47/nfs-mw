@@ -3,7 +3,7 @@
 NFS: Most Wanted (2012) does not run on the Black Box engine. Like NFS: Hot Pursuit (2010), it runs on Criterion's
 **Chameleon** engine, an evolution of the Burnout Paradise engine. Its data is not bChunk: the files are `bnd2`
 bundles, a table of typed resources with zlib-compressed memory blocks and a pointer-patching import table.
-Reader: [`libs/chameleon-bundle`](../../libs/chameleon-bundle). For the evidence tags
+Reader: [`libs/chameleon-bundle`](../../libs/chameleon-bundle) (`Bundle::parse` over the bytes, or `Bundle::parse_ranges` over a reader the caller supplies, which is asked only for the header, the table and the blocks of the resources that are read: a model out of a 97 MB bundle costs the kilobytes it is made of). For the evidence tags
 see [README.md](../README.md#evidence-tags); how this was learned is in
 [provenance/chameleon.md](../provenance/chameleon.md).
 

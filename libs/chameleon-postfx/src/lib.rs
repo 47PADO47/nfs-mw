@@ -9,6 +9,8 @@
 
 use chameleon_bundle::{Bundle, ResourceKind};
 
+pub mod environment;
+
 #[cfg(test)]
 mod install_tests;
 #[cfg(test)]

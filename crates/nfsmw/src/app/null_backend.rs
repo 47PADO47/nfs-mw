@@ -87,6 +87,8 @@ pub struct NullBackend {
     /// The size of each UI texture last replaced whole, and how many times each was replaced.
     pub ui_texture_sizes: std::collections::HashMap<UiTextureId, [u32; 2]>,
     pub ui_texture_uploads: std::collections::HashMap<UiTextureId, usize>,
+    /// The texture redirects in force: the texture drawn wherever the key is used.
+    pub redirects: std::collections::HashMap<TextureHandle, TextureHandle>,
 }
 
 impl NullBackend {
@@ -135,6 +137,7 @@ impl NullBackend {
             capture_requests: 0,
             ui_texture_sizes: Default::default(),
             ui_texture_uploads: Default::default(),
+            redirects: Default::default(),
         }
     }
 
@@ -273,7 +276,12 @@ impl RenderBackend for NullBackend {
             counts.texture_destructions += 1;
         }
     }
-    fn redirect_texture(&mut self, _from: TextureHandle, _to: Option<TextureHandle>) {}
+    fn redirect_texture(&mut self, from: TextureHandle, to: Option<TextureHandle>) {
+        match to {
+            Some(to) => self.redirects.insert(from, to),
+            None => self.redirects.remove(&from),
+        };
+    }
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {
         if !self.track_meshes {
             return MeshHandle::from_raw(0);

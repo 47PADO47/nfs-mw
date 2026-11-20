@@ -3,6 +3,7 @@
 
 use glam::Vec3;
 
+use super::air::{MAX_HEADING, MAX_LEAN, MAX_PITCH, widen};
 use super::chassis_state::Environment;
 use crate::bike::release::FallKind;
 use crate::bike::{Bike, FRONT, REAR, lean_of, pitch_of};
@@ -110,15 +111,17 @@ impl Bike {
             false => shift,
         };
         let lean = (signed - shift).abs();
+        // The arcade help forgives a landing and loose ground by widening the limits (1 in the reference steering, and then nothing changes).
+        let tolerance = self.fall_tolerance();
         let lean_over = match air {
-            true => lean > pick(extra.airborne_lean, fall.lean),
-            false => lean > self.chassis.fall_lean,
+            true => lean > widen(pick(extra.airborne_lean, fall.lean), tolerance, MAX_LEAN),
+            false => lean > widen(self.chassis.fall_lean, tolerance, MAX_LEAN),
         };
         // On the ground the lean must stay beyond the limit for `lean_duration` before it counts.
         let mut found = None;
         match lean_over && !air {
             true => {
-                if self.chassis.fall_timer >= extra.lean_duration {
+                if self.chassis.fall_timer >= extra.lean_duration + self.lean_hold() {
                     found = Some(FallKind::LowSide);
                 }
                 self.chassis.fall_timer += dt;
@@ -133,17 +136,19 @@ impl Bike {
         if found.is_some() {
             return found;
         }
-        if pitch_of(rotation).abs() > pick(extra.airborne_pitch, fall.pitch) {
+        if pitch_of(rotation).abs() > widen(pick(extra.airborne_pitch, fall.pitch), self.pitch_tolerance(), MAX_PITCH) {
             return Some(FallKind::Generic);
         }
         // A velocity against the heading is a high side when the bike is not leaning far, a low side when it is.
-        if speed > fall.min_speed && self.heading_error() > fall.speed_direction {
+        if speed > fall.min_speed && self.heading_error() > widen(fall.speed_direction, tolerance, MAX_HEADING) {
             return Some(match extra.highside_lean > 0.0 && lean < extra.highside_lean {
                 true => FallKind::HighSide,
                 false => FallKind::LowSide,
             });
         }
-        if self.body.angular_velocity.length() > pick(extra.airborne_angular, fall.angular_speed) {
+        let spin_limit =
+            pick(extra.airborne_angular, fall.angular_speed) * self.spec.steering.arcade.fall_angular_speed * tolerance;
+        if self.body.angular_velocity.length() > spin_limit {
             return Some(FallKind::LowSide);
         }
         None

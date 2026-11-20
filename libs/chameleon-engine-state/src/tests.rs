@@ -165,3 +165,24 @@ fn the_brake_does_not_start_a_running_engine_or_hold_off_the_stop() {
     assert!(engine.is_running());
     assert_eq!(run(&mut engine, Input { brake: 0.0, ..idle() }, 20), [Event::Stopped], "the clock kept running");
 }
+
+#[test]
+fn the_delay_can_be_changed_while_the_car_stands_and_a_bad_value_is_ignored() {
+    let mut engine = machine();
+    assert!(run(&mut engine, idle(), 15).is_empty());
+    // A longer delay waits the rest of it: 1.5 s of the 5 are gone, so the engine stops at 5 s and not at 2 s.
+    engine.set_idle_seconds(5.0);
+    assert!(run(&mut engine, idle(), 30).is_empty(), "4.5 s of 5 s");
+    assert_eq!(run(&mut engine, idle(), 6), [Event::Stopped]);
+    // A shorter one counts the time already stood.
+    let mut engine = machine();
+    run(&mut engine, idle(), 15);
+    engine.set_idle_seconds(1.0);
+    assert_eq!(run(&mut engine, idle(), 1), [Event::Stopped]);
+    // Not a number, infinite or negative: kept.
+    let mut engine = machine();
+    for bad in [f32::NAN, f32::INFINITY, -1.0] {
+        engine.set_idle_seconds(bad);
+        assert_eq!(engine.params().idle_seconds, 2.0);
+    }
+}

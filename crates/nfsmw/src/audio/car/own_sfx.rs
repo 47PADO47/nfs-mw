@@ -58,6 +58,8 @@ pub struct SfxFrame {
     pub delay: f32,
     /// The gear id of the frame (reverse 0, neutral 1, first 2), for a car whose shifts follow the gear number.
     pub gear: i32,
+    /// The host made a pop of the exhaust this frame (a bike's burnout pop): voice it ([`OwnSfx::exhaust_pop`]).
+    pub pop: bool,
 }
 
 /// The effects of a car that is playing.
@@ -112,6 +114,23 @@ impl OwnSfx {
         }
         self.lift_off_effects(audio, frame);
         self.overrun_effects(audio, frame);
+        if frame.pop {
+            self.exhaust_pop(audio, frame);
+        }
+    }
+
+    /// A pop of the exhaust the host lit (the flame is already made: it is not queued again): play what the pipe sounds like for a
+    /// pop. The backfire recordings are the bang the car's lift-off plays (`lift_off_effects`), at the same level for the engine
+    /// speed ([`logic::backfire_level`]: a burnout holds the limiter, so the loud end), and are a random variant as there; a car
+    /// without them plays its pops, then its down-shift; one with none stays silent (never another car's sound). Like every
+    /// one-shot of the car it is not placed in the world (the car's sound is the bike's, heard from the camera).
+    fn exhaust_pop(&mut self, audio: &mut Audio, frame: &SfxFrame) {
+        let volume = logic::backfire_level(frame.rpm_pct);
+        for list in [BACKFIRE, POPS, SHIFT_DOWN] {
+            if self.shot(audio, list, volume, frame.delay) {
+                return;
+            }
+        }
     }
 
     /// The accumulator backfire (`[car_sound.overrun]`): a bang plays a `backfire` recording at the bang's level and lights

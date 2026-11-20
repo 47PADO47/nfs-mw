@@ -21,11 +21,18 @@ const CONTAINERS: [&str; 6] = ["resolved", "content", "assets", "data", "cameras
 /// The stem every base container's file name starts with (the dump spells it so).
 const BASE_STEM: &str = "GameBaseCAmeraContainer";
 
+/// Whether a container's file stem is a base container's. The install spells the stem two ways (`GameBaseCAmeraContainer_Racing`,
+/// `GameBaseCameraContainer_Bagger` and `_Enduro`), so the comparison ignores case: a base container taken for a bike's own
+/// would be matched against the bikes by name and its class would lose its base layer.
+fn is_base(stem: &str) -> bool {
+    stem.get(..BASE_STEM.len()).is_some_and(|head| head.eq_ignore_ascii_case(BASE_STEM))
+}
+
 /// The rider's bones whose middle is the eye point of the helmet camera, the head bone for a rider without them, and the meshes the
 /// camera leaves out: the helmet and the visor of the stock rider (`docs/formats/ride6-rider.md`, `rider/parts.rs`).
 const EYE_BONES: [&str; 2] = ["eye_l", "eye_r"];
 const HEAD_BONE: &str = "head";
-const HIDDEN_MESHES: [&str; 2] = ["helmetRacing_default", "visorClosedRacing_default"];
+pub(crate) const HIDDEN_MESHES: [&str; 2] = ["helmetRacing_default", "visorClosedRacing_default"];
 
 /// How far ahead of the front hub the camera in front of the bike is, m. A modelling choice: RIDE 6's own front camera is bolted
 /// to the fairing and looks ahead; the game asks for one that looks back at the bike and the road, so it is put this far out
@@ -98,7 +105,7 @@ impl Container {
 fn base_in(dir: &Path) -> impl Iterator<Item = PathBuf> {
     let found = fs::read_dir(dir).into_iter().flatten().flatten().map(|entry| entry.path()).find(|path| {
         let stem = path.file_stem().and_then(|stem| stem.to_str()).unwrap_or("");
-        path.extension().is_some_and(|ext| ext == "json") && stem.starts_with(BASE_STEM)
+        path.extension().is_some_and(|ext| ext == "json") && is_base(stem)
     });
     found.into_iter()
 }
@@ -126,7 +133,7 @@ fn locate(root: &Path, vehicle: &str) -> Result<PathBuf> {
         for file in files.flatten() {
             let path = file.path();
             let stem = path.file_stem().and_then(|stem| stem.to_str()).unwrap_or("");
-            if stem.starts_with(BASE_STEM) || !path.extension().is_some_and(|ext| ext == "json") {
+            if is_base(stem) || !path.extension().is_some_and(|ext| ext == "json") {
                 continue;
             }
             if crate::bike_table::squash(stem) == wanted {
