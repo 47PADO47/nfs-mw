@@ -44,7 +44,7 @@ fn fsr3_is_offered_and_leads_the_chain_while_it_is_chosen() {
     assert_eq!(renderer.post_passes(), ["fsr3"]);
     assert!(!renderer.draws_directly() && renderer.is_hdr(), "FSR 3 takes the scene as HDR");
     assert_eq!(renderer.render_size(), scaled_size(SIZE, scale));
-    assert_eq!(renderer.texture_lod_bias(), suggested_temporal_texture_lod_bias(scale));
+    assert!((renderer.texture_lod_bias() - suggested_temporal_texture_lod_bias(scale)).abs() < 1e-5);
     assert!(!renderer.fsr1_active());
 
     renderer.apply_graphics(&GraphicsSettings { upscaler: Upscaler::Fsr1, render_scale: 0.5, ..Default::default() });

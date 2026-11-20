@@ -103,12 +103,12 @@ fn check(backend: wgpu::Backends) {
     let shared = Shared::new(&device);
     let (surface, hdr) = (wgpu::TextureFormat::Rgba8Unorm, HDR_FORMAT);
     let mut pipelines = super::pipelines::Pipelines::new(&device, surface, &shared, None);
-    assert_eq!(pipelines.count(surface), 28, "4 blend modes x lit, prelit, sky and four authored world families");
+    assert_eq!(pipelines.count(surface), 55, "5 blend modes x the 11 shadings that are not glossy");
     assert_eq!(pipelines.count(hdr), 0, "the HDR set is not built until HDR is used");
     assert!(!pipelines.has_glossy(), "the glossy shader is not compiled");
     pipelines.use_format(&device, hdr, false);
-    assert_eq!((pipelines.count(surface), pipelines.count(hdr)), (28, 28));
+    assert_eq!((pipelines.count(surface), pipelines.count(hdr)), (55, 55));
     pipelines.use_format(&device, surface, true);
     assert!(pipelines.has_glossy());
-    assert_eq!((pipelines.count(surface), pipelines.count(hdr)), (32, 28), "glossy only for the format in use");
+    assert_eq!((pipelines.count(surface), pipelines.count(hdr)), (60, 55), "glossy only for the format in use");
 }
