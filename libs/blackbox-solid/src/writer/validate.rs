@@ -72,7 +72,7 @@ fn group_problem(group: &GroupSource, lights: usize, layout: &SolidLayout) -> Op
     if group.indices.is_empty() {
         return Some(GroupProblem::NoIndices);
     }
-    if group.indices.len() % 3 != 0 {
+    if !group.indices.len().is_multiple_of(3) {
         return Some(GroupProblem::PartialTriangle(group.indices.len()));
     }
     let wide = layout.skinned_effects.contains(&group.effect_id) || group.effect_id == SECOND_UV_EFFECT;

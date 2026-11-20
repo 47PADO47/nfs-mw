@@ -17,6 +17,7 @@ pub enum MomentKind {
 }
 
 impl MomentKind {
+    /// Every kind, in options-menu order. Only the tests walk them all.
     #[cfg(test)]
     pub const ALL: [Self; 4] = [Self::Breakers, Self::Pursuit, Self::Jumps, Self::Crashes];
 
