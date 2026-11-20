@@ -3,14 +3,21 @@
 Part of the [modding catalogue](README.md); decision in [ADR 0016](../decisions/0016-handling-hooks.md). **W** marks a write
 that is denied in an online session.
 
-`bb.handling` lets a mod replace how a vehicle's tyres turn load, slip and torque into forces. It is generic: it names no
-game and no model, and it assumes nothing about how the mod computes its answer. A drift mod that scales the lateral grip, an
-arcade tyre with a constant friction coefficient, a thermal tyre model, a tyre mod for another game's bikes and a full
-simulation model all use the same hook. The host calls the hook once per wheel per physics tick; the mod answers with that
-wheel's forces and its new spin, or declines and the built-in tyre runs.
+`bb.handling` lets a mod replace how a vehicle's tyres, suspension and controls work. It is generic: it names no game and no
+model, and it assumes nothing about how the mod computes its answer. A drift mod that scales the lateral grip, an arcade tyre with a
+constant friction coefficient, a thermal tyre model, a tyre mod for another game's bikes and a full simulation model all use the
+same hooks. A mod registers any subset of three hooks; each is answered by the mod or declined, and a declined call runs the
+host's own code.
 
-Status: **built** (the host seam). Version 1.0 has one hook, the tyre hook. The suspension and controls hooks are
-reserved ([how a hook is added](#how-a-future-hook-is-added)). In NFS:MW it applies to the player's car only.
+| Hook | Since | Called | The mod answers with | Page |
+|---|---|---|---|---|
+| tyre | 1.0 | once per wheel per tick | that wheel's forces, its new spin and the numbers for the effects | this page |
+| suspension | 1.1 | once per axle per tick | the force each of the two wheels puts on the body, the load of each tyre and the camber of each wheel | [api-handling-suspension.md](api-handling-suspension.md) |
+| controls | 1.2 | once per tick | the throttle, a brake demand per wheel and (optionally) a steering target | [api-handling-controls.md](api-handling-controls.md) |
+
+Status: **built** (the host seam) for all three. In NFS:MW they apply to the player's car only. The minor version says which hooks
+a host has: a table of 1.0 has the tyre pair, 1.1 adds the suspension pair, 1.2 the controls pair; a mod built for 1.0 keeps working
+on a 1.2 host, and a mod that needs a hook asks for the minor that has it ([versions](#versions-and-older-hosts)).
 
 ## Using it from a mod
 
@@ -36,14 +43,16 @@ declare_mod!(Grippy);
 ```
 
 A complete working mod is [`mods/handling-probe`](../../mods/handling-probe/README.md), the fixture the host tests load. The
-manifest says `[requires.interfaces] "bb.handling" = "1.0"`, and `"bb.vehicles" = "1.3"` under `[optional.interfaces]` for the
-car's `spec`.
+manifest says `[requires.interfaces] "bb.handling" = "1.0"` (use `"1.1"` or `"1.2"` for a mod that cannot work without the
+suspension or the controls hook), and `"bb.vehicles" = "1.3"` under `[optional.interfaces]` for the car's `spec`.
 
 | SDK call | Meaning |
 |---|---|
 | `ctx.handling() -> Option<Handling>` | the interface, when the host offers it |
 | `handling.register_tyre(hook) -> ModResult<HandlingHookId>` | register the tyre hook; `Error::Exists` when one is in place, `Error::Denied` in an online session |
 | `handling.unregister_tyre(id)` | remove it; the built-in tyres run from the next tick |
+| `handling.register_suspension(hook)`, `handling.unregister_suspension(id)` | the suspension hook (1.1), see [api-handling-suspension.md](api-handling-suspension.md) |
+| `handling.register_controls(hook)`, `handling.unregister_controls(id)` | the controls hook (1.2), see [api-handling-controls.md](api-handling-controls.md) |
 | `ctx.vehicles()?.spec() -> ModResult<VehicleSpec>` | the car in physical numbers ([below](#the-car-in-physical-numbers-bbvehicles-13-spec)) |
 
 The hook is `FnMut(&mut Ctx, &TyreQuery) -> Option<TyreResult>`. A panic inside it is caught by the SDK, returned as an error
@@ -51,10 +60,12 @@ status, and counted as a fault.
 
 ## Wire layout
 
-`IFACE_HANDLING` is `bb.handling`, `IFACE_HANDLING_VERSION` is `(1, 0)`. Every table and struct starts with its size; the
+`IFACE_HANDLING` is `bb.handling`, `IFACE_HANDLING_VERSION` is `(1, 2)`. Every table and struct starts with its size; the
 layouts are locked by `abi/iface/handling_tests.rs`.
 
-`BbHandling` is 32 bytes: `head` (`BbIface`) at 0, `ctx` at 8, `register_tyre` at 16, `unregister_tyre` at 24.
+`BbHandling` is 64 bytes: `head` (`BbIface`) at 0, `ctx` at 8, `register_tyre` at 16, `unregister_tyre` at 24 (that is 1.0, 32
+bytes), `register_suspension` at 32, `unregister_suspension` at 40 (1.1, 48 bytes), `register_controls` at 48 and
+`unregister_controls` at 56 (1.2, 64 bytes). The host writes the whole table and sets `head.size` to 64.
 
 | Function | Signature | Answers |
 |---|---|---|
@@ -69,8 +80,8 @@ The callback: `unsafe extern "C" fn(user, query: *const BbTyreQuery, result: *mu
 `BB_TYRE_HANDLED` (1) after writing the result, `BB_TYRE_NOT_HANDLED` (0) to decline, or a negative `BB_ERR_*` code, which
 counts as a fault.
 
-`BbTyreQuery` (120 bytes, align 4; SI units). The host writes it; a field a newer minor appends takes a reserved word, and a
-reader reads `size` bytes and treats the rest as zero.
+`BbTyreQuery` (120 bytes, align 4; SI units). The host writes it; a field a newer minor appends takes a reserved word (the struct
+does not grow), and a reader reads `size` bytes and treats the rest as zero.
 
 | Offset | Field | Type | Meaning |
 |---|---|---|---|
@@ -97,7 +108,8 @@ reader reads `size` bytes and treats the rest as zero.
 | 80 | `ambient_temperature_c` | f32 | degrees Celsius; the host has no weather model and reports 20 |
 | 84 | `road_temperature_c` | f32 | degrees Celsius; the host has no thermal model and reports 25 |
 | 88 | `corner_mass_kg` | f32 | the sprung mass the host attributes to this wheel, kg: a quarter of the vehicle mass. A model can bound its low-speed force with it: a force above `corner_mass_kg * speed / dt` reverses the motion within one tick |
-| 92 | `reserved` | `[u32; 7]` | zero |
+| 92 | `camber_rad` | f32 | appended in 1.1, taking the first reserved word: the camber of the wheel this tick, rad, positive when the top of the wheel leans away from the centre line of the car (on either side), as the suspension hook answered for it; 0 when no suspension hook answered, and on a host older than 1.1 |
+| 96 | `reserved` | `[u32; 6]` | zero |
 
 `BbTyreResult` (64 bytes, align 4). The host sets `size` and zeroes the rest before the call.
 
@@ -254,20 +266,52 @@ Rules of thumb: keep the call under 2 ms for four wheels at the highest tick rat
 bound its substeps); never allocate in the hook if you can avoid it; read `wheel_spin` from the query every time; and test the
 mod without the game by calling your model on hand-made queries (the SDK's `TyreQuery` has `Default`).
 
+## Versions and older hosts
+
+| Minor | Adds | Table size |
+|---|---|---|
+| 1.0 | the tyre hook | 32 |
+| 1.1 | the suspension hook; `camber_rad` in the tyre query (a reserved word) | 48 |
+| 1.2 | the controls hook | 64 |
+
+Nothing in a lower minor moves, so the rules of ADR 0005 cover every pairing:
+
+- **A mod built for 1.0 on a 1.2 host** loads and works: the host offers a table of a higher minor at the same major, the mod reads
+  only the fields its own `head.size` knowledge covers, and the registration and query structs of the tyre hook are unchanged (the
+  query carries one more value in a word that was reserved).
+- **A mod that needs 1.1 or 1.2 on an older host** is refused at load by the manifest check (`[requires.interfaces]`), as for every
+  interface.
+- **A mod that can do without a hook** lists `"bb.handling" = "1.0"`, and the SDK's `ctx.handling()` asks for the table at any
+  minor: `register_suspension` and `register_controls` answer `Error::Unsupported` on a host whose table is shorter, and the mod
+  carries on with the hooks it has.
+- **A game that does not implement a hook** keeps the default methods of the host's `HandlingBackend` for it, which answer
+  `BB_ERR_UNSUPPORTED`.
+
 ## How a future hook is added
 
-A hook is two function pointers appended after `unregister_tyre` in `BbHandling`, with a minor version bump (`1.1` for the
-suspension hook, `1.2` for the controls hook, as the ADR proposes), and its own query, result and registration structs that
-follow the struct rules: `size` first, fixed-width fields, reserved words at the end, appended fields taking reserved words.
-Nothing already in the table moves. A mod built for 1.0 reads only the fields its `head.size` covers. The host's
-`HandlingBackend` gains a method with a default that answers `BB_ERR_UNSUPPORTED`, so a game that does not implement the
-hook keeps building. Neither hook is implemented in 1.0.
+A hook is two function pointers appended after the last field of `BbHandling` (`register_x` and `unregister_x`), with a minor
+version bump, and its own query, result and registration structs that follow the struct rules: `size` first, fixed-width fields,
+reserved words at the end, appended fields taking reserved words. Nothing already in the table moves. The pattern is that of the
+suspension and controls hooks:
+
+1. the ABI structs in a new file of `abi/iface/` (`handling_x.rs`), with a layout snapshot in `handling_tests.rs`;
+2. a model trait and a model slot in `libs/blackbox-vehicle` next to the code it replaces, with a validity check on the answer, and
+   a seam in the vehicle that does nothing (and changes no bit of the result) when no model is installed;
+3. an adapter from the mod's callback to the trait in `host/table/` (it shares `ModHook`: the callback scope, the budget and the
+   fault count), and a `register_x` and `unregister_x` pair on the host's `HandlingBackend` with a default that answers
+   `BB_ERR_UNSUPPORTED`;
+4. the SDK types and closure registration in `sdk/` and `sdk/ffi/`;
+5. the game's port (one slot per hook, the online refusal, the fault count) and the page that documents the hook's units, signs,
+   call order, ranges and what the host does with the answer.
+
+A hook answers per call: it is free to decline, a refused or failing answer is a fault, and five faults quarantine it.
 
 ## Host notes (NFS:MW)
 
-`crates/nfsmw/src/modding/backends/handling.rs` is the port. The tyre hook is put on the lead player's car by
-`Scene::handling_feed`, once after the mods' callbacks and once before them each frame, so it reaches a new car within a
-frame. The car's summary is `Vehicle::summary` in `blackbox-vehicle`. The first tests: `libs/blackbox-vehicle/src/vehicle/tests/tyre_model.rs`
+`crates/nfsmw/src/modding/backends/handling.rs` is the port. The three hooks are put on the lead player's car by
+`Scene::handling_feed`, once after the mods' callbacks and once before them each frame, so they reach a new car within a
+frame. The car's summary is `Vehicle::summary` in `blackbox-vehicle`. The suspension and controls hooks have their own tests
+(see their pages); `host/table/handling_hooks_tests.rs` also checks that the registry offers a 1.0 mod the table. The first tests: `libs/blackbox-vehicle/src/vehicle/tests/tyre_model.rs`
 (dispatch, modes, bit-identity with no model), `libs/blackbox-modding/src/host/table/handling_tests.rs` (the table and the
 adapter), `libs/blackbox-modding/tests/handling_probe.rs` (the real loader and the fixture, the quarantine, the online refusal),
 and `crates/nfsmw/src/modding/backends/handling_tests.rs` (the port).

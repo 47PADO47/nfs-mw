@@ -34,7 +34,7 @@ when the module is new.
 | [nitrous-variants.md](nitrous-variants.md) | The "Nitrous variant" option, a variant's `profile.toml` (sounds, flame tint, screen effects) and how a mod adds one |
 | [sky-variants.md](sky-variants.md) | The `sky` kind of the replacement API: a profile of cloud domes (pictures of the cloud cover) for the hours and the weather, and a moon picture, drawn as the clouds of the Enhanced sky; the profile format and where it is in the game |
 | [api-ui.md](api-ui.md) | UI themes (`bb.ui`): named themes, the slot numbers, the draw primitives, the SDK |
-| [api-handling.md](api-handling.md) | Handling (`bb.handling`): a hook that replaces how the player's tyres turn load, slip and torque into forces, its wire layout, what the host guarantees and the mod must return, faults and the online refusal; the car in physical numbers (`bb.vehicles` 1.3 `spec`); writing your own handling mod |
+| [api-handling.md](api-handling.md) | Handling (`bb.handling`): hooks that replace how the player's tyres, suspension and controls work (the tyre hook here; [suspension](api-handling-suspension.md) and [controls](api-handling-controls.md) on their own pages), its wire layout, what the host guarantees and the mod must return, faults and the online refusal; the car in physical numbers (`bb.vehicles` 1.3 `spec`); writing your own handling mod |
 | [api-traffic.md](api-traffic.md) | Traffic cars: `role = "traffic"` and the `[traffic]` table (class, weight, limit, speed, patterns), how the traffic manager picks them, the `traffic` console commands, `bb.traffic` |
 | [api-content.md](api-content.md) | The VFS overlay, content registries (cars, cop waves, music, fonts, scenery, interiors), settings storage |
 | [lean-content.md](lean-content.md) | Streaming and lazy files: how a mod that converts another game's files keeps its disk use and start-up small (`bb.content` 1.1), with the measured sizes of the 2012 import |
@@ -56,6 +56,7 @@ when the module is new.
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
+| [mods/ac-handling/README.md](../../mods/ac-handling/README.md) | The `ac-handling` mod: an Assetto Corsa-style handling model for the player's car on the `bb.handling` tyre hook (off by default; settings, hotkey and console command), its presets and per-car overrides, how to build and test it |
 | [mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md) | The `nfsmw-2012-content` mod: the 73 cars of NFS: Most Wanted (2012) (93 bundles, 20 of them liveries), converted in the background from your own install named in the mod's `config.toml`: settings, what is converted, limits |
 
 ## Two layers
@@ -143,7 +144,7 @@ role = "both"
 | Add a gameplay setting, or a value to one (a nitrous or tire smoke variant) | `bb.settings` | [api-settings.md](api-settings.md), [effect-variants.md](effect-variants.md), [nitrous-variants.md](nitrous-variants.md) |
 | Interact with the game (player car, spawn traffic and cops, HUD message, sound, camera) | `bb.vehicles`, `bb.hud`, `bb.audio`, `bb.camera`, `bb.world` | [api-world.md](api-world.md#game-interaction) |
 | Read the driver's pedals, switch the player's engine off and start it with a sound | `bb.engine` | [api-engine.md](api-engine.md) |
-| Replace how the player's tyres produce forces (an arcade tyre, a drift model, a thermal model); read the car's mass, geometry, tyres and gearing | `bb.handling`, `bb.vehicles` 1.3 | [api-handling.md](api-handling.md) |
+| Replace how the player's tyres produce forces (an arcade tyre, a drift model, a thermal model), how the springs and anti-roll bar act, or how the pedals and steering are filtered (aids, brake bias, a steering model); read the car's mass, geometry, tyres and gearing | `bb.handling`, `bb.vehicles` 1.3 | [api-handling.md](api-handling.md), [suspension](api-handling-suspension.md), [controls](api-handling-controls.md) |
 | Add traffic cars to the roads; list them and place one at a point | `bb.content` (`role = "traffic"`), `bb.traffic` | [api-traffic.md](api-traffic.md) |
 | Add cars (player and cop) | `bb.content` | [api-content.md](api-content.md#cars) |
 | Add music, fonts, scenery and map packs | `bb.content`, VFS overlay | [api-content.md](api-content.md) |

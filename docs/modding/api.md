@@ -223,7 +223,7 @@ mod), then the functions below in this order. Every function takes `ctx` first a
 | `bb.world` (1.0) | `track(sink, sink_user)`, `section(sink, sink_user)`, `set_rain(always, amount)`, `set_traffic(cars, cop_share)` |
 | `bb.engine` (1.0) | `state(out)`, `car(sink, sink_user)`, `stop()`, `start(sound, gain, delay)` ([api-engine.md](api-engine.md)) |
 | `bb.traffic` (1.0) | `list(sink, sink_user)`, `spawn(car, position, heading)` ([api-traffic.md](api-traffic.md)) |
-| `bb.handling` (1.0) | `register_tyre(hook, out_id)`, `unregister_tyre(id)` ([api-handling.md](api-handling.md)) |
+| `bb.handling` (1.2) | `register_tyre(hook, out_id)`, `unregister_tyre(id)` (1.0); `register_suspension`, `unregister_suspension` (1.1, [api-handling-suspension.md](api-handling-suspension.md)); `register_controls`, `unregister_controls` (1.2, [api-handling-controls.md](api-handling-controls.md)) ([api-handling.md](api-handling.md)) |
 
 `bb.time`'s "set speed" is `set_day_length`, the day-length form of the table above. `bb.map`'s blip is
 `BbBlip { size, active, _pad, style, position }`.
