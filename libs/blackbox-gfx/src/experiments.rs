@@ -31,6 +31,8 @@ pub struct RenderExperiments {
     pub enhanced_sky: bool,
     /// Cloud sunlight attenuation, independent of geometry shadows.
     pub cloud_shadows: bool,
+    /// Scale dynamic object environment lighting by local shelter.
+    pub per_car_environment: bool,
     /// Spatial wet-film and pooled-water response on eligible reflective surfaces.
     pub enhanced_wet_surfaces: bool,
     pub puddle_coverage: f32,
@@ -182,6 +184,7 @@ impl Default for RenderExperiments {
         Self {
             enhanced_sky: true,
             cloud_shadows: false,
+            per_car_environment: false,
             enhanced_wet_surfaces: false,
             puddle_coverage: 0.7,
             puddle_scale: 7.0,

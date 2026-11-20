@@ -27,6 +27,7 @@ pub fn get(settings: &Settings, key: &str) -> Result<String, String> {
         "car_geometry" => settings.detail.car.to_string(),
         "geometry_range" => settings.detail.geometry_range.to_string(),
         "visibility_range" => settings.detail.visibility_range.to_string(),
+        "per_car_environment" => on_off(settings.appearance.lighting.per_car_environment).to_owned(),
         "highest_world" => on_off(settings.detail.highest_world).to_owned(),
         "highest_player" => on_off(settings.detail.highest_player).to_owned(),
         "deadzone_mode" => settings.controls.deadzone_mode.to_string(),
@@ -153,6 +154,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
         "car_geometry" => settings.detail.car = value.parse()?,
         "geometry_range" => settings.detail.geometry_range = value.parse()?,
         "visibility_range" => settings.detail.visibility_range = value.parse()?,
+        "per_car_environment" => settings.appearance.lighting.per_car_environment = parse_bool(value)?,
         "highest_world" => settings.detail.highest_world = parse_bool(value)?,
         "highest_player" => settings.detail.highest_player = parse_bool(value)?,
         "deadzone_mode" => settings.controls.deadzone_mode = value.parse()?,
@@ -277,6 +279,7 @@ pub fn set(settings: &mut Settings, key: &str, value: &str) -> Result<String, St
 /// The on/off settings, which `set <key>` flips.
 fn switch<'a>(settings: &'a mut Settings, key: &str) -> Option<&'a mut bool> {
     match key {
+        "per_car_environment" => Some(&mut settings.appearance.lighting.per_car_environment),
         "highest_world" => Some(&mut settings.detail.highest_world),
         "highest_player" => Some(&mut settings.detail.highest_player),
         "auto_exposure" => Some(&mut settings.appearance.auto_exposure),

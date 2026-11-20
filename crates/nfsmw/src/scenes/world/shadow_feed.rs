@@ -66,6 +66,7 @@ impl WorldScene {
         let _trace = blackbox_trace::scope("World: prepare shadow casters");
         let _span = bevy_log::info_span!("world::shadow_feed").entered();
         let settings = renderer.render_experiments();
+        self.car_environment.enabled = settings.per_car_environment && !self.car_shading.is_original();
         if self.car_shading.is_original() {
             let rig = crate::scenes::car::original_lighting::gameplay(self.sun.to_sun(), self.car_specular_scale());
             self.shadow_feed.rig.send(renderer, &rig);

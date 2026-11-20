@@ -9,6 +9,7 @@ pub(super) const KEYS: [&str; 133] = [
     "car_geometry",
     "geometry_range",
     "visibility_range",
+    "per_car_environment",
     "highest_world",
     "highest_player",
     "deadzone_mode",
