@@ -48,6 +48,8 @@ mod config_tests;
 #[cfg(test)]
 mod engine_tests;
 #[cfg(test)]
+mod handling_hooks_tests;
+#[cfg(test)]
 mod handling_tests;
 #[cfg(test)]
 mod input_tests;

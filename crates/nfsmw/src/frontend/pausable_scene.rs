@@ -224,8 +224,8 @@ impl Scene for Pausable {
     fn set_player_drift_assist(&mut self, on: bool) {
         self.inner.set_player_drift_assist(on);
     }
-    fn handling_feed(&mut self, make: Option<&crate::viewer::TyreMaker>, out: &mut crate::viewer::HandlingFeed) {
-        self.inner.handling_feed(make, out);
+    fn handling_feed(&mut self, makers: &crate::viewer::HandlingMakers<'_>, out: &mut crate::viewer::HandlingFeed) {
+        self.inner.handling_feed(makers, out);
     }
     fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
         self.inner.set_traffic_density(cars, cop_share);

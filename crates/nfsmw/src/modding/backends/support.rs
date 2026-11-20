@@ -39,6 +39,12 @@ pub(crate) struct Recorder {
     /// The tyre model of a mod on the car, and how many the scene has put on it.
     pub tyre_model: Option<Box<dyn blackbox_vehicle::tires::TyreModel>>,
     pub tyre_installs: u32,
+    /// The suspension model of a mod on the car, and how many the scene has put on it.
+    pub suspension_model: Option<Box<dyn blackbox_vehicle::suspension::SuspensionModel>>,
+    pub suspension_installs: u32,
+    /// The controls model of a mod on the car, and how many the scene has put on it.
+    pub controls_model: Option<Box<dyn blackbox_vehicle::input::ControlsModel>>,
+    pub controls_installs: u32,
 }
 
 impl Recorder {
@@ -145,16 +151,33 @@ impl Scene for Recorder {
         self.drift_assist.push(on);
     }
 
-    fn handling_feed(&mut self, make: Option<&crate::viewer::TyreMaker>, out: &mut crate::viewer::HandlingFeed) {
+    fn handling_feed(&mut self, makers: &crate::viewer::HandlingMakers<'_>, out: &mut crate::viewer::HandlingFeed) {
         out.networked = self.networked;
         out.summary = self.summary.clone();
-        match (make, self.car.is_some()) {
-            (None, _) => self.tyre_model = None,
-            (Some(make), true) if self.tyre_model.is_none() => {
+        let driving = self.car.is_some();
+        match makers.tyre {
+            None => self.tyre_model = None,
+            Some(make) if driving && self.tyre_model.is_none() => {
                 self.tyre_model = Some(make());
                 self.tyre_installs += 1;
             }
-            _ => {}
+            Some(_) => {}
+        }
+        match makers.suspension {
+            None => self.suspension_model = None,
+            Some(make) if driving && self.suspension_model.is_none() => {
+                self.suspension_model = Some(make());
+                self.suspension_installs += 1;
+            }
+            Some(_) => {}
+        }
+        match makers.controls {
+            None => self.controls_model = None,
+            Some(make) if driving && self.controls_model.is_none() => {
+                self.controls_model = Some(make());
+                self.controls_installs += 1;
+            }
+            Some(_) => {}
         }
     }
 

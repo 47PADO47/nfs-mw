@@ -50,6 +50,46 @@ impl CarSim {
         }
     }
 
+    /// Whether a mod's suspension model is on the car.
+    pub(in crate::scenes::world) fn has_suspension_model(&self) -> bool {
+        self.vehicle.has_suspension_model()
+    }
+
+    /// Put a mod's suspension model on the car (the player's role tag, as for the tyre model).
+    pub(in crate::scenes::world) fn set_suspension_model(
+        &mut self,
+        model: Box<dyn blackbox_vehicle::suspension::SuspensionModel>,
+    ) {
+        self.vehicle.set_suspension_model(model, PLAYER_ROLE);
+    }
+
+    /// Take a mod's suspension model off the car.
+    pub(in crate::scenes::world) fn clear_suspension_model(&mut self) {
+        if self.vehicle.has_suspension_model() {
+            self.vehicle.clear_suspension_model();
+        }
+    }
+
+    /// Whether a mod's controls model is on the car.
+    pub(in crate::scenes::world) fn has_controls_model(&self) -> bool {
+        self.vehicle.has_controls_model()
+    }
+
+    /// Put a mod's controls model on the car (the player's role tag, as for the tyre model).
+    pub(in crate::scenes::world) fn set_controls_model(
+        &mut self,
+        model: Box<dyn blackbox_vehicle::input::ControlsModel>,
+    ) {
+        self.vehicle.set_controls_model(model, PLAYER_ROLE);
+    }
+
+    /// Take a mod's controls model off the car.
+    pub(in crate::scenes::world) fn clear_controls_model(&mut self) {
+        if self.vehicle.has_controls_model() {
+            self.vehicle.clear_controls_model();
+        }
+    }
+
     /// Add `amount` of a full tank to the nitrous; whether the car has a nitrous system.
     pub(in crate::scenes::world) fn add_nitrous(&mut self, amount: f32) -> bool {
         self.vehicle.add_nitrous(amount)

@@ -430,8 +430,8 @@ impl Scene for WorldScene {
     fn set_player_drift_assist(&mut self, on: bool) {
         self.set_player_drift_assist_to(on);
     }
-    fn handling_feed(&mut self, make: Option<&crate::viewer::TyreMaker>, out: &mut crate::viewer::HandlingFeed) {
-        self.handling_feed_of(make, out);
+    fn handling_feed(&mut self, makers: &crate::viewer::HandlingMakers<'_>, out: &mut crate::viewer::HandlingFeed) {
+        self.handling_feed_of(makers, out);
     }
     fn repair_player(&mut self) -> bool {
         self.repair_player_car()

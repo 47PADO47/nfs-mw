@@ -67,6 +67,7 @@ fn query() -> TyreQuery {
         tyre_condition: 1.0,
         ambient_temperature_c: 20.0,
         road_temperature_c: 25.0,
+        camber_rad: 0.0,
     }
 }
 
@@ -166,11 +167,11 @@ fn a_quarantined_hook_is_counted_for_the_runtime_and_taken_off_the_car() {
     for _ in 0..5 {
         assert!(driving.tyre_model.as_mut().expect("on the car").wheel(&query()).is_none());
     }
-    assert_eq!(bridge.take_hook_faults(), Some((OWNER.to_owned(), 5)));
-    assert_eq!(bridge.take_hook_faults(), None, "each fault is handed over once");
+    assert_eq!(bridge.take_hook_faults(), vec![(OWNER.to_owned(), 5)]);
+    assert!(bridge.take_hook_faults().is_empty(), "each fault is handed over once");
     bridge.sync(&mut driving);
     assert!(driving.tyre_model.is_none(), "a quarantined hook leaves the car");
-    assert!(bridge.tyre_hook_owner().is_none());
+    assert!(bridge.hook_owners().is_empty());
     assert!(port.register_tyre(OWNER, hook_of(answers, OWNER)).is_ok(), "the slot is free again");
 }
 
@@ -181,7 +182,7 @@ fn a_quarantined_mod_loses_its_hook() {
     let mut driving = scene();
     bridge.sync(&mut driving);
     bridge.drop_hook_of("example.b");
-    assert!(bridge.tyre_hook_owner().is_some(), "another mod's quarantine leaves the hook");
+    assert!(!bridge.hook_owners().is_empty(), "another mod's quarantine leaves the hook");
     bridge.drop_hook_of(OWNER);
     bridge.sync(&mut driving);
     assert!(driving.tyre_model.is_none());

@@ -32,21 +32,26 @@ impl Drive {
         }
     }
 
-    /// Keep the tyre model of a mod on this car: `Some(make)` gives a car without one the model `make` builds, `None` removes it
-    /// (`bb.handling`). It runs at a frame boundary, between two physics ticks.
-    pub(in crate::scenes::world) fn keep_tyre_model(
-        &mut self,
-        make: Option<&dyn Fn() -> Box<dyn blackbox_vehicle::tires::TyreModel>>,
-    ) {
+    /// Keep the models of a mod on this car (`bb.handling`): a kind with a builder gives a car without that model the one the
+    /// builder makes, a kind without one removes the model. It runs at a frame boundary, between two physics ticks.
+    pub(in crate::scenes::world) fn keep_models(&mut self, makers: &crate::viewer::HandlingMakers<'_>) {
         let Some(sim) = self.sim.as_mut() else {
             return;
         };
-        let Some(make) = make else {
-            sim.clear_tyre_model();
-            return;
-        };
-        if !sim.has_tyre_model() {
-            sim.set_tyre_model(make());
+        match makers.tyre {
+            None => sim.clear_tyre_model(),
+            Some(make) if !sim.has_tyre_model() => sim.set_tyre_model(make()),
+            Some(_) => {}
+        }
+        match makers.suspension {
+            None => sim.clear_suspension_model(),
+            Some(make) if !sim.has_suspension_model() => sim.set_suspension_model(make()),
+            Some(_) => {}
+        }
+        match makers.controls {
+            None => sim.clear_controls_model(),
+            Some(make) if !sim.has_controls_model() => sim.set_controls_model(make()),
+            Some(_) => {}
         }
     }
 

@@ -25,7 +25,7 @@ mod environment;
 pub use environment::{Environment, SunMode};
 
 mod readouts;
-pub use readouts::{CameraReadout, HandlingFeed, PlayerCar, TyreMaker, WorldInfo};
+pub use readouts::{CameraReadout, HandlingFeed, HandlingMakers, PlayerCar, WorldInfo};
 
 pub trait Scene {
     fn extra_options(&mut self) -> Option<&mut crate::extra_options::State> {
@@ -99,8 +99,8 @@ pub trait Scene {
     }
     /// Turn the drift assist of the player's car on or off (`bb.vehicles` 1.2). Does nothing without a car.
     fn set_player_drift_assist(&mut self, _on: bool) {}
-    /// Once per mod frame, for `bb.handling`: keep the tyre model `make` builds (none for `None`) on the player's car, and fill `out`.
-    fn handling_feed(&mut self, _make: Option<&TyreMaker>, _out: &mut HandlingFeed) {}
+    /// Once per mod frame, for `bb.handling`: put the models `makers` build on the player's car (none: take them off); fill `out`.
+    fn handling_feed(&mut self, _makers: &HandlingMakers<'_>, _out: &mut HandlingFeed) {}
     /// Keep `cars` computer-driven cars on the road, `cop_share` percent of them patrol cops.
     fn set_traffic_density(&mut self, _cars: u32, _cop_share: u8) {}
     /// Put a traffic car on the road at `at` (x, y), facing `heading`. Returns whether a car was placed.
