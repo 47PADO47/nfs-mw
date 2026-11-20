@@ -109,7 +109,8 @@ source paint/deformation/presentation remain incomplete.
 - `libs/blackbox-vehicle/src/tires/damage.rs`: the tire state machine (`Vehicle::tire_damage`); `vehicle/assists.rs` applies it.
 - `crates/nfsmw-data/src/car/damage.rs`: zone → overlay slot, glazing, zone → wheel, `revealed_overlays`.
 - `crates/nfsmw/src/scenes/world/events.rs`: `VehicleEvents.damage`, fed by `advance()`.
-- `crates/nfsmw/src/scenes/world/damage_marks.rs`: the procedural scuffs and cracks.
+- The procedural scuffs and cracks (`damage_marks.rs`) are removed ([pursuit-system.md](../pursuit-system.md)); the
+  installed overlays, window damage textures and detached parts remain (`scenes/world/drive/cracked.rs` shows the cracked glass).
 - `crates/nfsmw/src/scenes/world/drive/rig.rs`: `CarRig::instances` takes the revealed set.
 
 ## Testing it in the game

@@ -154,11 +154,11 @@ world is up. **Open:** the interact prompt, meters, hiding HUD parts, screen tex
 
 | Entry | Signature sketch | Scope | Implemented in |
 |---|---|---|---|
-| Message | `hud.message(text: &str, style: MessageStyle { Info, Warning, Big }, secs: f32)` | G | `hud/elements.rs`, `hud/state.rs` (`HudState`) |
+| Message | `hud.message(text: &str, style: MessageStyle { Info, Warning, Big }, secs: f32)` | G | `hud/elements.rs`, `hud/state/mod.rs` (`HudState`) |
 | Interact prompt | `hud.prompt(text: &str) -> PromptId`, `hud.clear_prompt(PromptId)` (the "press X" text) | G | `hud/interact_prompt.rs` |
 | Meter | `hud.meter(label: &str, style) -> Result<MeterId>`, `set_fraction(MeterId, f32)`, `remove(MeterId)` | G | `hud/` mod meter (new); look from `hud/speedbreaker.rs` |
 | Show or hide HUD | `hud.set_visible(HudPart, bool)` (all, speedometer, minimap, pursuit bar) **W** | G | `hud/viewport.rs`, `settings/hud_layout.rs` |
-| Read HUD state | `hud.speed_display() -> u32`, `hud.rpm_fraction() -> f32` | G | `hud/state.rs` (`display_speed`, `rpm_fraction`) |
+| Read HUD state | `hud.speed_display() -> u32`, `hud.rpm_fraction() -> f32` | G | `hud/state/mod.rs` (`display_speed`, `rpm_fraction`) |
 | Screen text | `hud.text(TextDef { pos: Vec2, text, size, colour, secs }) -> TextId`, `remove` | G | `libs/blackbox-text`, `hud/` mod layer (new) |
 | Screen size | `hud.size() -> Vec2` the HUD canvas in pixels | G | `hud/viewport.rs` |
 
@@ -228,6 +228,13 @@ state. The camera model, its smoothing and its per-car data belong to the mod: t
 | Shake | `camera.shake(amplitude: f32, secs: f32)` | G | `scenes/world/camera_original/` |
 | Field of view | `camera.set_fov_scale(f32)` | G | `viewer/camera.rs` |
 | Photo path | `camera.screenshot(path: &str) -> Result<()>` | G | `app/screenshot.rs` |
+
+### Worlds
+
+A mod provides a second world declaratively (`worlds/<id>.toml` and the packs in `worlds/<id>/`, [api-content-worlds.md](api-content-worlds.md#worlds)),
+not through a call. `bb.world` `track` names the world played: the city's track name, or the world's id. A mod that wants to know
+which world it is in reads `track`; the other `bb.world` entries answer for the world in play (ground height and nearest road read its
+collision). There is no call to switch worlds at run time: the choice is made when free roam starts.
 
 ### World state
 

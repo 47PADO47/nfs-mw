@@ -2,8 +2,9 @@
 
 use glam::Vec3;
 
-use super::{AiCar, Role};
+use super::{AiCar, RECOVERY_SPEED, Role};
 use crate::scenes::world::ai::racer::RacerState;
+use crate::scenes::world::ai::racers::RaceDriving;
 
 impl AiCar {
     pub(in crate::scenes::world::ai) fn race_uses_physics(&self) -> bool {
@@ -174,5 +175,25 @@ impl AiCar {
     /// The racer's speed, m/s.
     pub fn race_speed(&self) -> f32 {
         self.speed().abs()
+    }
+
+    /// What the racer's driver and car did in the last step, for the race trace; `None` for a car that is not a racer.
+    pub fn race_driving(&self) -> Option<RaceDriving> {
+        let Role::Racer(racer) = &self.role else { return None };
+        let telemetry = self.sim.telemetry();
+        let reversing = self.driver.reverse_override_left() > 0.0;
+        Some(RaceDriving {
+            throttle: self.sim.gas_pedal(),
+            brake: self.sim.brake_pedal(),
+            steering: self.sim.steering_input(),
+            gear: telemetry.gear,
+            rpm: telemetry.rpm,
+            target_speed: if reversing { RECOVERY_SPEED } else { self.speed },
+            base_skill: racer.base_skill,
+            catch_up: racer.glue,
+            skill: racer.skill(),
+            catch_up_force: racer.cheat(),
+            stand_in: self.stand_in.active,
+        })
     }
 }

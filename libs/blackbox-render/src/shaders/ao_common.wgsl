@@ -6,6 +6,7 @@ struct AoParams {
     sampling: vec4<u32>, // resolution divisor, slices, steps per side, comparison
     fog: vec4<f32>, // frames of stepped sample phases (zero: fixed), unused, XeGTAO depth weights, temporal phase
     view: mat4x4<f32>,
+    tuning: vec4<f32>, // XeGTAO thin occluder compensation, shading normal guard (min cosine to the depth normal), unused
 };
 @group(0) @binding(0) var<uniform> params: AoParams;
 @group(0) @binding(1) var scene_depth: texture_depth_2d;
@@ -45,17 +46,23 @@ fn derivative(pixel: vec2<i32>, axis: vec2<i32>, center: vec3<f32>) -> vec3<f32>
     if right.z == 0.0 || (left.z != 0.0 && le < re) { return center - left; }
     return right - center;
 }
-fn normal_at(pixel: vec2<i32>, center: vec3<f32>) -> vec3<f32> {
-    let fallback = safe_normal(-center, vec3<f32>(0.0, 0.0, 1.0));
-    let encoded = textureLoad(world_normals, pixel, 0);
-    if encoded.a > 0.5 {
-        let n = safe_normal((params.view * vec4<f32>(encoded.xyz * 2.0 - 1.0, 0.0)).xyz, fallback);
-        return select(n, -n, dot(n, fallback) < 0.0);
-    }
+fn depth_normal(pixel: vec2<i32>, center: vec3<f32>, fallback: vec3<f32>) -> vec3<f32> {
     var normal = safe_normal(cross(derivative(pixel, vec2<i32>(1, 0), center),
                                   derivative(pixel, vec2<i32>(0, 1), center)), fallback);
     if dot(normal, fallback) < 0.0 { normal = -normal; }
     return normal;
+}
+fn normal_at(pixel: vec2<i32>, center: vec3<f32>) -> vec3<f32> {
+    let fallback = safe_normal(-center, vec3<f32>(0.0, 0.0, 1.0));
+    let encoded = textureLoad(world_normals, pixel, 0);
+    if encoded.a < 0.5 { return depth_normal(pixel, center, fallback); }
+    var n = safe_normal((params.view * vec4<f32>(encoded.xyz * 2.0 - 1.0, 0.0)).xyz, fallback);
+    n = select(n, -n, dot(n, fallback) < 0.0);
+    if params.tuning.y <= 0.0 { return n; }
+    // Smoothed vertex normals of low-poly models can lean far off the face they shade; the face then sits above
+    // its own tangent plane and occludes itself. Such a normal gives way to the face's depth normal.
+    let geometric = depth_normal(pixel, center, fallback);
+    return select(n, geometric, dot(n, geometric) < params.tuning.y);
 }
 fn sign_nonzero(v: vec2<f32>) -> vec2<f32> {
     return select(vec2<f32>(-1.0), vec2<f32>(1.0), v >= vec2<f32>(0.0));

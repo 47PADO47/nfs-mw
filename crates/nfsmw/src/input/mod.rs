@@ -6,6 +6,8 @@
 //! would also use, so it carries over to a full Bevy move.
 
 mod action;
+#[cfg(test)]
+mod air_input_tests;
 mod bindings;
 pub mod commands;
 #[cfg(test)]

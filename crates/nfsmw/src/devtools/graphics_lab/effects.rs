@@ -51,6 +51,34 @@ pub(super) fn content(ui: &mut egui::Ui, settings: &mut Settings) {
     ui.checkbox(&mut settings.hd_content.cursor, "HD cursor");
     ui.checkbox(&mut settings.hd_content.fmv, "HD movies");
     ui.small("Uses your installed replacement content. Font asset changes apply on the next load; save and restart for consistent results.");
+    texture_packs(ui);
+}
+
+/// The replacement texture sources in force: read-only, since they are indexed once at start-up.
+fn texture_packs(ui: &mut egui::Ui) {
+    use nfsmw_data::texture_packs;
+    let Some(packs) = texture_packs::active().filter(|packs| !packs.sources().is_empty()) else {
+        ui.label("Replacement textures: none (a mod's textures/ folder, or `texture_packs` in the config)");
+        return;
+    };
+    ui.label(format!(
+        "Replacement textures: {} texture(s) from {} source(s); {} replaced so far",
+        packs.len(),
+        packs.sources().len(),
+        texture_packs::replaced()
+    ));
+    for source in packs.sources() {
+        let spec = &source.spec;
+        let rank = texture_packs::priority(spec.priority);
+        ui.small(format!("{} ({rank}): {} file(s), {} used", spec.id, source.file_count(), source.replaced()));
+    }
+    if packs.held_back() > 0 {
+        ui.small(format!("{} kept by a higher mod's own copy of the file", packs.held_back()));
+    }
+    if packs.max_size() > 0 {
+        ui.small(format!("Files are capped at {} px a side", packs.max_size()));
+    }
+    ui.small("World, cars, HUD, menus and cutscenes. A different folder or cap needs a restart.");
 }
 
 fn tail_trails(

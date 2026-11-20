@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 // Source: GameTechDev/XeGTAO, a5b1686c7ea37788eeb3576b5be47f7c03db532c,
-// Source/Rendering/Shaders/XeGTAO.hlsli: MainPass, CalculateEdges, PackEdges.
+// Source/Rendering/Shaders/XeGTAO.hlsli: MainPass (with its thin occluder compensation), CalculateEdges, PackEdges.
 // Shares the licensed arc integral from ao_horizon.wgsl.
 
 fn xe_edges(pixel: vec2<i32>, center_z: f32) -> f32 {
@@ -85,7 +85,10 @@ fn xe_horizon(pixel: vec2<i32>, offset: vec2<i32>, center: vec3<f32>, normal: ve
         if exact.z == 0.0 || dot(exact-center,normal) <= 0.005 { return low; }
     }
     let radius = params.effect.x * 1.457;
-    let weight = clamp((radius-distance)/(0.615*radius),0.0,1.0);
+    // Thin occluder compensation (XeGTAO MainPass falloffBase): the tap's view-space depth offset is stretched
+    // before the falloff, so a blocker well in front of the receiver fades out sooner.
+    let falloff = length(vec3<f32>(delta.xy, delta.z*(1.0+params.tuning.x)));
+    let weight = clamp((radius-falloff)/(0.615*radius),0.0,1.0);
     return mix(low,dot(delta/distance,view),weight);
 }
 

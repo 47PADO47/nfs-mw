@@ -50,10 +50,13 @@ pub(super) fn texture_files(dir: &GameDir, font_textures: &HashSet<u32>) -> (Tex
         let from_install = matches!(dir.provider(rel), Some(Provider::Install));
         match read_texture_packs(&data) {
             Ok(packs) => {
-                for t in packs.into_iter().flat_map(|p| p.textures) {
-                    if from_install && font_textures.contains(&t.name_hash) {
-                        stock.entry(t.name_hash).or_insert((t.width, t.height));
-                    }
+                let mut found: Vec<Texture> = packs.into_iter().flat_map(|p| p.textures).collect();
+                // The stock sizes are taken before the replacement textures come in: the HD font layout needs them.
+                for t in found.iter().filter(|t| from_install && font_textures.contains(&t.name_hash)) {
+                    stock.entry(t.name_hash).or_insert((t.width, t.height));
+                }
+                nfsmw_data::texture_packs::apply_file(dir, rel, &mut found);
+                for t in found {
                     textures.entry(t.name_hash).or_insert(t);
                 }
             }
@@ -80,7 +83,9 @@ pub(crate) fn read_wanted(dir: &GameDir, rel: &str, keep: impl Fn(u32) -> bool) 
         }
     };
     let packs = packs.with_context(|| format!("{rel}: the texture packs do not read"))?;
-    Ok(packs.into_iter().flat_map(|p| p.textures).collect())
+    let mut textures: Vec<Texture> = packs.into_iter().flat_map(|p| p.textures).collect();
+    nfsmw_data::texture_packs::apply_file(dir, rel, &mut textures);
+    Ok(textures)
 }
 
 /// Reads the wanted textures of `rel` into a map. A missing file is skipped quietly if `quiet_if_missing`, as the other

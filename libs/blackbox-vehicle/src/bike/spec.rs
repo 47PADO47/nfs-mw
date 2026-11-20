@@ -200,6 +200,8 @@ pub struct SteeringSpec {
     /// The upper bound of the lean limit (rad).
     pub max_lean: f32,
     pub lean: LeanSpec,
+    /// The arcade steering of this game, a modification of the reference's (`ArcadeSteering::REFERENCE` switches it off).
+    pub arcade: super::arcade::ArcadeSteering,
 }
 
 /// When the rider has lost the bike.

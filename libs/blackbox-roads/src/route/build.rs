@@ -24,8 +24,11 @@ pub fn build_leg(
 ) -> Option<LegPath> {
     // The plain distance, as for a path's goal: a goal is on its road, and the edge distance of a weighted search does
     // not tell the segment ending short of the point from the one under it.
-    let start = closest_segment(net, index, from.position, from.forward, 0.0, SegmentFilter::default())?;
-    let mut nav = RoadNav::new(NavKind::Direction, LaneType::Racing, SegmentFilter::default());
+    // A route search keeps its two ends off the roads the barrier lines close: where a gate stands just past a fork, the
+    // nearest connector can be the closed one (`docs/specs/ai-racers-route.md` section 2).
+    let filter = SegmentFilter { open: path_type == PathType::RaceRoute, ..SegmentFilter::default() };
+    let start = closest_segment(net, index, from.position, from.forward, 0.0, filter)?;
+    let mut nav = RoadNav::new(NavKind::Direction, LaneType::Racing, filter);
     nav.init_at_segment(net, start.segment, start.t, from.position, from.forward, true);
     if nav.find_path_to(net, index, to.position, Some(to.forward), path_type) != PathState::Full {
         return None;

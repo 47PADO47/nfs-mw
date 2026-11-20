@@ -21,7 +21,8 @@ pub(crate) struct LandingFx {
 
 impl LandingFx {
     pub fn tick(&mut self, input: &CarInput, landing: &mut Option<Landing>) {
-        if input.wheels_on_ground() == 0 && input.up_dot < 0.8 {
+        // A two-wheeler is never tipped (`CarInput::two_wheeler`): the state would latch for good, as it can't have one wheel down.
+        if !input.two_wheeler && input.wheels_on_ground() == 0 && input.up_dot < 0.8 {
             self.leaning = true;
         }
         let grounded = PAIRS.map(|pair| pair.into_iter().all(|i| input.wheels[i].on_ground));

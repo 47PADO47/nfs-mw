@@ -12,6 +12,7 @@ use game_install::GameDir;
 use nfsmw_career::regions::MapVariant;
 
 use super::MapPicture;
+use super::asi_skin::{self, AsiSkin};
 use super::bind::HudBinding;
 use super::blip_styles;
 use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
@@ -88,7 +89,8 @@ impl Plugin for HudPlugin {
         let dir = self.dir.clone();
         app.world_mut().resource_mut::<UiLoading>().begin(LOAD);
         let ready = resource_exists::<Hud>;
-        app.insert_resource(PendingHud(Job::spawn("hud-load", move || load(&dir, &assets))))
+        app.insert_resource(AsiSkin::new(self.dir.clone()))
+            .insert_resource(PendingHud(Job::spawn("hud-load", move || load(&dir, &assets))))
             .insert_non_send(self.career.clone())
             .insert_resource(self.initial.clone())
             .add_systems(Update, poll.in_set(FrameSet::Prepare).run_if(resource_exists::<PendingHud>))
@@ -313,6 +315,7 @@ fn present(
     assets: Res<SharedAssets>,
     themes: Res<UiThemes>,
     mut presenter: ResMut<Presenter>,
+    mut asi: ResMut<AsiSkin>,
     window: Single<&Window, With<PrimaryWindow>>,
     mut out: ResMut<UiOutput>,
     mut drawn: Local<Drawn>,
@@ -344,6 +347,8 @@ fn present(
     // leaves that slot to Original; a theme that replaces it (Custom's card) gets no chyron.
     // Under the Original theme every slot is Original's, so no slot has to be resolved to know it.
     let static_hud = themes.hud_is_static();
+    // The CustomHUD plugin's gauge skin replaces the stock gauges of the Original HUD, when the install has the plugin.
+    let skin_on = asi.sync(asi_skin::wanted(&settings, &state, static_hud), &state.car_dir, &assets.0);
     let chyron_shown = static_hud || themes.provided_by(ElementId::RadioCard) == Some(ThemeId::Original);
     // A drag race shows its own package; the other package rests (its objects are not updated or drawn).
     let drag = hud.drag.as_mut().filter(|_| state.drag);
@@ -407,9 +412,12 @@ fn present(
         _ => hud.cache.clear(&frame, FengSource::Chyron),
     }
     // The viewport is applied to the source tree (its `index` is the position), never to the composed tree.
-    hud.cache.refresh(&frame, FengSource::Hud, key(package, &hud.runtime), |tree| {
+    hud.cache.refresh(&frame, FengSource::Hud, key(package, &hud.runtime).hiding(skin_on), |tree| {
         hud.runtime.tree_into(package, tree);
         viewport.apply(tree, screen, settings.hud_layout);
+        if skin_on {
+            asi_skin::hide_stock(tree);
+        }
     });
     match hud.overlay.as_ref().and_then(BustedOverlay::shown) {
         Some(overlay) => {
@@ -434,7 +442,9 @@ fn present(
     });
     let [radio_layer, hud_composed, busted_layer] = layers;
     let hud_tree = source.as_deref().or_else(|| (!static_hud).then_some(hud_composed));
-    for layer in [Some(radio_layer), hud_tree, Some(busted_layer)].into_iter().flatten() {
+    // The skin's gauges go over the HUD and under the busted overlay.
+    let skin_tree = skin_on.then(|| asi.frame(&assets.0, &state, screen, time.delta_secs())).flatten();
+    for layer in [Some(radio_layer), hud_tree, skin_tree.as_ref(), Some(busted_layer)].into_iter().flatten() {
         if layer.nodes.is_empty() {
             continue;
         }

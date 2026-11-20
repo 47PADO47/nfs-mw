@@ -26,6 +26,9 @@ pub struct SegmentFilter {
     pub cop: bool,
     /// Skip junction connectors.
     pub no_decision: bool,
+    /// Skip segments a barrier line closes (`CROSSES_BARRIER`, `CROSSES_DRIVE_THROUGH_BARRIER`): a route's end on a
+    /// gate is then put on the road the lines leave open (`route::build_leg`).
+    pub open: bool,
 }
 
 impl SegmentFilter {
@@ -35,6 +38,9 @@ impl SegmentFilter {
             return false;
         }
         if self.cop && no_traffic != seg.has(flags::COPS_XOR_TRAFFIC) {
+            return false;
+        }
+        if self.open && seg.has(flags::CROSSES_BARRIER | flags::CROSSES_DRIVE_THROUGH_BARRIER) {
             return false;
         }
         !(self.no_decision && seg.is_decision())

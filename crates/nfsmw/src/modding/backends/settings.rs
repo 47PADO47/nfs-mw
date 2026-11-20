@@ -45,8 +45,20 @@ pub struct OptionHandler {
 pub fn builtin() -> Vec<OptionDef> {
     let variants =
         KINDS.iter().map(|kind| OptionDef::game_list(kind.variant.option, kind.label, &[(ORIGINAL, kind.original)]));
-    let lists = ["hud_layout", "ui_style", "ui_theme", "speed_units", "minimap", "language"];
-    let toggles = ["rear_view_mirror", "turn_signals", "cop_health_bars"];
+    let lists = [
+        "hud_layout",
+        "ui_style",
+        "ui_theme",
+        "speed_units",
+        "riding_style_road",
+        "riding_style_motard",
+        "riding_style_offroad",
+        "brake_fingers",
+        "clutch_fingers",
+        "minimap",
+        "language",
+    ];
+    let toggles = ["rear_view_mirror", "turn_signals", "cop_health_bars", "rider_gear"];
     let mut options: Vec<OptionDef> = variants.collect();
     options.extend(lists.iter().map(|id| OptionDef::fixed(id, OptionKind::List)));
     options.extend(toggles.iter().map(|id| OptionDef::fixed(id, OptionKind::Toggle)));
@@ -135,6 +147,9 @@ pub struct OptionInfo {
     pub on: bool,
     /// A list's chosen value, as text in the player's language.
     pub text: String,
+    /// The title of the section the row is listed under, in the player's language; empty for the default section (an option
+    /// the game has, or a mod's that names no section).
+    pub section: String,
 }
 
 /// A text of the game (a catalogue message id) or of a mod (shown from the mod's catalogue, else as written).
@@ -151,12 +166,18 @@ pub fn visible(bridge: &Bridge) -> Vec<usize> {
     model.options().iter().enumerate().filter(|(_, option)| option.visible()).map(|(at, _)| at).collect()
 }
 
+/// The position of the option `id` when the page shows it (it has more than one value), else `None`.
+pub fn visible_index(bridge: &Bridge, id: &str) -> Option<usize> {
+    let model = bridge.options.borrow();
+    model.options().iter().position(|option| option.id == id && option.visible())
+}
+
 /// The option at `index` as the page shows it, or `None` when it is gone.
 pub fn info(bridge: &Bridge, index: usize) -> Option<OptionInfo> {
-    let (id, label, owner, kind, values) = {
+    let (id, label, owner, kind, values, section) = {
         let model = bridge.options.borrow();
         let def = model.options().get(index)?;
-        (def.id.clone(), def.label.clone(), def.owner.clone(), def.kind, def.values.clone())
+        (def.id.clone(), def.label.clone(), def.owner.clone(), def.kind, def.values.clone(), def.section.clone())
     };
     let value = chosen(bridge, &id)?;
     let text = values
@@ -170,6 +191,7 @@ pub fn info(bridge: &Bridge, index: usize) -> Option<OptionInfo> {
         toggle: kind == OptionKind::Toggle,
         on: value == "on",
         text,
+        section: section.map(|title| shown_text(owner.as_deref(), &title)).unwrap_or_default(),
     })
 }
 

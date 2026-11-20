@@ -46,7 +46,13 @@ fn entry_of(row: &Row) -> MenuEntry {
         (RowKind::Choice, false) => MenuValue::Choice { text: row.value.clone(), arrows: row.enabled },
         (RowKind::Text { .. } | RowKind::Info, false) => MenuValue::Choice { text: row.value.clone(), arrows: false },
     };
-    MenuEntry { label: row.label.clone(), enabled: row.enabled, value, icon: None }
+    MenuEntry {
+        label: row.label.clone(),
+        enabled: row.enabled,
+        value,
+        icon: None,
+        flags: crate::ui::theme::EntryFlags::ROW,
+    }
 }
 
 fn hint_of(key: HintKey, does: HintDoes) -> MenuHint {

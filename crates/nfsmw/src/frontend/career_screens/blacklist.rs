@@ -190,7 +190,13 @@ fn rival_entry(bin: u8, status: RivalStatus, bounty: u32) -> MenuEntry {
         bounty: grouped(i64::from(bounty)),
         status,
     };
-    MenuEntry { label: name, enabled: true, value: MenuValue::Rival(info), icon: None }
+    MenuEntry {
+        label: name,
+        enabled: true,
+        value: MenuValue::Rival(info),
+        icon: None,
+        flags: crate::ui::theme::EntryFlags::ROW,
+    }
 }
 
 /// Whether the holder with this GUID has the focus.

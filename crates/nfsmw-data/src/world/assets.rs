@@ -84,7 +84,8 @@ impl SharedAssets {
             let bytes = dir
                 .read_range(&index.stream_file, u64::from(section.file_offset), section.size as usize)
                 .with_context(|| format!("reading section {}", section.name))?;
-            let data = parse_section(i, &bytes).with_context(|| format!("parsing section {}", section.name))?;
+            let mut data = parse_section(i, &bytes).with_context(|| format!("parsing section {}", section.name))?;
+            crate::texture_packs::apply_file(dir, &index.stream_file, &mut data.textures);
             solids.extend(data.solids);
             anims.extend(data.anims);
             for texture in data.textures {

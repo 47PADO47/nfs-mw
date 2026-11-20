@@ -231,6 +231,27 @@ spatiotemporal blue noise textures were considered and not used: their licence a
 only. A GPU test checks that the phases step only under an upscaler and that contacts and open sky survive;
 whether it reads as less grain or as shimmer in motion is a judgment for the game.
 
+## Hanging structures and smoothed low-poly normals
+
+Two corrections keep overhead structures from darkening the surfaces around them, measured in the tunnel at
+`--at -8,2146` (ceiling ducts hung below the vault and a steel gantry, 3840x2160, DLSS Balanced, XeGTAO High):
+
+- **Smoothed shading normals.** Many original models smooth the vertex normals of box-shaped parts (the tunnel
+  ducts lean more than 70 degrees off their side faces). A face then lies above its own tangent plane and
+  occludes itself: the side faces of the ducts went near black. Every AO method now compares the authored normal
+  with the face's depth normal and uses the depth normal when their cosine is below `normal_guard` (0.35, about 70
+  degrees). The threshold sits above the noise of depth normals on distant ground: from 0.5 up, the 4K moving-camera
+  ground test (`moving_camera_4k_ao_noise_stays_bounded_at_fixed_ground_points`) rises above its bound; at 0.35 and
+  below it is unchanged.
+- **Thin occluders (XeGTAO).** Intel's thin occluder compensation stretches a tap's view-space depth offset by
+  `1 + thin_occluders` (0.5) before the falloff, so a blocker well in front of the receiver, such as a duct below the
+  ceiling, fades out sooner. The reference default is 0; the `gtao` method already used a fixed 1.3 stretch.
+
+Together they cut the tunnel pixels darkened by more than 40 % from 4.77 % to 1.81 % (mean visibility 0.931 to
+0.951), with no change on the open highway at `--at 2418,3415` (0.36 % either way) and no measurable frame time cost
+(10.9 to 11.1 ms in interleaved runs). Measured against the same frame with AO off. `BLACKBOX_AO_NORMAL_GUARD` and `BLACKBOX_AO_THIN_OCCLUDERS` (0 to 1, 0 turns each off) override
+them for comparisons.
+
 ## Larger alternatives
 
 [AMD CACAO](https://gpuopen.com/fidelityfx-cacao/) is an MIT-licensed ASSAO derivative

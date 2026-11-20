@@ -65,6 +65,15 @@ impl EngineMachine {
         &self.params
     }
 
+    /// Change the seconds a car must stand still before the engine stops (the player's delay setting). A value that is not finite or is below 0
+    /// is ignored. The clock of a car that already stands still is kept, so a shorter delay takes effect at once and a longer one waits the rest.
+    pub fn set_idle_seconds(&mut self, seconds: f32) {
+        if !seconds.is_finite() || seconds < 0.0 {
+            return;
+        }
+        self.params.idle_seconds = seconds;
+    }
+
     pub fn phase(&self) -> Phase {
         self.phase
     }

@@ -38,10 +38,37 @@ pub struct Entry {
     /// says; it sets the rate of the lean pose's change (`lean_pose.rs`).
     #[serde(default)]
     pub bike_type: Option<u8>,
-    /// The blueprint's `RidingStyle` the kind's tree was made for (0 to 2), when the file says; the old-school style (2) takes the
-    /// inside foot off the peg of a supermoto (`foot_out.rs`).
+    /// The standstill's numbers (`standstill.rs`); a kind without them never puts his feet down.
     #[serde(default)]
-    pub riding_style: Option<u8>,
+    pub stand: Option<Stand>,
+}
+
+/// The numbers of the standstill (`Standing/StartStop_*_W_I_P` and `IK_Alpha_StartStop/Ground_*_W_I_P` of the animation blueprint).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct Stand {
+    /// The bike counts as moving above this speed (km/h): `StartStop Speed Treshold`.
+    pub speed_kmh: f32,
+    /// The start clip hands over to the riding pose when its 0 to 1 value reaches this: `Racing blend start (0 to 1)`.
+    pub racing_at: f32,
+    /// The numbers of each foot choice: both feet, the left foot, the right foot.
+    pub legs: [StandLeg; 3],
+}
+
+/// One foot choice of the standstill.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct StandLeg {
+    /// The seconds of the start and of the stop clip that play, from and to.
+    pub start_seconds: [f32; 2],
+    pub stop_seconds: [f32; 2],
+    /// How fast the 0 to 1 values of the start and of the stop clip move (a second): `Start Anim Speed`, `Stop Anim Speed`.
+    pub start_rate: f32,
+    pub stop_rate: f32,
+    /// For each foot, the seconds of the clips at which it leaves the ground and is on the peg again in the start clip, and leaves the
+    /// peg and is on the ground in the stop clip; `None` for a foot that stays on its peg.
+    pub left_ik: Option<[f32; 4]>,
+    pub right_ik: Option<[f32; 4]>,
+    /// The rates at which the left and the right foot's hold on the peg fades in and out (a second).
+    pub ik_rate: [f32; 2],
 }
 
 /// The file.
@@ -111,12 +138,12 @@ pub struct Selection {
     pub graph: String,
     pub walk: Option<Walk>,
     pub bike_type: Option<u8>,
-    pub riding_style: Option<u8>,
+    pub stand: Option<Stand>,
 }
 
 impl Selection {
     fn default_graph() -> Self {
-        Self { graph: DEFAULT_GRAPH.to_owned(), walk: None, bike_type: None, riding_style: None }
+        Self { graph: DEFAULT_GRAPH.to_owned(), walk: None, bike_type: None, stand: None }
     }
 }
 
@@ -149,7 +176,7 @@ pub fn select(dir: &GameDir, folder: &str, kind: Option<&str>) -> Selection {
         graph: entry.graph.clone(),
         walk: entry.reverse,
         bike_type: entry.bike_type,
-        riding_style: entry.riding_style,
+        stand: entry.stand.clone(),
     }
 }
 
@@ -160,7 +187,7 @@ mod tests {
     const FILE: &str = r#"{
         "version": 1,
         "styles": {
-            "race": {"bike_type": 0, "graph": "graph_race.json", "riding_style": 0,
+            "race": {"bike_type": 0, "graph": "graph_race.json",
                      "reverse": {"start_seconds": [0.8, 1.567], "start_speed_kmh": -1.0,
                                  "rate_speed_kmh": [-1.0, -20.0], "rate": [1.0, 4.0], "loop_seconds": 2.2}},
             "naked": {"graph": "graph_naked.json"}
@@ -175,9 +202,8 @@ mod tests {
         assert_eq!(race.reverse.unwrap().loop_seconds, 2.2);
         assert!(styles.get("naked").unwrap().reverse.is_none());
         assert_eq!(race.bike_type, Some(0));
-        assert_eq!(race.riding_style, Some(0));
         assert_eq!(styles.get("naked").unwrap().bike_type, None);
-        assert_eq!(styles.get("naked").unwrap().riding_style, None);
+        assert!(race.stand.is_none() && styles.get("naked").unwrap().stand.is_none());
         assert!(styles.get("cruiser").is_none());
     }
 

@@ -84,7 +84,8 @@ impl ModsSettings {
         let env = env::read(|name| std::env::var(name).ok());
         let config = Settings::config_path();
         let file = config.as_deref().map(file::read).unwrap_or_default();
-        let mode = cli.or(env).or(file).mods.unwrap_or_default();
+        // A stock run loads no mod (`parity/stock.rs`).
+        let mode = crate::parity::stock::mods_mode(cli.or(env).or(file).mods.unwrap_or_default());
         let (allowlist, disabled) = match config.as_deref() {
             Some(path) => (read_list(path, ALLOWLIST_KEY), read_list(path, DISABLED_KEY)),
             None => (Vec::new(), Vec::new()),

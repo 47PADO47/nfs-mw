@@ -1,7 +1,14 @@
 use super::*;
 
 fn key() -> Key {
-    Key { scroll: 0.0, coverage: 0.5, sun: [0.0, 0.0, 1.0, 0.0], light: [0.0, 0.0, -1.0], warmth: 1.0 }
+    Key {
+        scroll: 0.0,
+        coverage: 0.5,
+        sun: [0.0, 0.0, 1.0, 0.0],
+        light: [0.0, 0.0, -1.0],
+        warmth: 1.0,
+        pano: [-1.0, 0.0, 0.0, 0.0],
+    }
 }
 
 #[test]
@@ -118,4 +125,14 @@ fn a_camera_move_while_bands_are_in_turn_needs_no_full_march() {
     // Wind stops: the stale bands finish, then a move is the only reason left to march.
     while schedule.plan(wind(8), false, true).is_some() {}
     assert_eq!(schedule.plan(wind(8), true, true), Some(Rebuild::Full));
+}
+
+#[test]
+fn new_panorama_pictures_or_a_big_blend_move_rebuild_every_row_and_a_small_one_a_band() {
+    let mut schedule = Schedule::default();
+    let on = |epoch: f32, blend: f32| Key { pano: [epoch, blend, 0.0, 0.0], ..key() };
+    assert_eq!(schedule.plan(on(1.0, 0.0), false, true), Some(Rebuild::Full));
+    assert_eq!(schedule.plan(on(2.0, 0.0), false, true), Some(Rebuild::Full), "other pictures");
+    assert_eq!(schedule.plan(on(2.0, 0.5), false, true), Some(Rebuild::Full), "a jump of the blend");
+    assert!(matches!(schedule.plan(on(2.0, 0.51), false, true), Some(Rebuild::Band(_))), "a drift of it");
 }

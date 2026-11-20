@@ -17,6 +17,7 @@ mod engine_switch;
 mod extra_options;
 mod frontend;
 mod garage;
+mod grading;
 mod gui;
 mod hud;
 mod i18n;
@@ -25,6 +26,7 @@ mod modding;
 mod movie;
 #[cfg(feature = "multiplayer")]
 mod net;
+mod parity;
 mod preset_store;
 mod save_format;
 mod saves;

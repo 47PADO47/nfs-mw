@@ -71,11 +71,15 @@ impl SessionRules {
         }
     }
 
-    /// The seed of the race opponents' names: the session's, or one that differs from run to run.
+    /// The seed of the race opponents' names: the session's, else the run's (`--seed`, `parity/seed.rs`), else one that
+    /// differs from run to run. A run seed sets none of the session's other rules.
     pub fn name_seed(&self) -> u32 {
+        let fold = |seed: u64| (seed ^ (seed >> 32)) as u32;
         match self.seed {
-            Some(seed) => (seed ^ (seed >> 32)) as u32,
-            None => clock_seed(),
+            Some(seed) => fold(seed),
+            None => {
+                crate::parity::seed::fixed(crate::parity::seed::Stream::OpponentNames).map_or_else(clock_seed, fold)
+            }
         }
     }
 }

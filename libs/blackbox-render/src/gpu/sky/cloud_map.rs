@@ -74,11 +74,11 @@ impl CloudMap {
         encoder: &mut wgpu::CommandEncoder,
         shader: &wgpu::ShaderModule,
         bindings: [(&wgpu::BindGroupLayout, &wgpu::BindGroup); 2],
-        frame: (&Globals, blackbox_gfx::SkyState, bool),
+        frame: (&Globals, blackbox_gfx::SkyState, [f32; 4], bool),
         mut timing: Option<&mut super::super::timing::Timing>,
     ) {
         // `primary`: the frame's own view, the only one that marches a band (see `Schedule::plan`).
-        let (globals, state, primary) = frame;
+        let (globals, state, pano, primary) = frame;
         let (sun, light) = sun_key(state.celestial_sun, globals.to_sun, globals.light_dir[..3].try_into().unwrap());
         let key = Key {
             scroll: state.scroll * state.sky_wind_speed,
@@ -86,6 +86,7 @@ impl CloudMap {
             sun,
             light,
             warmth: state.sky_sunset_warmth,
+            pano,
         };
         let origin: [f32; 3] = globals.camera_pos[..3].try_into().unwrap();
         // Capture eyes differ by metres while clouds start kilometres away. Keep the

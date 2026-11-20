@@ -35,7 +35,7 @@ mod model_loader;
 mod models;
 mod moment_driver;
 mod moment_feed;
-pub(in crate::scenes::world) use moment_driver::MomentDriver;
+pub(in crate::scenes::world) use moment_driver::{MomentDriver, PilotCar, RaceAim};
 mod net_export;
 mod nis_poses;
 mod original_camera;
@@ -105,7 +105,7 @@ pub use population::{ModelRequest, PatrolPlan};
 #[cfg(test)]
 pub(crate) use pursuit::tests::arrest_fixture::{ArrestFixture, handbrake, open_arrest_fixture};
 pub use pursuit::{CopModel, Pursuit};
-pub use racers::{ModelState, RacerSpawn};
+pub use racers::{ModelState, RaceDriving, RacerSpawn};
 pub use tally::{PursuitCostTally, RoadblockTally};
 pub use touches::{CarTouch, Toucher};
 pub(in crate::scenes::world) use water::RainView;
@@ -138,6 +138,9 @@ pub struct TrafficWorld {
     /// The signals of the junctions and the simulated seconds on their clock.
     signals: SignalController,
     signal_time: f32,
+    /// A colour the lit lamps are shown in whatever the clock says (`signals force`, for looking at a light in each state; the
+    /// cars still obey the clock).
+    signal_force: Option<blackbox_roads::Light>,
     step_delta: f32,
     /// The real traffic-light props that serve the approaches, and the debug switch (`signal_props.rs`).
     signal_lamps: signal_props::SignalLamps,
@@ -271,6 +274,7 @@ impl TrafficWorld {
             water: Default::default(),
             signals: SignalController::new(&network),
             signal_time: 0.0,
+            signal_force: None,
             step_delta: super::drive::STEP,
             signal_lamps: signal_props::SignalLamps::default(),
             lights_on: false,
@@ -391,6 +395,11 @@ impl TrafficWorld {
 
     pub fn model_names(&self) -> Vec<&str> {
         self.models.iter().map(|m| m.name.as_str()).collect()
+    }
+
+    /// Show every lit signal lamp in `light` (or in the colour of its own approach with `None`): a debug aid, not the cars' lights.
+    pub fn force_signal(&mut self, light: Option<blackbox_roads::Light>) {
+        self.signal_force = light;
     }
 
     /// Whether the cars stop for the traffic lights (a rewrite extension: the original has none).

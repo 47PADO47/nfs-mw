@@ -82,11 +82,25 @@ impl Ride6Bikes {
         for (bike, reason) in &report.skipped {
             ctx.log(Level::Warn, &format!("ride6-bikes: {bike} is left out: {reason}"));
         }
+        if let Some(shop) = &report.shop {
+            let size = shop.bytes as f64 / 1e6;
+            let line = format!(
+                "ride6-bikes: {} bikes have shop options: {} components, {} part packs of {size:.1} MB",
+                shop.bikes, shop.components, shop.packs
+            );
+            ctx.log(Level::Info, &line);
+            for (what, reason) in &shop.failed {
+                ctx.log(Level::Warn, &format!("ride6-bikes: shop: {what} is not written: {reason}"));
+            }
+        }
         if let Some(reason) = &report.rider_failed {
             ctx.log(
                 Level::Warn,
                 &format!("ride6-bikes: the rider is not converted, the bikes are ridden by nobody: {reason}"),
             );
+        }
+        if let Some(reason) = &report.gear_failed {
+            ctx.log(Level::Warn, &format!("ride6-bikes: the rider's gear is not fully converted: {reason}"));
         }
         if self.live {
             ctx.log(Level::Info, "ride6-bikes: the new bikes replace the old ones at the next start");

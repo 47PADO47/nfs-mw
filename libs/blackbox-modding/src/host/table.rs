@@ -20,6 +20,8 @@ mod config;
 #[cfg(test)]
 mod config_tests;
 mod content;
+#[cfg(test)]
+mod content_tests;
 mod engine;
 #[cfg(test)]
 mod engine_tests;
@@ -93,7 +95,7 @@ pub use camera::{CameraBackend, CameraKind, CameraState};
 pub use camera_view::{ViewHandlers, ViewInput, ViewPose, ViewSpec};
 pub use commands::{CommandHandler, CommandsBackend};
 pub use config::ConfigBackend;
-pub use content::ContentBackend;
+pub use content::{ContentBackend, LazyFiles, MAX_LAZY_FILE_BYTES};
 pub use engine::{EngineBackend, EnginePhase, EngineState};
 pub use hud::{HudBackend, MAX_MESSAGE_SECS, MessageStyle};
 pub use i18n::{I18nArg, I18nBackend, MAX_ARGS as MAX_I18N_ARGS};

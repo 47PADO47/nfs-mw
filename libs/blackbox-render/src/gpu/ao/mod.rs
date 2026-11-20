@@ -45,6 +45,23 @@ struct Params {
     sampling: [u32; 4],
     fog: [f32; 4],
     view: [f32; 16],
+    /// XeGTAO thin occluder compensation, the shading normal guard, then unused.
+    tuning: [f32; 4],
+}
+
+/// A number from the environment, read once, for tuning and comparisons.
+fn env_override(name: &'static str, cell: &'static std::sync::OnceLock<Option<f32>>) -> Option<f32> {
+    *cell.get_or_init(|| std::env::var(name).ok().and_then(|v| v.trim().parse().ok()).filter(|v: &f32| v.is_finite()))
+}
+
+/// `BLACKBOX_AO_THIN_OCCLUDERS` overrides the thin occluder compensation and `BLACKBOX_AO_NORMAL_GUARD` the normal
+/// guard (each 0 to 1; 0 turns it off).
+fn tuning(settings: &AoSettings) -> [f32; 4] {
+    static THIN: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
+    static GUARD: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
+    let thin = env_override("BLACKBOX_AO_THIN_OCCLUDERS", &THIN).map_or(settings.thin_occluders, |v| v.clamp(0.0, 1.0));
+    let guard = env_override("BLACKBOX_AO_NORMAL_GUARD", &GUARD).map_or(settings.normal_guard, |v| v.clamp(0.0, 1.0));
+    [thin, guard, 0.0, 0.0]
 }
 
 struct Images {
@@ -187,6 +204,7 @@ impl AmbientOcclusion {
                 },
             ],
             view: draw.frame.view.to_cols_array(),
+            tuning: tuning(&settings),
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
         let depth_size = match settings.depth_mips {

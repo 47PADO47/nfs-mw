@@ -78,6 +78,9 @@ impl RoomData {
             let casters = solids.iter().filter(|solid| stage.shadow_source(&solid.name)).cloned().collect();
             solids.retain(|solid| stage.draws(&solid.name));
             let mut packs = blackbox_tpk::read_texture_packs(&file).with_context(|| format!("textures in {path}"))?;
+            for pack in &mut packs {
+                nfsmw_data::texture_packs::apply_file(dir, path, &mut pack.textures);
+            }
             super::room_materials::complete(dir, &solids, &mut packs)?;
             let floor = super::room_floor::floor_texture(&solids, stage);
             let light = super::backdrop_light::BackdropLight::read(dir);

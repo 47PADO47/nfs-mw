@@ -1,3 +1,7 @@
+// The screen-space sun masks (RT visibility, contact shadows, cascade history) hold the depth prepass's surface: opaque
+// and alpha-tested draws. A blended draw sees what lies behind it there, so its pipeline sets this false: shadow maps only.
+override SCREEN_SHADOW_MASK: bool = true;
+
 // Directional PCSS with bilinear blocker moments, a fixed light-space disk,
 // and smoothly blended cascade handoffs. No screen-locked sampling noise.
 // No frame seed, jitter, history or reprojection. SHADOW_GROUP selects the material layout.
@@ -91,8 +95,7 @@ fn ambient_visibility(pixel: vec2<f32>) -> f32 {
     let p = clamp(vec2<i32>(pixel), vec2<i32>(0), vec2<i32>(shadow_data.ambient.xy) - vec2<i32>(1));
     return textureLoad(ambient_map, p, 0).r;
 }
-// Environment reflections occluded with the AO mask: Lagarde and de Rousiers, "Moving Frostbite to PBR" (2014).
-// Exactly one at full visibility, so AO off leaves every reflection unchanged.
+// Environment reflections occluded with the AO mask (Lagarde and de Rousiers 2014); one at full visibility, so AO off changes nothing.
 fn specular_occlusion(ao: f32, nv: f32, roughness: f32) -> f32 {
     if ao >= 1.0 { return 1.0; }
     return saturate(pow(max(nv, 0.0) + ao, exp2(-16.0 * roughness - 1.0)) - 1.0 + ao);
@@ -314,6 +317,7 @@ fn car_direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) 
 
 fn direct_visibility(world: vec3<f32>, normal: vec3<f32>, pixel: vec2<f32>) -> f32 {
     shadow_footprint = shadow_receiver_footprint(world);
+    if !SCREEN_SHADOW_MASK { return sun_visibility(world, normal); }
     if shadow_data.contact.z > 1.5 {
         let p = clamp(vec2<i32>(pixel),vec2<i32>(0),vec2<i32>(shadow_data.contact.xy)-vec2<i32>(1));
         let ray = textureLoad(contact_map,p,0).rg;
@@ -362,10 +366,9 @@ fn local_shadow_visibility(uv:vec2<f32>,depth:f32,index:u32)->f32 {
     if radius<=0.0 {
         return textureSampleCompareLevel(local_shadow_map,shadow_sampler,uv,i32(index),depth);
     }
-    // A 3x3 tent (1,2,1)/4 of bilinear compares spaced `radius` texels, folded into four bilinear compares.
-    // At one texel it covers four texels per axis, weighted (1-f, 2-f, 1+f, f)/4; each pair is one tap at its
-    // weighted centre, which is exact. Narrower, the taps move towards the centre (close to the old tent).
-    // Wider, two taps per axis at the old filter's variance approximate it (a slightly softer, smooth edge).
+    // A 3x3 tent (1,2,1)/4 of bilinear compares spaced `radius` texels, folded into four bilinear compares. At one texel
+    // each pair of its four texels per axis is one tap at its weighted centre (exact); narrower, the taps move towards
+    // the centre; wider, two taps per axis at the old filter's variance approximate it (a slightly softer edge).
     let size=vec2<f32>(textureDimensions(local_shadow_map));
     let p=uv*size-0.5; let f=fract(p);
     var lo=p-vec2(radius*0.70710678); var hi=p+vec2(radius*0.70710678);
@@ -432,9 +435,9 @@ fn local_lighting(world:vec3<f32>,normal:vec3<f32>)->vec3<f32> {
     return result/(vec3(1.0)+result*0.65);
 }
 
-// The diffuse term and up to two highlights of the lights reaching a receiver, from one walk of its light
-// list: `specular` uses `normal` and `power`, `glint` (skipped when `glint_power` is zero) uses `glint_normal`.
-// Every term shares each light's cone, attenuation and shadow visibility, looked up along `normal`.
+// The diffuse term and up to two highlights of the lights reaching a receiver, from one walk of its light list: `specular`
+// uses `normal` and `power`, `glint` (skipped when `glint_power` is 0) uses `glint_normal`; all share each light's cone,
+// attenuation and shadow visibility (looked up along `normal`).
 struct LocalLights { diffuse:vec3<f32>, specular:vec3<f32>, glint:vec3<f32> };
 fn local_lights(world:vec3<f32>,normal:vec3<f32>,view:vec3<f32>,power:f32,
     glint_normal:vec3<f32>,glint_power:f32)->LocalLights {

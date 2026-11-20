@@ -6,14 +6,20 @@
 //! The rules and the file layout are in docs/modding/api-content.md.
 
 mod bike_camera;
+mod bike_dash;
 mod cars;
+mod components;
 mod engine_layers;
 pub mod interior;
 mod lamp_flares;
 pub(crate) mod manufacturers;
 mod music;
 mod racers;
+pub(crate) mod replace;
 pub mod scenery;
+pub mod worlds;
+
+pub(crate) use worlds::WORLD_CAPABILITIES;
 
 pub(crate) use music::{MusicSource, sources as music_sources};
 pub(crate) use racers::names as racer_names;
