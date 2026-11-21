@@ -6,8 +6,9 @@ use std::sync::Arc;
 use blackbox_race::{Course, Gate, Progress};
 use blackbox_roads::{Goal, Route};
 use glam::Vec3;
-use nfsmw_data::gameplay::RaceType;
+use nfsmw_data::gameplay::{Race, RaceType, ShortcutMarker};
 
+use super::shortcuts::{self, Shortcut};
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::{WorldScene, space};
 
@@ -43,6 +44,18 @@ impl WorldScene {
         let heading = Vec3::new(spawn.heading.cos(), spawn.heading.sin(), 0.0);
         let start = Goal { position: course.start, forward: Vec3::from(space::to_physics(heading)) };
         Some(Arc::new(traffic.build_race_route(start, &gates, &lines)))
+    }
+
+    /// The shortcuts of `race` on its `route`, searched while the race's walls stand: their lines close the roads they
+    /// cross (`shortcuts.rs`). The start searches them before an intro scene puts the walls down.
+    pub(super) fn race_shortcuts(&self, race: &Race, route: Option<&Route>) -> Vec<Shortcut> {
+        let (Some(traffic), Some(route)) = (self.traffic.as_ref(), route) else { return Vec::new() };
+        let markers: Vec<ShortcutMarker> = match &self.gameplay {
+            Some(data) => race.params.shortcuts.iter().filter_map(|k| data.shortcut(*k)).copied().collect(),
+            None => Vec::new(),
+        };
+        let lines = self.scenery_groups.active_barriers(traffic.track_barriers());
+        shortcuts::shortcuts_of(traffic, route, &markers, &lines)
     }
 
     /// One lap of the race's `route` for the Custom map, closed for a lap race (circuit, knockout). `None` without a

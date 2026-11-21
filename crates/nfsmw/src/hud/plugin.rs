@@ -19,6 +19,7 @@ use super::busted_overlay::{BustedOverlay, OVERLAY_PACKAGE};
 use super::event_tiles::{EventTiles, install_loader};
 use super::frame_cache::{FrameCache, TreeKey};
 use super::map_source::{MapSource, resolve_stem};
+use super::message_card::{CARD_PACKAGE, MessageCard};
 use super::minimap::MinimapBinding;
 use super::notify::{HudNotifications, intense};
 use super::radio::RadioHud;
@@ -67,6 +68,8 @@ struct Hud {
     trax: Option<TraxBinding>,
     /// The busted overlay, when the install has it (`busted_overlay.rs`).
     overlay: Option<BustedOverlay>,
+    /// The race's message card, when the install has it (`message_card.rs`).
+    card: Option<MessageCard>,
     /// The drag race HUD, when the install has it: it takes the place of the race HUD while a drag race runs.
     drag: Option<DragHud>,
     /// What the trees in the frame cell were built from, and the layers composed from them (`frame_cache.rs`).
@@ -88,7 +91,7 @@ impl Plugin for HudPlugin {
         let assets = crate::ui::ensure(app, &self.dir);
         let dir = self.dir.clone();
         app.world_mut().resource_mut::<UiLoading>().begin(LOAD);
-        let ready = resource_exists::<Hud>;
+        let (ready, shared) = (resource_exists::<Hud>, resource_exists::<SharedAssets>);
         app.insert_resource(AsiSkin::new(self.dir.clone()))
             .insert_resource(PendingHud(Job::spawn("hud-load", move || load(&dir, &assets))))
             .insert_non_send(self.career.clone())
@@ -117,11 +120,8 @@ impl Plugin for HudPlugin {
             .add_systems(Update, notify.in_set(FrameSet::SceneUpdate).after(sync))
             .add_systems(Update, super::notify::output.in_set(FrameSet::SceneUpdate).after(notify))
             .add_systems(Update, super::map_keys::apply.in_set(FrameSet::SceneUpdate).after(sync))
-            .add_systems(Update, present.in_set(FrameSet::Hud).run_if(ready).run_if(resource_exists::<SharedAssets>))
-            .add_systems(
-                Update,
-                present_lan.in_set(FrameSet::Hud).after(present).run_if(ready).run_if(resource_exists::<SharedAssets>),
-            );
+            .add_systems(Update, present.in_set(FrameSet::Hud).in_set(super::HudPresent).run_if(ready).run_if(shared))
+            .add_systems(Update, present_lan.in_set(FrameSet::Hud).after(present).run_if(ready).run_if(shared));
         super::split::install(app);
     }
 }
@@ -176,6 +176,8 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
     let viewport = HudViewport::new(&runtime.tree(package), &binding.blip_icon_hashes());
     let trax = trax::load(dir, &mut runtime);
     let overlay = catalog.find(OVERLAY_PACKAGE).cloned().map(BustedOverlay::new);
+    // The screen files are shared with the front end through the session memo, so this reads nothing twice.
+    let card = Catalog::load(dir, &crate::ui::SCREEN_FILES).find(CARD_PACKAGE).cloned().map(MessageCard::new);
     let drag = catalog.find(DRAG_PACKAGE).cloned().map(|drag| {
         let package = runtime.load(drag);
         let binding = HudBinding::new(&mut runtime, package);
@@ -194,6 +196,7 @@ fn build(dir: &GameDir, assets: &UiAssets, catalog: &Catalog) -> Option<Hud> {
         map_picture: None,
         trax,
         overlay,
+        card,
         drag,
         cache: FrameCache::default(),
     })
@@ -255,10 +258,16 @@ fn sync(
         }
     }
     state.map_picture = hud.map_picture.clone();
+    if let Some(card) = hud.card.as_mut() {
+        card.set_shown(&mut hud.runtime, state.message_card);
+    }
     if let Some(overlay) = hud.overlay.as_mut() {
         overlay.set_shown(&mut hud.runtime, state.busted_overlay);
         overlay.cue(&mut hud.runtime, state.busted_overlay_cue);
-        overlay.suspect_line(&mut hud.runtime, state.busted_summary.as_ref());
+        match state.busted_overlay_text {
+            Some(label) => overlay.fixed_line(&mut hud.runtime, label),
+            None => overlay.suspect_line(&mut hud.runtime, state.busted_summary.as_ref()),
+        }
     }
     apply_map_mode(&mut state, &settings);
 }
@@ -327,6 +336,15 @@ fn present(
     let routed =
         !themes.hud_is_static() && themes.provided_by(ElementId::Banner).is_some_and(|id| id != ThemeId::Original);
     super::set_cards_routed(routed);
+    // The message card is a full-screen package of its own: it alone runs and is drawn while it is up.
+    if let Some(card) = hud.card.as_ref().and_then(MessageCard::shown) {
+        drawn.shown();
+        hud.runtime.update(time.delta_secs());
+        let _ = hud.runtime.take_outgoing();
+        let screen = Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
+        presenter.0.present(&hud.runtime.tree(card), &assets.0, screen, &mut out);
+        return;
+    }
     if !state.visible || !settings.hud {
         // A scene hides the HUD, but an arrest keeps the busted overlay over the frame: it alone runs and is drawn.
         if let Some(overlay) = hud.overlay.as_ref().and_then(BustedOverlay::shown) {
@@ -336,6 +354,7 @@ fn present(
             let screen =
                 Screen { width: window.width(), height: window.height(), pixels_per_point: window.scale_factor() };
             presenter.0.present(&hud.runtime.tree(overlay), &assets.0, screen, &mut out);
+            crate::parity::fe_dump::note_drawn("BUSTED_OVERLAY.fng", 1); // drawn (its object count is not taken)
             return;
         }
         drawn.hidden(&mut out, window.scale_factor());
@@ -442,6 +461,10 @@ fn present(
     });
     let [radio_layer, hud_composed, busted_layer] = layers;
     let hud_tree = source.as_deref().or_else(|| (!static_hud).then_some(hud_composed));
+    if hud_tree.is_some_and(|t| !t.nodes.is_empty()) {
+        let drawn = hud_tree.map_or(0, |t| t.draw_order.len());
+        crate::parity::fe_dump::note_drawn(if state.drag { DRAG_PACKAGE } else { HUD_PACKAGE }, drawn);
+    }
     // The skin's gauges go over the HUD and under the busted overlay.
     let skin_tree = skin_on.then(|| asi.frame(&assets.0, &state, screen, time.delta_secs())).flatten();
     for layer in [Some(radio_layer), hud_tree, skin_tree.as_ref(), Some(busted_layer)].into_iter().flatten() {

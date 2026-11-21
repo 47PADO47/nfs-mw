@@ -35,6 +35,9 @@ impl WorldScene {
         let photo = me.finished && place == 1 && session.challenge.is_none();
         session.stage = Stage::Results { left: if photo { 0.0 } else { RACE_OVER_SECS } };
         self.note_race_outcome(session);
+        let line = serde_json::json!({"event": session.event, "name": session.name, "place": place, "racers": racers,
+            "finished": me.finished, "time": me.time, "career": session.options.career});
+        crate::parity::career_trace::record("race_over", line);
         session.banner = Banner::default();
         log::info!(
             "race: {} over: place {place}/{racers}{}",
@@ -87,6 +90,9 @@ impl WorldScene {
         self.end_split();
         self.unpark_guest_after_race();
         log::info!("race: {} ended", session.name);
+        let line = serde_json::json!({"event": session.event, "stage": format!("{:?}", session.stage),
+            "next_queued": self.queued_race.as_ref().map(|(name, _)| name)});
+        crate::parity::career_trace::record("race_end", line);
         // The black of a breakdown holds until the next race takes over; with none, the screen comes back.
         if self.queued_race.is_none() {
             self.screen_fade.clear();

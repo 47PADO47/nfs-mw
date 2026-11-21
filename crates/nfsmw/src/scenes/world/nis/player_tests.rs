@@ -6,6 +6,7 @@ use blackbox_nis::SceneType;
 use blackbox_sequence::{Action, Engine, Event, Response, State, System};
 use glam::Vec3;
 
+use crate::scenes::world::nis::cop_wait::WAIT_LIMIT;
 use crate::scenes::world::nis::events::START;
 
 /// A three-second scene: frames 0 to 90 at 30 frames per second, with no camera (the orbit plays).
@@ -29,6 +30,7 @@ fn key(eye: [[f32; 3]; 2], letterbox: u8) -> Key {
         cubic_look: false,
         space_eye: Space::Scene,
         space_look: Space::Scene,
+        overlay: 0,
         time: 0.0,
         tangent_length: [1.0, 1.0],
         eye,
@@ -251,8 +253,8 @@ fn a_cop_channel_waits_for_its_car_and_gives_up_once_its_time_is_up() {
     nis.link_waiting_cop(8, Target::Spawned(4));
     assert_eq!(nis.cop_waiting(), &[9], "the channel that got its car no longer waits");
     assert_eq!(nis.linked_cars(), vec![4], "the spawned car is taken by its channel");
-    assert!(nis.tick_cop_wait(1.0).is_empty(), "one second is under the limit");
-    assert_eq!(nis.tick_cop_wait(1.0), vec![9], "two seconds in all and the last channel gives up");
+    assert!(nis.tick_cop_wait(WAIT_LIMIT - 1.0).is_empty(), "under the limit");
+    assert_eq!(nis.tick_cop_wait(1.0), vec![9], "the limit reached and the last channel gives up");
     assert!(nis.cop_waiting().is_empty());
 }
 
@@ -461,4 +463,28 @@ fn stopping_a_scene_that_loads_ends_it_as_skipped() {
     assert!(!nis.is_playing());
     assert_eq!(nis.take_outcome(), Some(NisOutcome::Skipped));
     assert!(!nis.stop(), "nothing is left to stop");
+}
+
+#[test]
+fn a_scene_holds_its_first_pose_for_the_settle_then_runs() {
+    let mut nis = NisPlayer::default();
+    nis.start_settling(plan("IntroNis05", NisKind::Intro)).unwrap();
+    nis.advance(SETTLE_SECS * 0.5);
+    assert_eq!(nis.scene_time(), Some(0.0), "the clock waits through the settle");
+    nis.advance(SETTLE_SECS * 0.5 + 1.0);
+    let time = nis.scene_time().unwrap();
+    assert!((time - 1.0).abs() < 1e-4, "the time past the settle runs the clock: {time}");
+}
+
+#[test]
+fn a_camera_key_slower_than_full_speed_slows_the_scene_clock() {
+    let mut slow = track(3.0, 0);
+    slow.keys[0].sim_speed = [30; 2];
+    slow.keys[0].overlay = 3;
+    let mut nis = NisPlayer::default();
+    nis.start(Plan { camera: Some(slow), ..plan("IntroNisDD", NisKind::Intro) }).unwrap();
+    nis.advance(1.0);
+    let time = nis.scene_time().unwrap();
+    assert!((time - 0.3).abs() < 1e-3, "30 % of the real second: {time}");
+    assert_eq!(nis.camera_overlay(), Some(3), "the key's overlay byte reaches the world");
 }

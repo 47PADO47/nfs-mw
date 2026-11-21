@@ -6,8 +6,7 @@ use std::sync::Arc;
 
 #[cfg(test)]
 use blackbox_feng::ObjectRef;
-use blackbox_feng::ids::BUTTON_PRESSED;
-use blackbox_feng::{Outgoing, PackageId, Runtime};
+use blackbox_feng::{PackageId, Runtime};
 use glam::Vec2;
 
 use super::confirm::{AlertLogic, ConfirmLogic};
@@ -22,6 +21,7 @@ use crate::ui::{Catalog, UiAssets};
 mod aspect;
 mod car_loading;
 mod command;
+mod dump_rows;
 mod geometry;
 mod input_gate;
 mod layers;
@@ -81,6 +81,9 @@ pub struct Screens {
     start_press: Option<crate::input::PlayerDevice>,
     /// The screen and backdrop-loading state the loading LEDs were last told (`screens/car_loading.rs`).
     car_loading: Option<(PackageId, bool)>,
+    /// The stack is opened over the running game (`set_in_game`, until it empties): screens opened now get the dim panel
+    /// under them.
+    in_game: bool,
 }
 
 impl Screens {
@@ -108,6 +111,7 @@ impl Screens {
             last_pad: 0,
             start_press: None,
             car_loading: None,
+            in_game: false,
         }
     }
 
@@ -131,6 +135,7 @@ impl Screens {
         while let Some(s) = self.stack.pop() {
             self.runtime.unload(s.id);
         }
+        self.in_game = false;
         self.trace_stack("clear");
     }
 
@@ -166,14 +171,16 @@ impl Screens {
         };
         if replace && let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
+            self.close_bare_background();
         }
-        self.open_pause_background(name);
+        self.open_in_game_background(name);
         let missing = self.assets.missing_resources(&package);
         if !missing.is_empty() {
             log::debug!("{name}: resources without a texture or font: {missing:?}");
         }
         let file_name = package.name.clone();
         let id = self.runtime.load(package);
+        super::prompts::package_footer::reveal_keys(&mut self.runtime, id, &file_name);
         let mut commands = Vec::new();
         let mut cx = Cx {
             rt: &mut self.runtime,
@@ -205,6 +212,7 @@ impl Screens {
         if let Some(old) = self.stack.pop() {
             self.runtime.unload(old.id);
         }
+        self.close_bare_background();
         self.trace_stack("pop");
         self.await_release = true;
         self.give_control();
@@ -272,24 +280,7 @@ impl Screens {
         if let Some(trace) = self.trace.as_mut() {
             trace.outgoing(&outgoing);
         }
-        crate::audio::menu::request_batch(outgoing.iter().filter_map(|out| match out {
-            Outgoing::Sound { message, package, .. } if self.sound_allowed(*package, *message) => {
-                Some((*package, *message))
-            }
-            _ => None,
-        }));
-        for out in outgoing {
-            match out {
-                Outgoing::Game { message, package, .. } => self.deliver(package, message, env, &mut commands),
-                Outgoing::Package { kind, name, .. } => commands.extend(command::package_command(kind, name)),
-                // A button that answers BUTTON_PRESSED announces the press to the sound system with its GUID. Only the
-                // logic that asks for it hears it (`ScreenLogic::pressed`): some packages post nothing to the game.
-                Outgoing::Sound { message: BUTTON_PRESSED, package, from: Some(button) } => {
-                    self.deliver_press(package, button, env, &mut commands)
-                }
-                Outgoing::Sound { .. } => {}
-            }
-        }
+        self.dispatch_outgoing(outgoing, env, &mut commands);
         let ids: Vec<PackageId> = self.stack.iter().map(|s| s.id).collect();
         for id in ids {
             self.deliver_tick(id, dt, env, &mut commands);
@@ -332,6 +323,7 @@ impl Screens {
         if !input_gate::deliver_to_owner(self.stack.last().map(|screen| screen.id), package, message) {
             return;
         }
+        self.trace_pad(package, message);
         self.with_logic(package, env, out, |logic, cx| logic.message(cx, message));
     }
 
@@ -345,7 +337,7 @@ impl Screens {
     }
 
     /// Runs the commands that switch, push or pop screens (which can queue more) and returns the rest.
-    fn apply_stack_commands(&mut self, mut commands: Vec<Command>, env: &mut Env) -> Vec<Command> {
+    pub(super) fn apply_stack_commands(&mut self, mut commands: Vec<Command>, env: &mut Env) -> Vec<Command> {
         let mut rest = Vec::new();
         let mut budget = 32;
         while !commands.is_empty() && budget > 0 {

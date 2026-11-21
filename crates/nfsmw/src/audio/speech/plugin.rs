@@ -23,9 +23,10 @@ fn sync_speech_volume(settings: Res<Settings>, mut audio: NonSendMut<Audio>, mut
     audio.set_speech_volume(wanted);
 }
 
-/// The queue advances with the game; the pause menu holds it (a line already sounding finishes by itself).
+/// The queue advances with the game; the pause menu holds it (a line already sounding finishes by itself). A message
+/// screen over the frozen game lets it run, so its voice sounds while it is read (`cell_call::message_screen`).
 fn run_speech(host: NonSend<Host>, time: Res<Time>, mut audio: NonSendMut<Audio>) {
-    if host.scene.paused() {
+    if host.scene.paused() && !super::super::cell_call::screen_speaks() {
         return;
     }
     audio.update_speech(time.delta_secs());

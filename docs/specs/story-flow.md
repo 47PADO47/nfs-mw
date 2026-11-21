@@ -173,7 +173,7 @@ Tags: **[verified]** unless marked.
 | `RaceOverMessageDuration` | 3 s; 0.5 s online; 1 s or 2 s after a destroyed car | CSE 1.1 |
 | Countdown length | 3 s, one second per number (the rewrite's choice) **[unconfirmed]**; the Lua sets no length | RM 2, F-07 |
 | Blown engine timer | 1 s, then the race ends (`eblown` timer, then postrace) | CSE 1.2, F-16 **[verified]** |
-| Call-start fade (prologue) | 8 s after the call starts, then 3 s more (`killrace`), then postrace; the engine-blown timer may end it first | CP 5.2, F-16 **[verified]** |
+| Call-start fade (`16.1.0`) | 8 s after the call starts, then 3 s more (`killrace`), then postrace. `16.2.1` has no call-start fade; its blown engine ends it (1 s) | CP 5.2, F-16 **[verified]** |
 | `InitialPlayerSpeed` | 0 (217 races), 40 (36), 60 (2); unit taken as m/s **[unconfirmed]** | GR 3.2 |
 | `TimeLimit` template | 0 (no limit); tollbooth 90 with races at 40 to 70 | GR 1 |
 | Time bonus values | 25, 35 and 160 s | RM 5, GR 3.1 |
@@ -221,23 +221,46 @@ Tags: **[verified]** (CF 3 step 6, CSE 2.1, CB 9, CS 3.2).
 5. Prologue races are children of no bin. Stage stays 16 until section 2.6.
 6. Whether a lost prologue race stops the chain: F-09.
 
-### 2.4 Scripted chase 16.2.1 (machine C)
+### 2.4 The D-Day races 16.1.0 and 16.2.1 (machine C)
 
-Tags: **[verified]** (CSE 2.2, CP 5.2); names **[verified]** (this pass). Hooks **[exe]**.
+Tags: **[verified]** (Lua, 2026-11-18): each handler copy below names its race in its owner field (`0x857FE432`), read
+from the `messagehandler` collections of `gameplay.bin`'s `gpcore` vault; the chunks were read as in
+[provenance/race-goals.md](../provenance/race-goals.md). Hooks **[exe]**. Copies run in addition to the generic `basicrace`
+handlers (CS 1.1).
 
-Trigger names in the install (this pass): `call_from_mia`, `kill_engine`, `cop_spawn_trigger`, `cop_spawn_1`,
-`cop_spawn_2`, `bail_trigger`.
+Trigger children in the install: `16.1.0` has `call_from_mia` (a plane, (2541.7, 52.2, 104.1), heading 106.9, 100 m wide,
+between `ai_cp2` and `ai_cp3`) and `wrongway`; `16.2.1` has `call_from_mia` (2541.3, 63.8, 102.4), `kill_engine`,
+`cop_spawn_trigger`, `cop_spawn_1`, `cop_spawn_2` and `bail_trigger`. Both races set `DDayRace` (`0x8CB01ABF`), which makes the
+generic engine-blown handler skip its loss.
 
-| Event | Condition | Actions |
-|---|---|---|
-| Player enters `call_from_mia` | The marker is triggered | Request phone call 10 (`ECellCall`). Set `WaitForCallLoad`. Start a 15 s backup timer. |
-| Backup timer reaches 15 s | Engine not yet sabotaged | `SabotageEngine` at level 5. |
-| Player enters `kill_engine` | Before the backup timer ends | `SabotageEngine` at once. |
-| Call started (`notifycellcallstarted`) | `WaitForCallLoad` set | Start an 8 s `fade` timer. When it fires, fade the screen on and start a 3 s `killrace` timer; `killrace` fades off and goes to postrace (11 s in all). **[verified]** (F-16) |
-| Engine blown (`notifyengineblown`) | Any | Start a 1 s `eblown` timer. When it fires: kill the timer, fade out, go to postrace. **[verified]** (F-16) |
-| Player enters `cop_spawn_trigger` | Any | Cops on. Spawn two mid-size cops (`cop_spawn_1`, `cop_spawn_2`). |
-| Player enters `bail_trigger` | Any | Call `EDispIntroRace()`, call `EBailPursuit(1.0, 1.0)`, then `Game.NoNewPursuitsOrCops()` (the block; its effect native). **[verified]** (F-15) |
-| Done, `PostRaceActivity` empty | Race finished | `JumpToCarLot` (section 2.3). |
+`16.1.0` (`16_1_0_partial_dday`):
+
+| Handler copy | Actions |
+|---|---|
+| prerace enter | `DoMiaCellCall = true`; kill the `killrace` timer. |
+| prerace exit | The explosion (`ENISNukeSmack`). |
+| racing enter | `WaitForCallLoad = false`; a 3 s `dodisp` timer: `EDispIntroRace()`. |
+| trigger enter | The player crosses `call_from_mia` while `DoMiaCellCall`: `DoMiaCellCall = false`, `WaitForCallLoad = true`, `ECellCall(10)`. Nothing else: no sabotage, no cops. |
+| call started (`notifycellcallstarted`) | While `WaitForCallLoad`: an 8 s `fade` timer; `WaitForCallLoad = false`. |
+| timer | `fade`: a 3 s `killrace` timer, `ForceAIControl(0)` and `(1)`, `EFadeScreenNoLoadingBarOn()`. `killrace`: `ClearAIControl(0)` and `(1)`, `EFadeScreenNoLoadingBarOff()`, go to postrace. `dodisp`: `EDispIntroRace()`. |
+| racing exit | Kill `killrace` and `fade`. |
+
+So the call from Mia ends `16.1.0` 11 s after the call starts, with the cars under AI control behind the fade, before the
+finish line unless the finish comes first. If the call never starts (`notifycellcallstarted` is a native message; when the
+speech system sends it is not read), the race runs to its finish line.
+
+`16.2.1` (`16_2_1_d_day_intro`):
+
+| Handler copy | Actions |
+|---|---|
+| prerace enter | `DoMiaSMS = true`. |
+| trigger enter | `call_from_mia` while `DoMiaSMS`, by the player: `DoMiaSMS = false`, a 15 s `backup` timer, `ECellCall(10)`. `kill_engine` by the player: kill `backup`, `SabotageEngine(player, 5)`. `cop_spawn_trigger`: cops on, spawn `cop_spawn_1` and `cop_spawn_2` as `copmidsize`. `bail_trigger`: `EDispIntroRace()`, `EBailPursuit(1.0, 1.0)`, `Game.NoNewPursuitsOrCops()` (F-15). |
+| engine blown | A 1 s `eblown` timer. |
+| timer | `eblown`: kill it, `Fade()`, go to postrace. `backup`: kill it, `SabotageEngine(player, 5)`. |
+| racing exit | Kill `eblown` and `backup`. |
+
+`16.2.1` never sets `WaitForCallLoad`, so its call does not end it: the blown engine does. Done, `PostRaceActivity` empty:
+`JumpToCarLot` (section 2.3).
 
 ### 2.5 Drive to the safe house (machine D)
 
@@ -248,14 +271,22 @@ child `gpstarget`). The bin waits for the activity to finish (CS 3.2).
 
 | State | Entry actions | Transitions |
 |---|---|---|
-| initial | Cops off. If GPS is set to auto, go to activate_gps; else driving. If `SkipCareerIntro` is false, send message 15 (`EAddSMS`). | activate_gps or driving |
-| activate_gps | Show the GPS; navigate to `target` with the minimap item. **[verified]** (F-17) | driving |
-| driving | Timer `cellusage` 0.25 s: show the GPS to the target, and a second hint with a 2,000 m offset. Timer `hurry` 120 s: send message 121. | at_target on entering `gpstarget` |
+| initial | Cops off. If the activity's `AutoActivateGPS` (`0x29B9C312`) is set, go to activate_gps; else driving. The bin's copy: if `SkipCareerIntro` is false, send message 15 (`EAddSMS`). | activate_gps or driving |
+| activate_gps | `ShowGPS(true)`; `NavigatePlayerTo(target, MiniMapItem, 0, true)`. **[verified]** (F-17) | driving |
+| driving | If `SkipCareerIntro`, go to done at once. Else set timer `cellusage` 0.25 s and timer `hurry` 120 s. `cellusage` fires once (its handler kills it): `ShowGPS(true)`, `NavigatePlayerTo(target, MiniMapItem, 2000, true)`. `hurry` fires once: message 121. | at_target when the player enters `target` |
 | at_target | Stop both timers. Call `DoSafeHouseIntro(RespawnMarker)` with `menu_gate_safehouse/zone_safehouse_1/respawn` (CurrentBin 16). Sends no state change in the Lua; the safe house intro takes over (F-17, F-18). **[verified]** | none in the graph |
 | outro_movie | Empty handlers. No handler sends a change to this state, so this build never enters it. **[verified]** (F-17) | none |
 | done | Cops back on. GPS off. | end |
 
 `SkipCareerIntro` is true when the debug flag is set or settings flag bit 5 (`0x20`, "opening seen") is set (CF 6).
+
+The activity's fields in the install **[verified]** (`race_bin_16/drive_to_safe_house`, a copy of `drive_to_target`, read
+2026-11-18): `AutoActivateGPS` false (the template sets true), so this drive takes the driving path and its GPS comes from
+`cellusage`; `target` is its child box trigger `gpstarget` (centre (1768.4, 2497.5, 147.7), heading 48, size 2.7 x 98.1 x
+10); `RespawnMarker` is `zone_safehouse_1/respawn` (1762.8, 2508.8, 147.3); `MiniMapItem` is `zone_safehouse_1`. The
+third argument of `NavigatePlayerTo` is taken as the GPS's largest deviation (0 asks for the 200 m default of
+[ai-pathfinder.md](ai-pathfinder.md) section 7) **[unconfirmed]**: the native call is not read. Earlier text read
+"GPS set to auto" as a setting and the 2000 as the offset of a second hint; the Lua has neither.
 
 ### 2.6 Safe house first visit (machine E)
 
@@ -270,7 +301,14 @@ Tags: **[exe]** (CSH 3.6, CSH 4, CSH 5.3, CSH2 11.1; CF 6). Order of the stepper
 4. `SafeHouseRivalBio.fng` opens. Its constructor sees bit 17 and stage 16. It posts the enter-bin event for bin 15
    (routine `0x0062C2D0`). The stage byte goes from 16 to 15. The bin's milestones and speed traps are set, and bin 15's
    unlock list is granted. The bio package is sent message `0x0B21A45F`.
-5. The stepper continues from the point F-18 names. Stage 15 is the stage that the arrival sequence (story-flow-2
+5. The bio's own package times its input **[verified]** (`nfsmw dump-screen SafeHouseRivalBio.fng`): the Blacklist-sequence
+   message `0x0B21A45F` hides the Back prompt and the side groups (the plain open message `0xAF922178` shows them), and
+   arms the controller image `0x104BCB` so that `0x5FF45174` fires `0x7E7075D5` at once, which runs a 6600-tick script on
+   `0x104CEC` that ends with `0x7E4D1288` (input on) and `INIT_COMPLETE`: 6.9 s at 960 ticks a second before Continue
+   answers (the plain branch fires `0xB467E5EE`, whose script turns input on after 600 ticks, 0.6 s). The bio panel `0x116316`
+   starts at alpha 0 and shows only on `0x8BBAB3ED`. Who posts `0x5FF45174` (through `0xD22B95D0` on `0x104BCA`) and
+   `0x8BBAB3ED` in the original is not traced. The rewrite posts one open message by the context, then `0x8BBAB3ED`.
+6. The stepper continues from the point F-18 names. Stage 15 is the stage that the arrival sequence (story-flow-2
    section 4.6) reads at its step 6.
 
 ### 2.7 Resume rules
@@ -293,17 +331,26 @@ prologue.
 What the rewrite decides where the spec above is silent. All of it is open to Ghidra checks.
 
 1. The call, kill, cop and bail triggers of `16.1.0` and `16.2.1` are **plane triggers** (`planetrigger`), not boxes. A plane
-   is a slab 1 m thick, so it is tested along the player's step, not by where the step ends. `16.1.0` has only
-   `call_from_mia` (and `wrongway`); the chase script runs on it as on `16.2.1`.
-2. The voice load of call 10 is a fixed 10 s (`WaitForCallLoad`), so the backup sabotage (15 s after the call trigger) comes
-   before the call's own fade (8 s after the call starts). `notifyengineblown` is the sabotage plus 6 s, or the car coasting
-   under 3 m/s after 1.5 s. Then the 1 s timer ends the race (F-16). The screen fades to black over 3 s and stays black until
-   the next race or movie takes the screen.
+   is a slab 1 m thick, so it is tested along the player's step, not by where the step ends. Each race runs its own copy
+   of section 2.4: `16.1.0` has the call and its fade, no sabotage; `16.2.1` has the call, the sabotage, the cops and the
+   bail. A run of the original, given to this work as an observation (the player's car driven by the game's AI), ran
+   `16.1.0` to its finish line in about 61 s; with the Lua that means the call never started in that run. Which runs
+   start the call (sound on or off, the voice load) is open.
+2. The voice load of call 10 is a fixed 10 s: the call counts as started 10 s after it is asked for, in either race. In
+   `16.1.0` the fade comes 8 s later and the race ends 3 s after that. In `16.2.1` `notifyengineblown` is the sabotage
+   plus 6 s, or the car coasting under 3 m/s after 1.5 s; then the 1 s timer ends the race. The screen fades to black over
+   3 s and stays black until the next race or movie takes the screen. `ForceAIControl` behind the fade is not modelled.
 3. A scripted end counts as a win of the event (the chain and the resume read it) and goes through the race outro: `16.1.0`
-   leads to `16.2.2`; `16.2.1` plays `storyfmv_bus12` and then opens the car lot.
-4. The flashback races open on a days-ago card: `16.2.2` "Six Days Ago..." (message 6), `16.2.3` "Four Days Ago..." (4),
-   `16.1.1` "Two Days Ago..." (message 2, from the data). The texts are the install's (`0x4CBBA984`, `0x2117EECC`,
-   `0xA461D64A`; `^` is a line break). Messages 6 and 4 are not in the race data **[unconfirmed]**.
+   chains to `16.2.2`; `16.2.1` plays `storyfmv_bus12` and then opens the car lot.
+4. A race shows a message card only where its data sets `IntroMessageID`. In the prologue that is `16.1.1` alone
+   (message 2) **[verified]**; `16.2.2` and `16.2.3` set none and open on their movie (the rewrite's earlier "Six Days
+   Ago..." and "Four Days Ago..." cards there are removed). Given (one unattended run of the original): `SixDaysLater.fng`
+   opens between the photo finish of the third prologue event and `16.1.1`, and no screen opens before `16.2.2` or
+   `16.2.3`. The rewrite shows that package itself, in the HUD's runtime and alone over the frame
+   (`hud/message_card.rs`): its black panel, its `Number2.tga` image and its own string "SIX DAYS LATER..."
+   (label `0x290C9B44`, which the English table has no text for, so the package's text shows), with its own scripts. The card stays up until the last of them ends, 4700 ticks (4.9 s at 960 a
+   second) **[verified]** (`nfsmw dump-screen SixDaysLater.fng`); what closes the card in the original is native and not
+   known. Without the package the text stand-in draws the same label.
 5. The car lot is platform 5: its room is `FRONTEND/PLATFORMS/CAR_LOT.BIN`, the camera `angle_entry_car_lot` onto
    `angle_final_car_lot` and the screen pose `carlot_car_select`, the car stood at 340 degrees. It replaces the world; leaving
    a lot zone starts the world again at the zone.
@@ -312,3 +359,10 @@ What the rewrite decides where the spec above is silent. All of it is open to Gh
 7. `IntroNisDDEnd` is not a second cutscene of the prologue. Ghidra: its only code use is `FUN_00641840` (0x00641840), the
    teardown of the race status, which posts the name as an event for a human racer when the race state is not 8. Nothing
    plays a scene of that name, so no extra NIS follows `16.1.0` or `16.2.1` **[exe]**.
+8. The NIS shell `16.8.1` plans the two racers its data lists (`rog`, `razor`), as every race does, though they never
+   race: its scene `EndingNis03` has channels `car2` and `car3`, and they drive them. Before, the shell planned no
+   opponents and the two channels stayed empty **[verified]** (`nfsmw nis-report`).
+9. `EndingNis03` fades the screen to black at 26.29 s with `BLACK_FADE_OUT.fng` message `15_OUT`
+   ([nis-events-2.md](nis-events-2.md) B.2). The package's script for that message runs the black panel's alpha from 0 to
+   255 over 300 ticks (0.31 s at 960 ticks a second) **[verified]** (`nfsmw dump-screen BLACK_FADE_OUT.fng`). The rewrite
+   draws that fade, and a scene that ends black leaves the screen black until the next race or movie takes it.

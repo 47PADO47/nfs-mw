@@ -35,6 +35,16 @@ fn scrolling_keeps_the_page_full_and_in_range() {
 }
 
 #[test]
+fn the_highlight_stops_at_the_ends_and_the_page_follows_it() {
+    assert_eq!(moved(0, 0, -1, 8), (0, 0), "up from the top stays");
+    assert_eq!(moved(5, 0, 1, 8), (6, 1), "down past the page scrolls it by one");
+    assert_eq!(moved(7, 2, 1, 8), (7, 2), "down from the bottom stays");
+    assert_eq!(moved(2, 2, -1, 8), (1, 1), "up past the page scrolls it back");
+    assert_eq!(moved(3, 0, 0, 2), (1, 0), "a shorter list pulls the highlight in");
+    assert_eq!(moved(4, 4, 0, 0), (0, 0));
+}
+
+#[test]
 fn the_two_tabs_toggle() {
     assert_eq!(other_tab(InboxTab::Story), InboxTab::Tips);
     assert_eq!(other_tab(InboxTab::Tips), InboxTab::Story);
@@ -111,9 +121,11 @@ fn delete_empties_the_slot_and_the_list_drops_it() {
 
 #[test]
 fn the_delete_button_asks_first_and_only_yes_deletes() {
-    let question = delete_question(15, Command::Pop);
+    let question = delete_question(15, Some(Command::Pop));
     assert_eq!(question.message, Text::Game(0x8C3C_2171), "Are you sure you want to delete this SMS message?");
-    assert_eq!(*question.on_yes, Command::DeleteSms { id: 15, then: Box::new(Command::Pop) });
+    assert_eq!(*question.on_yes, Command::DeleteSms { id: 15, then: Some(Box::new(Command::Pop)) });
+    let from_list = delete_question(15, None);
+    assert_eq!(*from_list.on_yes, Command::DeleteSms { id: 15, then: None }, "the list stays up");
     assert!(question.on_no.is_none(), "No keeps the message and closes the question");
 }
 

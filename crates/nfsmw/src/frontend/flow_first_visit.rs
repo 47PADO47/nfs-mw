@@ -2,21 +2,23 @@
 //!
 //! The safe house request at stage 16 (the prologue's end) plays `storyfmv_saf25`, then opens the rival bio. The bio, opened
 //! in the Blacklist sequence, enters bin 15 (stage 16 to 15). Its Accept sends the stepper on from counter 4: the rival
-//! movie `blacklist_15` plays, and when it is over step 6 sets the "opening seen" flag and opens the reputation overview.
+//! movie `blacklist_15` plays, and when it is over step 6 sets the "opening seen" flag and opens the reputation overview
+//! over the safe house menu.
 //!
 //! The rules are the `nfsmw_career` ones: [`FIRST_VISIT_MOVIE`], [`enter_first_bin`] and [`BlacklistStepper`]. The stepper
 //! state travels in [`Command::BlacklistStep`], so the front end keeps no counter of its own.
 
 use nfsmw_career::blacklist::enter_first_bin;
 use nfsmw_career::safehouse::{BlacklistStepper, FIRST_VISIT_MOVIE, FrontEndContext, StepAction};
-use nfsmw_career::settings::PROLOGUE_STAGE;
+use nfsmw_career::settings::{FIRST_RIVAL_STAGE, PROLOGUE_STAGE};
 
 use crate::app::Host;
 use crate::career::CareerHandle;
 use crate::frontend::ids::screen::{
-    MAIN_MENU_SUB, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE, SAFEHOUSE_MARKERS, SAFEHOUSE_REGION_UNLOCK,
+    MAIN_MENU_SUB, SAFE_HOUSE_REPUTATION_OVERVIEW, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE, SAFEHOUSE_MARKERS,
+    SAFEHOUSE_REGION_UNLOCK,
 };
-use crate::frontend::logic::{Args, Command, Env};
+use crate::frontend::logic::{Args, Command, Env, ListScreen, screen_list_look_of};
 
 use super::Frontend;
 use super::Stage;
@@ -65,6 +67,7 @@ impl Frontend {
             return false;
         }
         let args = Args { safehouse: true, sequence: true, ..Args::default() };
+        crate::parity::career_trace::record("handoff", serde_json::json!({"to": "first_safe_house_visit"}));
         self.play_movie(FIRST_VISIT_MOVIE, AfterMovie::Open(SAFE_HOUSE_RIVAL_BIO.to_owned(), args), host);
         if !matches!(self.stage, Stage::Movie { .. }) {
             return false;
@@ -91,6 +94,8 @@ impl Frontend {
             return log::warn!("career: no career is played, so the Blacklist sequence stops");
         };
         log::info!("career: Blacklist sequence {action:?} at stage {stage}");
+        let step = serde_json::json!({"action": format!("{action:?}"), "stage": stage});
+        crate::parity::career_trace::record("blacklist_step", step);
         match action {
             StepAction::RivalMovie => self.sequence_movie(&rival_movie(stage), stepper, host, env),
             StepAction::RapSheetMovie => self.sequence_movie(RAP_SHEET_MOVIE, stepper, host, env),
@@ -108,9 +113,16 @@ impl Frontend {
                 self.sequence_save();
                 self.blacklist_step(stepper, host, env);
             }
-            // Step 6 at stage 15 opens the reputation overview. No screen of that name exists yet, so the safe house menu
-            // stands in for it. Step 7 ends the sequence in the safe house menu too.
-            StepAction::ReputationOverview | StepAction::End => self.open_safe_house(host, env),
+            // Step 6 at stage 15 opens the reputation overview at the career's rival, over the safe house menu it goes
+            // back to (story-flow-2 4.6). Step 7 ends the sequence in the safe house menu.
+            StepAction::ReputationOverview => {
+                self.open_reputation_overview(stage, host, env);
+                crate::parity::career_trace::first_visit_done();
+            }
+            StepAction::End => {
+                self.open_safe_house(host, env);
+                crate::parity::career_trace::first_visit_done();
+            }
         }
     }
 
@@ -125,9 +137,28 @@ impl Frontend {
         self.blacklist_step(stepper, host, env);
     }
 
+    /// The safe house's Blacklist page at rival `stage`, as the safe house menu's Blacklist item opens it: the reputation
+    /// overview, or the list of rivals in a look that draws the Blacklist as a list (`safehouse_menu.rs`). Its Back goes
+    /// to the safe house menu, which stands before the world as after `open_safe_house`.
+    fn open_reputation_overview(&mut self, stage: u8, host: &mut Host, env: &mut Env) {
+        let mod_theme = env.mods.is_some_and(|mods| mods.ui_theme_choice().is_some());
+        let list = screen_list_look_of(ListScreen::Blacklist, env.settings.ui_style, mod_theme);
+        let screen = match list {
+            true => SAFE_HOUSE_RIVAL_CHALLENGE,
+            false => SAFE_HOUSE_REPUTATION_OVERVIEW,
+        };
+        let args = Args { safehouse: true, rival: stage.clamp(1, FIRST_RIVAL_STAGE), ..Args::default() };
+        crate::parity::career_trace::record("handoff", serde_json::json!({"to": "safe_house", "screen": screen}));
+        self.in_safe_house = true;
+        self.latch = true;
+        self.screens.clear();
+        self.open_menu(screen, args, host, env);
+    }
+
     /// The safe house menu, over the menu backdrop: where the sequence ends. The menu stands before the world (the world was
     /// replaced by the intro movie), so its Resume Free Roam starts the world.
     pub(super) fn open_safe_house(&mut self, host: &mut Host, env: &mut Env) {
+        crate::parity::career_trace::record("handoff", serde_json::json!({"to": "safe_house"}));
         self.in_safe_house = true;
         self.latch = true;
         self.screens.clear();

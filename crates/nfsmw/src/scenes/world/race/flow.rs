@@ -94,6 +94,8 @@ impl WorldScene {
             Some(kit) => self.begin_again(kit),
             None => self.start_race(&query, options),
         };
+        let line = serde_json::json!({"query": query, "career": options.career, "error": started.as_ref().err()});
+        crate::parity::career_trace::record(if started.is_ok() { "race_start" } else { "race_start_failed" }, line);
         match started {
             Ok(line) => log::info!("race: {line}"),
             Err(why) => log::warn!("race {query}: {why}"),

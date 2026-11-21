@@ -88,12 +88,14 @@ impl WorldScene {
         walls
     }
 
-    /// Puts every group a race switched back as it was before the race, and the free-roam road flags with them.
-    pub(super) fn lower_race_walls(&mut self, walls: RaceWalls) {
+    /// Puts every group a race switched back as it was before the race, and the free-roam road flags with them. Returns
+    /// the empty record of a race with no walls up.
+    pub(super) fn lower_race_walls(&mut self, walls: RaceWalls) -> RaceWalls {
         for (group, state) in walls.before.into_iter().rev() {
             self.switch_scenery_group(group, state);
         }
         self.refresh_road_barriers();
+        RaceWalls::default()
     }
 }
 

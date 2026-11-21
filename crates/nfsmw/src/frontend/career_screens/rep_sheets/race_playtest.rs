@@ -79,6 +79,8 @@ fn career_playtest_race_list_uses_each_event_type_icon_and_keeps_details_on_the_
         assert!(h.screens.assets().texture(texture).is_some(), "career race artwork {texture:08x} must decode");
     }
     let sheet = Sheet {
+        moved: false,
+        race_chosen: false,
         kind: Kind::Race,
         bin: 15,
         page: Box::new(fixture()),

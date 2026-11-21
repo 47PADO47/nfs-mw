@@ -53,6 +53,7 @@ mod map_picture;
 mod map_roads;
 mod map_source;
 mod message;
+mod message_card;
 #[cfg(test)]
 mod message_tests;
 mod milestone_board;
@@ -67,6 +68,11 @@ mod mirror_install_tests;
 mod notify;
 mod plugin;
 pub(crate) mod police;
+
+/// The HUD's presentation. The front end presents before it: each presentation goes under the ones before it, so the
+/// screens opened over the game and their dim panel sit above the HUD, as in the original.
+#[derive(bevy_ecs::schedule::SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct HudPresent;
 #[cfg(test)]
 mod police_install_tests;
 mod pursuit;
@@ -123,6 +129,7 @@ pub use message::{
     Tone as ModMessageTone, advance as advance_mod_message, hide as hide_mod_message, is_up as mod_message_up,
     line as mod_message_line, set as set_mod_message, show as show_mod_message,
 };
+pub use message_card::{CARD_TEXT, CARD_TICKS, message_card_drawn};
 pub use milestone_board::{BoardSlot, Display as MilestoneDisplay, MilestoneBoard, SLOTS as MILESTONE_SLOTS};
 pub use notify::{Category as NoticeCategory, ChipKind, NoticeId};
 pub use plugin::HudPlugin;

@@ -81,7 +81,7 @@ impl Trace {
                 Outgoing::Game { message, package, from } => {
                     self.emit("game_message", json!({"message": message, "package_id": package.0, "from_guid": from}))
                 }
-                Outgoing::Sound { message, package, from } => {
+                Outgoing::Sound { message, package, from, .. } => {
                     self.emit("sound_request", json!({"message": message, "package_id": package.0, "from_guid": from}))
                 }
                 Outgoing::Package { kind, name, from } => self.emit(
@@ -122,7 +122,22 @@ impl Screens {
         );
     }
 
+    /// The career-flow trace's line for a pad button delivered to a screen: what answered, or dismissed, the screen.
+    pub(super) fn trace_pad(&self, package: blackbox_feng::PackageId, message: u32) {
+        if !crate::parity::career_trace::enabled() {
+            return;
+        }
+        let Some(button) = pad_name(message) else { return };
+        let Some(screen) = self.stack.iter().find(|screen| screen.id == package) else { return };
+        crate::parity::career_trace::record("pad", json!({"screen": screen.name, "button": button}));
+    }
+
     pub(super) fn trace_stack(&mut self, action: &str) {
+        if crate::parity::career_trace::enabled() {
+            let names: Vec<&str> = self.stack.iter().map(|screen| screen.name.as_str()).collect();
+            let top = names.last().copied();
+            crate::parity::career_trace::record("screen", json!({"action": action, "top": top, "stack": names}));
+        }
         let Some(trace) = self.trace.as_mut() else { return };
         let stack: Vec<Value> =
             self.stack.iter().map(|screen| json!({"package_id": screen.id.0, "name": screen.name})).collect();
@@ -186,4 +201,19 @@ impl Screens {
         trace.last_state = state.clone();
         trace.emit("state_sample", state);
     }
+}
+
+/// The name of a pad message the career-flow trace records, or `None` for any other message.
+fn pad_name(message: u32) -> Option<&'static str> {
+    use blackbox_feng::ids::{PAD_ACCEPT, PAD_BACK, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_START, PAD_UP};
+    Some(match message {
+        PAD_ACCEPT => "accept",
+        PAD_BACK => "back",
+        PAD_LEFT => "left",
+        PAD_RIGHT => "right",
+        PAD_UP => "up",
+        PAD_DOWN => "down",
+        PAD_START => "start",
+        _ => return None,
+    })
 }

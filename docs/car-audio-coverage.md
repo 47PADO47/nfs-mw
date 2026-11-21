@@ -38,6 +38,8 @@ The `audio-audit` console command lists the maintained runtime inventory.
 `audio-trace <path>` starts a bounded asynchronous JSON-lines capture;
 `audio-trace off` flushes its final completeness record. `NFSMW_AUDIO_TRACE`
 enables tracing at startup. No trace files are written by the audio callback.
+`audio-active` lists the scene-owned streams that play now; the trace's `stream_start`, `stream_stop` and `stream_end`
+records say who started and stopped each (`specs/car-audio-observability.md`).
 
 [`tools/audio_coverage.py`](../tools/audio_coverage.py) joins original module
 observations with remake controller and voice records. Unknown modules, missing

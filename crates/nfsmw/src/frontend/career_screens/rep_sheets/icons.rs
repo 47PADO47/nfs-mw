@@ -93,6 +93,16 @@ impl Icons {
         {
             cx.rt.focus_button(icon);
         }
+        if visible && at < page.len() {
+            let slot = at - self.first;
+            for cursor in [0xD4FE_BDB2, 0x0674_5352] {
+                let Some(object) = cx.object(cursor) else { continue };
+                let script = fe_hash_upper(&format!("POS{}", slot + 1));
+                if cx.rt.script_of(object) != Some(script) {
+                    cx.rt.run_script(object, script);
+                }
+            }
+        }
         if let Some(icon) = cx.object(DETAIL_ICON) {
             cx.rt.set_hidden(icon, page.icon(at).is_none());
             if let Some(texture) = page.icon(at) {

@@ -21,6 +21,12 @@ initializing eight words with selector zero and the sound group's volume.
 The CC0 front-end handler only implements message zero; it does not resolve
 this cue. No decompiled implementation is copied into public sources.
 
+A headless replay of `FX_Camera` with the audio trace (2026-11-18,
+`audio/menu/inventory_tests.rs`) showed the port releasing the module after its
+first tick, which ran its destroy node and stopped all three voices after about
+17 ms: the shutter was heard as a click. The graph and recording are install
+data; no original runtime capture of the shutter's length was made.
+
 The same photo constructor requests the `game_camera` moment stream before
 the shutter. Its generated attribute-name table identifies that recording.
 The host previously omitted it. Static camera research establishes a special

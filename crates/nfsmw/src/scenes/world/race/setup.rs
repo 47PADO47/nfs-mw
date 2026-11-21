@@ -43,12 +43,16 @@ pub fn gate_of(trigger: &BoxTrigger) -> Gate {
     Gate::new(trigger.position, world_heading(trigger.heading_deg), Vec3::Y, [along, across, half_height * 2.0])
 }
 
-/// The course of a race, in physics space. A race with neither a finish line nor a checkpoint has no course.
+/// The course of a race, in physics space. A race with neither a finish line nor a checkpoint has no course, except the
+/// NIS shell (16.8.1): it has no racing, so its course is its start alone (`16_nis_rog_razor` names no gate).
 pub fn course_of(data: &GameplayData, race: &Race, options: &RaceOptions) -> Result<Course, String> {
     let start = race.start.ok_or_else(|| format!("{} has no start", race.name))?;
     let gate = |key: &u32| data.trigger(*key).map(gate_of);
     let checkpoints: Vec<Gate> = race.checkpoints.iter().filter_map(gate).collect();
     let finish = race.finish.as_ref().and_then(gate);
+    if checkpoints.is_empty() && finish.is_none() && race.story.nis_shell {
+        return Ok(Course::new(start.position, checkpoints, None, 1));
+    }
     if checkpoints.is_empty() && finish.is_none() {
         return Err(format!("{} has no checkpoints and no finish line", race.name));
     }

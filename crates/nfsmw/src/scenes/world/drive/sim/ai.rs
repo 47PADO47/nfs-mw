@@ -30,6 +30,11 @@ impl CarSim {
         )
     }
 
+    /// The engine's drive torque at the gearbox output this step, N m (for the race trace).
+    pub(in crate::scenes::world) fn drive_torque(&self) -> f32 {
+        self.vehicle.powertrain().drive_torque()
+    }
+
     pub(in crate::scenes::world) fn set_race_catch_up(&mut self, cheat: f32, tire_steering_drag: Option<f32>) {
         let cheat = cheat.clamp(0.0, 0.5);
         self.vehicle.set_force_scales(blackbox_vehicle::vehicle::ForceScales {

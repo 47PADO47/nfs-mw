@@ -115,6 +115,17 @@ fn a_race_without_gates_has_no_course() {
 }
 
 #[test]
+fn the_nis_shell_stands_on_an_empty_course_at_its_start() {
+    let mut shell = race(Vec::new());
+    shell.finish = None;
+    shell.checkpoints.clear();
+    shell.story.nis_shell = true;
+    let course = course_of(&data(), &shell, &RaceOptions::default()).expect("the shell race has a course");
+    assert!(course.checkpoints.is_empty() && course.finish.is_none());
+    assert_eq!(course.start, shell.start.unwrap().position);
+}
+
+#[test]
 fn the_lap_option_replaces_the_stored_laps() {
     let options = RaceOptions { laps: Some(4), ..Default::default() };
     assert_eq!(laps_of(&race(Vec::new()), &options), 4);

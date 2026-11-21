@@ -26,6 +26,7 @@ impl Frontend {
     pub(super) fn resume_career(&mut self, host: &mut Host, env: &mut Env) {
         self.career.begin_play();
         self.origin = QuitTo::Career;
+        crate::parity::career_trace::record("career_resume", serde_json::Value::Null);
         if let Some(event) = self.resume_prologue_event() {
             log::info!("career: resuming the prologue at {event}");
             self.save_settings(env.changed);
@@ -116,6 +117,7 @@ impl Frontend {
         }
         let Some(request) = host.scene.take_career_request() else { return };
         log::info!("career: {request:?}");
+        crate::parity::career_trace::record("career_request", serde_json::json!({"request": format!("{request:?}")}));
         // A safe house or car lot entered is remembered, in the save too, as the original's respawn markers are.
         if let CareerRequest::SafeHouse { zone } | CareerRequest::CarLot { zone } = &request {
             self.career.with(|career| career.note_zone_visit(zone));
@@ -163,6 +165,10 @@ impl Frontend {
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
+        // The safe house menu is a room of its own; the other screens open over the frozen game.
+        if screen != MAIN_MENU_SUB {
+            self.screens.set_in_game();
+        }
         let commands = self.screens.open(screen, args, true, env);
         self.apply(commands, host, env);
     }
@@ -187,7 +193,18 @@ impl Frontend {
     /// prologue starts the drive to the first safe house once it is bought (`start_first_drive`).
     pub(super) fn car_lot_action(&mut self, action: CarLotAction, host: &mut Host, env: &mut Env) {
         let first_drive = action.starts_first_drive();
-        match self.career.with(|career| car_lot::apply(career, &action)) {
+        let applied = self.career.with(|career| car_lot::apply(career, &action));
+        let outcome = match &applied {
+            Some(Ok(())) => "done".to_owned(),
+            Some(Err(text)) => format!("refused: {text:?}"),
+            None => "no career".to_owned(),
+        };
+        let row = serde_json::json!({"action": format!("{action:?}"), "first_drive": first_drive, "outcome": outcome});
+        crate::parity::career_trace::record("car_lot_action", row);
+        if first_drive && matches!(applied, Some(Ok(()))) {
+            crate::parity::career_trace::first_car_bought();
+        }
+        match applied {
             Some(Ok(())) if first_drive => self.start_first_drive(host, env),
             Some(Err(text)) => {
                 let commands = self.screens.open_with(DIALOG, Box::new(AlertLogic::new(Alert::new(text))), false, env);

@@ -8,6 +8,7 @@ use nfsmw_career::blacklist::{BinRecord, BinState, Blacklist, EventResult, Rewar
 use nfsmw_career::phone::{BinMoment, bin_messages};
 use nfsmw_career::safehouse::FrontEndContext;
 use nfsmw_career::savefile::Trigger;
+use nfsmw_career::settings::NodeStates;
 use nfsmw_data::gameplay::RewardRecord;
 
 use crate::career::{AutosaveInputs, Career, event_id, grant_rewards, handle_autosave, race_event_id};
@@ -61,6 +62,9 @@ impl WorldScene {
         let finished = RaceFinish { event, place, cash_value, series_complete, rewards: rewards.as_ref() };
         let outcome = self.career.handle.with(|career| apply_race_finish(career, phone, &finished));
         let Some(outcome) = outcome else { return };
+        let line = serde_json::json!({"event": event, "place": place, "cash_paid": outcome.cash_paid,
+            "bins_done": format!("{:?}", outcome.bins_done), "bins_entered": format!("{:?}", outcome.bins_entered)});
+        crate::parity::career_trace::record("career_race_result", line);
         log::info!(
             "career: race {event} placed {place}: cash {}, bins done {:?}, bins entered {:?}, {} car(s) releasable",
             outcome.cash_paid,
@@ -195,6 +199,10 @@ pub(super) fn apply_race_finish(
         &mut career.stable,
         &result,
     );
+    let mut nodes = career.settings.nodes();
+    if note_career_win(&mut nodes, finished.event, finished.place) {
+        career.settings.set_nodes(&nodes);
+    }
     let inbox = &mut career.settings.sms;
     if finished.place == 1
         && let Some((bin, won)) = races_won_in_bin(&career.blacklist, finished.event)
@@ -213,6 +221,22 @@ pub(super) fn apply_race_finish(
         grant_gauntlet(career, list, bin, *deferred);
     }
     outcome
+}
+
+/// Sets the won-in-career bit of `event`'s node when the player placed first (`docs/specs/story-flow.md` section 1.6
+/// step 1: every first place in career, F-10). The prologue's events are in no bin, so the save's race records
+/// (`career/state.rs`) never mark them; the resume rules read these bits (section 2.7). `true` when the list changed.
+pub(super) fn note_career_win(nodes: &mut NodeStates, event: &str, place: u8) -> bool {
+    if place != 1 || nodes.get(event).is_some_and(|state| state.won_in_career()) {
+        return false;
+    }
+    match nodes.set_won_in_career(event) {
+        Ok(()) => true,
+        Err(e) => {
+            log::warn!("race record of {event} not written: {e}");
+            false
+        }
+    }
 }
 
 /// Grants the reward list of a gauntlet's last race once its rival is beaten (`story-flow-2.md` section 4.5, F-10). The

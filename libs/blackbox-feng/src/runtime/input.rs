@@ -200,12 +200,12 @@ impl Runtime {
             && self.has_response(package, b, message)
         {
             self.queue(message, None, package, Target::Object(b));
-            self.queue(message, Some(b), package, Target::Sound);
+            self.queue(message, Some(b), package, Target::InputSound);
             return;
         }
         if self.has_package_response(package, message) {
             self.queue(message, None, package, Target::ThisGlobal);
-            self.queue(message, None, package, Target::Sound);
+            self.queue(message, None, package, Target::InputSound);
         }
     }
 
@@ -231,11 +231,11 @@ impl Runtime {
             match current.filter(|&b| self.has_response(package, b, BUTTON_PRESSED)) {
                 Some(b) => {
                     self.queue(BUTTON_PRESSED, None, package, Target::Object(b));
-                    self.queue(BUTTON_PRESSED, Some(b), package, Target::Sound);
+                    self.queue(BUTTON_PRESSED, Some(b), package, Target::InputSound);
                 }
                 None if self.has_package_response(package, PAD_ACCEPT) => {
                     self.queue(PAD_ACCEPT, None, package, Target::ThisGlobal);
-                    self.queue(PAD_ACCEPT, None, package, Target::Sound);
+                    self.queue(PAD_ACCEPT, None, package, Target::InputSound);
                 }
                 None => {}
             }
@@ -258,12 +258,12 @@ impl Runtime {
                 }
                 if self.has_response(package, b, message) {
                     self.queue(message, None, package, Target::Object(b));
-                    self.queue(message, Some(b), package, Target::Sound);
+                    self.queue(message, Some(b), package, Target::InputSound);
                 }
             }
             if self.has_package_response(package, message) {
                 self.queue(message, None, package, Target::ThisGlobal);
-                self.queue(message, None, package, Target::Sound);
+                self.queue(message, None, package, Target::InputSound);
             }
         }
         if !self.queue.is_empty() {
@@ -311,7 +311,7 @@ impl Runtime {
         let Some(button) = current else {
             if self.has_package_response(package, message) {
                 self.queue(message, None, package, Target::ThisGlobal);
-                self.queue(message, None, package, Target::Sound);
+                self.queue(message, None, package, Target::InputSound);
             }
             return;
         };
@@ -334,7 +334,7 @@ impl Runtime {
                 found
             }
         };
-        self.queue(message, Some(button), package, Target::Sound);
+        self.queue(message, Some(button), package, Target::InputSound);
         if let Some(new) = new_button {
             self.release_remembered(package, button);
             self.set_focus_index(package, Some(new), true);
@@ -351,7 +351,7 @@ impl Runtime {
             let message = released_message(bit);
             if self.has_response(package, button, message) {
                 self.queue(message, None, package, Target::Object(button));
-                self.queue(message, Some(button), package, Target::Sound);
+                self.queue(message, Some(button), package, Target::InputSound);
             }
         }
     }

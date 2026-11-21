@@ -263,10 +263,41 @@ pub fn draw(
         host.cpu_update_ms = host.cpu_work_started.elapsed().as_secs_f32() * 1000.0;
         let reuse = host.static_frames.next(&**renderer, (still, host.scene_changes), &settings, &params, instances);
         renderer.set_scene_reuse(reuse);
-        renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into)
+        let rendered: anyhow::Result<()> =
+            renderer.render(&params, instances).map(|_| host.frames += 1).map_err(Into::into);
+        rendered.and_then(|()| service_nis_capture(renderer.as_mut(), &params, instances))
     };
     if let Err(e) = result {
         errors.set(e);
         exit.write(AppExit::error());
     }
+}
+
+/// The NIS frame capture (`parity/nis_capture.rs`): starts the frame the world asked for, off-screen with the same
+/// scene, and writes the one being drawn once it is ready. A frame that fails is logged and the scene goes on.
+fn service_nis_capture(
+    renderer: &mut dyn RenderBackend,
+    params: &blackbox_gfx::FrameParams,
+    instances: &[blackbox_gfx::Instance],
+) -> anyhow::Result<()> {
+    use crate::parity::nis_capture;
+    if !nis_capture::enabled() {
+        return Ok(());
+    }
+    if let Some((path, size)) = nis_capture::take_request() {
+        match screenshot::request(renderer, params, instances, (size[0], size[1])) {
+            Ok(id) => nis_capture::started(id, path),
+            Err(e) => log::warn!("NIS capture: {} not started: {e}", path.display()),
+        }
+    }
+    let Some((id, path)) = nis_capture::in_flight() else { return Ok(()) };
+    match screenshot::poll(renderer, id, &path) {
+        Ok(false) => {}
+        Ok(true) => nis_capture::finished(),
+        Err(e) => {
+            log::warn!("NIS capture: {} not written: {e}", path.display());
+            nis_capture::finished();
+        }
+    }
+    Ok(())
 }

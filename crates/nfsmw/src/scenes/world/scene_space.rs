@@ -62,21 +62,29 @@ pub fn placed(scene_type: SceneType, marker: Anchor) -> Anchor {
     }
 }
 
-/// A track point in render space. Only the scene's own space is placed: car, world and hybrid spaces belong to
-/// cameras that follow a car, and no moment uses them. World points are already in render space.
-pub fn place(anchor: &Anchor, space: Space, point: [f32; 3]) -> Option<Vec3> {
+/// A track point in render space. The scene's own space is placed at the anchor; world points are already in render
+/// space. Car-space points are placed on `car` (its render position and rotation): the car's frame is the model's,
+/// nose +x, left +y, up +z, as the car-space keys of the install read (`IntroNisDD`'s chase keys put the eye at
+/// negative x and look along +x) [verified]. `None` for a car-space point with no car, and for hybrid space.
+pub fn place_on_car(anchor: &Anchor, space: Space, point: [f32; 3], car: Option<(Vec3, Quat)>) -> Option<Vec3> {
     match space {
         Space::Scene => Some(anchor.to_render(point)),
         Space::World => Some(Vec3::from_array(point)),
-        Space::Car | Space::Hybrid => None,
+        Space::Car => car.map(|(at, turn)| at + turn * Vec3::from_array(point)),
+        Space::Hybrid => None,
     }
 }
 
 /// The lens of one camera sample placed at `anchor`, `aspect` being width over height. `None` when the sample's eye or
 /// look point is in a space that is not placed here.
 pub fn lens_of(anchor: &Anchor, sample: &CameraSample, aspect: f32) -> Option<Lens> {
-    let eye = place(anchor, sample.eye_space, sample.eye)?;
-    let target = place(anchor, sample.look_space, sample.look)?;
+    lens_on_car(anchor, sample, None, aspect)
+}
+
+/// [`lens_of`] with car-space points placed on `car` ([`place_on_car`]).
+pub fn lens_on_car(anchor: &Anchor, sample: &CameraSample, car: Option<(Vec3, Quat)>, aspect: f32) -> Option<Lens> {
+    let eye = place_on_car(anchor, sample.eye_space, sample.eye, car)?;
+    let target = place_on_car(anchor, sample.look_space, sample.look, car)?;
     let forward = (target - eye).normalize_or_zero();
     let up = roll(Vec3::Z, forward, sample.roll);
     Some(original::native_lens(original::Sample { eye, target, up, fov_bangle: f32::from(sample.fov) }, aspect))

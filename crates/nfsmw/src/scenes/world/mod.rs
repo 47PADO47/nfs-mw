@@ -86,6 +86,8 @@ mod impact_effects;
 mod local_lights;
 #[cfg(test)]
 mod performance_tests;
+#[cfg(test)]
+mod prologue_scene_tests;
 mod prop_effects;
 mod props;
 mod pursuit_trace;
@@ -397,6 +399,7 @@ const FLOWN_AWAY: f32 = 25.0;
 
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
+pub(crate) use race::scene_report::report_json as nis_report_json;
 /// The car `drive` picks when none was named.
 pub use race::{MAX_RACERS, RaceOptions, SplitSetup};
 

@@ -102,7 +102,7 @@ fn start_layer(audio: &mut Audio, file: &str, rate: f32) -> Result<StaticSoundHa
     let bytes = audio.dir.read(file).map_err(|error| format!("{file}: {error}"))?;
     let wav = parse_wav(&bytes).map_err(|error| format!("{file}: {error}"))?;
     let mut handle =
-        audio.play(Group::Sfx, pcm::sound(&wav).volume(decibels(0.0))).map_err(|error| format!("{file}: {error}"))?;
+        audio.play(Group::World, pcm::sound(&wav).volume(decibels(0.0))).map_err(|error| format!("{file}: {error}"))?;
     handle.set_playback_rate(PlaybackRate(f64::from(rate)), Tween::default());
     Ok(handle)
 }

@@ -91,6 +91,10 @@ impl Scene for MovieScene {
         self.playback.take_clip()
     }
 
+    fn clip_playing(&self) -> bool {
+        !self.playback.finished()
+    }
+
     fn finished(&self) -> bool {
         self.playback.finished()
     }

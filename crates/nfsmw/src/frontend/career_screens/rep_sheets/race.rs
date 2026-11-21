@@ -80,7 +80,7 @@ fn row(record: &BinRecord, races: &[Race], board: Option<&Board>, event: &str, b
         kind: race.race_type.unwrap_or(RaceType::Sprint),
         boss,
         status: status_of(record, event, boss),
-        cash: race.params.cash_value.max(0.0) as u32,
+        cash: race.win_cash_value().max(0.0) as u32,
         laps: u32::try_from(race.laps).unwrap_or(1).max(1),
         length: track.map_or(0.0, |track| track.brief_length()),
         map: track.map_or(0, |track| track.map_texture),

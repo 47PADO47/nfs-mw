@@ -21,8 +21,12 @@ impl Frontend {
     pub(in crate::frontend) fn play_movie(&mut self, name: &str, then: AfterMovie, host: &mut Host) {
         let scene = match crate::movie::MovieScene::open(&self.dir, name, 0.0) {
             Ok(scene) => scene,
-            Err(e) => return log::warn!("the movie {name} is not played: {e:#}"),
+            Err(e) => {
+                crate::parity::career_trace::record("movie_missing", serde_json::json!({"movie": name}));
+                return log::warn!("the movie {name} is not played: {e:#}");
+            }
         };
+        crate::parity::career_trace::record("movie_start", serde_json::json!({"movie": name, "player": "front_end"}));
         self.latch = true;
         self.screens.clear();
         self.stage = Stage::Movie { then };
@@ -35,8 +39,11 @@ impl Frontend {
         let skip = actions.just_pressed(Action::MenuAccept)
             || actions.just_pressed(Action::MenuStart)
             || actions.just_pressed(Action::MenuBack)
-            || actions.just_pressed(Action::Click);
+            || actions.just_pressed(Action::Click)
+            || crate::parity::career_trace::skip_cinematics();
         if host.scene.finished() || skip {
+            let how = if skip { "skipped" } else { "finished" };
+            crate::parity::career_trace::record("movie_end", serde_json::json!({"player": "front_end", "how": how}));
             self.end_movie(host, env);
         }
     }

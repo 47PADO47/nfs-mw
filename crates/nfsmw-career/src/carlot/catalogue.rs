@@ -129,10 +129,25 @@ impl LotCar {
     }
 }
 
-/// The offered cars in the lot at `stage` with their states, in catalogue order. Locked cars are listed (spec 1);
-/// cars that are not offered are left out.
+/// The offered cars in the lot at `stage` with their states, in the lot's order (spec section 1.2): `catalogue` is taken
+/// as the stable's slot order and sorted with the lot's sort (`order::lot_sort`), a car before another when its unlock
+/// rank is higher. The cars the stage lets the player buy come first and the locked ones follow, grouped by the
+/// Blacklist member whose defeat opens them. Locked cars are listed (spec 1); cars that are not offered are left out.
 pub fn listed(catalogue: &[LotCar], stage: u8) -> Vec<(&LotCar, LotState)> {
-    catalogue.iter().filter(|car| car.is_offered()).map(|car| (car, car.state_at(stage))).collect()
+    let mut cars: Vec<(&LotCar, LotState)> =
+        catalogue.iter().filter(|car| car.is_offered()).map(|car| (car, car.state_at(stage))).collect();
+    super::order::lot_sort(&mut cars, |(a, _), (b, _)| a.unlock_rank > b.unlock_rank);
+    cars
+}
+
+/// The Blacklist member whose defeat makes a car of `unlock_rank` available: the member one above the rank (beating member
+/// 15 sets the stage to 14, spec section 1). `None` for a rank with no such member (16 and above are available from the
+/// prologue, and rank 0 would need a member 1 that opens nothing).
+pub const fn unlocked_by(unlock_rank: u8) -> Option<u8> {
+    match unlock_rank {
+        1..=14 => Some(unlock_rank + 1),
+        _ => None,
+    }
 }
 
 /// The catalogue entry whose front-end key is `key`, if any.

@@ -19,7 +19,7 @@ pub mod reputation_overview;
 pub mod safehouse_menu;
 pub mod save;
 pub mod sms;
-pub mod sms_popup;
+pub mod sms_message;
 
 use super::logic::{Args, Cx, ScreenLogic};
 

@@ -36,6 +36,8 @@ impl WorldScene {
     /// The post-race screen's answer: run the race again, or end it. `false` when no race waits on the screen.
     pub(in crate::scenes::world) fn answer_race(&mut self, answer: RaceAnswer) -> bool {
         let Some(mut session) = self.race.take_if(|s| matches!(s.stage, Stage::PostRace { .. })) else { return false };
+        let line = serde_json::json!({"event": session.event, "answer": format!("{answer:?}")});
+        crate::parity::career_trace::record("race_answer", line);
         match answer {
             RaceAnswer::Restart => {
                 let again = (session.name.clone(), session.options);

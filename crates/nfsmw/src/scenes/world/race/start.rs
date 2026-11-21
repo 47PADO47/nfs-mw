@@ -135,7 +135,7 @@ impl WorldScene {
         let opponents: Vec<_> = people.iter().map(|seat| seat.opponent()).chain(race_opponents).collect();
         let pool = stock_pool(&self.dir);
         let has_road = self.traffic.is_some();
-        let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road && startable::runs_opponents(&race));
+        let mut plan = plan_racers(&race, &start, &opponents, &pool, has_road);
         if !options.career
             && split.is_none()
             && people.is_empty()
@@ -221,7 +221,12 @@ impl WorldScene {
         // the race's end (`docs/specs/career-regions.md` section 3.5).
         self.lift_region_gates();
         let walls = self.raise_race_walls(&race.barriers);
+        // The route and its shortcuts are searched with the walls up (they read them); an intro scene plays with them down.
         let route = self.build_race_route(&prepared.course, player_spawn);
+        let shortcuts = self.race_shortcuts(&race, route.as_deref());
+        let intro_nis = super::intro::has_intro_nis(&race.story, options.career);
+        let deferred_walls = if intro_nis { race.barriers.clone() } else { Vec::new() };
+        let walls = if intro_nis { self.lower_race_walls(walls) } else { walls };
         let kind = race.race_type.unwrap_or(RaceType::Sprint);
         let map_route = route.as_deref().and_then(|route| self.map_race_route(route, &prepared.course, kind));
         // A race a mod registered has no finish trigger in the install's data, so no flares.
@@ -263,16 +268,17 @@ impl WorldScene {
                 .post_race_activity
                 .and_then(|key| data.races.iter().find(|r| r.key == key))
                 .map(|r| r.name.clone()),
-            cash_value: options.cash.unwrap_or(p.cash_value),
+            cash_value: options.cash.unwrap_or_else(|| race.win_cash_value()),
             pool,
             challenge: None,
             heat_chase,
             walls,
+            deferred_walls,
             collisions: 0,
             origin: Origin { race: race.clone(), course: given_course },
             route,
             map_route,
-            shortcuts: Vec::new(),
+            shortcuts,
             restarted: false,
         });
         Ok(format!("{}: {} racer(s), getting to the grid", race.name, racers))
@@ -307,7 +313,7 @@ pub(super) fn start_spawn(start: &nfsmw_data::gameplay::Placement) -> Spawn {
 }
 
 /// The stock cars an opponent may drive when its character names none: the cars of the car lot.
-fn stock_pool(dir: &game_install::GameDir) -> Vec<String> {
+pub(super) fn stock_pool(dir: &game_install::GameDir) -> Vec<String> {
     let folders = nfsmw_data::car::list(dir);
     let on_disk = |name: &String| folders.iter().any(|f| f.eq_ignore_ascii_case(name));
     nfsmw_data::career_cars::load(dir)

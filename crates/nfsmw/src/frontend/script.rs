@@ -2,7 +2,10 @@
 //!
 //! The script replaces the real input and the real clock: every frame takes one step of 1/60 s. A button name
 //! presses it for 4 frames and releases it for 4 frames, `hold NAME SECONDS` keeps it down, `wait SECONDS`
-//! does nothing. `console COMMAND` runs a console command (`console story race 16.2.1`), to drive a world from a script.
+//! does nothing, `until SCREEN` waits (input released) until that screen file is on top. `console COMMAND` runs a
+//! console command (`console story race 16.2.1`), to drive a world from a script.
+//! `loop` repeats the steps after it for as long as the run lasts (`loop; wait 2; accept` presses accept every two
+//! seconds), for unattended runs that press through whatever screen comes up.
 
 use std::collections::VecDeque;
 
@@ -25,9 +28,15 @@ struct Step {
     text: Option<String>,
     /// A console command run on the frame this step starts on (`console COMMAND`), for scripts that drive the world.
     console: Option<String>,
+    /// `until SCREEN`: no input until this screen file is on top (`frames` then counts down the time limit), so a
+    /// script can follow a boot flow whose movies take a different number of frames on each run.
+    until: Option<String>,
 }
 
-/// The keys a script can press: the letters, Space, Enter, Numpad Enter and Escape (Space, Enter and Numpad Enter press Start for
+/// How long an `until` step waits for its screen before the script goes on anyway: two minutes of frames.
+const UNTIL_LIMIT: u32 = 7200;
+
+/// The keys a script can press: the letters, Space, Enter, Numpad Enter, Escape and Tab (the inbox in free roam) (Space, Enter and Numpad Enter press Start for
 /// the split-screen Press Start screens: the keyboard's, and the arrow block's).
 fn key(name: &str) -> Result<KeyCode, String> {
     const LETTERS: [KeyCode; 26] = [
@@ -68,13 +77,16 @@ fn key(name: &str) -> Result<KeyCode, String> {
         "Enter" => Ok(KeyCode::Enter),
         "NumpadEnter" => Ok(KeyCode::NumpadEnter),
         "Escape" => Ok(KeyCode::Escape),
-        other => Err(format!("unknown key {other:?} (a letter, Space, Enter, NumpadEnter or Escape)")),
+        "Tab" => Ok(KeyCode::Tab),
+        other => Err(format!("unknown key {other:?} (a letter, Space, Enter, NumpadEnter, Escape or Tab)")),
     }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct UiScript {
     steps: VecDeque<Step>,
+    /// The steps after a `loop` step: they run again each time the script runs out. Empty without a `loop`.
+    repeat: Vec<Step>,
     /// The key the last frame's step pressed, until the frontend takes it (`take_key`).
     key: Option<KeyCode>,
     /// Where the scripted pointer is, once a `pointer` step has run.
@@ -122,9 +134,11 @@ impl UiScript {
     pub fn parse(text: &str) -> Result<Self, String> {
         let mut steps = VecDeque::new();
         let mut device = None;
+        let mut repeat_from = None;
         for part in text.split([';', ',']).map(str::trim).filter(|p| !p.is_empty()) {
             let words: Vec<&str> = part.split_whitespace().collect();
             match words[..] {
+                ["loop"] if repeat_from.is_none() => repeat_from = Some(steps.len()),
                 ["device", "xbox"] => device = Some(crate::input::InputDevice::Xbox),
                 ["device", "keyboard"] => device = Some(crate::input::InputDevice::Keyboard),
                 ["wait", s] => steps.push_back(Step {
@@ -134,6 +148,7 @@ impl UiScript {
                     pointer: None,
                     text: None,
                     console: None,
+                    until: None,
                 }),
                 ["hold", name, s] => steps.push_back(Step {
                     mask: button(name)?,
@@ -142,6 +157,7 @@ impl UiScript {
                     pointer: None,
                     text: None,
                     console: None,
+                    until: None,
                 }),
                 ["key", name] => steps.push_back(Step {
                     mask: 0,
@@ -150,6 +166,7 @@ impl UiScript {
                     pointer: None,
                     text: None,
                     console: None,
+                    until: None,
                 }),
                 ["pointer", x, y] => {
                     let at = Vec2::new(number(x)?, number(y)?);
@@ -160,6 +177,7 @@ impl UiScript {
                         pointer: Some(at),
                         text: None,
                         console: None,
+                        until: None,
                     });
                 }
                 ["console", ref command @ ..] if !command.is_empty() => steps.push_back(Step {
@@ -169,6 +187,16 @@ impl UiScript {
                     pointer: None,
                     text: None,
                     console: Some(command.join(" ")),
+                    until: None,
+                }),
+                ["until", screen] => steps.push_back(Step {
+                    mask: 0,
+                    frames: UNTIL_LIMIT,
+                    key: None,
+                    pointer: None,
+                    text: None,
+                    console: None,
+                    until: Some(screen.to_owned()),
                 }),
                 ["type", text] => {
                     steps.push_back(Step {
@@ -178,6 +206,7 @@ impl UiScript {
                         pointer: None,
                         text: Some(text.to_owned()),
                         console: None,
+                        until: None,
                     });
                 }
                 [name] => {
@@ -188,13 +217,27 @@ impl UiScript {
                         pointer: None,
                         text: None,
                         console: None,
+                        until: None,
                     });
-                    steps.push_back(Step { mask: 0, frames: 4, key: None, pointer: None, text: None, console: None });
+                    steps.push_back(Step {
+                        mask: 0,
+                        frames: 4,
+                        key: None,
+                        pointer: None,
+                        text: None,
+                        console: None,
+                        until: None,
+                    });
                 }
                 _ => return Err(format!("cannot read the script step {part:?}")),
             }
         }
-        Ok(Self { steps, device, key: None, pointer: None, text: None, console: None })
+        let repeat: Vec<Step> = repeat_from.map_or_else(Vec::new, |from| steps.iter().skip(from).cloned().collect());
+        // A loop of nothing but zero-length steps would never let a frame go by.
+        if !repeat.is_empty() && repeat.iter().all(|step| step.frames == 0) {
+            return Err("the steps after loop take no time".into());
+        }
+        Ok(Self { steps, repeat, device, key: None, pointer: None, text: None, console: None })
     }
 
     /// The key the script pressed on the frame just stepped, if any. The frontend takes it once per frame.
@@ -217,8 +260,31 @@ impl UiScript {
         self.pointer
     }
 
+    /// The pad mask of the next frame with `top` the screen on top, or none when the script is over.
+    pub fn next_mask_on(&mut self, top: Option<&str>) -> Option<u32> {
+        if self.steps.is_empty() {
+            self.steps.extend(self.repeat.iter().cloned());
+        }
+        let step = self.steps.front_mut()?;
+        if let Some(screen) = &step.until {
+            let reached = top.is_some_and(|top| top.eq_ignore_ascii_case(screen));
+            step.frames = step.frames.saturating_sub(1);
+            if reached || step.frames == 0 {
+                if !reached {
+                    log::warn!("ui script: {screen} did not come up; the script goes on");
+                }
+                self.steps.pop_front();
+            }
+            return Some(0);
+        }
+        self.next_mask()
+    }
+
     /// The pad mask of the next frame, or none when the script is over.
     pub fn next_mask(&mut self) -> Option<u32> {
+        if self.steps.is_empty() {
+            self.steps.extend(self.repeat.iter().cloned());
+        }
         let step = self.steps.front_mut()?;
         let mask = step.mask;
         if let Some(key) = step.key {
@@ -241,7 +307,7 @@ impl UiScript {
     }
 
     pub fn is_over(&self) -> bool {
-        self.steps.is_empty()
+        self.steps.is_empty() && self.repeat.is_empty()
     }
 }
 
@@ -270,6 +336,21 @@ mod tests {
     }
 
     #[test]
+    fn the_steps_after_loop_repeat_for_ever() {
+        let mut s = UiScript::parse("accept; loop; wait 0.05; accept").unwrap();
+        let masks: Vec<u32> = (0..60).map_while(|_| s.next_mask()).collect();
+        assert_eq!(masks.len(), 60, "a looping script never runs out");
+        assert_eq!(&masks[..8], &[pad::ACCEPT, pad::ACCEPT, pad::ACCEPT, pad::ACCEPT, 0, 0, 0, 0]);
+        assert_eq!(&masks[8..19], &[0, 0, 0, pad::ACCEPT, pad::ACCEPT, pad::ACCEPT, pad::ACCEPT, 0, 0, 0, 0]);
+        assert_eq!(&masks[19..22], &[0, 0, 0], "the loop starts again at its wait");
+        assert!(!s.is_over());
+        assert!(UiScript::parse("loop; wait 0").is_err(), "a loop must take time");
+        let mut tail = UiScript::parse("wait 0.02; loop").unwrap();
+        while tail.next_mask().is_some() {}
+        assert!(tail.is_over(), "nothing after loop repeats nothing");
+    }
+
+    #[test]
     fn a_key_step_presses_once() {
         let mut s = UiScript::parse("key W; wait 0.05").unwrap();
         assert_eq!(s.next_mask(), Some(0));
@@ -277,7 +358,8 @@ mod tests {
         assert_eq!(s.take_key(), None, "taken once");
         assert_eq!(s.next_mask(), Some(0));
         assert_eq!(s.take_key(), None, "a wait presses nothing");
-        assert!(UiScript::parse("key Tab").unwrap_err().contains("Tab"));
+        assert_eq!(UiScript::parse("key Tab").unwrap().take_key(), None, "Tab is a key (the inbox)");
+        assert!(UiScript::parse("key Delete").unwrap_err().contains("Delete"));
     }
 
     #[test]
@@ -296,5 +378,13 @@ mod tests {
         assert!(UiScript::parse("jump").unwrap_err().contains("jump"));
         assert!(UiScript::parse("wait soon").is_err());
         assert!(UiScript::parse("").unwrap().is_over());
+    }
+    #[test]
+    fn until_holds_the_script_until_its_screen_is_on_top() {
+        let mut s = UiScript::parse("until MainMenu.fng; accept").unwrap();
+        assert_eq!(s.next_mask_on(None), Some(0));
+        assert_eq!(s.next_mask_on(Some("WS_MW_LS_Splash.fng")), Some(0));
+        assert_eq!(s.next_mask_on(Some("mainmenu.fng")), Some(0), "the screen came up: the wait ends");
+        assert_eq!(s.next_mask_on(Some("MainMenu.fng")), Some(pad::ACCEPT));
     }
 }

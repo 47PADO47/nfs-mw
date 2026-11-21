@@ -35,8 +35,9 @@ pub struct RacerSpawn {
     /// The grid slot in render space and its heading (radians from +X).
     pub spawn: Spawn,
     pub ai: AiVehicle,
-    /// The player's car, for matching.
+    /// The player's car, for matching: its performance and its nitrous.
     pub player: Performance,
+    pub player_nitrous: blackbox_driver::NitrousHardware,
     /// `MinimumAIPerformance`.
     pub bias: f32,
     pub base_skill: f32,
@@ -58,6 +59,8 @@ pub struct RaceDriving {
     /// -1 reverse, 0 neutral, 1 and up the forward gears.
     pub gear: i32,
     pub rpm: f32,
+    pub drive_torque: f32,
+    pub wheels_on_ground: u32,
     /// The speed the driver is asked for, m/s: its think's, or the recovery speed while it reverses.
     pub target_speed: f32,
     /// The character's skill, the catch-up offset added to it this tick, and the skill the driver uses (the sum, in 0..1).
@@ -68,6 +71,8 @@ pub struct RaceDriving {
     pub catch_up_force: f32,
     /// The racer moves on its off-world stand-in, not by physics: the controls are those of its last physics step.
     pub stand_in: bool,
+    /// The car's nitrous is burning.
+    pub nitrous: bool,
 }
 
 impl TrafficWorld {
@@ -112,7 +117,22 @@ impl TrafficWorld {
         nav.enable_trail(&self.network);
         // Action planning uses the native estimate; a physical launch trial includes delays absent from that curve.
         let own = measured::ai_performance_of_spec(&model.physics.spec, model.physics.tire_integration);
-        let mut state = RacerState::new(spec.id, own, spec.ai, spec.player, spec.bias, spec.base_skill, spec.speed);
+        let nos = &model.physics.spec.nos;
+        let own_nitrous = blackbox_driver::NitrousHardware { capacity: nos.nos_capacity, boost: nos.torque_boost };
+        let nitrous = blackbox_driver::NitrousLimits::matched(own_nitrous, &[spec.player_nitrous], spec.bias, false);
+        log::info!(
+            "race: racer {} nitrous own {:.2} s x{:.2}, player {:.2} s x{:.2}: usable {:.3} boost {:.3} bottle {:.2}",
+            spec.id,
+            own_nitrous.capacity,
+            own_nitrous.boost,
+            spec.player_nitrous.capacity,
+            spec.player_nitrous.boost,
+            nitrous.usable,
+            nitrous.boost,
+            nitrous.bottle_time
+        );
+        let mut state = RacerState::new(spec.id, own, spec.ai, spec.player, spec.bias, spec.base_skill, spec.speed)
+            .with_nitrous(nitrous);
         state.held = spec.held;
         let start = Start { stagger: spec.id as u32 % 8, speed: spec.speed, cruise: Cruise::default(), patrol: false };
         let ground = WorldGround { collision, surfaces };

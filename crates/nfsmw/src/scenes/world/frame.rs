@@ -10,6 +10,7 @@ impl WorldScene {
         let _span = bevy_log::info_span!("world::frame").entered();
         self.drawn_aspect = aspect;
         let lens = self.gameplay_lens(aspect);
+        self.record_nis_frame(&lens, aspect);
         let fog_end = self.fog_distance;
         let mut visible = std::mem::take(&mut self.visible);
         self.fill_view(&lens, super::split::Viewer::First, &mut visible);

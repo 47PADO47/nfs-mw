@@ -164,6 +164,8 @@ remaining clock, geometry, context and live-comparison limits.
 - [career-scripts.md](career-scripts.md) and [career-scripts-events.md](career-scripts-events.md): the compiled Lua state graphs (bins, prologue, boss races, final race, challenge ladder, speed traps).
 - [career-text.md](career-text.md) and [career-text-2.md](career-text-2.md): the language table side (rivals, labels, SMS ids, popups, shop unlock tiers).
 - [localization.md](localization.md): the game's language ids and files, how a language is chosen, and where every player-facing text comes from (game tables, the rewrite's catalogue, mods).
+- [fe-package-footer.md](fe-package-footer.md): the in-game screens' own footers (keyboard and pad copies), the dim panel
+  under screens opened over the game, the message screen's voice and scroll bar, the inbox key in free roam.
 - [career-phone.md](career-phone.md): the phone: SMS inbox slots and states, delivery rules, call voice, who sends which id.
 - [career-rapsheet.md](career-rapsheet.md) and [career-rapsheet-2.md](career-rapsheet-2.md): the rap sheet screens, ranks, history, end game.
 - [career-reputation-overview.md](career-reputation-overview.md): the Original look's Blacklist page behind the safe house item (rival panel, options, key 2).
@@ -226,7 +228,8 @@ and the non-delta channels ([eagl-animation-channels.md](eagl-animation-channels
 directory and the ICE camera sets. [NIS player](nis-player.md) and [NIS player, part 2](nis-player-2.md) cover how a
 scene starts, is placed, timed, skipped and ended, with its characters and camera. [NIS events](nis-events.md) and
 [NIS events, part 2](nis-events-2.md) cover the event sequences and the NIS audio stream. Its record is
-[../provenance/nis-player.md](../provenance/nis-player.md).
+[../provenance/nis-player.md](../provenance/nis-player.md). What the PC does with each scene event is in
+[NIS events, part 3](nis-events-3.md) ([../provenance/nis-events-pc.md](../provenance/nis-events-pc.md)).
 
 [Movie subtitles](subtitles.md) covers which file belongs to which movie, when a line shows and clears, and which
 objects draw it.

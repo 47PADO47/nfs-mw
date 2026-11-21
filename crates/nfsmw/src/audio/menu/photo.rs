@@ -23,7 +23,9 @@ pub(super) fn start_transition(audio: &mut Audio) {
         vec![crate::audio::WorldEffectAudio {
             effect: 0,
             zone: nfsmw_data::sound::CollisionZone::default(),
-            position: view.car_position,
+            // At the listener (`race-presentation-followup.md`): the moment is not positioned, and its level
+            // follows the distance to its point.
+            position: view.camera_position,
             magnitude: 1.0,
             moment: Some(blackbox_attrib::vlt_hash("game_camera")),
         }],
@@ -42,6 +44,10 @@ pub(super) fn take() -> bool {
 }
 
 impl MenuPlayer {
+    /// The shutter: misc sound 2, `FX_Camera` (`race-presentation-followup.md`). From install data, its graph starts
+    /// three voices of its one recording (1.44 s at 36 kHz, at 1.0, 1.07 and 0.5 of its rate, panned apart) and its
+    /// destroy node stops them, so the module is held until they have run out rather than released after its first
+    /// tick as a menu sound is.
     pub(super) fn start_photo(&mut self, audio: &mut Audio) -> Result<(), String> {
         let bank = "IG_GLOBAL/FX_Camera.abk";
         let class = "FX_Camera";
@@ -58,7 +64,15 @@ impl MenuPlayer {
             logical_ms: audio.trace.now_ms(),
             ..Default::default()
         });
-        self.active.push(Running { module, words, age: 0.0, released: false, group: Group::Sfx });
+        self.active.push(Running {
+            module,
+            words,
+            age: 0.0,
+            released: false,
+            group: Group::Sfx,
+            hold: true,
+            rap_sheet: false,
+        });
         Ok(())
     }
 }
@@ -91,14 +105,22 @@ mod tests {
             player.service(&mut audio, 0.0);
             assert_eq!(player.active.len(), 1, "authored camera class must load");
             let mut peak = 0.0_f32;
+            let mut last_heard = 0;
             for frame in 0..fps * 5 {
                 player.update(&mut audio, 1.0 / fps as f32);
                 let samples = (frame + 1) * 48000 / fps - frame * 48000 / fps;
                 for sample in audio.render_replay(samples) {
                     assert!(sample.is_finite());
                     peak = peak.max(sample.abs());
+                    if sample.abs() > 0.001 {
+                        last_heard = frame;
+                    }
                 }
             }
+            // The recording is 1.44 s long (2.9 s on its half-rate voice): a module released after its first tick
+            // stops it after about 17 ms.
+            let heard = last_heard as f32 / fps as f32;
+            assert!(heard > 1.2, "{fps} FPS: the shutter was cut after {heard:.3} s");
             assert!(peak > 0.0001, "{fps} FPS: no camera sound, peak={peak}");
             assert!(player.active.is_empty(), "{fps} FPS: camera sound did not complete");
         }

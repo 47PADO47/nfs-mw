@@ -30,6 +30,8 @@ fn opponent_row(racer: usize, position: [f32; 3], speed: f32, driving: Option<Ra
         steering: d.steering,
         gear: d.gear,
         rpm: d.rpm,
+        drive_torque: d.drive_torque,
+        wheels_on_ground: d.wheels_on_ground,
     });
     let driver = driving.map(|d| DriverRow {
         target_speed: d.target_speed,
@@ -38,6 +40,7 @@ fn opponent_row(racer: usize, position: [f32; 3], speed: f32, driving: Option<Ra
         skill: d.skill,
         catch_up_force: d.catch_up_force,
         stand_in: d.stand_in,
+        nitrous: d.nitrous,
     });
     SampleRow { racer, position, speed, controls, driver }
 }
@@ -51,7 +54,15 @@ impl WorldScene {
             // The autopilot's driver, while it has the car (`autopilot.rs`): no catch-up reaches the player's car.
             let driver = self.unattended.pilot.as_ref().filter(|_| self.unattended.engaged).map(|pilot| {
                 let (target_speed, base_skill, catch_up, skill) = pilot.trace_state();
-                DriverRow { target_speed, base_skill, catch_up, skill, catch_up_force: 0.0, stand_in: false }
+                DriverRow {
+                    target_speed,
+                    base_skill,
+                    catch_up,
+                    skill,
+                    catch_up_force: 0.0,
+                    stand_in: false,
+                    nitrous: false,
+                }
             });
             rows.push(SampleRow {
                 racer: 0,
@@ -63,6 +74,8 @@ impl WorldScene {
                     steering: sim.steering_input(),
                     gear: telemetry.gear,
                     rpm: telemetry.rpm,
+                    drive_torque: sim.drive_torque(),
+                    wheels_on_ground: telemetry.wheels_on_ground as u32,
                 }),
                 driver,
             });
@@ -139,12 +152,15 @@ mod tests {
             steering: -0.5,
             gear: 3,
             rpm: 6500.0,
+            drive_torque: 0.0,
+            wheels_on_ground: 4,
             target_speed: 52.0,
             base_skill: 0.375,
             catch_up: 0.25,
             skill: 0.625,
             catch_up_force: 0.0,
             stand_in,
+            nitrous: false,
         }
     }
 
@@ -156,9 +172,10 @@ mod tests {
             line,
             serde_json::json!({
                 "racer": 2, "position": [1.0, 2.0, 3.0], "speed": 40.0,
-                "controls": {"throttle": 0.75, "brake": 0.0, "steering": -0.5, "gear": 3, "rpm": 6500.0},
+                "controls": {"throttle": 0.75, "brake": 0.0, "steering": -0.5, "gear": 3, "rpm": 6500.0,
+                             "drive_torque": 0.0, "wheels_on_ground": 4},
                 "driver": {"target_speed": 52.0, "base_skill": 0.375, "catch_up": 0.25, "skill": 0.625,
-                           "catch_up_force": 0.0, "stand_in": false},
+                           "catch_up_force": 0.0, "stand_in": false, "nitrous": false},
             })
         );
         let emulated = serde_json::to_value(opponent_row(2, [0.0; 3], 1.0, Some(driving(true)))).unwrap();

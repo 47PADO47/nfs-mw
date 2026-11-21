@@ -92,7 +92,7 @@ pub struct AiCar {
     current: CarPose,
     /// The pose a NIS scene gives the car while it plays (`accessors.rs`); `None` draws the physics pose.
     nis_pose: Option<CarPose>,
-    nis_body_tilt: glam::Quat,
+    nis_look: accessors::NisLook,
     /// Physics steps since the car was placed.
     steps: u32,
     step_delta: f32,
@@ -250,7 +250,7 @@ impl AiCar {
             previous: pose,
             current: pose,
             nis_pose: None,
-            nis_body_tilt: glam::Quat::IDENTITY,
+            nis_look: accessors::NisLook::default(),
             steps: 0,
             step_delta: STEP,
             elapsed: 0.0,
@@ -316,7 +316,7 @@ impl AiCar {
 
     /// Advance the light bars by one tick, at the car's frame.
     pub fn step_lights(&mut self) {
-        let active = self.emergency_lights();
+        let active = self.shows_emergency();
         if let Some(lights) = &mut self.cop_lights {
             lights.step(self.step_delta, self.current.transform(), active);
         }
@@ -324,7 +324,7 @@ impl AiCar {
 
     /// The sprites of the light bars, for the effect layer.
     pub fn cop_particles(&self, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_render::TexturedEffect>) {
-        if !self.emergency_lights() {
+        if !self.shows_emergency() {
             return;
         }
         if let Some(lights) = &self.cop_lights {
@@ -431,9 +431,10 @@ impl AiCar {
                     &state,
                     neighbours,
                     (self.steps + self.stagger).is_multiple_of(4),
-                    match self.stand_in.active {
-                        true => 0.0,
-                        false => view.forward.y,
+                    racer::TankView {
+                        slope_forward_y: if self.stand_in.active { 0.0 } else { view.forward.y },
+                        tank: self.sim.telemetry().nos,
+                        held: self.controls.nos,
                     },
                 );
                 self.target = think.target;

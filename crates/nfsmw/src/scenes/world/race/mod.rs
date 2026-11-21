@@ -37,6 +37,7 @@ mod report;
 pub(in crate::scenes::world) mod reset;
 mod restart;
 pub(in crate::scenes::world) mod route;
+pub(in crate::scenes::world) mod scene_report;
 pub(in crate::scenes::world) mod scripted_chase;
 mod setup;
 #[cfg(test)]
@@ -215,6 +216,9 @@ pub(super) struct RaceSession {
     pub heat_chase: Option<heat::HeatChase>,
     /// The scenery groups the race's `Barriers` list switched on, put back when the race ends (`barriers.rs`).
     pub walls: barriers::RaceWalls,
+    /// The `Barriers` list of a race whose intro plays a NIS: switched on when the intro ends, as the original's
+    /// `StartRace` does after the intro (`docs/specs/race-wrongway.md`), so the walls are not in the scene.
+    pub deferred_walls: Vec<String>,
     /// How many times the player ran into traffic since GO, for the post-race statistics.
     pub collisions: u32,
     /// The race and course this session was started from, for a restart.
@@ -223,7 +227,7 @@ pub(super) struct RaceSession {
     pub route: Option<std::sync::Arc<blackbox_roads::Route>>,
     /// One lap of `route` for the Custom map, built with it (`route.rs`); `None` without a route.
     pub map_route: Option<crate::hud::RaceRouteHandle>,
-    /// The route's shortcuts, found when the racers go on the grid (`shortcuts.rs`).
+    /// The route's shortcuts, found at the start with the walls up (`shortcuts.rs`).
     pub shortcuts: Vec<shortcuts::Shortcut>,
     /// The session is a restart of a race that ran: the race goes back to its grid and counts down, without its intro
     /// (the restart path of the original enters the pre-race state, `docs/specs/race-wrongway.md` section 3).

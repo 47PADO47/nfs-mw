@@ -156,7 +156,7 @@ impl Slot {
             let levels = mixer.levels(index);
             let metres = view.distances(position)[1] as f32 / 100.0;
             let words = params::class_words(levels.volume, levels.pitch, levels.azimuth, metres, kind);
-            if !module.update(&mut DelayedSampler(audio, Group::Sfx, 0.0), frame.dt, &words) {
+            if !module.update(&mut DelayedSampler(audio, Group::World, 0.0), frame.dt, &words) {
                 attached.module = None;
             }
         }

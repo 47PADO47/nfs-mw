@@ -3,10 +3,10 @@
 use blackbox_attrib::vlt_hash;
 use game_install::GameDir;
 use nfsmw_career::blacklist::BinDef;
-use nfsmw_career::carlot::LotClass;
+use nfsmw_career::carlot::{LotClass, LotState};
 use nfsmw_career::milestones::speedtrap::def_for;
 use nfsmw_career::milestones::{MilestoneDef, StatType};
-use nfsmw_data::career_cars::{CarClass, CatalogueCar};
+use nfsmw_data::career_cars::{CarClass, CatalogueCar, Vehicle};
 use nfsmw_data::gameplay::{self, GameplayData, Race};
 use nfsmw_data::pursuit::{CareerHeat, HEAT_LEVELS};
 use nfsmw_data::rank_thresholds::{RankThresholds, STATISTICS, THRESHOLDS};
@@ -82,7 +82,16 @@ fn trap(key: u32, bin: u8, name: &str) -> gameplay::SpeedTrap {
 
 /// A car of the lot with every field the rules read.
 fn car(key: u32, name: Option<&str>, price: i32, unlock_rank: Option<u8>, class: Option<CarClass>) -> CatalogueCar {
-    CatalogueCar { key, name: name.map(str::to_owned), price, for_sale: true, unlock_rank, class, manufacturer: None }
+    CatalogueCar {
+        key,
+        name: name.map(str::to_owned),
+        price,
+        for_sale: true,
+        unlock_rank,
+        class,
+        manufacturer: None,
+        vehicle: None,
+    }
 }
 
 fn heat() -> CareerHeat {
@@ -231,6 +240,15 @@ fn a_car_takes_its_fields_and_the_name_hash_as_handle_and_vehicle_key() {
 }
 
 #[test]
+fn a_car_named_by_a_vehicle_takes_the_vehicles_key() {
+    let mut impreza = car(0x198C_8934, Some("imprezzawrx"), 42_000, Some(8), Some(CarClass::Japan));
+    impreza.vehicle = Some(Vehicle { key: vlt_hash("imprezawrx"), name: "imprezawrx".to_owned() });
+    let data = CareerData::from_parts(GameplayData::default(), &[impreza], None, None);
+    assert_eq!(data.cars[0].vehicle_key, vlt_hash("imprezawrx"));
+    assert_eq!(data.cars[0].handle, vlt_hash("imprezzawrx"));
+}
+
+#[test]
 fn a_car_without_name_rank_or_class_is_skipped_and_a_negative_price_is_zero() {
     let cars = [
         car(1, None, 100, Some(2), Some(CarClass::Japan)),
@@ -334,4 +352,67 @@ fn a_reused_route_keeps_its_own_event_in_the_blacklist() {
     let converted = CareerData::from_parts(gameplay, &[], None, None);
     assert_eq!(converted.bins[0].races, ["2.2.1.r"]);
     assert_eq!(converted.bins[0].rival_events, ["2.2.1"]);
+}
+
+/// The first car lot of the original, observed in the running game: 32 cars, buyable ones first, then by the Blacklist
+/// member whose defeat opens them (15 down to 3). `career-car-lot.md` section 1.2.
+const OBSERVED_FIRST_LOT: [&str; 32] = [
+    "is300",
+    "punto",
+    "cobaltss",
+    "gti",
+    "tt",
+    "a3_20t",
+    "eclipsegt",
+    "a4_32",
+    "supra",
+    "clio",
+    "rx8",
+    "cts",
+    "mustanggt",
+    "lancerevo8",
+    "sl500",
+    "gto",
+    "monaro",
+    "caymans",
+    "imprezzawrx",
+    "rx7",
+    "clk500",
+    "elise",
+    "db9",
+    "997s",
+    "viper",
+    "gallardo",
+    "911turbo",
+    "corvette_car",
+    "murcielago",
+    "fordgt",
+    "slr",
+    "carrera_gt",
+];
+
+/// The install test of the first car lot and the prologue's cash. Runs only with `--ignored` and `NFSMW_GAME_DIR` set to an
+/// unmodded install.
+#[test]
+#[ignore = "needs an unmodded game install; set NFSMW_GAME_DIR"]
+fn the_install_gives_the_observed_first_lot_and_a_prologue_worth_thirty_thousand() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("NFSMW_GAME_DIR")).expect("install");
+    let data = CareerData::load(&dir).expect("career data");
+    let rows = nfsmw_career::carlot::listed(&data.cars, 16);
+    let names: Vec<&str> = rows.iter().map(|(car, _)| car.name.as_str()).collect();
+    assert_eq!(names.len(), 32, "{names:?}");
+    assert_eq!(names[0], "is300", "the lot opens on row 1, the IS 300");
+    assert_eq!(names, OBSERVED_FIRST_LOT, "the lot's sort over the stable's order gives the observed list");
+    let buyable: Vec<&str> =
+        rows.iter().filter(|(_, state)| *state == LotState::Buyable).map(|(c, _)| c.name.as_str()).collect();
+    assert_eq!(buyable.len(), 4);
+    let impreza = data.cars.iter().find(|car| car.name == "imprezzawrx").expect("the Impreza");
+    assert_eq!(impreza.vehicle_key, vlt_hash("imprezawrx"), "the vehicle that names the car");
+
+    let cash: u32 = nfsmw_career::story::prologue::PROLOGUE_CHAIN
+        .iter()
+        .map(|event| data.gameplay.races.iter().find(|race| race_event_id(race) == *event).expect(event))
+        .map(|race| nfsmw_career::economy::cash::race_win_cash(race.win_cash_value()))
+        .sum();
+    assert_eq!(cash, 30_000);
 }

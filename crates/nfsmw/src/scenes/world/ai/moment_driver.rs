@@ -163,7 +163,7 @@ impl TrafficWorld {
                 &car,
                 neighbours,
                 state.ticks.is_multiple_of(4),
-                view.forward.y,
+                super::racer::TankView { slope_forward_y: view.forward.y, ..Default::default() },
             );
             state.request = DriveRequest { target: think.target, speed: think.speed, flags: DriveFlags::FULL };
         }
