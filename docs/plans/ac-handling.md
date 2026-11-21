@@ -5,6 +5,29 @@ An optional mod, `mods/ac-handling`, gives NFS:MW's own cars the feel of Assetto
 real slip curve, load sensitivity, thermal state, proper suspension and driver aids), switched on and tuned by the
 player. **Verdict: doable, in small stages, each leaving the game unchanged for anyone who does not turn it on.**
 
+## Status (2026-11-20)
+
+Built on one branch in one session, **tested with unit, loader and planar-scenario tests, never driven in the game**:
+
+| Stage | State | Notes |
+|---|---|---|
+| 0 | done | nine specs, a provenance record, a NOTICE credit; reviewed once for copied expression (one passage rewritten). No AC install on the build machine, so every AC-derived target is `unmeasured` and the bands are design values. |
+| 1 | done | `bb.handling` 1.0 tyre hook, `bb.vehicles` 1.3 `spec`. Deviations from the text below: **one call per wheel** (not a batch of four); the hook is a trait in `libs/blackbox-vehicle` that the facade adapts; the hook is accepted in both integration modes; no `PlayerCarChanged` event exists, the mod polls the spec `revision`; online refusal was added (it did not exist); `handling-probe` fixture has five variants but no `future-abi` one. |
+| 3, 4 | done in the host | hooks 1.1 (per axle, not per wheel) and 1.2 (pedals after input shaping, per-wheel brake demand, steering flag). |
+| 2 | done | `mods/ac-handling`: tyre model, wheel dynamics with substeps, parameter mapping, toggles, planar scenario tests against the design bands. |
+| 3, 4, 5 | done | suspension, aids (traction control, ABS, stability, bias), steering and thermal units, each switchable on its own; the force-feedback value is an accessor only (the game has no known output for it). |
+| 6 | partly | `docs/modding/ac-handling.md` and an example are written; presets cover every compound and car class of the mapping spec, not per-car data for the roster. Cops, traffic and racers stay on the built-in model. |
+
+Verified: `cargo fmt`, `clippy -D warnings`, `cargo xtask check` and `cargo test --workspace` (14,080 passed, 0 failed, 1,418
+ignored for lack of an install). Not verified: any of it in the running game, the hotkey and settings rows on screen, and
+every Assetto Corsa reference value (`unmeasured`).
+
+Findings that changed the specs: the wheel-inertia scale of 0.3 the first spec assumed makes the host drivetrain
+limit-cycle (stable from about 0.5; the default is 1.0), the per-car folder is `tuning/` (the host's `cars/` is a
+manifest folder), and the real hooks differ from the first sketch (see the ADR table). Open: the stability range was
+seen only at 60 Hz, and the host's online gating treats only a multiplayer **client** as online (a listen-server host
+was not checked).
+
 ## Why it is doable
 
 - Tyre forces come from one call site (`wheel_forces`, `libs/blackbox-vehicle/src/vehicle/wheels.rs`) that already picks

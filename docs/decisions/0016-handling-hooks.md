@@ -1,6 +1,7 @@
 # 0016 — Handling hooks: an optional, toggleable ac-handling mod
 
-- **Status:** proposed (2026-11-20). The owner has fixed three points: the goal is the *feel and handling* of
+- **Status:** proposed (2026-11-20); built on this branch the same day (stages 0 to 6 of the plan), not yet driven in the
+  game. The owner has fixed three points: the goal is the *feel and handling* of
   Assetto Corsa on NFS:MW's own cars (not AC cars); the work is a **mod the player switches on**, with its own
   toggles; and it must be **optional for contributors**: nobody needs an AC install or a checkout of another
   project to build, test or review it. Everything else here is a proposal.
@@ -27,8 +28,8 @@ anyone who works on something else having to know it exists?
 | Mod callbacks run on the main thread with a 2 ms budget; 5 faults quarantine a mod; gameplay interfaces are off online unless every peer enables mods. | ADR 0005 sections 3, 4, 6 | Hooks must be cheap, fall back to the built-in model on a fault, and be refused online. |
 | The only public AC re-implementation we know, rustyAC, is `GPL-3.0-or-later` and a 1:1 port of `acs.exe`. | its `LICENSING.md` | Nothing is copied or linked. It is a source for the spec step only, with credit in NOTICE. |
 
-Not verified: whether the vehicles that use the parity (`Reference`) integration mode may take a hook, and whether
-the engine tolerates a hook on every wheel of every vehicle at 144 Hz. Stage 1 of the plan answers both.
+Stage 1 answered the open question on the parity (`Reference`) mode (see section 2). Not verified: that the engine
+tolerates a hook at 144 Hz (the mod's stable wheel-inertia range was only observed at 60 Hz) and the real-game feel.
 
 ## Decision
 
@@ -49,12 +50,15 @@ Generic means it names no game and no AC: a mod may register any of three option
 
 | Hook | Version | Replaces | Host sends | Mod returns |
 |---|---|---|---|---|
-| `tyre` | 1.0 | the four tyre models of `wheels.rs` | wheel index, vehicle role, tick `dt`, vertical load, patch velocity (wheel frame), body speed, wheel spin, drive and brake torque at the hub, wheel radius and inertia, surface grip tag and multipliers, ambient and road temperature | mean longitudinal and lateral force, self-aligning torque over the tick, the new wheel spin, `traction`, `slip`, `slip_angle`, optional temperature for the HUD |
-| `suspension` | 1.1 (appended) | `spring_force` | travel, travel speed, side, load transfer inputs | force, camber (fed to the tyre hook) |
-| `controls` | 1.2 (appended) | nothing; it filters | raw pedals, steering, speed, slip state | filtered pedals, brake bias, steering |
+| `tyre` | 1.0 | the four tyre models of `wheels.rs` | wheel index, vehicle role, tick `dt`, vertical load, patch velocity (wheel frame), body speed, wheel spin, drive and brake torque at the hub, wheel radius and inertia, corner mass, surface grip multipliers, ambient and road temperature, camber (from 1.1) | mean longitudinal and lateral force, self-aligning torque over the tick, the new wheel spin, `traction`, `slip`, `slip_angle` |
+| `suspension` | 1.1 (appended) | `spring_force` | per axle: compression, compression speed, steer angle, body vertical acceleration, tyre lateral force, static load, `rest_travel_m` | per wheel: force on the body, tyre load, camber (fed to the tyre hook) |
+| `controls` | 1.2 (appended) | nothing; it filters | pedals after the host's input shaping, steering, speed, yaw rate, accelerations, last tick's per-wheel slip | filtered throttle, per-wheel brake demand, optional steering target |
 
-Rules that follow ADR 0005: size-prefixed `#[repr(C)]` tables, fixed-width fields, handles not pointers, batched
-arrays of four wheels per call, `catch_unwind` in the SDK trampoline, a layout snapshot test.
+Rules that follow ADR 0005: size-prefixed `#[repr(C)]` tables, fixed-width fields, handles not pointers, one call per
+wheel (per axle for the suspension, once per tick for the controls), `catch_unwind` in the SDK trampoline, a layout
+snapshot test. The built contract is [api-handling.md](../modding/api-handling.md),
+[api-handling-suspension.md](../modding/api-handling-suspension.md) and
+[api-handling-controls.md](../modding/api-handling-controls.md); where this table differs from them, they win.
 
 - **`handled` / `not handled`.** A hook answers per call. `not handled` (for a cop, a traffic car or a vehicle kind the
   mod has no data for) runs the built-in model for that wheel. A faulted or quarantined mod is `not handled` for good.
@@ -62,8 +66,11 @@ arrays of four wheels per call, `catch_unwind` in the SDK trampoline, a layout s
   the hub in as many substeps as it wants and returns the tick's mean forces and the new spin. The host writes the spin
   back, so the drivetrain sees it. Body, powertrain, steering and contacts stay at the tick rate.
 - **Per-car data without per-tick cost.** `bb.vehicles` 1.3 adds a read-only `spec` (mass, wheelbase, track, centre of
-  gravity, tyre size, power, gearing). The mod reads it on `PlayerCarChanged` and builds its parameter set once.
-- **Parity mode.** Hooks are ignored for a vehicle in the `Reference` integration mode unless stage 1 shows it is safe.
+  gravity, tyre size, power, gearing). The wire ABI has no `PlayerCarChanged` event, so the mod polls the spec's
+  `revision` (or the query's `vehicle_revision`) and rebuilds its parameter set once per change.
+- **Parity mode.** Built answer (stage 1): the hook is accepted in both integration modes, because every car built from
+  game data runs the `Reference` mode and refusing it would leave the seam unused. The rolling chassis, coasting tyres
+  and simple police tyres refuse it.
 
 ### 3. The mod
 
