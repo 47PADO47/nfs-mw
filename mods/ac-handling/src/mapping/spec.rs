@@ -127,9 +127,22 @@ impl CarSpec {
         [weight * self.front_weight_fraction / 2.0, weight * (1.0 - self.front_weight_fraction) / 2.0]
     }
 
-    /// A name for a car whose real name the host does not give: `spec-<mass kg>-<wheelbase cm>-<power kW>`, for example
-    /// `spec-1450-245-300`. It is the file name of the car's override (`cars/<name>.toml`).
+    /// The car id of parameter-mapping.md section 2.1: `spec-<kg>-<cm>-<kW>`, each rounded to the nearest integer (ties away from
+    /// zero), for example `spec-1450-245-300`. It is the file name of the car's override (`tuning/<id>.toml`). A field that is
+    /// not finite, a mass or wheelbase at or below 0 or a negative power give `spec-invalid`, and no file is looked up.
     pub fn key_name(&self) -> String {
-        format!("spec-{:.0}-{:.0}-{:.0}", self.mass_kg, self.wheelbase_m * 100.0, self.max_power_w / 1000.0)
+        let usable = self.mass_kg.is_finite()
+            && self.wheelbase_m.is_finite()
+            && self.max_power_w.is_finite()
+            && self.mass_kg > 0.0
+            && self.wheelbase_m > 0.0
+            && self.max_power_w >= 0.0;
+        if !usable {
+            return "spec-invalid".to_owned();
+        }
+        let mass = self.mass_kg.round() as i64;
+        let wheelbase = (self.wheelbase_m * 100.0).round() as i64;
+        let power = (self.max_power_w / 1000.0).round() as i64;
+        format!("spec-{mass}-{wheelbase}-{power}")
     }
 }

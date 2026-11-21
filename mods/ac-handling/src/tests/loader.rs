@@ -230,3 +230,83 @@ fn the_config_file_gives_the_first_values_and_rejects_mistakes_whole() {
     assert!(parse_config("substeps = 25").is_err());
     assert!(parse_config("preset = \"gold\"").is_err());
 }
+
+#[test]
+fn the_units_suspension_and_steering_tables_of_a_tuning_file() {
+    let file = parse_car_file(
+        "schema = 1\n[units]\naids = true\nsteering = true\ntc = 2\nabs = 3\nesc = 1\nbrake_bias_clicks = -3\n\
+         [suspension.front]\nk_w = 35000\nh_rc = 0.08\n[suspension.rear]\nk_arb = 9000\n[steering]\ndelta_max_deg = 35\ntheta_max_deg = 540\n",
+    )
+    .expect("valid");
+    assert_eq!((file.units.aids, file.units.steering, file.units.tc), (Some(true), Some(true), Some(2)));
+    assert_eq!(file.susp_front.k_w, Some(35000.0));
+    assert_eq!(file.susp_rear.k_arb, Some(9000.0));
+    assert_eq!(file.steering.delta_max_deg, Some(35.0));
+    let mapped = crate::mapping::map_car(
+        &crate::mapping::CarSpec::ref_sport(),
+        &PresetSet::builtin().expect("presets"),
+        &crate::mapping::MapOptions { car: Some(&file), forced: None },
+    );
+    assert_eq!(mapped.suspension[0].k_w, 35000.0);
+    assert_eq!(mapped.suspension[1].k_w, 28000.0, "the rear keeps its own default");
+    assert_eq!(mapped.suspension[1].k_arb, 9000.0);
+    assert_eq!(mapped.steering.delta_max_deg, 35.0);
+    assert!(mapped.units.aids && mapped.units.steering && mapped.units.suspension, "preset default, then the file");
+    assert_eq!(mapped.units.levels.tc, 2);
+}
+
+#[test]
+fn loader_mistake_in_the_new_tables() {
+    assert!(parse_car_file("schema = 1\n[units]\nmystery = true\n").is_err(), "an unknown unit key");
+    assert!(parse_car_file("schema = 1\n[units]\ntc = 6\n").expect_err("range").contains("tc"));
+    assert!(parse_car_file("schema = 1\n[units]\nesc = 5\n").is_err());
+    assert!(parse_car_file("schema = 1\n[units]\nbrake_bias_clicks = 21\n").is_err());
+    assert!(parse_car_file("schema = 1\n[suspension.front]\nk_w = 5\n").expect_err("range").contains("k_w"));
+    assert!(parse_car_file("schema = 1\n[suspension.front]\nmystery = 1\n").is_err());
+    assert!(parse_car_file("schema = 1\n[suspension.middle]\nk_w = 30000\n").is_err(), "only front and rear");
+    assert!(
+        parse_car_file("schema = 1\n[steering]\ndelta_max_deg = 60\n").expect_err("range").contains("delta_max_deg")
+    );
+    assert!(parse_car_file("schema = 1\n[steering]\nmystery = 1\n").is_err());
+    assert!(parse_car_file("schema = 1\n[steering]\ntau_f = nan\n").expect_err("nan").contains("finite"));
+    // A preset's [units] table is checked like a car file's; a class preset has none.
+    assert!(compound_error(&format!("{SPORT}[units]\ntc = 9\n")).contains("tc"));
+    assert!(compound_error(&format!("{SPORT}[units]\nmystery = 1\n")).contains("mystery"));
+    assert!(class_error(&format!("{SUPER}[units]\naids = true\n")).contains("[units]"));
+}
+
+#[test]
+fn every_key_set_has_defaults_inside_its_ranges() {
+    use crate::keys::{SteeringKeys, SuspensionKeys};
+    for key in SuspensionKeys::NAMES {
+        let (lo, hi) = SuspensionKeys::range(key).expect("a range");
+        for keys in [SuspensionKeys::default(), SuspensionKeys::rear()] {
+            let value = keys.get(key).expect("a default");
+            assert!((lo..=hi).contains(&value), "suspension {key} = {value}");
+        }
+    }
+    for key in SteeringKeys::NAMES {
+        let (lo, hi) = SteeringKeys::range(key).expect("a range");
+        let value = SteeringKeys::default().get(key).expect("a default");
+        assert!((lo..=hi).contains(&value), "steering {key} = {value}");
+    }
+    assert_eq!(Keys::default().inertia_scale, 1.0);
+}
+
+#[test]
+fn the_shipped_presets_carry_their_unit_defaults() {
+    let set = PresetSet::builtin().expect("presets");
+    for compound in Compound::ALL {
+        let units = &set.compound(compound).units;
+        assert_eq!(
+            (units.suspension, units.thermal, units.aids, units.steering),
+            (Some(true), Some(true), Some(false), Some(false))
+        );
+    }
+    let levels = |compound: Compound| {
+        let u = &set.compound(compound).units;
+        (u.tc, u.abs, u.esc)
+    };
+    assert_eq!(levels(Compound::Economy), (Some(3), Some(3), Some(2)));
+    assert_eq!(levels(Compound::Slick), (Some(0), Some(0), Some(0)));
+}

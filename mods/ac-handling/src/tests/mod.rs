@@ -1,9 +1,15 @@
 //! Unit tests: the test vectors of the specs, one file per spec, and the loaders and the switches.
 
+mod aids_vectors;
 mod control;
 mod loader;
+mod mapping_forced;
 mod mapping_vectors;
+mod steering_vectors;
+mod suspension_vectors;
+mod thermal_vectors;
 mod tyre_force_vectors;
+mod units;
 mod wheel_vectors;
 
 /// `|a - b| <= max(abs, rel * |b|)`, with a message that says what differed.

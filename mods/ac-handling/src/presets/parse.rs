@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use super::{CarClass, ClassPreset, Compound, CompoundPreset};
+use super::{CarClass, ClassPreset, Compound, CompoundPreset, UnitsTable};
 use crate::keys::{KeyTable, check};
 
 /// The schema version of every file.
@@ -20,6 +20,7 @@ struct Raw {
     tyre: Option<KeyTable>,
     mul: Option<KeyTable>,
     add: Option<KeyTable>,
+    units: Option<UnitsTable>,
 }
 
 /// A parsed preset file.
@@ -60,13 +61,18 @@ fn compound(raw: Raw) -> Result<Preset, String> {
     check("grip_slope", grip_slope, Some((0.0, 2.0)))?;
     let tyre = raw.tyre.unwrap_or_default();
     tyre.validate()?;
-    Ok(Preset::Compound(Box::new(CompoundPreset { compound, level_ref, grip_slope, tyre })))
+    let units = raw.units.unwrap_or_default();
+    units.validate()?;
+    Ok(Preset::Compound(Box::new(CompoundPreset { compound, level_ref, grip_slope, tyre, units })))
 }
 
 fn class(raw: Raw) -> Result<Preset, String> {
     let class = CarClass::parse(&raw.name).ok_or_else(|| format!("\"{}\" is not a class name", raw.name))?;
     if raw.tyre.is_some() {
         return Err("a class preset has no [tyre] table (use [mul] and [add])".to_owned());
+    }
+    if raw.units.is_some() {
+        return Err("a class preset has no [units] table".to_owned());
     }
     if raw.level_ref.is_some() || raw.grip_slope.is_some() {
         return Err("level_ref and grip_slope belong to a compound preset".to_owned());

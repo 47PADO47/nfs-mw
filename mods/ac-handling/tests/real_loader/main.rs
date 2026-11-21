@@ -10,6 +10,7 @@
 
 mod build;
 mod game;
+mod units;
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -63,7 +64,19 @@ fn the_mod_loads_with_the_model_off_and_adds_its_switches() {
     assert!(rig.game.hooks.borrow().is_empty(), "off by default: no hook is registered");
     let settings = rig.game.settings.borrow();
     let ids: Vec<&str> = settings.iter().map(|(id, _)| id.as_str()).collect();
-    assert_eq!(ids, ["ac_handling_enabled", "ac_handling_preset"]);
+    assert_eq!(
+        ids,
+        [
+            "ac_handling_enabled",
+            "ac_handling_preset",
+            "ac_handling_suspension",
+            "ac_handling_aids",
+            "ac_handling_steering",
+            "ac_handling_thermal",
+            "ac_handling_hud",
+            "ac_handling_device"
+        ]
+    );
     assert_eq!(rig.game.menus.borrow()[0].0, "ac_handling_grip");
     let hotkeys = rig.game.hotkeys.borrow();
     assert_eq!((hotkeys[0].0.as_str(), hotkeys[0].1.as_str()), ("ac_handling_toggle", "key:F1"));

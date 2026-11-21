@@ -50,7 +50,7 @@ impl Frame<'_> {
             fz: i.fz,
             sx,
             sy,
-            gamma: 0.0,
+            gamma: i.gamma,
             slide_speed,
             speed: self.speed,
             surf_lat: i.surf_lat,

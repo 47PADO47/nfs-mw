@@ -235,16 +235,6 @@ fn the_axle_bias_of_a_car_file_replaces_the_layout_default() {
 }
 
 #[test]
-fn the_preset_setting_forces_the_compound_over_the_car_file_and_the_grip_level() {
-    let file = parse_car_file("schema = 1\ncompound = \"road\"\n").expect("valid");
-    let options = MapOptions { car: Some(&file), forced: Some(Compound::Slick) };
-    let params = map_car(&CarSpec::ref_sport(), &presets(), &options);
-    assert_eq!(params.compound, Compound::Slick);
-    // The same formula as for an automatic choice: 1.60 + 1.00 * (1.0 - 1.55).
-    assert_close("mu_y0", params.front.mu_y0, 1.05, 1e-4, 1e-4);
-}
-
-#[test]
 fn a_car_with_unusable_figures_gets_the_defaults_of_the_spec() {
     let spec = CarSpec {
         peak_friction: [f64::NAN, 0.0],
@@ -272,16 +262,5 @@ fn the_classes_and_compounds_tile_the_grip_axis() {
             assert!((mu - before).abs() <= 0.05, "level {level}: {before} -> {mu}");
         }
         last = Some(mu);
-    }
-}
-
-#[test]
-fn the_shipped_presets_keep_the_hosts_wheel_inertia() {
-    // The spec's default is 0.3, which the planar car's targets assume; the presets carry 1.0 so the game's drivetrain stays
-    // stable (NOTES.md, spec question 1).
-    assert_eq!(crate::keys::Keys::default().inertia_scale, 0.3);
-    for compound in Compound::ALL {
-        let params = map_car(&CarSpec::ref_sport(), &presets(), &MapOptions { car: None, forced: Some(compound) });
-        assert_eq!(params.front.inertia_scale, 1.0, "{}", compound.name());
     }
 }

@@ -26,10 +26,10 @@ pub struct Pedals {
     pub steer: f64,
 }
 
-/// What the harness records after every tick.
+/// What the harness records after every tick (convention E: the state at the end of the tick, stamped with its end time).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sample {
-    /// Time at the start of the tick, s.
+    /// Time at the end of the tick, s.
     pub t: f64,
     /// Forward velocity of the body, m/s.
     pub vf: f64,
@@ -170,6 +170,7 @@ impl Planar {
                 surf_drive: 1.0,
                 surf_rolling: 1.0,
                 grip: 1.0,
+                gamma: 0.0,
                 loaded: loads[i] > 0.0,
             };
             let out = wheel_tick(self.params.axle(i), &mut self.wheels[i], &input, self.substeps)
@@ -185,10 +186,9 @@ impl Planar {
         sum_f -= 0.5 * RHO * s.drag_area_m2 * speed * self.vf;
         sum_r -= 0.5 * RHO * s.drag_area_m2 * speed * self.vr;
         let (vf, vr, r) = (self.vf, self.vr, self.r);
-        let t = self.time;
         self.vf += dt * (sum_f / m + r * vr);
         // The distance advances with the velocity of the end of the tick: this is the convention that reproduces the spec's
-        // distances (see NOTES.md, spec questions).
+        // distances (scenarios.md, convention E).
         self.dist += self.vf * dt;
         self.vr += dt * (sum_r / m - r * vf);
         self.r += dt * moment / iz;
@@ -196,7 +196,7 @@ impl Planar {
         self.ay = sum_r / m;
         self.time += dt;
         Sample {
-            t,
+            t: self.time,
             vf: self.vf,
             vr: self.vr,
             r: self.r,

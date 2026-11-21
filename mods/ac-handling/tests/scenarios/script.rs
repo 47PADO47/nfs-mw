@@ -66,15 +66,15 @@ pub fn run(car: &mut Planar, script: &Script, dt: f64) -> Run {
     Run { samples, starts }
 }
 
-/// The time a full-throttle run from rest takes to reach `v` m/s (`T_LEAD`, rounded to 0.01 s): the end time of the first tick
-/// whose speed is at least `v` (the convention that gives the spec's 4.98 s and 3.57 s).
+/// The time a full-throttle run from rest takes to reach `v` m/s (`T_LEAD`, rounded to 0.01 s): the stamp of the first sample
+/// whose speed is at least `v` (convention E).
 pub fn lead_time(make: impl Fn() -> Planar, dt: f64, v: f64) -> Option<f64> {
     let mut car = make();
     let full = Pedals { throttle: 1.0, ..Pedals::default() };
     for _ in 0..((30.0 / dt) as usize) {
         let sample = car.step(&full);
         if sample.speed() >= v {
-            return Some(((sample.t + dt) * 100.0).round() / 100.0);
+            return Some((sample.t * 100.0).round() / 100.0);
         }
     }
     None

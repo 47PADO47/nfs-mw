@@ -12,11 +12,17 @@ use blackbox_modding::host::{
     OptionSpec, Policy, RunMode, SettingHandler, SettingsBackend, TyreHook, VehicleSpecSheet, VehicleState,
     VehiclesBackend,
 };
+use blackbox_modding::host::{ControlsHook, SuspensionHook};
 
 use crate::build::{LINES, Scratch, install};
 
 pub struct Game {
     pub hooks: RefCell<Vec<(u64, TyreHook)>>,
+    pub suspension_hooks: RefCell<Vec<(u64, SuspensionHook)>>,
+    pub controls_hooks: RefCell<Vec<(u64, ControlsHook)>>,
+    pub suspension_calls: Cell<u32>,
+    pub controls_calls: Cell<u32>,
+    pub refuse_suspension: Cell<bool>,
     pub register_calls: Cell<u32>,
     pub online: Cell<bool>,
     pub spec_revision: Cell<u32>,
@@ -33,6 +39,11 @@ impl Game {
     pub fn new() -> Rc<Game> {
         Rc::new(Game {
             hooks: RefCell::default(),
+            suspension_hooks: RefCell::default(),
+            controls_hooks: RefCell::default(),
+            suspension_calls: Cell::new(0),
+            controls_calls: Cell::new(0),
+            refuse_suspension: Cell::new(false),
             register_calls: Cell::new(0),
             online: Cell::new(false),
             spec_revision: Cell::new(1),
@@ -89,6 +100,40 @@ impl HandlingBackend for Game {
 
     fn unregister_tyre(&self, _owner: &str, handle: u64) -> BackendResult<()> {
         let mut hooks = self.hooks.borrow_mut();
+        let index = hooks.iter().position(|(known, _)| *known == handle).ok_or(BB_ERR_STALE)?;
+        hooks.remove(index).1.retire();
+        Ok(())
+    }
+
+    fn register_suspension(&self, _owner: &str, hook: SuspensionHook) -> BackendResult<u64> {
+        self.suspension_calls.set(self.suspension_calls.get() + 1);
+        if self.online.get() || self.refuse_suspension.get() {
+            return Err(BB_ERR_DENIED);
+        }
+        let handle = 100 + u64::from(self.suspension_calls.get());
+        self.suspension_hooks.borrow_mut().push((handle, hook));
+        Ok(handle)
+    }
+
+    fn unregister_suspension(&self, _owner: &str, handle: u64) -> BackendResult<()> {
+        let mut hooks = self.suspension_hooks.borrow_mut();
+        let index = hooks.iter().position(|(known, _)| *known == handle).ok_or(BB_ERR_STALE)?;
+        hooks.remove(index).1.retire();
+        Ok(())
+    }
+
+    fn register_controls(&self, _owner: &str, hook: ControlsHook) -> BackendResult<u64> {
+        self.controls_calls.set(self.controls_calls.get() + 1);
+        if self.online.get() {
+            return Err(BB_ERR_DENIED);
+        }
+        let handle = 200 + u64::from(self.controls_calls.get());
+        self.controls_hooks.borrow_mut().push((handle, hook));
+        Ok(handle)
+    }
+
+    fn unregister_controls(&self, _owner: &str, handle: u64) -> BackendResult<()> {
+        let mut hooks = self.controls_hooks.borrow_mut();
         let index = hooks.iter().position(|(known, _)| *known == handle).ok_or(BB_ERR_STALE)?;
         hooks.remove(index).1.retire();
         Ok(())

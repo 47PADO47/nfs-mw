@@ -6,11 +6,13 @@
 
 mod car_file;
 mod parse;
+mod units;
 
 use std::path::Path;
 
 pub use car_file::{CarFile, parse_car_file};
 pub use parse::{Preset, parse_preset};
+pub use units::{UnitDefaults, UnitsTable};
 
 use crate::keys::KeyTable;
 
@@ -95,6 +97,8 @@ pub struct CompoundPreset {
     pub grip_slope: f64,
     /// The keys the preset sets.
     pub tyre: KeyTable,
+    /// Which optional units start on for a car on this compound.
+    pub units: UnitsTable,
 }
 
 /// A car class preset: `value = value * mul + add` for the keys it names.

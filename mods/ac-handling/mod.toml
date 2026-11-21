@@ -16,7 +16,7 @@ blackbox_modding = "0.1"
 supported = ["nfsmw"]
 
 [requires.interfaces]
-"bb.handling" = "1.0"
+"bb.handling" = "1.2"
 "bb.vehicles" = "1.3"
 
 [optional.interfaces]

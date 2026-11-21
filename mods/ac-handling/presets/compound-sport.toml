@@ -19,5 +19,14 @@ q_y = 1.2
 q_x = 1.4
 speed_sens = 0.0012
 relax_len = 0.34
-# The host's drivetrain is stable only with the wheel inertia its own tyres use: see NOTES.md, "Spec questions", item 1.
-inertia_scale = 1.0
+
+# Which optional units start on for a car on this compound, and the starting levels of the aids (used when the aids unit is on and
+# the player has not moved the slider). Design values.
+[units]
+suspension = true
+thermal = true
+aids = false
+steering = false
+tc = 1
+abs = 1
+esc = 0

@@ -2,8 +2,8 @@
 
 use serde::Deserialize;
 
-use super::{CarClass, Compound};
-use crate::keys::{BIAS_RANGE, KeyTable, check};
+use super::{CarClass, Compound, UnitsTable};
+use crate::keys::{BIAS_RANGE, KeyTable, SteeringTable, SuspensionTable, check};
 use crate::presets::parse::SCHEMA;
 
 /// The shape of a car file before its checks. The `[tyre]` table is read as a plain table so its `front` and `rear` children
@@ -16,6 +16,17 @@ struct Raw {
     class: Option<String>,
     axle_angle_bias_deg: Option<f64>,
     tyre: Option<toml::Table>,
+    units: Option<UnitsTable>,
+    suspension: Option<SuspensionFile>,
+    steering: Option<SteeringTable>,
+}
+
+/// The `[suspension]` table: one sub-table per axle.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SuspensionFile {
+    front: Option<SuspensionTable>,
+    rear: Option<SuspensionTable>,
 }
 
 /// A parsed and checked car file.
@@ -33,6 +44,14 @@ pub struct CarFile {
     pub front: KeyTable,
     /// `[tyre.rear]`: replaces the value on the rear axle only.
     pub rear: KeyTable,
+    /// `[units]`: which optional units start on for this car, and the aids' starting levels.
+    pub units: UnitsTable,
+    /// `[suspension.front]`: keys of the front axle's suspension.
+    pub susp_front: SuspensionTable,
+    /// `[suspension.rear]`: keys of the rear axle's suspension.
+    pub susp_rear: SuspensionTable,
+    /// `[steering]`: keys of the steering model.
+    pub steering: SteeringTable,
 }
 
 /// Parse and check the text of a car file. The error is one line naming the key and the reason.
@@ -53,6 +72,20 @@ pub fn parse_car_file(text: &str) -> Result<CarFile, String> {
         check("axle_angle_bias_deg", bias, Some(BIAS_RANGE))?;
     }
     let mut file = CarFile { compound, class, bias: raw.axle_angle_bias_deg, ..CarFile::default() };
+    if let Some(units) = raw.units {
+        units.validate()?;
+        file.units = units;
+    }
+    if let Some(suspension) = raw.suspension {
+        file.susp_front = suspension.front.unwrap_or_default();
+        file.susp_rear = suspension.rear.unwrap_or_default();
+        file.susp_front.validate_keys().map_err(|reason| format!("[suspension.front]: {reason}"))?;
+        file.susp_rear.validate_keys().map_err(|reason| format!("[suspension.rear]: {reason}"))?;
+    }
+    if let Some(steering) = raw.steering {
+        steering.validate_keys().map_err(|reason| format!("[steering]: {reason}"))?;
+        file.steering = steering;
+    }
     let Some(mut tyre) = raw.tyre else {
         return Ok(file);
     };

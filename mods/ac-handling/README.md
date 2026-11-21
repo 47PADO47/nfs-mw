@@ -1,18 +1,21 @@
 # ac-handling
 
-An Assetto Corsa-style handling mod for the cars of NFS: Most Wanted. It replaces how the **player's tyres** turn load, slip
-and torque into forces (a slip curve with a peak and a fall-off, load sensitivity, one grip budget for the two directions, a
-wheel integrated in substeps) and targets the **feel** of Assetto Corsa. It is off until you switch it on, it is an offline
-mod, and every other vehicle (cops, traffic, racers) keeps the built-in tyres.
+An Assetto Corsa-style handling mod for the cars of NFS: Most Wanted. It replaces how the **player's tyres** turn load, slip and
+torque into forces (a slip curve with a peak and a fall-off, load sensitivity, one grip budget for the two directions, a wheel
+integrated in substeps) and targets the **feel** of Assetto Corsa. On top of the tyre model it has four optional units, each switched on
+its own: **suspension** (a hub with its own mass, anti-roll bar, camber), **thermal** (tyre temperature, pressure and wear), **driver aids**
+(traction control, ABS, stability control, brake bias) and **steering** (speed-sensitive lock, rate limit). It is off until you switch it
+on, it is an offline mod, and every other vehicle (cops, traffic, racers) keeps the built-in model.
 
 > **An independent project, not affiliated with or endorsed by Kunos Simulazioni or 505 Games.** The model is written from our
 > own specs ([docs/specs/ac-handling/](../../docs/specs/ac-handling/README.md)): public vehicle-dynamics literature and our own
 > design values. **No game file and no foreign code is in this mod**, and nothing in it needs an Assetto Corsa install. "Targets
-> the feel" means the scalars of [targets.md](../../docs/specs/ac-handling/targets.md) are design values, not measurements of
-> the other game; every Assetto Corsa reference there is still `unmeasured`.
+> the feel" means the scalars of [targets.md](../../docs/specs/ac-handling/targets.md) are design values, **not measurements of the
+> other game**; every Assetto Corsa reference there is still `unmeasured`, and how it feels in the real game has not been tested yet.
 
-Decision: [ADR 0016](../../docs/decisions/0016-handling-hooks.md). Plan: [plans/ac-handling.md](../../docs/plans/ac-handling.md)
-(this is stage 2, "mod v0"). The host interface it uses: [api-handling.md](../../docs/modding/api-handling.md).
+The full user and author page, with every toggle, slider, console subcommand and the tuning schema, is
+[docs/modding/ac-handling.md](../../docs/modding/ac-handling.md). Decision: [ADR 0016](../../docs/decisions/0016-handling-hooks.md). Plan:
+[plans/ac-handling.md](../../docs/plans/ac-handling.md). Host interface: [api-handling.md](../../docs/modding/api-handling.md).
 
 ## Using it
 
@@ -20,71 +23,46 @@ Decision: [ADR 0016](../../docs/decisions/0016-handling-hooks.md). Plan: [plans/
 cargo install-mod ac-handling          # builds the mod (release) and copies it into the game's mods folder
 ```
 
-Then start the game and switch it on in any of four ways (they all do the same thing, at the next frame):
+Then switch it on: the **AC-style handling** toggle (Options, Gameplay), the hotkey **F1**, the console command `ac-handling on`, or
+`enabled = true` in `config.toml`. The units have a list each in the same settings section (`Preset default`, `On`, `Off`) and a console
+subcommand (`ac-handling suspension off`, `ac-handling aids on`, `ac-handling tc 3`, `ac-handling status`, ...). The sliders (grip scale,
+traction control, ABS, stability control, brake bias, steering sensitivity, force-feedback gain and curve) are on the Mods page.
 
-| Switch | Where | Notes |
-|---|---|---|
-| **AC-style handling** (toggle) | Options, Gameplay, section "AC-style handling" | the master switch, **off** by default; the game saves it |
-| **AC-style tyre preset** (list) | same section | `Automatic` (the car's grip picks the compound), `Economy`, `Road`, `Sport`, `Semi-slick`, `Slick`: forces that compound for every car |
-| **AC-style handling: grip scale** (slider) | Options, Mods page | 0.5 to 1.5, default 1.0; multiplies the grip of every tyre |
-| Hotkey **F1** | in the game | flips the master switch (the default binding; the hotkey is registered through `bb.input`) |
-| Console command `ac-handling` (F12) | the console | `ac-handling on`, `off`, `status`, `preset <auto\|economy\|road\|sport\|semislick\|slick>` |
-
-Switching on registers the tyre hook; switching off unregisters it and the built-in tyres run again. Either way the change lands
-on a frame boundary, and the tyres start cold (fresh slip state) every time. When the game refuses the hook (an online session:
-the host does not allow hooks online) the mod says so on the screen and in the log, and stays off. If you flip the model with the
-hotkey or the console, the settings row keeps showing what you last set there; the console command `status` always tells the truth.
-
-The model handles **only the player's car** (the vehicle role 0). Cops, traffic and racers keep the built-in tyres: their balance
-was tuned for arcade grip, and a high-grip player against arcade cops is a design question, not an engine one.
-
-## What it does to a car
-
-When the player's car changes (the spec revision of `bb.vehicles` changes), the mod reads the car's numbers once and builds the
-tyre parameters of each axle: the car's grip level picks a **compound class** (economy to slick), its size picks a **car class**
-(compact, sport, super, heavy), and a per-car file can override anything ([Tuning](#tuning)). The log says what it chose, once per car:
-
-```
-ac-handling: car "spec-1450-245-300": L=1.00 -> sport/sport, 3698 N front, 3414 N rear per wheel, no cars/spec-1450-245-300.toml
-```
-
-The host does not report a car's name through `bb.vehicles`, so the mod names a car by its numbers: `spec-<mass kg>-<wheelbase cm>-<power kW>`.
-That name is the file name of the car's override (`cars/<name>.toml`).
+**Master off registers nothing.** With the master on, the tyre hook is in; the suspension hook only while the suspension unit is on; the
+controls hook only while the aids or the steering unit is on. Defaults of the shipped presets: suspension and thermal on, aids and steering off.
+When the game refuses a hook (an online session) the mod says so and that hook stays off.
 
 ## Tuning
 
 | File | What |
 |---|---|
-| `presets/compound-<name>.toml` | one per compound class (`economy`, `road`, `sport`, `semislick`, `slick`): the tyre numbers of the compound |
+| `presets/compound-<name>.toml` | one per compound class (`economy`, `road`, `sport`, `semislick`, `slick`): the tyre numbers, and the `[units]` defaults |
 | `presets/class-<name>.toml` | one per car class (`compact`, `sport`, `super`, `heavy`): multipliers and additions on top of the compound |
-| `cars/<name>.toml` | an override for one car: forces a compound or class, sets the axle bias, replaces any key for both axles (`[tyre]`) or one (`[tyre.front]`, `[tyre.rear]`) |
-| `config.toml` | the first values of the settings: `enabled`, `preset`, `grip_gain`, `substeps` (0 is automatic) |
+| `tuning/<id>.toml` | an override for one car, named by its id `spec-<kg>-<cm>-<kW>` (the log prints it): compound, class, axle bias, tyre keys, `[units]`, `[suspension.front\|rear]`, `[steering]` |
+| `config.toml` | the first values of the settings |
 
-The shipped presets are also built into the library, so the mod works with an empty `presets/` folder; a file in the folder that
-fails to parse or leaves a range is rejected whole with one line in the log, and the built-in copy of that file is used. The
-schema, every key, its range and the order the layers combine in are in
-[parameter-mapping.md](../../docs/specs/ac-handling/parameter-mapping.md) sections 4 and 5. Every number is a design value: the
-presets and the car files are the main tuning surface. Do not look for `cars/` in the content sense of the modding API: see
-[NOTES.md](NOTES.md) (spec question 3).
+The shipped presets are also built into the library; a file that fails to parse or leaves a range is rejected whole with one line in the log.
+The override folder is `tuning/`, not `cars/` (the host reads a mod's `cars/` as car manifests).
 
 ## Building and testing
 
 ```sh
-cargo test -p ac-handling              # the pure model, the specs' test vectors, the scenarios, the real loader
+cargo test -p ac-handling              # the test vectors of every spec, the scenarios, the real loader
 cargo clippy -p ac-handling --all-targets -- -D warnings
 ```
 
 No game and no install are needed. The tests are:
 
-- `src/tests/`: every test vector of the specs (tyre force T1 to T14, wheel dynamics W1 to W10 with the substep convergence,
-  parameter mapping with its four cars and spot checks), the loaders (one test per class of TOML mistake) and the switches;
-- `tests/scenarios/`: the planar reference car of the scenarios spec runs the six scenarios and checks the scalars against the
-  bands of `targets.md`; a row whose reference is `unmeasured` is skipped with a printed reason (`-- --nocapture` shows the report);
-- `tests/real_loader/`: builds the library with cargo, loads it with the real loader against a fake game, presses the hotkey,
-  runs the console command, and drives a real vehicle with the hook.
+- `src/tests/`: every test vector of the specs (tyre force T1 to T14, wheel dynamics W1 to W10, parameter mapping with its forced-compound
+  table and car ids, tyre-thermal T1 to T12, suspension V1 to V17, aids TC/ABS/BIAS/ESC, steering S1 to S10 and F1 to F6), the loaders (one test
+  per class of TOML mistake), and the switches and units;
+- `tests/scenarios/`: the planar reference car of the scenarios spec (convention E) runs the six scenarios, S2t, the 11-rung S5 ladder, the inertia
+  sweep and the compound tables, against `targets.md`; a row whose reference is `unmeasured` is skipped with a printed reason;
+- `tests/real_loader/`: builds the library with cargo, loads it with the real loader against a fake game, presses the hotkey, runs the console
+  command, toggles every unit and drives a real vehicle with all three hooks.
 
-**Windows dev builds.** The repository's dev profile compiles with Cranelift, which cannot catch a panic inside a mod DLL on
-Windows (the SDK's guard that turns a panic into an error status needs unwinding). Build the mod with LLVM or in release:
+**Windows dev builds.** The repository's dev profile compiles with Cranelift, which cannot catch a panic inside a mod DLL on Windows (the
+SDK's guard needs unwinding). Build the mod with LLVM or in release:
 
 ```sh
 cargo build -p ac-handling --config profile.dev.codegen-backend="llvm"      # or: cargo build -p ac-handling --release
@@ -94,7 +72,6 @@ cargo build -p ac-handling --config profile.dev.codegen-backend="llvm"      # or
 
 ## Where it stands
 
-Stage 2 ([the plan](../../docs/plans/ac-handling.md)): the tyre model, the master toggle, the preset, the grip scale, the hotkey
-and the command. Suspension, driver aids, steering feel and the thermal model are later stages; the seams for them are described in
-[NOTES.md](NOTES.md). Gate A is the owner's drive: the numbers pass their bands, but whether it *feels* right is not something a
-test can say.
+Stages 2 to 5 of [the plan](../../docs/plans/ac-handling.md) are in code: the tyre model, the suspension, the aids and steering, the thermal
+state. The numbers pass their bands and reproduce every test vector; whether it **feels** right in the real game is the owner's drive (gates A
+and B) and no test can say. Open questions and decisions are in [NOTES.md](NOTES.md).

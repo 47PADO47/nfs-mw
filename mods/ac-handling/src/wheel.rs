@@ -38,6 +38,8 @@ pub struct WheelInput {
     pub surf_rolling: f64,
     /// The total grip multiplier: grip gain times tyre condition times the thermal factor.
     pub grip: f64,
+    /// Camber in the wheel frame's own sign (the top towards +x is positive), held for the tick; 0 without a suspension hook.
+    pub gamma: f64,
     /// Whether the wheel presses on the ground.
     pub loaded: bool,
 }
@@ -59,6 +61,7 @@ impl Default for WheelInput {
             surf_drive: 1.0,
             surf_rolling: 1.0,
             grip: 1.0,
+            gamma: 0.0,
             loaded: true,
         }
     }
@@ -81,6 +84,10 @@ pub struct WheelOutput {
     pub slip: f64,
     /// The relaxed lateral slip as an angle, in turns.
     pub slip_angle: f64,
+    /// Mean over the substeps of `|fx * vsx| + |fy * vsy|`, W: the sliding power the thermal model heats the tyre with.
+    pub p_slide: f64,
+    /// Mean over the substeps of the speed of the rubber over the road, m/s.
+    pub v_slide: f64,
 }
 
 /// The per-wheel state kept between ticks (section 3).
@@ -126,13 +133,20 @@ pub fn valid(i: &WheelInput) -> bool {
         i.surf_drive,
         i.surf_rolling,
         i.grip,
+        i.gamma,
     ];
     if numbers.iter().any(|value| !value.is_finite()) {
         return false;
     }
     // A tick that comes from `f32` is a little above 0.1 when the host says 0.1 s.
     let longest = MAX_DT * (1.0 + 1.0e-6);
-    i.dt > 0.0 && i.dt <= longest && i.radius >= 0.05 && i.inertia > 0.0 && i.corner_mass > 0.0 && i.fz >= 0.0
+    i.dt > 0.0
+        && i.dt <= longest
+        && i.radius >= 0.05
+        && i.inertia > 0.0
+        && i.corner_mass > 0.0
+        && i.fz >= 0.0
+        && i.gamma.abs() <= 1.0
 }
 
 /// The number of substeps of a tick of `dt` seconds; `setting` 0 is automatic, 1 to 24 overrides it (section 4.9).
@@ -170,9 +184,13 @@ pub fn tick_n(p: &TyreParams, state: &mut WheelState, i: &WheelInput, n: u32) ->
     let mut spin = i.spin;
     let first = frame.force_at(state.sx_r, state.sy_r, spin);
     let mut sum = ForceOut { fx: first.fx * 0.5, fy: first.fy * 0.5, mz: first.mz * 0.5, n: 0.0 };
+    let (mut p_slide, mut v_slide) = (0.0, 0.0);
     for k in 1..=n {
         let (new_spin, end) = frame.step(state, spin);
         spin = new_spin;
+        let slide_x = i.radius * spin - i.vx;
+        p_slide += (end.fx * slide_x).abs() + (end.fy * i.vy).abs();
+        v_slide += slide_x.hypot(i.vy);
         let weight = if k == n { 0.5 } else { 1.0 };
         sum.fx += weight * end.fx;
         sum.fy += weight * end.fy;
@@ -189,6 +207,8 @@ pub fn tick_n(p: &TyreParams, state: &mut WheelState, i: &WheelInput, n: u32) ->
         traction,
         slip: i.radius * spin - i.vx,
         slip_angle: state.sy_r.atan() / std::f64::consts::TAU,
+        p_slide: p_slide / count,
+        v_slide: v_slide / count,
     })
 }
 

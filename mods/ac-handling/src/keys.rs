@@ -1,30 +1,36 @@
-//! The numeric keys of a tyre (docs/specs/ac-handling/parameter-mapping.md section 5.1): one table of name, default and range
-//! that generates the parameter struct, the TOML table that sets any of them, and the lookups by name that the class
-//! multipliers and the car overrides need.
+//! The numeric keys of the model (docs/specs/ac-handling/parameter-mapping.md section 5.1): one table of name, default and range
+//! per key set that generates the parameter struct, the TOML table that sets any of them, and the lookups by name that the class
+//! multipliers and the per-car overrides need. Three sets use it: the tyre ([`Keys`]), the suspension of one axle
+//! ([`SuspensionKeys`], suspension.md section 5) and the steering ([`SteeringKeys`], steering.md section 5).
 
 use serde::Deserialize;
 
 /// The range of `axle_angle_bias_deg`, the one key that is not a plain tyre number (it splits the peak angle between the axles).
 pub const BIAS_RANGE: (f64, f64) = (0.0, 8.0);
 
+/// Define a key set: the struct of `f64` values, its defaults, the by-name lookups, and the TOML table of optional values.
+/// `extra` names fields of the table that are not keys of the struct (the axle bias).
 macro_rules! define_keys {
-    ($( $name:ident = $default:expr, $lo:expr, $hi:expr; )*) => {
-        /// Every tuning number of one tyre, with the default of a missing key.
+    (
+        $keys:ident, $table:ident, [$($extra:ident),*];
+        $( $name:ident = $default:expr, $lo:expr, $hi:expr; )*
+    ) => {
+        /// Every tuning number of one set, with the default of a missing key.
         #[derive(Debug, Clone, PartialEq)]
-        pub struct Keys {
+        pub struct $keys {
             $(
                 #[doc = concat!("`", stringify!($name), "` (range ", stringify!($lo), " to ", stringify!($hi), ").")]
                 pub $name: f64,
             )*
         }
 
-        impl Default for Keys {
+        impl Default for $keys {
             fn default() -> Self {
-                Keys { $($name: $default,)* }
+                $keys { $($name: $default,)* }
             }
         }
 
-        impl Keys {
+        impl $keys {
             /// The names of the keys, in the order of the table.
             pub const NAMES: &'static [&'static str] = &[$(stringify!($name)),*];
 
@@ -51,22 +57,34 @@ macro_rules! define_keys {
                     _ => None,
                 }
             }
+
+            /// Keep every key inside its range.
+            pub fn clamp_ranges(&mut self) {
+                $( self.$name = self.$name.clamp($lo, $hi); )*
+            }
+
+            /// Set every key a table names.
+            pub fn apply(&mut self, table: &$table) {
+                $( if let Some(value) = table.$name { self.$name = value; } )*
+            }
         }
 
         /// A TOML table of keys: any subset of them, nothing else (an unknown key is an error).
         #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
         #[serde(deny_unknown_fields)]
-        pub struct KeyTable {
+        pub struct $table {
             $(
                 #[doc = concat!("`", stringify!($name), "`.")]
                 pub $name: Option<f64>,
             )*
-            /// `axle_angle_bias_deg`: only a compound preset's `[tyre]` table may carry it.
-            pub axle_angle_bias_deg: Option<f64>,
+            $(
+                #[doc = concat!("`", stringify!($extra), "`: not a key of the set; the table that allows it says so.")]
+                pub $extra: Option<f64>,
+            )*
         }
 
-        impl KeyTable {
-            /// The keys this table sets, as name and value (the axle bias is not among them: read it with the field).
+        impl $table {
+            /// The keys this table sets, as name and value (the extra fields are not among them: read them directly).
             pub fn entries(&self) -> Vec<(&'static str, f64)> {
                 let mut out = Vec::new();
                 $(
@@ -76,11 +94,20 @@ macro_rules! define_keys {
                 )*
                 out
             }
+
+            /// Check every key this table sets: finite and inside its range. The error names the key and the reason.
+            pub fn validate_keys(&self) -> Result<(), String> {
+                for (key, value) in self.entries() {
+                    check(key, value, $keys::range(key))?;
+                }
+                Ok(())
+            }
         }
     };
 }
 
 define_keys! {
+    Keys, KeyTable, [axle_angle_bias_deg];
     mu_y0 = 1.20, 0.6, 2.2;
     mu_x_ratio = 1.10, 0.8, 1.4;
     exp_y = 0.85, 0.6, 1.0;
@@ -111,15 +138,81 @@ define_keys! {
     rr_c2 = 1.5e-6, 0.0, 1.0e-5;
     air_drag_nms = 0.05, 0.0, 1.0;
     stick_cap = 0.5, 0.1, 1.0;
-    inertia_scale = 0.3, 0.05, 2.0;
+    inertia_scale = 1.0, 0.05, 2.0;
+}
+
+// The suspension of one axle: the front defaults of suspension.md section 5 (the rear differs in `SuspensionKeys::rear`).
+define_keys! {
+    SuspensionKeys, SuspensionTable, [];
+    m_u = 38.0, 15.0, 60.0;
+    k_w = 30000.0, 10000.0, 200000.0;
+    k2 = 0.0, 0.0, 5.0e6;
+    k_t = 250000.0, 150000.0, 350000.0;
+    c_t = 200.0, 0.0, 800.0;
+    c_bs = 1900.0, 200.0, 12000.0;
+    c_bf = 700.0, 200.0, 12000.0;
+    c_rs = 3800.0, 200.0, 16000.0;
+    c_rf = 1400.0, 200.0, 16000.0;
+    v_kb = 0.15, 0.05, 0.5;
+    v_kr = 0.20, 0.05, 0.5;
+    x_up = 0.060, 0.01, 0.15;
+    x_dn = 0.070, 0.01, 0.15;
+    k_bs = 500000.0, 1.0e5, 2.0e6;
+    k_arb = 20000.0, 0.0, 80000.0;
+    g_t = 0.40, 0.0, 1.0;
+    gamma0 = -0.035, -0.10, 0.05;
+    kappa = 0.10, 0.0, 0.3;
+    h_rc = 0.06, -0.1, 0.4;
+}
+
+impl SuspensionKeys {
+    /// The rear axle's defaults (suspension.md section 5).
+    pub fn rear() -> SuspensionKeys {
+        SuspensionKeys {
+            k_w: 28000.0,
+            c_bs: 1600.0,
+            c_bf: 600.0,
+            c_rs: 3200.0,
+            c_rf: 1200.0,
+            k_arb: 12000.0,
+            g_t: 0.30,
+            gamma0: -0.026,
+            kappa: 0.0,
+            h_rc: 0.12,
+            ..SuspensionKeys::default()
+        }
+    }
+}
+
+// The steering (steering.md section 5): angles in degrees here, the model converts.
+define_keys! {
+    SteeringKeys, SteeringTable, [];
+    theta_max_deg = 450.0, 180.0, 720.0;
+    delta_max_deg = 30.0, 20.0, 45.0;
+    s_sens = 1.0, 0.0, 1.0;
+    f_min = 0.20, 0.1, 0.5;
+    v0 = 22.0, 10.0, 40.0;
+    gamma = 1.3, 1.0, 2.0;
+    r_hi = 3.0, 0.5, 6.0;
+    r_lo = 0.9, 0.5, 6.0;
+    v_r = 15.0, 5.0, 40.0;
+    rho_ret = 1.6, 1.0, 3.0;
+    c_cs = 1.0, 0.0, 2.0;
+    tau_f = 0.0, 0.0, 0.1;
+    tau_ref = 12.0, 3.0, 40.0;
+    tau_ff = 0.02, 0.005, 0.1;
+    g_gyro = 0.2, 0.0, 1.0;
+    j_w = 1.6, 0.5, 4.0;
+    v_ls = 2.8, 0.0, 8.0;
+    m_ls = 0.2, 0.0, 1.0;
+    g_ffb = 1.0, 0.0, 3.0;
+    p_curve = 1.0, 0.4, 1.5;
 }
 
 impl KeyTable {
-    /// Check every number this table sets: finite and inside its range. The error names the key and the reason.
+    /// Check every number this table sets: finite and inside its range, the axle bias included.
     pub fn validate(&self) -> Result<(), String> {
-        for (key, value) in self.entries() {
-            check(key, value, Keys::range(key))?;
-        }
+        self.validate_keys()?;
         let Some(bias) = self.axle_angle_bias_deg else {
             return Ok(());
         };

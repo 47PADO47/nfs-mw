@@ -1,31 +1,43 @@
 //! `ac-handling`: an Assetto Corsa-style handling mod for the player's car of NFS: Most Wanted.
 //!
 //! It targets the *feel* of Assetto Corsa with a model written from our own specs (`docs/specs/ac-handling/`): a slip curve
-//! with a peak and a fall-off, load sensitivity, one grip budget for both directions, and a wheel that is integrated in
-//! substeps inside the tyre hook (`bb.handling`). It is an independent project, not affiliated with or endorsed by Kunos
-//! Simulazioni or 505 Games, and holds no game file and no foreign code.
+//! with a peak and a fall-off, load sensitivity, one grip budget for both directions, a wheel integrated in substeps inside the
+//! tyre hook (`bb.handling`), and, as optional units, tyre temperature and wear, a suspension with a hub, driver aids and a
+//! steering model. It is an independent project, not affiliated with or endorsed by Kunos Simulazioni or 505 Games, and holds no
+//! game file and no foreign code.
 //!
 //! The crate is a set of pure modules and a thin glue:
 //!
-//! - [`tyre_force`], [`wheel`] and [`substep`]: the model (tyre-force.md and wheel-dynamics.md);
+//! - [`tyre_force`], [`wheel`] and [`substep`]: the tyre model (tyre-force.md and wheel-dynamics.md);
+//! - [`thermal`] and [`grip`]: tyre temperature, pressure and wear behind the `GripScale` seam (tyre-thermal.md);
+//! - [`suspension`]: the axle model of the suspension hook (suspension.md);
+//! - [`aids`], [`steering`] and [`controls`]: the controls hook (aids.md, steering.md);
 //! - [`keys`], [`params`], [`presets`] and [`mapping`]: the parameters of a car (parameter-mapping.md);
-//! - [`grip`]: the seam where the thermal model plugs in (stage 5);
-//! - [`control`], [`settings`], [`commands`] and [`setup`]: the switches and the state machine behind them;
-//! - this file: the mod itself. It registers the tyre hook only while the master switch is on, reads the car's spec when
-//!   its revision changes, and applies every switch at a frame boundary.
+//! - [`control`], [`model`], [`settings`], [`commands`] and [`setup`]: the switches and the state machine behind them;
+//! - this file: the mod itself. It registers the tyre hook only while the master switch is on (and the suspension and controls
+//!   hooks only while their units are on too), reads the car's spec when its revision changes, and applies every switch at a
+//!   frame boundary.
 
+pub mod aids;
 pub mod bridge;
 pub mod commands;
 pub mod constants;
 pub mod control;
+mod control_commands;
+mod control_hooks;
+pub mod controls;
 pub mod grip;
 pub mod keys;
 pub mod mapping;
+pub mod model;
 pub mod params;
 pub mod presets;
 pub mod settings;
 pub mod setup;
+pub mod steering;
 pub mod substep;
+pub mod suspension;
+pub mod thermal;
 pub mod tyre_force;
 pub mod wheel;
 
@@ -38,15 +50,15 @@ use std::rc::Rc;
 use blackbox_modding::abi::BB_EVENT_FRAME_START;
 use blackbox_modding::sdk::{Ctx, Error, Event, HandlingHookId, Level, MessageStyle, Mod, ModResult, declare_mod};
 
-use crate::control::{Control, Plan};
+use crate::control::{Control, Hook, Step};
 use crate::mapping::CarSpec;
 use crate::presets::PresetSet;
 use crate::setup::{Shared, with};
 
-/// The mod: the state the host's closures share, and the hook it registered while the model is on.
+/// The mod: the state the host's closures share, and the hooks it registered while the model is on.
 pub struct AcHandling {
     shared: Shared,
-    hook: Option<HandlingHookId>,
+    hooks: [Option<HandlingHookId>; 3],
     spec_error_logged: bool,
 }
 
@@ -79,51 +91,111 @@ fn load_settings(ctx: &Ctx) -> settings::Settings {
     }
 }
 
+fn slot(hook: Hook) -> usize {
+    match hook {
+        Hook::Tyre => 0,
+        Hook::Suspension => 1,
+        Hook::Controls => 2,
+    }
+}
+
+fn hook_name(hook: Hook) -> &'static str {
+    match hook {
+        Hook::Tyre => "tyre",
+        Hook::Suspension => "suspension",
+        Hook::Controls => "controls",
+    }
+}
+
 impl AcHandling {
-    /// Apply the switches at this frame boundary, read the car when it changed, and write the queued log lines.
+    /// Apply the switches at this frame boundary, read the car when it changed, apply again (the units' defaults are known once
+    /// the car is), show the tyre line, and write the queued log lines.
     fn frame(&mut self, ctx: &mut Ctx) {
-        let plan = with(&self.shared, |control| control.plan()).unwrap_or(Plan::Nothing);
-        match plan {
-            Plan::Register => self.register(ctx),
-            Plan::Unregister => self.unregister(ctx),
-            Plan::Nothing => {}
-        }
+        self.apply(ctx);
         self.read_spec(ctx);
+        self.apply(ctx);
+        if let Some(line) = with(&self.shared, |control| control.hud_line()).flatten() {
+            self.show(ctx, &line, MessageStyle::Info, 2.0);
+        }
         let notes = with(&self.shared, |control| control.take_notes()).unwrap_or_default();
         for note in notes {
             ctx.log(note.level, &note.text);
         }
     }
 
-    fn register(&mut self, ctx: &mut Ctx) {
-        let Some(handling) = ctx.handling() else {
-            with(&self.shared, |control| control.confirm(Plan::Register, false));
+    /// Do what the plan says: unregister the controls and suspension hooks before the tyre hook, register the tyre hook first.
+    fn apply(&mut self, ctx: &mut Ctx) {
+        let Some(plan) = with(&self.shared, |control| control.plan()) else {
             return;
         };
-        let shared = self.shared.clone();
-        let registered = handling.register_tyre(move |_ctx, query| shared.try_borrow_mut().ok()?.tyre(query));
-        match registered {
-            Ok(id) => {
-                self.hook = Some(id);
-                with(&self.shared, |control| control.confirm(Plan::Register, true));
-                self.say(ctx, "AC-style handling: on", MessageStyle::Info);
-                ctx.log(Level::Info, "ac-handling: the tyre hook is on");
+        if plan.is_idle() {
+            return;
+        }
+        let step_of = |hook: Hook| match hook {
+            Hook::Tyre => plan.tyre,
+            Hook::Suspension => plan.suspension,
+            Hook::Controls => plan.controls,
+        };
+        for hook in [Hook::Controls, Hook::Suspension, Hook::Tyre] {
+            if step_of(hook) == Step::Unregister {
+                self.unregister(ctx, hook);
             }
-            Err(error) => {
-                with(&self.shared, |control| control.confirm(Plan::Register, false));
-                self.say(ctx, "AC-style handling: refused by the game", MessageStyle::Warning);
-                ctx.log(Level::Warn, &format!("ac-handling: the tyre hook was refused: {error}"));
+        }
+        for hook in [Hook::Tyre, Hook::Suspension, Hook::Controls] {
+            if step_of(hook) == Step::Register {
+                self.register(ctx, hook);
             }
         }
     }
 
-    fn unregister(&mut self, ctx: &mut Ctx) {
-        if let (Some(id), Some(handling)) = (self.hook.take(), ctx.handling()) {
-            let _ = handling.unregister_tyre(id);
+    fn register(&mut self, ctx: &mut Ctx, hook: Hook) {
+        let Some(handling) = ctx.handling() else {
+            with(&self.shared, |control| control.confirm(hook, Step::Register, false));
+            return;
+        };
+        let shared = self.shared.clone();
+        let registered = match hook {
+            Hook::Tyre => handling.register_tyre(move |_ctx, query| shared.try_borrow_mut().ok()?.tyre(query)),
+            Hook::Suspension => {
+                handling.register_suspension(move |_ctx, query| shared.try_borrow_mut().ok()?.suspension(query))
+            }
+            Hook::Controls => {
+                handling.register_controls(move |_ctx, query| shared.try_borrow_mut().ok()?.controls(query))
+            }
+        };
+        let name = hook_name(hook);
+        match registered {
+            Ok(id) => {
+                self.hooks[slot(hook)] = Some(id);
+                with(&self.shared, |control| control.confirm(hook, Step::Register, true));
+                ctx.log(Level::Info, &format!("ac-handling: the {name} hook is on"));
+                if hook == Hook::Tyre {
+                    self.show(ctx, "AC-style handling: on", MessageStyle::Info, 2.5);
+                }
+            }
+            Err(error) => {
+                with(&self.shared, |control| control.confirm(hook, Step::Register, false));
+                ctx.log(Level::Warn, &format!("ac-handling: the {name} hook was refused: {error}"));
+                if hook == Hook::Tyre {
+                    self.show(ctx, "AC-style handling: refused by the game", MessageStyle::Warning, 2.5);
+                }
+            }
         }
-        with(&self.shared, |control| control.confirm(Plan::Unregister, true));
-        self.say(ctx, "AC-style handling: off", MessageStyle::Info);
-        ctx.log(Level::Info, "ac-handling: the tyre hook is off");
+    }
+
+    fn unregister(&mut self, ctx: &mut Ctx, hook: Hook) {
+        if let (Some(id), Some(handling)) = (self.hooks[slot(hook)].take(), ctx.handling()) {
+            let _ = match hook {
+                Hook::Tyre => handling.unregister_tyre(id),
+                Hook::Suspension => handling.unregister_suspension(id),
+                Hook::Controls => handling.unregister_controls(id),
+            };
+        }
+        with(&self.shared, |control| control.confirm(hook, Step::Unregister, true));
+        ctx.log(Level::Info, &format!("ac-handling: the {} hook is off", hook_name(hook)));
+        if hook == Hook::Tyre {
+            self.show(ctx, "AC-style handling: off", MessageStyle::Info, 2.5);
+        }
     }
 
     /// Read the car's spec when the model needs it (a new car, or none yet) and build its parameter set once.
@@ -149,12 +221,12 @@ impl AcHandling {
         }
     }
 
-    /// A short message on the HUD when the host has one.
-    fn say(&self, ctx: &Ctx, text: &str, style: MessageStyle) {
+    /// A short message on the HUD when the host has one; never an error when it has none.
+    fn show(&self, ctx: &Ctx, text: &str, style: MessageStyle, secs: f32) {
         let Some(hud) = ctx.hud() else {
             return;
         };
-        let _ = hud.message(text, style, 2.5);
+        let _ = hud.message(text, style, secs);
     }
 }
 
@@ -171,7 +243,7 @@ impl Mod for AcHandling {
         setup::install(ctx, &shared);
         let status = with(&shared, |control| control.status()).unwrap_or_default();
         ctx.log(Level::Info, &format!("ac-handling: loaded ({status})"));
-        Ok(AcHandling { shared, hook: None, spec_error_logged: false })
+        Ok(AcHandling { shared, hooks: [None; 3], spec_error_logged: false })
     }
 
     fn event(&mut self, ctx: &mut Ctx, event: &Event<'_>) {
@@ -183,8 +255,11 @@ impl Mod for AcHandling {
     }
 
     fn unload(&mut self, ctx: &mut Ctx) {
-        if let (Some(id), Some(handling)) = (self.hook.take(), ctx.handling()) {
-            let _ = handling.unregister_tyre(id);
+        if let Some(handling) = ctx.handling() {
+            let (tyre, suspension, controls) = (self.hooks[0].take(), self.hooks[1].take(), self.hooks[2].take());
+            let _ = controls.map(|id| handling.unregister_controls(id));
+            let _ = suspension.map(|id| handling.unregister_suspension(id));
+            let _ = tyre.map(|id| handling.unregister_tyre(id));
         }
         ctx.log(Level::Info, "ac-handling: unloaded");
     }

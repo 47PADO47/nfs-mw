@@ -153,7 +153,7 @@ pub fn step_steer(rig: &Rig, steer: f64) -> Step {
     let outside = run.samples[step..].iter().rposition(|sample| (sample.r - r_ss).abs() > 0.05 * r_ss.abs());
     Step {
         overshoot_pct: (r_max - r_ss) / r_ss * 100.0,
-        settle_s: outside.map_or(0.0, |index| (index + 1) as f64 * rig.dt),
+        settle_s: outside.map_or(0.0, |index| (index + 2) as f64 * rig.dt),
         r_ss,
         ay_g: mean(tail, |sample| sample.ay) / G,
     }
@@ -184,9 +184,9 @@ pub fn rung(rig: &Rig, throttle: f64) -> Rung {
     let script = Script::parse(&format!("1:throttle=0.15,steer=0.10;1:throttle={throttle},steer=0.10;6:throttle=0.15"));
     let Run { samples, starts, .. } = run(&mut car, &script, rig.dt);
     let beta_peak = samples.iter().map(|sample| sample.beta().abs()).fold(0.0_f64, f64::max);
-    let end = starts[2];
+    // The state at the end of the rung segment is the last sample of that segment; the recovery counts from its stamp.
+    let end = starts[2] - 1;
     let calm = |sample: &Sample| sample.r.abs() < 0.05 && sample.beta().abs().to_degrees() < 2.0;
-    // The first tick from which the car stays calm to the end of the run, counted from the end of the rung.
     let first_calm = match samples[end..].iter().rposition(|sample| !calm(sample)) {
         None => Some(end),
         Some(last_bad) => Some(end + last_bad + 1).filter(|index| *index < samples.len()),
@@ -198,22 +198,26 @@ pub fn rung(rig: &Rig, throttle: f64) -> Rung {
     }
 }
 
-/// What S5 reads from its six rungs.
+/// What S5 reads from its eleven rungs.
 #[derive(Debug, Clone)]
 pub struct Slide {
     /// The rungs, in order.
     pub rungs: Vec<Rung>,
     /// The lowest throttle whose slip angle reaches 5 degrees.
     pub breakaway: Option<f64>,
-    /// The recovery of the highest rung that did not spin; `None` when every rung spun.
+    /// The recovery of the breakaway rung; `None` when there is none or it spun.
     pub recover_s: Option<f64>,
 }
 
-/// S5 over the rungs 0.5 to 1.0.
+/// S5 over the eleven rungs 0.50 to 1.00.
 pub fn slide(rig: &Rig) -> Slide {
-    let rungs: Vec<Rung> = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0].into_iter().map(|throttle| rung(rig, throttle)).collect();
+    let rungs: Vec<Rung> = (0..11).map(|k| rung(rig, 0.5 + 0.05 * f64::from(k))).collect();
     let breakaway = rungs.iter().find(|rung| rung.beta_peak_deg >= 5.0).map(|rung| rung.throttle);
-    let recover_s = rungs.iter().rev().find(|rung| !rung.spun()).and_then(|rung| rung.recovery_s);
+    let recover_s = rungs
+        .iter()
+        .find(|rung| rung.beta_peak_deg >= 5.0)
+        .filter(|rung| !rung.spun())
+        .and_then(|rung| rung.recovery_s);
     Slide { rungs, breakaway, recover_s }
 }
 
@@ -232,4 +236,47 @@ pub fn launch(rig: &Rig) -> Launch {
     let at_three = (3.0 / rig.dt).round() as usize;
     let t100_s = run.samples.iter().find(|sample| sample.speed() >= V100).map(|sample| sample.t);
     Launch { d3_m: run.samples[at_three - 1].dist, t100_s }
+}
+
+/// Every scalar of the six scenarios, for the sweeps and the class tables.
+#[derive(Debug, Clone)]
+pub struct Scalars {
+    /// S1.
+    pub skidpad_g: f64,
+    /// S2: normalised braking distance.
+    pub brake_m: f64,
+    /// S2: peak deceleration.
+    pub brake_peak_g: f64,
+    /// S3.
+    pub understeer: f64,
+    /// S4.
+    pub step: Step,
+    /// S5.
+    pub slide: Slide,
+    /// S6.
+    pub launch: Launch,
+    /// `T_LEAD(20)`.
+    pub lead_20: f64,
+}
+
+/// Run all six scenarios on `rig`.
+pub fn all(rig: &Rig) -> Scalars {
+    let braking = braking(rig).expect("the car reaches 100 km/h");
+    Scalars {
+        skidpad_g: skidpad_g(rig),
+        brake_m: braking.distance_m,
+        brake_peak_g: braking.peak_g,
+        understeer: understeer(rig),
+        step: step_steer(rig, 0.06),
+        slide: slide(rig),
+        launch: launch(rig),
+        lead_20: rig.lead(20.0).expect("the car reaches 20 m/s"),
+    }
+}
+
+/// The rig with every brake torque multiplied by `factor` (S2t uses 1.3).
+pub fn with_brakes(rig: &Rig, factor: f64) -> Rig {
+    let mut spec = rig.spec.clone();
+    spec.brake_torque_nm = spec.brake_torque_nm.map(|torque| torque * factor);
+    Rig { spec, ..rig.clone() }
 }

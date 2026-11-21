@@ -3,8 +3,9 @@
 //! A result with a number the host would refuse (not finite, or past the ranges of docs/modding/api-handling.md) is never
 //! sent: the call answers "not handled" and the built-in tyre runs for that wheel.
 
-use blackbox_modding::sdk::{TyreQuery, TyreResult};
+use blackbox_modding::sdk::{SuspensionQuery, SuspensionResult, SuspensionWheelResult, TyreQuery, TyreResult};
 
+use crate::suspension::{AxleIn, WheelIn, WheelOut};
 use crate::wheel::{WheelInput, WheelOutput};
 
 /// Largest force the host accepts, N.
@@ -16,9 +17,16 @@ pub const MAX_SPIN: f64 = 5000.0;
 /// Largest `slip` the host accepts, m/s.
 pub const MAX_SLIP: f64 = 1000.0;
 
+/// The tyre force's camber (the wheel frame's sign: the top towards +x is positive) from the query's outward-positive one.
+pub fn wheel_frame_camber(wheel_index: u32, camber_rad: f32) -> f64 {
+    let outward = if camber_rad.is_finite() { f64::from(camber_rad) } else { 0.0 };
+    if wheel_index % 2 == 1 { outward } else { -outward }
+}
+
 /// The model's input for one wheel. `grip` is the product of the player's gain, the tyre condition and the thermal factor.
 pub fn to_input(q: &TyreQuery, grip: f64) -> WheelInput {
     WheelInput {
+        gamma: wheel_frame_camber(q.wheel_index, q.camber_rad),
         radius: f64::from(q.wheel_radius_m),
         inertia: f64::from(q.wheel_inertia_kgm2),
         fz: f64::from(q.vertical_load_n),
@@ -60,4 +68,34 @@ pub fn to_result(o: &WheelOutput) -> Option<TyreResult> {
         slip: o.slip as f32,
         slip_angle: o.slip_angle as f32,
     })
+}
+
+/// The suspension model's input from the host's axle query.
+pub fn to_axle_input(q: &SuspensionQuery) -> AxleIn {
+    let wheel = |w: &blackbox_modding::sdk::SuspensionWheelQuery| WheelIn {
+        loaded: w.loaded,
+        c: f64::from(w.compression_m),
+        c_dot: f64::from(w.compression_speed_mps),
+        steer: f64::from(w.steer_angle_rad),
+        a_up: f64::from(w.body_accel_up_mps2),
+        fy: f64::from(w.tyre_lateral_force_n),
+        load_est: f64::from(w.static_load_n),
+    };
+    AxleIn {
+        dt: f64::from(q.dt),
+        c_rest: f64::from(q.rest_travel_m),
+        c_max: f64::from(q.max_travel_m),
+        m_corner: f64::from(q.corner_mass_kg),
+        wheels: [wheel(&q.wheels[0]), wheel(&q.wheels[1])],
+    }
+}
+
+/// The host's answer for one axle.
+pub fn to_axle_result(out: &[WheelOut; 2]) -> SuspensionResult {
+    let wheel = |w: &WheelOut| SuspensionWheelResult {
+        body_force_n: w.body_force as f32,
+        tyre_load_n: w.tyre_load as f32,
+        camber_rad: w.camber as f32,
+    };
+    SuspensionResult { wheels: [wheel(&out[0]), wheel(&out[1])] }
 }
