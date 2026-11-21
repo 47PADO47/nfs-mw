@@ -56,7 +56,7 @@ when the module is new.
 | [translations.md](translations.md) | A mod's own messages in the player's language (`lang/`, `bb.i18n`), and language packs |
 | [api-nfsmw.md](api-nfsmw.md) | The NFS:MW-only extension: career, heat and pursuit, cop tables, race events |
 | [examples.md](examples.md) | Four example mods (hotkey, fast clock, car and music pack, bounty hunter), with layout, manifest, build and install |
-| [mods/ac-handling/README.md](../../mods/ac-handling/README.md) | The `ac-handling` mod: an Assetto Corsa-style handling model for the player's car on the `bb.handling` tyre hook (off by default; settings, hotkey and console command), its presets and per-car overrides, how to build and test it |
+| [ac-handling.md](ac-handling.md) | The `ac-handling` mod: an Assetto Corsa-style handling model for the player's car on the `bb.handling` hooks (tyre, suspension, controls), off by default; install, the switches, the four optional units (suspension, thermal, aids, steering), sliders and console subcommands, presets, the per-car `tuning/<id>.toml` schema and the car id rule, what is and is not modelled, performance and known limits |
 | [mods/nfsmw-2012-content/README.md](../../mods/nfsmw-2012-content/README.md) | The `nfsmw-2012-content` mod: the 73 cars of NFS: Most Wanted (2012) (93 bundles, 20 of them liveries), converted in the background from your own install named in the mod's `config.toml`: settings, what is converted, limits |
 
 ## Two layers

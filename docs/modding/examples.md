@@ -460,6 +460,21 @@ declare_mod!(Rumble);
 
 Without the mod, the row is not in the menu. With it and "Original" chosen, the game is unchanged.
 
+## 6. A handling mod: ac-handling (NFS:MW, built by the workspace)
+
+Not a sketch: [`mods/ac-handling`](../../mods/ac-handling/README.md) is a real mod and a member of the root workspace (not of its default build). It
+registers the three hooks of [`bb.handling`](api-handling.md) (tyre, suspension, controls) only while its switches are on, reads the car's `spec` when
+its revision changes, and adds a settings section, sliders, a hotkey and a console command with `bb.settings`, `bb.menus`, `bb.input` and
+`bb.commands`. Read it for how to keep the state of a mod behind one `Rc<RefCell<..>>`, apply every switch at a frame boundary, answer "not handled"
+for every vehicle but the player's, never send the host a number it would refuse, and test a mod against the real loader with a fake game.
+
+```
+cargo install-mod ac-handling                    # build (release) and install
+cargo test -p ac-handling                        # the specs' test vectors, the scenarios, the real loader
+```
+
+The user page is [ac-handling.md](ac-handling.md). It makes no claim about another game: its targets are design values.
+
 ## Gaps the sketches run into (0.1)
 
 - **No subscription.** A mod receives the events the host sends; `nfsmw.*` ones are decoded with `MwEvent::decode`.
