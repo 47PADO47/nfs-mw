@@ -86,6 +86,8 @@ pub struct Instance {
     pub emission: f32,
     /// Fraction of ambient and reflected light blocked. Negative values compensate for a sheltered capture.
     pub environment_occlusion: f32,
+    /// Signed forward speed in metres per second for surface runoff.
+    pub forward_speed: f32,
     /// The scene object this instance belongs to: selects fixture emission power and excludes a fixture from
     /// shadowing its own light. Detached model parts share their placement's owner.
     pub owner_key: InstanceKey,
@@ -105,6 +107,7 @@ impl Instance {
             shadow: ShadowFlags { cast: true, receive: true },
             emission: 0.0,
             environment_occlusion: 0.0,
+            forward_speed: 0.0,
             owner_key: InstanceKey::TRANSIENT,
             flip_winding: false,
         }
@@ -119,6 +122,7 @@ impl Instance {
             shadow: ShadowFlags { cast: true, receive: true },
             emission: 0.0,
             environment_occlusion: 0.0,
+            forward_speed: 0.0,
             owner_key: key,
             flip_winding: false,
         }

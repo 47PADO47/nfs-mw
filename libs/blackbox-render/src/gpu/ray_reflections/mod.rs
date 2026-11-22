@@ -42,6 +42,7 @@ pub(super) struct Scene {
     previous: Vec<(usize, [u32; 16], bool, u8)>,
     shadow: Vec<Instance>,
     live_count: usize,
+    previous_emission: Vec<(usize, u32)>,
     dirty: bool,
 }
 impl Scene {
@@ -71,6 +72,7 @@ impl Scene {
             previous: Vec::new(),
             shadow: Vec::new(),
             live_count: 0,
+            previous_emission: Vec::new(),
             dirty: true,
         })
     }
@@ -157,7 +159,28 @@ impl Scene {
             self.detail_textures = selected;
             self.ranked_at = Some(self.camera);
         }
+        // Brightness can change without moving any geometry. Refresh hit data independently of the TLAS.
+        let emission: Vec<_> = unique
+            .values()
+            .enumerate()
+            .filter(|(_, (i, _))| i.emission != 0.0)
+            .map(|(index, (i, _))| (index, i.emission.to_bits()))
+            .collect();
         if !self.dirty && keys == self.previous {
+            if emission != self.previous_emission {
+                let words: Vec<_> = unique
+                    .values()
+                    .filter(|(i, _)| self.arena.offset(i.mesh.raw()).is_some())
+                    .take(bindings::MAX_INSTANCES)
+                    .map(|(i, _)| {
+                        [u32::from(i.flip_winding) | self.meshes[&i.mesh.raw()].cutouts << 1, i.emission.to_bits()]
+                    })
+                    .collect();
+                if !words.is_empty() {
+                    queue.write_buffer(&self.bindings.winding, 0, bytemuck::cast_slice(&words));
+                }
+                self.previous_emission = emission;
+            }
             blackbox_trace::global().counter(
                 "Vulkan RT scene",
                 &[
@@ -171,6 +194,7 @@ impl Scene {
             return false;
         }
         self.previous = keys;
+        self.previous_emission = emission;
         let mut changed = false;
         let capacity = unique.len().max(1).next_power_of_two().min(bindings::MAX_INSTANCES);
         if capacity > self.bindings.tlas.get().len() {
@@ -234,7 +258,7 @@ impl Scene {
             self.bindings.tlas[count] =
                 Some(wgpu::TlasInstance::new(m.blas.as_ref().unwrap(), transform, offset, *mask));
             // Bit 0: baked winding flip. Above it: the mesh's cutout count, the start of its opaque geometry.
-            winding.push(u32::from(i.flip_winding) | m.cutouts << 1);
+            winding.push([u32::from(i.flip_winding) | m.cutouts << 1, i.emission.to_bits()]);
             count += 1;
         }
         let _scope = blackbox_trace::scope("Vulkan RT: build TLAS");

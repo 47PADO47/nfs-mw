@@ -101,6 +101,7 @@ impl AiCar {
         out: &mut Vec<Instance>,
     ) {
         let revealed = self.sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
+        let first = out.len();
         self.rig.instances_detail(
             &self.render_pose(alpha),
             self.sim.events.as_ref().map(|e| &e.hidden_slots),
@@ -119,6 +120,9 @@ impl AiCar {
             },
             out,
         );
+        for instance in &mut out[first..] {
+            instance.forward_speed = self.speed();
+        }
     }
 
     /// A trailer, including one that came loose, keeps its own root and interpolation.

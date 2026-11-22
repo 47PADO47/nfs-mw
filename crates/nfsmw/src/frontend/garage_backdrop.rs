@@ -93,6 +93,7 @@ impl GarageBackdrop {
         // Read before releasing the visible room, so a bad replacement leaves the current preview intact.
         let data = RoomData::read(dir, target)?;
         let room = Room::upload(renderer, &data);
+        renderer.set_surface_water(Default::default());
         if let Some(previous) = self.scene.room.replace(room) {
             previous.destroy(renderer);
         }

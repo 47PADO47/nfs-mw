@@ -144,3 +144,39 @@ pub(in crate::frontend) fn hide_legacy(tree: &mut blackbox_feng::UiTree, footer:
     }
     tree.draw_order.retain(|index| !hidden[*index]);
 }
+
+/// The paint package reuses the same title and filter objects in the shop and backroom.
+pub(in crate::frontend) fn paint_controls(
+    tree: &mut blackbox_feng::UiTree,
+    name: &str,
+    bindings: &Bindings,
+    device: InputDevice,
+) {
+    if !["Paint.fng", "Paint_BACKROOM.fng", "Decals.fng", "Decals_BACKROOM.fng"]
+        .iter()
+        .any(|p| name.eq_ignore_ascii_case(p))
+    {
+        return;
+    }
+    for node in &mut tree.nodes {
+        if matches!(node.name_hash, 0xb5c7_4226 | 0x03c4_58c1)
+            && let Some(text) = &mut node.text
+        {
+            *text = text.to_lowercase();
+        }
+        if device != InputDevice::Xbox {
+            continue;
+        }
+        let action = match node.name_hash {
+            0x6b36_4f8b | 0xd1cd_a594 => Action::MenuTriggerLeft,
+            0x7935_4351 | 0x9345_e4a7 => Action::MenuTriggerRight,
+            _ => continue,
+        };
+        if let crate::ui::prompts::Prompt::Icon(glyph) = for_action(bindings, action, device)
+            && let blackbox_feng::NodeKind::Image { texture, uv, .. } = &mut node.kind
+        {
+            *texture = crate::ui::input_icons::ATLAS;
+            *uv = glyph.uv();
+        }
+    }
+}

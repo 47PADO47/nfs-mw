@@ -87,7 +87,7 @@ impl From<BlendMode> for BlendKind {
         match mode {
             BlendMode::Opaque => Self::Opaque,
             BlendMode::AlphaTest => Self::AlphaTest,
-            BlendMode::AlphaBlend => Self::AlphaBlend,
+            BlendMode::AlphaBlend | BlendMode::AlphaOverlay => Self::AlphaBlend,
             BlendMode::Subtractive => Self::Subtractive,
             BlendMode::Additive => Self::Additive,
         }

@@ -58,20 +58,22 @@ impl CarRig {
             let appearance = self.appearance.borrow();
             let heads = u32::from(mask.heads) * u32::from(appearance.materials.enhanced_lamps());
             let swaps = self
-                .swaps_for((0..10).filter(|zone| mask.glass & (1 << zone) != 0))
+                .swaps_for(mask.glass)
                 .with_broken_head_lights(heads)
                 .with_broken_brake_lights(u32::from(mask.brakes) << 3);
             // Compare with brakes ON so a broken side is relevant even if it is OFF at this draw.
             let before = self.swaps().with_lamp_state(true, true, &self.model.textures);
             let after = swaps.clone().with_lamp_state(true, true, &self.model.textures);
-            let affected = affected_solids(&self.model, &changed_textures(&before, &after));
+            let cracked = self.cracked_window_solids(mask.glass);
+            let mut affected = affected_solids(&self.model, &changed_textures(&before, &after));
+            affected.extend(&cracked);
             set_lighting(renderer, appearance.shading, to_sun);
             let (parts, meshes) = upload_solids(
                 renderer,
                 &self.model,
                 &swaps,
                 &appearance.materials,
-                Some(&affected),
+                Some((&affected, &cracked)),
                 self.background_actor,
             );
             variants.insert(
@@ -87,28 +89,38 @@ impl CarRig {
         }
     }
 
-    pub(super) fn swaps_for(&self, zones: impl IntoIterator<Item = usize>) -> TextureSwaps {
-        let mut hashes = Vec::new();
-        for zone in zones {
-            hashes.extend(nfsmw_data::car::damage::zone_windows(zone).iter().map(|w| blackbox_hash::bstring_hash(w)));
-            let windows: &[usize] = match zone {
-                2 => &[4, 6],
-                3 => &[5, 7],
-                _ => &[],
-            };
-            for window in std::iter::once(zone).chain(windows.iter().copied()) {
-                let Some(suffix) = nfsmw_data::car::damage::zone_window_solid(window) else { continue };
-                let prefix = suffix.trim_end_matches("_A");
-                for solid in self.model.solids.values().filter(|s| {
-                    s.name.rsplit_once('_').is_some_and(|(name, lod)| name.ends_with(prefix) && lod.len() == 1)
-                }) {
-                    hashes.extend(solid.groups.iter().filter_map(|g| g.diffuse_texture(solid)));
-                }
-            }
-        }
+    pub(super) fn swaps_for(&self, glass: u16) -> TextureSwaps {
+        let mut hashes: Vec<_> = (0..10)
+            .filter(|zone| glass & (1 << zone) != 0)
+            .flat_map(nfsmw_data::car::damage::zone_windows)
+            .map(|name| blackbox_hash::bstring_hash(name))
+            .collect();
         if self.model.driving_lods.damage.enabled && !hashes.is_empty() {
             hashes.push(blackbox_hash::bstring_hash("REAR_DEFROSTER"));
         }
-        self.model.swaps.clone().with_window_hashes(&hashes)
+        self.swaps().with_window_hashes(&hashes)
+    }
+
+    /// Window meshes can use the same diffuse texture as opaque trim on another part.
+    /// Keep their inferred replacements local to the selected panes at each detail level.
+    pub(super) fn cracked_window_solids(&self, glass: u16) -> HashSet<u32> {
+        let mut cracked = HashSet::new();
+        for window in [0, 1, 4, 5, 6, 7] {
+            let side = match window {
+                4 | 6 => 1 << 2,
+                5 | 7 => 1 << 3,
+                _ => 0,
+            };
+            if glass & ((1 << window) | side) == 0 {
+                continue;
+            }
+            let Some(suffix) = nfsmw_data::car::damage::zone_window_solid(window) else { continue };
+            let prefix = suffix.trim_end_matches("_A");
+            cracked.extend(self.model.solids.iter().filter_map(|(&hash, solid)| {
+                let (name, lod) = solid.name.rsplit_once('_')?;
+                (name.ends_with(prefix) && lod.len() == 1).then_some(hash)
+            }));
+        }
+        cracked
     }
 }

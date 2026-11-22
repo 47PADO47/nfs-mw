@@ -25,10 +25,9 @@ fn fixed_rim_palette() -> crate::garage::Model {
 fn check_controls(h: &Harness) {
     let shown = h.screens.presented(&crate::input::Bindings::default(), crate::input::InputDevice::Keyboard);
     let tree = &shown.last().unwrap().tree;
-    for hash in [0x2c52_6172, 0x7800_8599] {
-        let control = tree.nodes.iter().find(|node| node.name_hash == hash).unwrap();
-        assert!(!control.visible, "rim-paint finish control {hash:08x} must stay hidden");
-    }
+    assert_eq!(finish_label(h), "Powder Coat");
+    let arrows = tree.nodes.iter().find(|node| node.name_hash == 0x2c52_6172).unwrap();
+    assert!(!arrows.visible, "the fixed rim palette must hide its finish arrows");
     let count = tree.nodes.iter().find(|node| node.name_hash == 0x2e48_1779).unwrap();
     assert_eq!(count.text.as_deref(), Some("3"), "stock rim color must not depend on body finish");
 }
@@ -348,4 +347,53 @@ fn batch12_garage_idle_focus_clocks_advance_and_new_selection_restarts_its_own_s
         assert!(cx.rt.object(second).unwrap().time > 0, "{page:?}: the new highlight can animate");
     }
     assert!(native_tracks > 0, "the fixture must exercise authored native highlight tracks");
+}
+
+#[test]
+#[ignore = "requires installed garage packages and original paint parts"]
+fn installed_shop_swatch_order_keeps_stock_position_and_rim_rows() {
+    use nfsmw_data::car::customization::Catalog;
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let mut catalog = Catalog::load(&dir, "911TURBO").unwrap();
+    crate::garage::listing::arrange(&mut catalog, &|_| None);
+    let mut model = model();
+    model.cars[0].parts = Some(catalog.into());
+    let test_page = |color, selected: &str, label: &str, ordinal: &str, count: &str| {
+        let mut model = model.clone();
+        let category = if color == 0 { Part::Paint } else { Part::RimPaint };
+        let hash = blackbox_hash::bstring_hash(selected);
+        let catalog = model.cars[0].parts.as_ref().unwrap();
+        model.draft.parts.parts[category as usize] = (catalog.stock[category as usize] != Some(hash)).then_some(hash);
+        let h = Harness::open(Page::Paint { color, backroom: false }, model);
+        assert_eq!(finish_label(&h), label);
+        let shown = h.screens.presented(&crate::input::Bindings::default(), crate::input::InputDevice::Keyboard);
+        let nodes = &shown.last().unwrap().tree.nodes;
+        let title = if color == 0 { "paint" } else { "rim paint" };
+        let heading = nodes.iter().find(|node| node.name_hash == 0xb5c7_4226).unwrap();
+        assert_eq!(heading.text.as_deref(), Some(title));
+        if color == 0 {
+            use crate::ui::input_icons::{ATLAS, Glyph};
+            let pad = h.screens.presented(&crate::input::Bindings::default(), crate::input::InputDevice::Xbox);
+            for (hash, glyph) in [(0x6b36_4f8b, Glyph::Lt), (0x7935_4351, Glyph::Rt)] {
+                let node = pad.last().unwrap().tree.nodes.iter().find(|n| n.name_hash == hash).unwrap();
+                assert!(
+                    matches!(node.kind, blackbox_feng::NodeKind::Image { texture: ATLAS, uv, .. } if uv == glyph.uv())
+                );
+            }
+        }
+        for (id, expected) in [(0x5b80_5ee5, ordinal), (0x2e48_1779, count)] {
+            assert_eq!(
+                nodes.iter().find(|node| node.name_hash == id).unwrap().text.as_deref(),
+                Some(expected),
+                "{selected}"
+            );
+        }
+    };
+    test_page(0, "GLOSS_L1_COLOR01", "Gloss", "1", "80");
+    test_page(0, "GLOSS_L1_COLOR75", "Gloss", "75", "80");
+    test_page(0, "METAL_L1_COLOR47", "Metallic", "47", "80");
+    test_page(0, "CHROME02_PAINT", "Custom", "22", "40");
+    for (row, ordinal) in [(1, "3"), (2, "23"), (3, "43")] {
+        test_page(1, &format!("RIMS_L{row}_COLOR03"), "Powder Coat", ordinal, "60");
+    }
 }

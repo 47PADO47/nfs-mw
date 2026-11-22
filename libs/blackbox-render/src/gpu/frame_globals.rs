@@ -98,6 +98,11 @@ impl Renderer {
                     (true, true) => 2.0,
                 },
             ],
+            water: if self.experiments.enhanced_wet_surfaces {
+                [self.surface_water.dampness, self.surface_water.time, 0.0, 0.0]
+            } else {
+                [0.0; 4]
+            },
             clip_plane,
         }
     }

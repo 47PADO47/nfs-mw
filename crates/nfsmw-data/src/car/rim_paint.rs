@@ -24,10 +24,13 @@ pub(super) fn recolour(model: &mut CarModel, mut material: LightMaterial, rgb: [
         material.diffuse_min[i] *= c;
         material.diffuse_max[i] *= c;
     }
-    let hash = bstring_hash("__GARAGE_RIM_PAINT");
-    material.name = format!("__GARAGE_RIM_PAINT_{}", material.name);
-    material.name_hash = hash;
-    let eligible = ["MAGSILVER", "MAGCHROME", "MAGGUNMETAL"].map(bstring_hash);
+    // Keep the original wheel group's polish while applying the selected pigment and angular ramps.
+    let finishes = ["MAGSILVER", "MAGCHROME", "MAGGUNMETAL"].map(|group| {
+        let mut finish = material.clone();
+        finish.name = format!("__GARAGE_RIM_PAINT_{}:{group}", material.name);
+        finish.name_hash = bstring_hash(&finish.name);
+        (bstring_hash(group), finish)
+    });
     let wheels: std::collections::HashSet<_> = model
         .placements
         .iter()
@@ -40,10 +43,10 @@ pub(super) fn recolour(model: &mut CarModel, mut material: LightMaterial, rgb: [
             continue;
         }
         for h in &mut solid.light_material_hashes {
-            if eligible.contains(h) {
-                *h = hash;
+            if let Some((_, finish)) = finishes.iter().find(|(original, _)| original == h) {
+                *h = finish.name_hash;
             }
         }
     }
-    model.light_materials.insert(hash, material);
+    model.light_materials.extend(finishes.into_iter().map(|(_, finish)| (finish.name_hash, finish)));
 }

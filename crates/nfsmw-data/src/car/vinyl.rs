@@ -127,6 +127,30 @@ pub(super) fn compose(
     Ok(layer)
 }
 
+impl CarModel {
+    /// Pack authored vinyl coverage into the spare channel of the enhanced renderer's opaque body skin.
+    /// Keep the composited RGB and the original render data intact.
+    pub fn coated_vinyl_skin(&self, skin: &Texture) -> Option<Texture> {
+        if !skin.name.ends_with("_SKIN1")
+            || skin.name == "SPOILER_SKIN1"
+            || skin.format != PixelFormat::Argb8888
+            || skin.alpha_blend != 0
+            || skin.alpha_usage != AlphaUsage::None
+        {
+            return None;
+        }
+        let layer = self.textures.get(&bstring_hash(LAYER))?;
+        if (skin.width, skin.height, skin.data.len()) != (layer.width, layer.height, layer.data.len()) {
+            return None;
+        }
+        let mut packed = skin.clone();
+        for (pixel, artwork) in packed.data.as_chunks_mut::<4>().0.iter_mut().zip(layer.data.as_chunks::<4>().0) {
+            pixel[3] = artwork[3];
+        }
+        Some(packed)
+    }
+}
+
 pub(super) fn repaint(model: &mut CarModel) -> Result<()> {
     let Some(layer) = model.textures.get(&bstring_hash(LAYER)) else {
         return Ok(());

@@ -495,3 +495,7 @@ Road rain-ring design reference: Sébastien Lagarde, Water drop 2b (2013).
 https://seblagarde.wordpress.com/2013/01/03/water-drop-2b-dynamic-rain-and-its-effects/
 Independent implementation; no article code or assets incorporated.
 Sun shaft volume design reference: Bart Wronski, Volumetric Fog (SIGGRAPH 2014). Original implementation.
+
+Vehicle rain motion design reference: Tatarchuk and Isidoro, Artist-Directable Real-Time Rain Rendering.
+https://advances.realtimerendering.com/s2006/Tatarchuk-Rain.pdf
+Independent implementation.

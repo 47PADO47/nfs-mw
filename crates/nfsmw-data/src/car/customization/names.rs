@@ -17,6 +17,12 @@ pub(super) fn read(tables: &CarTables, catalog: &mut Catalog) {
             .native_names
             .insert(hash, (tables.parts.name(part).to_owned(), tables.parts.attribute(part, "LANGUAGEHASH")));
     }
+    for (position, part) in tables.parts.parts().iter().enumerate() {
+        if catalog.colors.contains_key(&part.name_hash) {
+            let brand = tables.parts.attribute(part, "BRAND_NAME").unwrap_or_default();
+            catalog.paint_swatch_order.insert(part.name_hash, (position, brand));
+        }
+    }
     for category in [Category::Paint, Category::RimPaint] {
         for choice in &catalog.choices[category as usize] {
             let Some(part) = tables.parts.by_name_hash(choice.hash) else { continue };

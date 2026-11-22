@@ -94,3 +94,13 @@ retained category screen with no drawn text, instead of its prior item/title/foo
 package's own INIT scripts and then restoring host strip/model presentation repairs this observed return. No
 translated executable code was used. Exact original return animation timing remains unverified; other garage
 presentation issues remain separate playtest reports.
+
+
+## Paint shop palette order
+
+The PC retail BuildSwatchList function enumerates compatible parts, filters by installed
+brand and tracks the fitted part by identity. It reads each part's RGB for the swatch.
+The supplied PC shop captures independently show the row order, the Powder Coat caption
+and three different rim responses for one blue-grey colour. The installed rim parts
+select USER_RIMS, USER_RIMS_CHROME and USER_RIMS_GUNMETAL for those rows.
+Enhanced roughness and coat values are renderer tuning. No game data is included.

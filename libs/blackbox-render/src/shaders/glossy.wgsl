@@ -21,6 +21,7 @@ struct Globals {
     surface_diffuse: vec4<f32>,
     camera_right: vec4<f32>,
     clip_plane: vec4<f32>,
+    water: vec4<f32>,
 };
 
 const PI_F: f32 = 3.14159265358979;
@@ -125,6 +126,8 @@ struct VsOut {
     @location(9) original_normal: vec3<f32>,
     @location(10) original_light: vec3<f32>,
     @location(12) @interpolate(flat) environment_open: f32,
+    @location(14) @interpolate(flat) runoff: vec3<f32>,
+    @location(13) local_position: vec3<f32>,
     @location(11) @interpolate(flat) receives_shadow: u32,
 };
 
@@ -140,6 +143,10 @@ fn vs_main(v: VsIn) -> VsOut {
     out.color = v.color_bgra.zyxw;
     out.uv = v.uv;
     out.world = world.xyz;
+    out.local_position = v.position;
+    // The model's X axis points forward. Project world gravity into its local frame.
+    out.runoff = -vec3<f32>(model[0].z, model[1].z, model[2].z)
+        - vec3<f32>(clamp(v.shadow_flags.w / 12.0, -3.0, 3.0), 0.0, 0.0);
     original_vertex(&out, v, model);
     return out;
 }
@@ -154,7 +161,12 @@ struct Shaded {
 
 fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
-    let tex = textureSample(diffuse, diffuse_sampler, in.uv);
+    var tex = textureSample(diffuse, diffuse_sampler, in.uv);
+    var film = 0.0;
+    if material.lighting.z > 0.5 {
+        film = tex.a;
+        tex.a = 1.0;
+    }
     if material.specular_min.w > 0.5 { return original_pixel(in, tex); }
     let n = normalize(in.normal);
     let v = normalize(globals.camera_pos.xyz - in.world);
@@ -170,7 +182,15 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     // Screen masks and the main view's shadow/contact coverage do not describe captures.
     let main_view = globals.fog_range.w < 0.5;
     var visibility = 1.0;
-    if main_view && in.receives_shadow != 0u { visibility = direct_visibility(in.world, receiver, in.clip.xy); }
+    if main_view && in.receives_shadow != 0u {
+        // The screen shadow mask belongs to the opaque seat, driver or street behind the pane.
+        if !receive_ao && shadow_data.environment.w > 0.5 {
+            shadow_footprint = shadow_receiver_footprint(in.world);
+            visibility = sun_visibility(in.world, receiver);
+        } else {
+            visibility = direct_visibility(in.world, receiver, in.clip.xy);
+        }
+    }
     visibility *= cloud_visibility(in.world);
     var ao = 1.0;
     if receive_ao && main_view { ao = ambient_visibility(in.clip.xy); }
@@ -207,8 +227,16 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 
     // Environment reflection of the view vector mirrored about the normal.
     let reflected = 2.0 * f * n - v;
+    // Reproject sharp clearcoat against nearby geometry at the coat's width, independently
+    // of how broadly the pigment below it scatters. Filter unresolved normal changes in motion.
+    let painted = finish_on && material.lighting.w > 0.5;
+    let water = select(0.0, globals.water.x * smoothstep(-0.55, 0.82, n.z), painted);
+    let variance = min(0.05, 0.25 * (dot(dpdx(n), dpdx(n)) + dot(dpdy(n), dpdy(n))));
+    let coat_width = sqrt(0.12 * 0.12 + variance);
+    let sharp_coat = painted && shadow_data.options.w > 0.5 && material.surface.y > 0.0 && layered;
+    let probe_width = select(material.surface.x, coat_width, sharp_coat);
     var probe_ray = reflected;
-    if finish_on && material.lighting.x < 0.5 { probe_ray = probe_direction(in.world, reflected, material.surface.x); }
+    if finish_on && material.lighting.x < 0.5 { probe_ray = probe_direction(in.world, reflected, probe_width); }
     let sharp_env = sharp_environment(in.world, n, reflected, textureSampleLevel(env_map, env_sampler, probe_ray, 0.0).rgb);
     var env = sharp_env;
     var sun_specular = glint * spec;
@@ -228,7 +256,9 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         reflection_intensity = material.surface.z;
         // Rough dielectric paint still reflects light when the old authored ramp is zero.
         let grazing = max(1.0 - roughness, 0.04);
-        let dielectric = 0.04 + (grazing - 0.04) * pow(1.0 - saturate(dot(n, v)), 5.0);
+        // Rough finishes spread the grazing sheen farther around curved panels.
+        let exponent = mix(5.0, 3.0, smoothstep(0.35, 0.52, roughness));
+        let dielectric = 0.04 + (grazing - 0.04) * pow(1.0 - saturate(dot(n, v)), exponent);
         reflection_gain = max(reflection_gain, dielectric);
     }
     if !finish_on { env = hybrid_environment(in.world, n, reflected, env); }
@@ -245,22 +275,36 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     var surface_alpha = diff.a;
     if layered {
         let layer_albedo = select(diff.rgb * tex.rgb, tex.rgb, material.surface.w > 10.5);
-        let color = layered_material(n, v, sun, diffuse_rgb, layer_albedo, diff.a,
-            visibility, occlusion, specular_ao, in.uv, sharp_env, in.world);
+        var layer_normal = n;
+        var layer_ray = probe_ray;
+        var layer_sharp = sharp_env;
+        if u32(material.surface.w + 0.1) == 6u && globals.water.x > 0.001 {
+            let beads = beaded_surface(n, in.world, in.local_position, globals.water.x, in.runoff);
+            if beads.w > 0.0 {
+                layer_normal = beads.xyz;
+                layer_ray = probe_direction(in.world, reflect(-v, layer_normal), material.surface.x);
+                layer_sharp = textureSampleLevel(env_map, env_sampler, layer_ray, 0.0).rgb;
+            }
+        }
+        let color = layered_material(layer_normal, saturate(dot(n,v)), v, sun, diffuse_rgb, layer_albedo, diff.a,
+            visibility, occlusion, specular_ao, in.local_position, layer_sharp, in.world, layer_ray, coat_width);
         out.rgb = color.rgb;
         surface_alpha = color.a;
     }
     if rough_paint {
-        out.rgb = rough_paint_color(diffuse_rgb, env, sun_specular,
+        let matte_env = layer_environment(probe_ray, material.surface.x, sharp_env);
+        out.rgb = rough_paint_color(diffuse_rgb, matte_env, sun_specular,
             reflection_gain, reflection_intensity, occlusion, diff.a);
         if shadow_data.options.w > 0.5 && coat_scale > 0.0 {
-            let coat_roughness = max(material.surface.x * 0.85, 0.35);
-            let coat_env = surface_environment(probe_ray, coat_roughness, sharp_env);
+            // The film retains its printed colour and gets a tighter dielectric reflection.
+            coat_scale = mix(coat_scale, 0.82, film);
+            let coat_roughness = mix(max(material.surface.x * 0.85, 0.35), 0.23, film);
+            let coat_env = layer_environment(probe_ray, coat_roughness, sharp_env);
             let fresnel = 0.04 + (1.0 - coat_roughness - 0.04) * pow(1.0 - f, 5.0);
             let coat_sun = visibility * rig.color[0].xyz * surface_highlight(n, v, sun, coat_roughness, vec3<f32>(0.0));
             let underlying = paint_linear(out.rgb) * (1.0 - fresnel * coat_scale);
             out.rgb = paint_encoded(underlying + coat_scale * occlusion * diff.a
-                * (paint_linear(coat_env) * fresnel * reflection_intensity + coat_sun));
+                * (coat_env * fresnel * reflection_intensity + coat_sun));
         }
     }
     if !layered && !rough_paint && shadow_data.options.w > 0.5 && coat_scale > 0.0
@@ -274,6 +318,21 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         let coat_env = select(env, sharp_env, finish_on);
         out.rgb = out.rgb * (1.0 - fresnel * 0.4 * coat_scale)
             + coat_env * fresnel * 0.4 * coat_scale * reflection_intensity + rig.color[0].xyz * coat * coat_scale;
+    }
+    if water > 0.001 {
+        let beads = beaded_surface(n, in.world, in.local_position, water, in.runoff);
+        let wet_normal = beads.xyz;
+        let satin = select(0.0, 1.0 - film, rough_paint);
+        let matte_film = satin * (1.0 - beads.w);
+        let width = mix(0.10, 0.34, matte_film);
+        let ray = reflect(-v, wet_normal);
+        let wet_probe = probe_direction(in.world, ray, width);
+        let env_water = layer_environment(wet_probe, width, textureSampleLevel(env_map, env_sampler, wet_probe, 0.0).rgb);
+        let water_f = layer_fresnel(vec3<f32>(0.021), saturate(dot(wet_normal,v)), width);
+        let water_sun = visibility * rig.color[0].xyz * surface_brdf(wet_normal,v,sun,max(0.13, width),vec3<f32>(0.021));
+        let base = paint_linear(out.rgb);
+        let coated = base * (1.0 - water_f) + occlusion * (env_water * water_f * reflection_intensity + water_sun);
+        out.rgb = paint_encoded(mix(base, coated, water * (1.0 - 0.48 * matte_film)));
     }
     if emissive {
         // The original art is encoded colour. Restrict the experiment to its brightest

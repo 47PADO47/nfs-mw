@@ -163,6 +163,42 @@ fn vulkan_rt_reflects_offscreen_textures_and_updates_removed_instances() {
         draw.texture = Some(clear);
         draw.blend = BlendMode::AlphaTest;
     }
+    // A stationary offscreen fixture can switch power without rebuilding its geometry.
+    // The texture alpha masks emission, independently of the opaque base material.
+    let mut lamp_data = wall_data.clone();
+    for alpha in [0, 255] {
+        let pane = upload(&mut r, [90, 60, 30, alpha]);
+        for draw in &mut lamp_data.draws {
+            draw.texture = Some(pane);
+            draw.shading = Shading::WorldEmissive;
+            draw.blend = BlendMode::Opaque;
+        }
+        let mut lamp = Instance::new(lamp_data.upload(&mut r, "RT lamp glass"), Mat4::IDENTITY);
+        r.set_ray_reflection_instances(&[lamp]);
+        r.render(&f, &[road]).unwrap();
+        let unlit = r.read_output().unwrap().unwrap();
+        lamp.emission = 3.0;
+        r.set_ray_reflection_instances(&[lamp]);
+        r.render(&f, &[road]).unwrap();
+        let lit = r.read_output().unwrap().unwrap();
+        let brighter = lit
+            .rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(unlit.rgba.as_chunks::<4>().0)
+            .filter(|(on, off)| on[0] > off[0].saturating_add(8))
+            .count();
+        assert_eq!(brighter > 100, alpha == 255, "mask {alpha}, brighter pixels {brighter}");
+        if alpha == 0 {
+            assert_eq!(unlit, lit);
+        }
+        lamp.emission = 0.0;
+        r.set_ray_reflection_instances(&[lamp]);
+        r.render(&f, &[road]).unwrap();
+        assert_eq!(unlit, r.read_output().unwrap().unwrap(), "power changes must clear the previous emission");
+        r.destroy_mesh(lamp.mesh);
+    }
     let cutout = Instance::new(wall_data.upload(&mut r, "RT transparent cutout"), Mat4::IDENTITY);
     r.set_ray_reflection_instances(&[cutout]);
     r.render(&f, &[road]).unwrap();

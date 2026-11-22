@@ -191,6 +191,7 @@ impl TrafficWorld {
                 emission: 0.0,
                 owner_key: blackbox_gfx::InstanceKey::TRANSIENT,
                 environment_occlusion: 0.0,
+                forward_speed: 0.0,
                 flip_winding: false,
             });
         }

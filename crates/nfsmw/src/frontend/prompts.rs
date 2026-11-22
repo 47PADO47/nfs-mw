@@ -256,6 +256,7 @@ pub fn decorate(
     device: InputDevice,
     assets: &UiAssets,
 ) -> Vec<HintArea> {
+    super::garage_ui::prompts::paint_controls(tree, name, bindings, device);
     let splash = [screen::SPLASH, screen::SPLASH_WIDE].iter().any(|s| name.eq_ignore_ascii_case(s));
     let pause = name.eq_ignore_ascii_case(screen::PAUSE_MENU);
     let Some(frame) = Frame::find(tree, name, footer, assets) else { return Vec::new() };
