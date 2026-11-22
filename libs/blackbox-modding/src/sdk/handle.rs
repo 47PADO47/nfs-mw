@@ -9,6 +9,7 @@
 //! - `UiThemeId`: a theme the mod registered.
 //! - `SettingId`: an option the mod added to the game's settings (`bb.settings`).
 //! - `CameraViewId`: an extra camera view the mod registered (`bb.camera` 1.1).
+//! - `HandlingHookId`: a hook the mod registered (`bb.handling`): the tyre, suspension or controls hook.
 
 macro_rules! handle {
     ($($name:ident),* $(,)?) => {
@@ -43,5 +44,6 @@ handle!(
     SoundId,
     UiThemeId,
     SettingId,
-    CameraViewId
+    CameraViewId,
+    HandlingHookId
 );

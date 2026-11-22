@@ -215,7 +215,7 @@ mod), then the functions below in this order. Every function takes `ctx` first a
 | `bb.time` (1.0) | `get(out)`, `set_hour(hour)`, `set_day_length(seconds_per_hour)`, `freeze(on)` |
 | `bb.map` (1.0) | `add(blip, out_id)`, `update(id, blip)`, `remove(id)` |
 | `bb.menus` (1.0) | `register(row, user, callback, out_id)`, `unregister(id)`, `get(id, out)`, `set(id, value)` |
-| `bb.vehicles` (1.2) | `state(out)`, `teleport(position, heading)`, `repair()`, `spawn_traffic(position, heading, out_id)`, `add_nos(amount)` (1.1), `set_drift_assist(enabled)` (1.2) |
+| `bb.vehicles` (1.3) | `state(out)`, `teleport(position, heading)`, `repair()`, `spawn_traffic(position, heading, out_id)`, `add_nos(amount)` (1.1), `set_drift_assist(enabled)` (1.2), `spec(out)` (1.3, [api-handling.md](api-handling.md#the-car-in-physical-numbers-bbvehicles-13-spec)) |
 | `bb.hud` (1.0) | `message(text, style, secs)`, `hide()` |
 | `bb.camera` (1.0) | `get(out)`, `set_mode(mode)` |
 | `bb.audio` (1.0) | `play(bank, event, volume, out_id)` |
@@ -223,6 +223,7 @@ mod), then the functions below in this order. Every function takes `ctx` first a
 | `bb.world` (1.0) | `track(sink, sink_user)`, `section(sink, sink_user)`, `set_rain(always, amount)`, `set_traffic(cars, cop_share)` |
 | `bb.engine` (1.0) | `state(out)`, `car(sink, sink_user)`, `stop()`, `start(sound, gain, delay)` ([api-engine.md](api-engine.md)) |
 | `bb.traffic` (1.0) | `list(sink, sink_user)`, `spawn(car, position, heading)` ([api-traffic.md](api-traffic.md)) |
+| `bb.handling` (1.2) | `register_tyre(hook, out_id)`, `unregister_tyre(id)` (1.0); `register_suspension`, `unregister_suspension` (1.1, [api-handling-suspension.md](api-handling-suspension.md)); `register_controls`, `unregister_controls` (1.2, [api-handling-controls.md](api-handling-controls.md)) ([api-handling.md](api-handling.md)) |
 
 `bb.time`'s "set speed" is `set_day_length`, the day-length form of the table above. `bb.map`'s blip is
 `BbBlip { size, active, _pad, style, position }`.
@@ -240,7 +241,7 @@ offered. **1.1** (appended; nothing before moved): `BbVehicles` is 56 bytes with
 of a full tank, 0 to 1) at 48, and `BbVehicleState` is 68 bytes with `slip_angle` (radians, positive to the left) at 52,
 `steering` (-1 to 1, positive to the left) at 56, `impact` (0 to 1) at 60 and `on_ground` (`u32`, 0 or 1) at 64. A mod built
 for 1.0 passes a smaller `size` and gets the 1.0 fields only. **1.2** (appended): `BbVehicles` is 64 bytes with
-`set_drift_assist` (`fn(ctx, enabled: u32)`, non-zero on, zero off) at 56; the state did not change.
+`set_drift_assist` (`fn(ctx, enabled: u32)`, non-zero on, zero off) at 56; the state did not change. **1.3** (appended): `BbVehicles` is 72 bytes with `spec` (`fn(ctx, out: *mut BbVehicleSpec)`) at 64; `BbVehicleSpec` is 168 bytes, see [api-handling.md](api-handling.md#the-car-in-physical-numbers-bbvehicles-13-spec).
 
 `bb.hud` (ids `IFACE_HUD`, version `IFACE_HUD_VERSION`). `BbHud` is 32 bytes: `head` at 0, `ctx` at 8, `message` at 16,
 `hide` at 24. The styles are `BB_HUD_INFO` 0, `BB_HUD_WARNING` 1 and `BB_HUD_BIG` 2. A message's text is at most 1024

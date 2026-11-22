@@ -7,8 +7,8 @@ use std::rc::Rc;
 use super::BackendResult;
 use super::slot::{Attached, Slot, guard, slot_of, write_prefixed};
 use crate::abi::{
-    BB_ERR_ARG, BB_ERR_UNSUPPORTED, BbIface, BbStatus, BbVec3, BbVehicleState, BbVehicles, IFACE_VEHICLES,
-    IFACE_VEHICLES_VERSION,
+    BB_ERR_ARG, BB_ERR_UNSUPPORTED, BB_SPEC_GEARS, BbIface, BbStatus, BbVec3, BbVehicleSpec, BbVehicleState,
+    BbVehicles, IFACE_VEHICLES, IFACE_VEHICLES_VERSION,
 };
 
 /// The player's car as the game reports it. Units as in [`BbVehicleState`].
@@ -40,6 +40,70 @@ pub struct VehicleState {
     pub on_ground: bool,
 }
 
+/// The player's car in physical numbers, as the game reports it (1.3). Units and meanings as in [`BbVehicleSpec`]; a number the
+/// game does not have is 0.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct VehicleSpecSheet {
+    /// Changes whenever the car changes; starts at 1.
+    pub revision: u32,
+    pub mass_kg: f32,
+    pub wheelbase_m: f32,
+    /// Front then rear.
+    pub track_m: [f32; 2],
+    pub cg_height_m: f32,
+    pub front_weight_fraction: f32,
+    pub tyre_radius_m: [f32; 2],
+    pub tyre_width_m: [f32; 2],
+    pub peak_friction: [f32; 2],
+    pub sliding_friction: [f32; 2],
+    /// `BB_DRIVE_*`.
+    pub drive_layout: u32,
+    pub gear_count: u32,
+    pub max_power_w: f32,
+    pub max_power_rpm: f32,
+    pub redline_rpm: f32,
+    pub final_drive: f32,
+    pub gear_ratios: [f32; BB_SPEC_GEARS],
+    pub brake_torque_nm: [f32; 2],
+    pub drag_area_m2: f32,
+    pub downforce_area_m2: f32,
+}
+
+impl VehicleSpecSheet {
+    fn to_wire(self) -> BbVehicleSpec {
+        BbVehicleSpec {
+            size: size_of::<BbVehicleSpec>() as u32,
+            revision: self.revision,
+            mass_kg: self.mass_kg,
+            wheelbase_m: self.wheelbase_m,
+            track_front_m: self.track_m[0],
+            track_rear_m: self.track_m[1],
+            cg_height_m: self.cg_height_m,
+            front_weight_fraction: self.front_weight_fraction,
+            tyre_radius_front_m: self.tyre_radius_m[0],
+            tyre_radius_rear_m: self.tyre_radius_m[1],
+            tyre_width_front_m: self.tyre_width_m[0],
+            tyre_width_rear_m: self.tyre_width_m[1],
+            peak_friction_front: self.peak_friction[0],
+            peak_friction_rear: self.peak_friction[1],
+            sliding_friction_front: self.sliding_friction[0],
+            sliding_friction_rear: self.sliding_friction[1],
+            drive_layout: self.drive_layout,
+            gear_count: self.gear_count,
+            max_power_w: self.max_power_w,
+            max_power_rpm: self.max_power_rpm,
+            redline_rpm: self.redline_rpm,
+            final_drive: self.final_drive,
+            gear_ratios: self.gear_ratios,
+            brake_torque_front_nm: self.brake_torque_nm[0],
+            brake_torque_rear_nm: self.brake_torque_nm[1],
+            drag_area_m2: self.drag_area_m2,
+            downforce_area_m2: self.downforce_area_m2,
+            reserved: [0; 8],
+        }
+    }
+}
+
 /// What the game implements for `bb.vehicles`. `owner` is the id of the mod that made the call.
 pub trait VehiclesBackend {
     /// The player's car.
@@ -56,6 +120,11 @@ pub trait VehiclesBackend {
     /// Turn the drift assist of the player's car on or off (1.2). Queued like a repair. A game without the assist keeps the default,
     /// which answers `BB_ERR_UNSUPPORTED`.
     fn set_drift_assist(&self, _owner: &str, _on: bool) -> BackendResult<()> {
+        Err(BB_ERR_UNSUPPORTED)
+    }
+    /// The physical summary of the player's car (1.3). `NotReady` while no car is driven. A game without it keeps the default,
+    /// which answers `BB_ERR_UNSUPPORTED`.
+    fn spec(&self, _owner: &str) -> BackendResult<VehicleSpecSheet> {
         Err(BB_ERR_UNSUPPORTED)
     }
 }
@@ -76,6 +145,7 @@ pub(crate) fn attach(backend: Rc<dyn VehiclesBackend>, owner: &str) -> Attached 
         spawn_traffic: Some(spawn_traffic),
         add_nos: Some(add_nos),
         set_drift_assist: Some(set_drift_assist),
+        spec: Some(spec),
     });
     // Nothing the mod registers stays in the game, so unloading removes nothing; the release keeps the slot alive.
     let kept = slot.clone();
@@ -123,6 +193,17 @@ unsafe extern "C" fn state(ctx: *mut c_void, out: *mut BbVehicleState) -> BbStat
         };
         // SAFETY: `out` is the mod's struct; `write_prefixed` checks its size word before it writes.
         unsafe { write_prefixed(out, &wire) }
+    })
+}
+
+/// `spec`: write the physical summary of the player's car to `out`, as far as the mod's size word allows.
+unsafe extern "C" fn spec(ctx: *mut c_void, out: *mut BbVehicleSpec) -> BbStatus {
+    guard(|| {
+        // SAFETY: `ctx` is this table's slot (see `slot_of`).
+        let slot = unsafe { slot_of::<dyn VehiclesBackend>(ctx)? };
+        let sheet = slot.backend.spec(&slot.owner)?;
+        // SAFETY: `out` is the mod's struct; `write_prefixed` checks its size word before it writes.
+        unsafe { write_prefixed(out, &sheet.to_wire()) }
     })
 }
 

@@ -130,6 +130,28 @@ pub(crate) unsafe fn write_prefixed<T: Copy>(out: *mut T, value: &T) -> Result<(
     Ok(())
 }
 
+/// Read a size-prefixed struct the mod owns. Its first field is the `size` word; the bytes it declares (at most those of
+/// `T`) are copied over a default value, so a struct from an older layout reads its missing fields as zero. A size below
+/// `min` (the end of the fields the host cannot do without) is refused.
+///
+/// # Safety
+/// `value` must be null or valid for reads of the bytes its own size word declares (ADR 0005 section 4).
+pub(crate) unsafe fn read_prefixed<T: Copy + Default>(value: *const T, min: usize) -> Result<T, BbStatus> {
+    if value.is_null() {
+        return Err(BB_ERR_ARG);
+    }
+    // SAFETY: the size word is the first field of the struct, and the caller guarantees it is readable.
+    let declared = unsafe { value.cast::<u32>().read_unaligned() } as usize;
+    if declared < min.max(core::mem::size_of::<u32>()) {
+        return Err(BB_ERR_ARG);
+    }
+    let len = declared.min(core::mem::size_of::<T>());
+    let mut out = T::default();
+    // SAFETY: `value` is valid for `declared` bytes and `out` for `size_of::<T>()`, and `len` is at most both.
+    unsafe { core::ptr::copy_nonoverlapping(value.cast::<u8>(), core::ptr::from_mut(&mut out).cast::<u8>(), len) };
+    Ok(out)
+}
+
 /// Write a text the host produced to a sink the caller gave. The sink takes it for the duration of the call.
 ///
 /// # Safety

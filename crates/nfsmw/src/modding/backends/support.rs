@@ -32,6 +32,19 @@ pub(crate) struct Recorder {
     pub rain: Option<(bool, f32)>,
     pub traffic: Option<(u32, u8)>,
     pub spawns: Vec<([f32; 2], f32)>,
+    /// The scene is part of a networked session.
+    pub networked: bool,
+    /// The physical summary of the car the scene reports.
+    pub summary: Option<blackbox_vehicle::VehicleSummary>,
+    /// The tyre model of a mod on the car, and how many the scene has put on it.
+    pub tyre_model: Option<Box<dyn blackbox_vehicle::tires::TyreModel>>,
+    pub tyre_installs: u32,
+    /// The suspension model of a mod on the car, and how many the scene has put on it.
+    pub suspension_model: Option<Box<dyn blackbox_vehicle::suspension::SuspensionModel>>,
+    pub suspension_installs: u32,
+    /// The controls model of a mod on the car, and how many the scene has put on it.
+    pub controls_model: Option<Box<dyn blackbox_vehicle::input::ControlsModel>>,
+    pub controls_installs: u32,
 }
 
 impl Recorder {
@@ -136,6 +149,36 @@ impl Scene for Recorder {
 
     fn set_player_drift_assist(&mut self, on: bool) {
         self.drift_assist.push(on);
+    }
+
+    fn handling_feed(&mut self, makers: &crate::viewer::HandlingMakers<'_>, out: &mut crate::viewer::HandlingFeed) {
+        out.networked = self.networked;
+        out.summary = self.summary.clone();
+        let driving = self.car.is_some();
+        match makers.tyre {
+            None => self.tyre_model = None,
+            Some(make) if driving && self.tyre_model.is_none() => {
+                self.tyre_model = Some(make());
+                self.tyre_installs += 1;
+            }
+            Some(_) => {}
+        }
+        match makers.suspension {
+            None => self.suspension_model = None,
+            Some(make) if driving && self.suspension_model.is_none() => {
+                self.suspension_model = Some(make());
+                self.suspension_installs += 1;
+            }
+            Some(_) => {}
+        }
+        match makers.controls {
+            None => self.controls_model = None,
+            Some(make) if driving && self.controls_model.is_none() => {
+                self.controls_model = Some(make());
+                self.controls_installs += 1;
+            }
+            Some(_) => {}
+        }
     }
 
     fn set_camera_mode(&mut self, mode: CameraMode) {

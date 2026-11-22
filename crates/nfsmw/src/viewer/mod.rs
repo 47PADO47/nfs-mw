@@ -15,17 +15,14 @@ pub use vehicle::VehicleScene;
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 
-use crate::hud::MapBlip;
-use crate::input::ActionState;
-
-mod fullscreen;
-pub use fullscreen::{Fit, Fullscreen};
+use crate::{hud::MapBlip, input::ActionState};
 
 mod environment;
-pub use environment::{Environment, SunMode};
-
+mod fullscreen;
 mod readouts;
-pub use readouts::{CameraReadout, PlayerCar, WorldInfo};
+pub use environment::{Environment, SunMode};
+pub use fullscreen::{Fit, Fullscreen};
+pub use readouts::{CameraReadout, HandlingFeed, HandlingMakers, PlayerCar, WorldInfo};
 
 pub trait Scene {
     fn extra_options(&mut self) -> Option<&mut crate::extra_options::State> {
@@ -99,6 +96,8 @@ pub trait Scene {
     }
     /// Turn the drift assist of the player's car on or off (`bb.vehicles` 1.2). Does nothing without a car.
     fn set_player_drift_assist(&mut self, _on: bool) {}
+    /// Once per mod frame, for `bb.handling`: put the models `makers` build on the player's car (none: take them off); fill `out`.
+    fn handling_feed(&mut self, _makers: &HandlingMakers<'_>, _out: &mut HandlingFeed) {}
     /// Keep `cars` computer-driven cars on the road, `cop_share` percent of them patrol cops.
     fn set_traffic_density(&mut self, _cars: u32, _cop_share: u8) {}
     /// Put a traffic car on the road at `at` (x, y), facing `heading`. Returns whether a car was placed.
@@ -440,8 +439,7 @@ pub trait Scene {
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         None
     }
-    /// Whether a movie whose sound [`Scene::take_clip`] hands over is playing: false once it has run out, was skipped or
-    /// was stopped (the audio then stops its sound) and for a scene with no movie (the menu mutes no cue for it).
+    /// Whether the movie whose sound [`Scene::take_clip`] hands over is playing: false once it ended, was skipped or stopped, and for a scene with no movie.
     fn clip_playing(&self) -> bool {
         false
     }
@@ -457,8 +455,7 @@ pub trait Scene {
     fn siren_frame(&mut self, _dt: f32) -> Option<crate::audio::SirenFrame> {
         None
     }
-    /// The NIS player's audio request: the scene whose stream plays now, if any (see `audio::nis`). Scenes without
-    /// NIS ignore it.
+    /// The NIS player's audio request: the scene whose stream plays now, if any (see `audio::nis`); scenes without NIS ignore it.
     fn nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
         None
     }

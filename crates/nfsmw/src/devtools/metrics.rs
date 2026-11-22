@@ -109,7 +109,7 @@ impl Metrics {
 
     pub fn fps(&self) -> f32 {
         let ms = self.average_ms();
-        self.rates.rendered().unwrap_or_else(|| if ms > 0.0 { 1000.0 / ms } else { 0.0 })
+        self.rates.rendered().unwrap_or(if ms > 0.0 { 1000.0 / ms } else { 0.0 })
     }
 
     pub fn presented_fps(&self) -> Option<f32> {
@@ -220,7 +220,7 @@ pub fn collect(
     metrics.render_size = renderer.render_size();
     metrics.sample_work(now, performance, host.cpu_update_ms, host.reflex_sleep_ms);
     let cap_us = settings.max_fps.microseconds();
-    let cap = (cap_us > 0 && !settings.vsync).then(|| 1_000_000.0 / cap_us as f32);
+    let cap = (cap_us > 0 && !settings.vsync).then_some(1_000_000.0 / cap_us as f32);
     let frame_ms = metrics.rates.rendered().filter(|v| *v > 0.0).map_or(0.0, |fps| 1000.0 / fps);
     let assessment = metrics.work.limit(frame_ms, cap, settings.vsync, window.focused, latency.generation_active);
     metrics.limit = assessment.label;

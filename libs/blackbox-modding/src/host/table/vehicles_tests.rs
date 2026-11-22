@@ -3,10 +3,10 @@
 
 use crate::host::test_support::callback_on_main;
 use std::cell::RefCell;
-use std::mem::size_of;
+use std::mem::{offset_of, size_of};
 use std::rc::Rc;
 
-use super::vehicles::{VehicleState, VehiclesBackend};
+use super::vehicles::{VehicleSpecSheet, VehicleState, VehiclesBackend};
 use super::{Attached, attach_vehicles};
 use crate::abi::*;
 use crate::host::BackendResult;
@@ -53,6 +53,22 @@ impl VehiclesBackend for FakeVehicles {
     fn set_drift_assist(&self, _owner: &str, on: bool) -> BackendResult<()> {
         self.assist.borrow_mut().push(on);
         Ok(())
+    }
+
+    fn spec(&self, _owner: &str) -> BackendResult<VehicleSpecSheet> {
+        let mut gear_ratios = [0.0; BB_SPEC_GEARS];
+        gear_ratios[..2].copy_from_slice(&[3.5, 2.1]);
+        Ok(VehicleSpecSheet {
+            revision: 3,
+            mass_kg: 1400.0,
+            track_m: [1.5, 1.6],
+            peak_friction: [1.1, 1.2],
+            drive_layout: BB_DRIVE_REAR,
+            gear_count: 2,
+            gear_ratios,
+            brake_torque_nm: [900.0, 700.0],
+            ..VehicleSpecSheet::default()
+        })
     }
 }
 
@@ -188,10 +204,10 @@ fn set_drift_assist_reaches_the_backend_as_a_flag() {
 }
 
 #[test]
-fn the_table_says_it_is_1_2() {
+fn the_table_says_it_is_1_3() {
     let (_fake, attached) = fixture();
     let table = table_of(&attached);
-    assert_eq!((table.head.major, table.head.minor), (1, 2));
+    assert_eq!((table.head.major, table.head.minor), (1, 3));
     assert_eq!(table.head.size as usize, size_of::<BbVehicles>());
 }
 
@@ -204,4 +220,33 @@ fn spawning_traffic_answers_unsupported_in_1_0() {
     let mut id = 0_u64;
     assert_eq!(unsafe { spawn(table.ctx, BbVec3::default(), 0.0, &mut id) }, BB_ERR_UNSUPPORTED);
     assert_eq!(id, 0);
+}
+
+#[test]
+fn the_spec_is_written_up_to_the_size_the_mod_allows() {
+    let _scope = callback_on_main();
+    let (_fake, attached) = fixture();
+    let table = table_of(&attached);
+    let read = table.spec.expect("spec is offered");
+
+    let mut whole = BbVehicleSpec { size: size_of::<BbVehicleSpec>() as u32, ..BbVehicleSpec::default() };
+    assert_eq!(unsafe { read(table.ctx, &mut whole) }, BB_OK);
+    assert_eq!((whole.revision, whole.mass_kg, whole.track_front_m, whole.track_rear_m), (3, 1400.0, 1.5, 1.6));
+    assert_eq!((whole.peak_friction_front, whole.peak_friction_rear), (1.1, 1.2));
+    assert_eq!(
+        (whole.drive_layout, whole.gear_count, whole.gear_ratios[1], whole.gear_ratios[2]),
+        (BB_DRIVE_REAR, 2, 2.1, 0.0)
+    );
+    assert_eq!((whole.brake_torque_front_nm, whole.brake_torque_rear_nm), (900.0, 700.0));
+    assert_eq!(whole.size as usize, size_of::<BbVehicleSpec>(), "the size word stays as the mod wrote it");
+    assert_eq!(whole.reserved, [0; 8]);
+
+    // A mod built before the brake fields: the host stops at the size it is given.
+    let mut older =
+        BbVehicleSpec { size: offset_of!(BbVehicleSpec, brake_torque_front_nm) as u32, ..BbVehicleSpec::default() };
+    assert_eq!(unsafe { read(table.ctx, &mut older) }, BB_OK);
+    assert_eq!(older.mass_kg, 1400.0);
+    assert_eq!((older.brake_torque_front_nm, older.brake_torque_rear_nm), (0.0, 0.0));
+
+    assert_eq!(unsafe { read(table.ctx, std::ptr::null_mut()) }, BB_ERR_ARG);
 }

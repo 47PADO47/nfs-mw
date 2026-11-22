@@ -1,0 +1,32 @@
+# The economy compound preset (docs/specs/ac-handling/parameter-mapping.md section 5.2). Design values, not measurements.
+schema = 1
+kind = "compound"
+name = "economy"
+level_ref = 0.60
+grip_slope = 0.55
+
+[tyre]
+mu_y0 = 1.00
+mu_x_ratio = 1.05
+exp_y = 0.90
+exp_x = 0.92
+peak_angle_deg = 9.0
+flex = 0.25
+cx_ratio = 1.2
+fall_y = 0.88
+fall_x = 0.85
+q_y = 1.0
+q_x = 1.2
+speed_sens = 0.0015
+relax_len = 0.40
+
+# Which optional units start on for a car on this compound, and the starting levels of the aids (used when the aids unit is on and
+# the player has not moved the slider). Design values.
+[units]
+suspension = true
+thermal = true
+aids = false
+steering = false
+tc = 3
+abs = 3
+esc = 2

@@ -191,6 +191,20 @@ impl ModRuntime {
         report
     }
 
+    /// Count one fault against the loaded mod `id`, for a failure the game found outside an event delivery (a hook that returned
+    /// a result the physics refused). The fifth fault quarantines the mod. Returns true only for the fault that does. An
+    /// unknown id counts nothing.
+    pub fn record_fault(&mut self, id: &str) -> bool {
+        let Some(loaded) = self.loaded.iter_mut().find(|loaded| loaded.candidate.manifest.id == id) else {
+            return false;
+        };
+        let quarantined = loaded.faults.record();
+        if quarantined {
+            log::error!("mod {id} quarantined after {} faults", loaded.faults.faults());
+        }
+        quarantined
+    }
+
     /// Reload one mod from its library, in a developer run. The old module is destroyed first; the new library is loaded
     /// from a fresh shadow copy. If it fails, the mod stays rejected.
     pub fn reload(&mut self, id: &str) -> Result<(), ReloadError> {

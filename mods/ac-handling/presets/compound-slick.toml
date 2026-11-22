@@ -1,0 +1,32 @@
+# The slick compound preset (docs/specs/ac-handling/parameter-mapping.md section 5.2). Design values, not measurements.
+schema = 1
+kind = "compound"
+name = "slick"
+level_ref = 1.55
+grip_slope = 1.00
+
+[tyre]
+mu_y0 = 1.60
+mu_x_ratio = 1.12
+exp_y = 0.80
+exp_x = 0.84
+peak_angle_deg = 7.0
+flex = 0.15
+cx_ratio = 1.8
+fall_y = 0.78
+fall_x = 0.74
+q_y = 2.0
+q_x = 2.4
+speed_sens = 0.0008
+relax_len = 0.26
+
+# Which optional units start on for a car on this compound, and the starting levels of the aids (used when the aids unit is on and
+# the player has not moved the slider). Design values.
+[units]
+suspension = true
+thermal = true
+aids = false
+steering = false
+tc = 0
+abs = 0
+esc = 0

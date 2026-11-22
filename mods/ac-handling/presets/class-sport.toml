@@ -1,0 +1,4 @@
+# The sport car class: the default, it changes nothing.
+schema = 1
+kind = "class"
+name = "sport"

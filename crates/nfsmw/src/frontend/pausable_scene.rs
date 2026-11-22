@@ -226,7 +226,9 @@ impl Scene for Pausable {
     fn set_player_drift_assist(&mut self, on: bool) {
         self.inner.set_player_drift_assist(on);
     }
-
+    fn handling_feed(&mut self, makers: &crate::viewer::HandlingMakers<'_>, out: &mut crate::viewer::HandlingFeed) {
+        self.inner.handling_feed(makers, out);
+    }
     fn set_traffic_density(&mut self, cars: u32, cop_share: u8) {
         self.inner.set_traffic_density(cars, cop_share);
     }
@@ -440,11 +442,9 @@ impl Scene for Pausable {
     fn note_sputters(&mut self, pops: u32) {
         self.inner.note_sputters(pops);
     }
-
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.inner.fullscreen()
     }
-
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         self.inner.take_clip()
     }
@@ -470,7 +470,6 @@ impl Scene for Pausable {
     fn take_world_effect_audio(&mut self) -> Vec<crate::audio::WorldEffectAudio> {
         self.inner.take_world_effect_audio()
     }
-
     fn finished(&self) -> bool {
         self.inner.finished()
     }
@@ -482,7 +481,6 @@ impl Scene for Pausable {
         }
         self.inner.ui(ctx)
     }
-
     fn wants_ui(&self) -> bool {
         !self.concealed() && self.inner.wants_ui()
     }

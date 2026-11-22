@@ -1,0 +1,10 @@
+# The compact car class (docs/specs/ac-handling/parameter-mapping.md section 5.3): light, small tyres, turns in sooner.
+schema = 1
+kind = "class"
+name = "compact"
+
+[mul]
+relax_len = 0.90
+
+[add]
+peak_angle_deg = 0.5

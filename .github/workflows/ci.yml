@@ -34,7 +34,7 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       # Tests that need the game are #[ignore]d and skipped here (no game data in CI).
-      - run: cargo test --workspace
+      - run: cargo test --workspace --no-fail-fast
       - uses: actions/setup-python@v7
         with:
           python-version: "3.15"

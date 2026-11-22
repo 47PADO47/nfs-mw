@@ -5,11 +5,13 @@ mod assists;
 mod burnout;
 mod coasting;
 mod contact;
+mod controls_model;
 mod drift;
 mod drift_assist;
 mod drive_assists;
 mod example;
 mod force_scales;
+mod hook_memory;
 mod integration;
 mod jump;
 mod launch;
@@ -25,6 +27,9 @@ mod spec;
 mod staging;
 mod state;
 mod step;
+mod summary;
+mod suspension_model;
+mod tyre_model;
 mod wall_steering;
 mod wheels;
 
@@ -41,6 +46,8 @@ pub use rolling_chassis::RollingChassisConfig;
 pub use simple_chassis::SimpleChassisConfig;
 pub use spec::{Tunings, VehicleSpec};
 pub use state::{SKID_RANGE, SMOKE_RANGE, WheelState};
+pub use summary::{DriveLayout, VehicleSummary};
+pub use tyre_model::integration_takes_model;
 pub use wall_steering::WallSteeringConfig;
 
 use glam::{Mat3, Quat, Vec3};
@@ -97,6 +104,10 @@ pub struct Vehicle {
     steering: Steering,
     wheel_angles: WheelAngles,
     tires: [Tire; 4],
+    tyre_hook: crate::tires::TyreHook,
+    suspension_hook: crate::suspension::SuspensionHook,
+    controls_hook: crate::input::ControlsHook,
+    hook_memory: hook_memory::HookMemory,
     tire_integration: TireIntegration,
     corners: [Corner; 4],
     contacts: [Option<WheelContact>; 4],
@@ -169,6 +180,10 @@ impl Vehicle {
             steering: Steering::default(),
             wheel_angles: WheelAngles::default(),
             tires: [Tire::default(); 4],
+            tyre_hook: crate::tires::TyreHook::empty(),
+            suspension_hook: crate::suspension::SuspensionHook::empty(),
+            controls_hook: crate::input::ControlsHook::empty(),
+            hook_memory: Default::default(),
             tire_integration: TireIntegration::default(),
             corners: [Corner::default(); 4],
             contacts: [None; 4],
@@ -269,6 +284,7 @@ impl Vehicle {
         self.corners = [Corner::default(); 4];
         self.contacts = [None; 4];
         self.loaded = [false; 4];
+        self.hook_memory = Default::default();
         self.wheels_on_ground = 0;
         self.wheels_on_ground_prev = 0;
         self.steering.reset();

@@ -58,6 +58,22 @@ impl Mods {
         !self.manager.is_empty() || has_menu_rows(&self.bridge) || has_ui_themes(&self.bridge)
     }
 
+    /// Count the faults of the hooks (tyre, suspension, controls) against their mods, and drop the hooks of a mod that is
+    /// quarantined (by these faults or by its events). Called after the mods' callbacks of a frame, before the scene takes what they
+    /// asked for.
+    pub fn sync_hooks(&mut self) {
+        for (owner, new) in self.bridge.take_hook_faults() {
+            for _ in 0..new {
+                self.runtime.record_fault(&owner);
+            }
+        }
+        for owner in self.bridge.hook_owners() {
+            if self.runtime.loaded().iter().any(|summary| summary.id == owner && summary.quarantined) {
+                self.bridge.drop_hook_of(&owner);
+            }
+        }
+    }
+
     /// The loaded mods, in load order.
     pub fn loaded(&self) -> Vec<ModSummary> {
         self.runtime.loaded()

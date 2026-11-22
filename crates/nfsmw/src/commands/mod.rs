@@ -65,6 +65,8 @@ fn run_front_end(
     )
 }
 
+// The estimate counts every local of this start-up function once; it runs once, on the main thread, and does not recurse.
+#[allow(unknown_lints, clippy::large_unopt_stack_frames)]
 pub fn run(cli: Cli) -> Result<()> {
     let game_dir = cli.game_dir.as_deref();
     #[cfg(feature = "multiplayer")]

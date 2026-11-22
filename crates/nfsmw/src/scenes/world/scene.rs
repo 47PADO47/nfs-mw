@@ -334,7 +334,6 @@ impl Scene for WorldScene {
     fn take_common_sounds(&mut self) -> Vec<crate::audio::CommonEvent> {
         std::mem::take(&mut self.common_sounds)
     }
-
     fn pursuit_feed(&self) -> Option<crate::audio::PursuitFeed> {
         self.scene_pursuit_feed()
     }
@@ -428,11 +427,12 @@ impl Scene for WorldScene {
     fn add_player_nitrous(&mut self, amount: f32) -> bool {
         self.add_player_nitrous_to(amount)
     }
-
     fn set_player_drift_assist(&mut self, on: bool) {
         self.set_player_drift_assist_to(on);
     }
-
+    fn handling_feed(&mut self, makers: &crate::viewer::HandlingMakers<'_>, out: &mut crate::viewer::HandlingFeed) {
+        self.handling_feed_of(makers, out);
+    }
     fn repair_player(&mut self) -> bool {
         self.repair_player_car()
     }

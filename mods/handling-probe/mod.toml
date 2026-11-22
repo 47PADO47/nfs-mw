@@ -1,0 +1,24 @@
+[mod]
+id = "example.handling-probe"
+name = "Handling probe"
+version = "0.1.0"
+authors = ["nfs-mw contributors"]
+license = "MIT OR Apache-2.0"
+
+[api]
+blackbox_modding = "0.1"
+
+[games]
+supported = ["*"]
+
+[requires.interfaces]
+"bb.handling" = "1.0"
+
+[optional.interfaces]
+"bb.vehicles" = "1.3"
+"bb.config" = "1.0"
+
+[library]
+windows = "handling_probe.dll"
+linux = "libhandling_probe.so"
+macos = "libhandling_probe.dylib"

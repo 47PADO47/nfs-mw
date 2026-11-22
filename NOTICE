@@ -483,6 +483,21 @@ License: libs/blackbox-gpu-passes/LICENSE-FLAME-NOISE.
 Pyrotechnique by Elodin Systems (Apache-2.0) was a visual/workflow reference only:
 https://github.com/elodin-sys/pyrotechnique . No code or assets copied.
 
+Assetto Corsa-style handling model (the optional ac-handling mod)
+-----------------------------------------------------------------
+rustyAC — https://github.com/thesupersupersigma/rustyAC — GPL-3.0-or-later for the files read (docs/port/sctm.md,
+docs/port/tyre_step.md, crates/rustyac-physics/src/tyre/, src/data/tyres_ini.rs and the aids, brakes, suspension and
+steering parts of src/car/; the repository also has MIT/Apache-2.0 parts that were not read). A port of Assetto Corsa's
+executable, studied for understanding and facts (constants, curve shapes, units, behaviour) to write
+docs/specs/ac-handling/. No code, comment, identifier or table layout was copied, translated or linked; the equations
+and pseudocode of the specs are our own. See docs/provenance/ac-handling.md.
+Literature, understanding only (nothing reproduced): Pacejka, Tyre and Vehicle Dynamics (3rd ed., 2012); Milliken and
+Milliken, Race Car Vehicle Dynamics (SAE, 1995); Gillespie, Fundamentals of Vehicle Dynamics (SAE, 1992); Genta, Motor
+Vehicle Dynamics (1997); Hairer and Wanner, Solving ODEs II (1996); Dixon, The Shock Absorber Handbook (2007); Bosch
+Automotive Handbook (10th ed.); van Zanten, SAE 2000-01-1633; Rajamani, Vehicle Dynamics and Control (2012); Kelly and
+Sharp, Vehicle System Dynamics (2012); SAE J266, ISO 4138, ISO 7401, ISO 3888, ISO 21994 (manoeuvre names only).
+Assetto Corsa is a trademark of Kunos Simulazioni / 505 Games; this project is not affiliated with or endorsed by them.
+
 Per-car environment lighting uses the project’s blackbox-collision queries and native glossy shader. Original implementation, no external code ported.
 Moving spill shadows reuse the project’s native local-light renderer and vehicle marker system.
 Enhanced bloom

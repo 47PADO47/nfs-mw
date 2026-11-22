@@ -54,6 +54,8 @@ impl Vehicle {
         };
         let nos_boost = self.powertrain.nos.boost;
         let h = self.tunings.handling;
+        // A controls model's brake demand replaces the pedal split of a wheel (the balance slider is not applied on top of it).
+        let demand = self.hook_memory.brake_demand;
         for i in 0..4 {
             let driven = if i < 2 { driven_front } else { driven_rear };
             let blown = self.tire_damage.is_blown(i);
@@ -64,7 +66,10 @@ impl Vehicle {
                 t.lateral_boost += self.maneuver.front_grip_gain * c.steering.abs();
                 t.traction_boost *= t.lateral_boost;
             }
-            t.brake = cmd.brake;
+            t.brake = match (demand, blown) {
+                (Some(wheels), false) => wheels[i],
+                _ => cmd.brake,
+            };
             t.ebrake = cmd.ebrake;
             if i >= 2 {
                 let mut boost = 1.0 + grade;

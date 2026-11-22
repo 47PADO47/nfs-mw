@@ -59,6 +59,10 @@ pub use table::{
     MenuRowSpec, MenusBackend, MessageStyle, SettingHandler, SettingsBackend, TimeBackend, UiBackend, UiPrim, UiRect,
     UiThemeSpec, UiTokens, VehicleState, VehiclesBackend, ViewHandlers, ViewInput, ViewPose, ViewSpec, WorldBackend,
 };
+pub use table::{
+    CALLBACK_BUDGET, ControlsHook, HandlingBackend, HookStats, ModHook, SuspensionHook, TyreHook, VehicleSpecSheet,
+    WireQuery,
+};
 pub use table::{EngineBackend, EnginePhase, EngineState};
 pub use table::{LazyFiles, MAX_LAZY_FILE_BYTES};
 pub use table::{TrafficBackend, TrafficCarInfo};

@@ -77,7 +77,7 @@ impl SpoilerMotion {
         let [x, y, z, w] = self.rotation;
         let sine = (x * x + y * y + z * z).sqrt();
         let angle = 2.0 * sine.atan2(w).to_degrees();
-        (angle.abs() >= MIN_TURN_DEG && sine > 1e-6).then(|| ([x / sine, y / sine, z / sine], angle))
+        (angle.abs() >= MIN_TURN_DEG && sine > 1e-6).then_some(([x / sine, y / sine, z / sine], angle))
     }
 }
 

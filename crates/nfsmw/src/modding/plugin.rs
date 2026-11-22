@@ -40,6 +40,7 @@ fn frame_start(
     mods.sync(&mut *host.scene);
     mods.press(|key| keys.just_pressed(key) && !actions.typing());
     mods.frame_start(time.delta_secs());
+    mods.sync_hooks();
     mods.apply(&mut *host.scene, &mut console);
 }
 
@@ -63,5 +64,6 @@ fn scene_tick(
     mods.dispatch_race_notices(&races);
     mods.dispatch_interior(&interior);
     mods.scene_tick(time.delta_secs(), settings.game_speed, host.scene.paused());
+    mods.sync_hooks();
     mods.apply(&mut *host.scene, &mut console);
 }

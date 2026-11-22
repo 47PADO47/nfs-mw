@@ -47,6 +47,8 @@ pub struct Tire {
     pub load: f32,
     pub lateral_force: f32,
     pub longitudinal_force: f32,
+    /// Self-aligning torque (N m) an external tyre model reports; 0 for the built-in models, which have none.
+    pub aligning_torque: f32,
     /// Drive torque to apply this step (N m); the chassis sets it before the tire update.
     pub drive_torque: f32,
     /// 1 = gripping, below 1 = sliding.
@@ -84,6 +86,7 @@ impl Default for Tire {
             load: 0.0,
             lateral_force: 0.0,
             longitudinal_force: 0.0,
+            aligning_torque: 0.0,
             drive_torque: 0.0,
             traction: 1.0,
             slip: 0.0,
@@ -116,6 +119,7 @@ impl Tire {
         self.ebrake = 0.0;
         self.lateral_force = 0.0;
         self.longitudinal_force = 0.0;
+        self.aligning_torque = 0.0;
         self.traction_circle = (1.0, 1.0);
         self.drift_friction = 1.0;
         self.max_slip = max_slip;

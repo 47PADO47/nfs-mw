@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use super::ffi::{self, HostTable};
 use super::{
-    Audio, Camera, Commands, Content, Engine, Hud, I18n, Input, Interface, Map, Menus, ModConfig, ModResult, Settings,
-    Time, Traffic, Ui, Vehicles, World,
+    Audio, Camera, Commands, Content, Engine, Handling, Hud, I18n, Input, Interface, Map, Menus, ModConfig, ModResult,
+    Settings, Time, Traffic, Ui, Vehicles, World,
 };
 use crate::abi::{
     AbiVersion, BB_LOG_DEBUG, BB_LOG_ERROR, BB_LOG_INFO, BB_LOG_TRACE, BB_LOG_WARN, IFACE_AUDIO, IFACE_AUDIO_VERSION,
@@ -18,6 +18,7 @@ use crate::abi::{
     IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
 };
 use crate::abi::{IFACE_ENGINE, IFACE_ENGINE_VERSION};
+use crate::abi::{IFACE_HANDLING, IFACE_HANDLING_VERSION};
 use crate::abi::{IFACE_TRAFFIC, IFACE_TRAFFIC_VERSION};
 
 /// The longest message the host takes in one line (ADR 0005 section 4). Longer text is cut at a character boundary.
@@ -140,6 +141,14 @@ impl Ctx {
     pub fn engine(&self) -> Option<Engine> {
         let iface = self.query_interface(IFACE_ENGINE, IFACE_ENGINE_VERSION.0, IFACE_ENGINE_VERSION.1)?;
         Some(Engine::new(ffi::engine::read(iface)))
+    }
+
+    /// The handling interface (`bb.handling`), when the host offers it: hooks that replace how the player's tyres, suspension and
+    /// controls work. The table is requested at any minor of this major: a host older than the SDK offers fewer hooks, and the
+    /// `register_*` call of a hook it lacks answers `Error::Unsupported`.
+    pub fn handling(&self) -> Option<Handling> {
+        let iface = self.query_interface(IFACE_HANDLING, IFACE_HANDLING_VERSION.0, 0)?;
+        Some(Handling::new(ffi::handling::read(iface), self.host, self.keep.clone()))
     }
 
     /// The traffic interface (`bb.traffic`), when the host offers it: the traffic cars that mods added, and a way to place one.

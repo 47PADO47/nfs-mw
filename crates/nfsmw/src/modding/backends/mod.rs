@@ -17,6 +17,7 @@ mod config;
 mod content;
 mod engine;
 mod grading;
+mod handling;
 mod hud;
 mod i18n;
 mod input;
@@ -46,6 +47,10 @@ mod commands_tests;
 mod config_tests;
 #[cfg(test)]
 mod engine_tests;
+#[cfg(test)]
+mod handling_hooks_tests;
+#[cfg(test)]
+mod handling_tests;
 #[cfg(test)]
 mod input_tests;
 #[cfg(test)]
@@ -101,6 +106,7 @@ pub fn interfaces() -> Interfaces {
         .add_settings(Rc::new(settings::SettingsPort(bridge.clone())))
         .add_vehicles(Rc::new(vehicles::VehiclesPort(bridge.clone())))
         .add_engine(Rc::new(engine::EnginePort(bridge.clone())))
+        .add_handling(Rc::new(handling::HandlingPort(bridge.clone())))
         .add_traffic(Rc::new(traffic::TrafficPort(bridge.clone())))
         .add_hud(Rc::new(hud::HudPort(bridge.clone())))
         .add_camera(Rc::new(camera::CameraPort(bridge.clone())))

@@ -1,0 +1,11 @@
+# The super car class: wide, stiff tyres, sharper, longer lag.
+schema = 1
+kind = "class"
+name = "super"
+
+[mul]
+relax_len = 1.10
+cx_ratio = 1.05
+
+[add]
+peak_angle_deg = -0.5

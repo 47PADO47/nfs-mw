@@ -1,0 +1,12 @@
+# The heavy car class: more load sensitive, lazier.
+schema = 1
+kind = "class"
+name = "heavy"
+
+[mul]
+relax_len = 1.15
+
+[add]
+peak_angle_deg = 0.5
+exp_y = -0.02
+exp_x = -0.02

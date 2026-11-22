@@ -1,0 +1,32 @@
+# The road compound preset (docs/specs/ac-handling/parameter-mapping.md section 5.2). Design values, not measurements.
+schema = 1
+kind = "compound"
+name = "road"
+level_ref = 0.80
+grip_slope = 0.55
+
+[tyre]
+mu_y0 = 1.10
+mu_x_ratio = 1.08
+exp_y = 0.88
+exp_x = 0.90
+peak_angle_deg = 8.5
+flex = 0.22
+cx_ratio = 1.3
+fall_y = 0.87
+fall_x = 0.84
+q_y = 1.1
+q_x = 1.3
+speed_sens = 0.0015
+relax_len = 0.36
+
+# Which optional units start on for a car on this compound, and the starting levels of the aids (used when the aids unit is on and
+# the player has not moved the slider). Design values.
+[units]
+suspension = true
+thermal = true
+aids = false
+steering = false
+tc = 2
+abs = 2
+esc = 1

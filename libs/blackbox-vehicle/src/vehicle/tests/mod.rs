@@ -2,6 +2,7 @@
 
 mod assists;
 mod basics;
+mod controls_model;
 mod countdown_controls;
 mod drift_assist;
 mod driving;
@@ -18,7 +19,9 @@ mod robustness;
 mod settle;
 mod settle_replay;
 mod simple_chassis;
+mod suspension_model;
 mod tuning;
+mod tyre_model;
 mod wheel;
 
 use glam::{Quat, Vec3};

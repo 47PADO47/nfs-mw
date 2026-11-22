@@ -55,9 +55,10 @@ pub use iface::{
     BbCameraAvailableFn, BbCameraGetFn, BbCameraInput, BbCameraPose, BbCameraRegisterViewFn, BbCameraSelectViewFn,
     BbCameraSetModeFn, BbCameraState, BbCameraUnregisterViewFn, BbCameraUpdateFn, BbCameraView, BbHud, BbHudHideFn,
     BbHudMessageFn, BbVec3, BbVehicleAddNosFn, BbVehicleRepairFn, BbVehicleSetDriftAssistFn, BbVehicleSpawnTrafficFn,
-    BbVehicleState, BbVehicleStateFn, BbVehicleTeleportFn, BbVehicles, BbWorld, BbWorldSetRainFn, BbWorldSetTrafficFn,
-    BbWorldTextFn, IFACE_AUDIO, IFACE_AUDIO_VERSION, IFACE_CAMERA, IFACE_CAMERA_VERSION, IFACE_HUD, IFACE_HUD_VERSION,
-    IFACE_VEHICLES, IFACE_VEHICLES_VERSION, IFACE_WORLD, IFACE_WORLD_VERSION,
+    BbVehicleSpec, BbVehicleSpecFn, BbVehicleState, BbVehicleStateFn, BbVehicleTeleportFn, BbVehicles, BbWorld,
+    BbWorldSetRainFn, BbWorldSetTrafficFn, BbWorldTextFn, IFACE_AUDIO, IFACE_AUDIO_VERSION, IFACE_CAMERA,
+    IFACE_CAMERA_VERSION, IFACE_HUD, IFACE_HUD_VERSION, IFACE_VEHICLES, IFACE_VEHICLES_VERSION, IFACE_WORLD,
+    IFACE_WORLD_VERSION,
 };
 pub use iface::{
     BB_CONFIG_FILE, BB_CONFIG_MAIN, BbConfig, BbConfigReadFn, BbConfigSourcesFn, IFACE_CONFIG, IFACE_CONFIG_VERSION,
@@ -66,6 +67,18 @@ pub use iface::{
     BB_CONTENT_CAP_ALT_MAPS, BB_CONTENT_CAP_LAZY_FILES, BB_CONTENT_CAP_REPLACE_SETS, BB_CONTENT_CAP_TEXTURES,
     BB_CONTENT_CAP_WORLD_PATCHES, BbContent, BbContentBytesSinkFn, BbContentCapabilitiesFn, BbContentProvideLazyFn,
     BbContentReadLazyFn, BbContentReportFn, BbContentRescanFn, IFACE_CONTENT, IFACE_CONTENT_VERSION,
+};
+pub use iface::{
+    BB_CONTROLS_FLAG_STEER, BB_CONTROLS_HANDLED, BB_CONTROLS_NOT_HANDLED, BB_SUSPENSION_HANDLED,
+    BB_SUSPENSION_NOT_HANDLED, BbControlsHook, BbControlsHookFn, BbControlsQuery, BbControlsResult,
+    BbHandlingRegisterControlsFn, BbHandlingRegisterSuspensionFn, BbHandlingUnregisterControlsFn,
+    BbHandlingUnregisterSuspensionFn, BbSuspensionHook, BbSuspensionHookFn, BbSuspensionQuery, BbSuspensionResult,
+    BbSuspensionWheel, BbSuspensionWheelResult,
+};
+pub use iface::{
+    BB_DRIVE_ALL, BB_DRIVE_FRONT, BB_DRIVE_REAR, BB_SPEC_GEARS, BB_TYRE_FLAG_ALL_ROLES, BB_TYRE_HANDLED,
+    BB_TYRE_NOT_HANDLED, BbHandling, BbHandlingRegisterTyreFn, BbHandlingUnregisterTyreFn, BbTyreHook, BbTyreHookFn,
+    BbTyreQuery, BbTyreResult, IFACE_HANDLING, IFACE_HANDLING_VERSION,
 };
 pub use iface::{
     BB_ENGINE_OFF, BB_ENGINE_RUNNING, BB_ENGINE_STARTING, BbEngine, BbEngineCarFn, BbEngineStartFn, BbEngineState,

@@ -32,6 +32,29 @@ impl Drive {
         }
     }
 
+    /// Keep the models of a mod on this car (`bb.handling`): a kind with a builder gives a car without that model the one the
+    /// builder makes, a kind without one removes the model. It runs at a frame boundary, between two physics ticks.
+    pub(in crate::scenes::world) fn keep_models(&mut self, makers: &crate::viewer::HandlingMakers<'_>) {
+        let Some(sim) = self.sim.as_mut() else {
+            return;
+        };
+        match makers.tyre {
+            None => sim.clear_tyre_model(),
+            Some(make) if !sim.has_tyre_model() => sim.set_tyre_model(make()),
+            Some(_) => {}
+        }
+        match makers.suspension {
+            None => sim.clear_suspension_model(),
+            Some(make) if !sim.has_suspension_model() => sim.set_suspension_model(make()),
+            Some(_) => {}
+        }
+        match makers.controls {
+            None => sim.clear_controls_model(),
+            Some(make) if !sim.has_controls_model() => sim.set_controls_model(make()),
+            Some(_) => {}
+        }
+    }
+
     /// Add `amount` of a full tank to the nitrous (a rule a mod runs pays it). Returns whether the car has a tank to fill.
     pub(in crate::scenes::world) fn add_nitrous(&mut self, amount: f32) -> bool {
         let Some(sim) = self.sim.as_mut() else {

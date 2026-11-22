@@ -68,6 +68,8 @@
 !/mods/*/src/**/*.rs
 !/mods/*/tests/**/*.rs
 !/mods/*/lang/**/*.ftl
+!/mods/*/presets/*.toml
+!/mods/*/NOTES.md
 
 # Documentation (Markdown only)
 !/docs/**/*.md

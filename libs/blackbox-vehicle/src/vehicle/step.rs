@@ -66,7 +66,7 @@ impl Vehicle {
         let rot = self.body.rotation();
         let local_velocity = rot.transpose() * self.body.linear_velocity;
         // Input and brake-lamp consumers remain current even when chassis response sleeps.
-        self.update_controls(input, local_velocity.z);
+        self.update_controls(dt, input, local_velocity.z);
         let reference = self.tire_integration == crate::tires::TireIntegration::Reference;
         if reference {
             self.advance_retirement_support(dt);
@@ -134,7 +134,7 @@ impl Vehicle {
         self.sanitize();
     }
 
-    fn update_controls(&mut self, input: &InputState, forward_speed: f32) {
+    fn update_controls(&mut self, dt: f32, input: &InputState, forward_speed: f32) {
         // The player's shift action precedes auto-reverse. Shape from the gear
         // actually accepted by the gearbox, including reverse exit this tick.
         let mut pedals = *input;
@@ -169,7 +169,7 @@ impl Vehicle {
             }
             None => {}
         }
-        self.controls = controls;
+        self.controls = self.filter_controls(controls, dt, forward_speed);
     }
 
     pub(super) fn update_steering(&mut self, dt: f32, forward_speed: f32) {
@@ -178,21 +178,25 @@ impl Vehicle {
         }
         let c = self.controls;
         let tire_steering = self.simple_steering_scale();
-        let normal_angle = self.steering.update(&SteeringInput {
-            dt,
-            steer: c.steering,
-            gas: c.gas,
-            brake: c.brake,
-            ebrake: c.handbrake,
-            forward_speed,
-            tire_steering,
-            tuning: self.tunings.steering,
-            device: match self.simple_chassis.is_some() {
-                true => SteeringDevice::Ai,
-                false => self.config.steering_device,
-            },
-            rear_slip_deg: [self.tires[2].slip_angle * 360.0, self.tires[3].slip_angle * 360.0],
-        });
+        let normal_angle = match self.hook_memory.steer_target {
+            // A controls model that answered with a steering target replaces the shaping; the collision limit still applies.
+            Some(target) => self.steering.follow_target(target.to_degrees(), dt, forward_speed),
+            None => self.steering.update(&SteeringInput {
+                dt,
+                steer: c.steering,
+                gas: c.gas,
+                brake: c.brake,
+                ebrake: c.handbrake,
+                forward_speed,
+                tire_steering,
+                tuning: self.tunings.steering,
+                device: match self.simple_chassis.is_some() {
+                    true => SteeringDevice::Ai,
+                    false => self.config.steering_device,
+                },
+                rear_slip_deg: [self.tires[2].slip_angle * 360.0, self.tires[3].slip_angle * 360.0],
+            }),
+        };
         let angle = match self.maneuver.steering_degrees {
             Some(degrees) => c.steering * degrees,
             None => normal_angle,
