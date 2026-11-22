@@ -356,6 +356,11 @@ impl Renderer {
         if (self.experiments.original_world_materials || projected)
             && let Some(window) = &mut self.window
         {
+            if !reflection {
+                let environment =
+                    self.glossy.as_ref().filter(|_| self.experiments.enhanced_windows).map(|g| g.window_environment());
+                window.set_environment(&self.device, &self.shared.bindings.sampler, environment);
+            }
             window.prepare(&self.device, (format, culled), self.pipeline_cache.as_ref());
         }
         match list {

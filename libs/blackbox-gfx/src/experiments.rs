@@ -63,6 +63,8 @@ pub struct RenderExperiments {
     pub sky_sunset_warmth: f32,
     /// Reconstructed authored world material families instead of legacy prelit fallback.
     pub original_world_materials: bool,
+    /// Reflect the directional sky and horizon on world glazing.
+    pub enhanced_windows: bool,
     pub sun_shadows: bool,
     pub local_lamps: bool,
     /// Recognized streetlight fixtures, illuminated at night.
@@ -221,6 +223,7 @@ impl Default for RenderExperiments {
             sky_brightness: 1.0,
             sky_sunset_warmth: 1.0,
             original_world_materials: false,
+            enhanced_windows: false,
             sun_shadows: false,
             local_lamps: false,
             local_street_lights: false,

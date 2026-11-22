@@ -101,6 +101,17 @@ impl super::Glossy {
 }
 
 impl super::Glossy {
+    pub(in crate::gpu) fn window_environment(&self) -> &wgpu::TextureView {
+        // Only the roughness-filtered capture can contribute local shapes on shop glass.
+        // Otherwise use the distant environment. Never bind the sharp street capture here.
+        if self.capture_bound
+            && let Some(filter) = &self.filtered
+        {
+            return &filter.view;
+        }
+        &self.static_environment
+    }
+
     pub(in crate::gpu) fn road_environment(&self) -> ([wgpu::TextureView; 4], [wgpu::Buffer; 2]) {
         (
             [

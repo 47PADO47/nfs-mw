@@ -88,7 +88,16 @@ impl Renderer {
                 surface_diffuse[2],
                 frame.scattering.map_or(1.0, |s| s.in_scatter_scale),
             ],
-            camera_right: [frame.view.x_axis.x, frame.view.y_axis.x, frame.view.z_axis.x, 0.0],
+            camera_right: [
+                frame.view.x_axis.x,
+                frame.view.y_axis.x,
+                frame.view.z_axis.x,
+                match (self.experiments.enhanced_windows, self.glossy.is_some() && !reflection && !reduced) {
+                    (false, _) => 0.0,
+                    (true, false) => 1.0,
+                    (true, true) => 2.0,
+                },
+            ],
             clip_plane,
         }
     }

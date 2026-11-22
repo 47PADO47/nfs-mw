@@ -17,7 +17,7 @@ macro_rules! lighting {
     }
 }
 lighting! {
-    per_car_environment: bool,
+    enhanced_windows: bool, per_car_environment: bool,
     moving_spill_shadows: bool,
     enhanced_sky: bool, cloud_shadows: bool, sun_shafts: bool, sun_shaft_strength: f32,
     local_lamps: bool, local_street_lights: bool, local_headlights: bool, local_traffic_headlights: bool, local_traffic_limit: u32, experimental_night: bool, full_day_night: bool, auto_player_lights: bool, local_tail_lights: bool, local_emergency_lights: bool, local_emergency_strength: f32, night_sky_brightness: f32, local_light_distance: f32, local_light_strength: f32,
@@ -84,6 +84,10 @@ pub(super) fn read(value: &toml::Value, origin: &str) -> Option<Appearance> {
     let mut lighting: RenderExperiments = stored.lighting.into();
     if stored.style == VisualStyle::OriginalPc && value.get("lighting").and_then(|v| v.get("enhanced_sky")).is_none() {
         lighting.enhanced_sky = false;
+    }
+    if stored.style == VisualStyle::Enhanced && value.get("lighting").and_then(|v| v.get("enhanced_windows")).is_none()
+    {
+        lighting.enhanced_windows = true;
     }
     // Profiles from before the separate fog budget set it with the street haze count.
     if value.get("lighting").and_then(|v| v.get("local_light_fog_count")).is_none() {

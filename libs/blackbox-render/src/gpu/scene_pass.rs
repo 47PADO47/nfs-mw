@@ -161,7 +161,7 @@ impl<'a> SceneDraw<'a> {
             && let Some(window) = self.window
         {
             let list = list.window(mode_index);
-            let layer = (mode, mirrored_view);
+            let layer = (mode, mirrored_view, view.reflection);
             window.draw(pass, view.format, layer, self.meshes, list, self.shadows, view.store.as_ref());
         }
         for (shading_index, shading) in SHADINGS.into_iter().enumerate() {
