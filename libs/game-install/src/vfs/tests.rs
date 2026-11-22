@@ -157,7 +157,10 @@ fn overlay_adds_a_new_file_and_folder() {
 fn listings_merge_layers_and_the_top_layer_names_clashes() {
     let (root, mut dir) = install("listing");
     put(&root.join("mod"), "cars/bmwm3gtr/NEW.BIN", b"n");
-    put(&root.join("mod"), "Cars/MYCAR/x.bin", b"x");
+    // Windows folds `Cars` into `cars`; on a case-sensitive file system they would be two folders, and which spelling the
+    // listing keeps would depend on the directory order. Spell it the same way there.
+    let mycar = if cfg!(windows) { "Cars/MYCAR/x.bin" } else { "cars/MYCAR/x.bin" };
+    put(&root.join("mod"), mycar, b"x");
     put(&root.join("mod"), "global/globalb.lzc", b"g");
     dir.add_overlay("mod.a", root.join("mod"), 0).unwrap();
     assert_eq!(dir.files_in("cars/bmwm3gtr"), ["GEOMETRY.BIN", "NEW.BIN"]);
