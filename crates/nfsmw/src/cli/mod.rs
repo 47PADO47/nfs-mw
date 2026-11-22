@@ -61,6 +61,9 @@ impl Cli {
 }
 
 pub(crate) mod career_args;
+// The derive-generated parsers of these modules have a large frame estimate (the command and argument sets are big);
+// they run once at start-up, on the main thread, and do not recurse.
+#[allow(unknown_lints, clippy::large_unopt_stack_frames)]
 mod command;
 mod hud_demo;
 #[cfg(feature = "multiplayer")]
@@ -73,5 +76,6 @@ mod race_args;
 mod race_tests;
 #[cfg(test)]
 mod tests;
+#[allow(unknown_lints, clippy::large_unopt_stack_frames)]
 mod view_args;
 mod view_settings;

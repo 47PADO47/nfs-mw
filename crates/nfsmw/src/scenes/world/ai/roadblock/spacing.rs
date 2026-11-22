@@ -201,7 +201,7 @@ mod tests {
     /// A straight wall along `x = wall`, facing -x.
     fn wall_at(wall: f32) -> impl Fn(Vec2, Vec2) -> Option<(f32, Vec2)> {
         move |from: Vec2, to: Vec2| {
-            (from.x < wall && to.x > wall).then(|| ((wall - from.x) / (to.x - from.x), Vec2::NEG_X))
+            (from.x < wall && to.x > wall).then_some(((wall - from.x) / (to.x - from.x), Vec2::NEG_X))
         }
     }
 

@@ -102,6 +102,8 @@ impl Drop for ListenServer {
 }
 
 /// Opens the world, binds the port and attaches the host's client: everything that can fail before the loop.
+// The estimate counts every local of this start-up function once; it runs once, on the main thread, and does not recurse.
+#[allow(unknown_lints, clippy::large_unopt_stack_frames)]
 fn open(
     dir: &GameDir,
     options: &ServeOptions,
