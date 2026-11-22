@@ -20,7 +20,7 @@ pad's fourth button) that is labelled with the next page, and Restart (key 1).
 
 Key 2 walks Standings, Statistics, Stages, Standings. The shoulder buttons (Page Up, Page Down, the pad's L1 and R1) step
 the racer shown through **all** racers (the player first, then the opponents in grid order), wrapping; they do nothing on
-the standings. The racer shown is kept while the pages change. The screen opens on the standings.
+the standings. The racer shown is kept while the pages change. Tollbooth opens on Stages. Other race types open on Standings.
 
 **Who opens it.** The post-race flow shows it after a race that was not won, and the win photo's **Race Stats** button
 opens it on the standings, over the photo. A won race shows the photo first (`photo.rs`): its Continue answers Exit and its

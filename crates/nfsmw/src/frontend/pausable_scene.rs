@@ -138,7 +138,9 @@ impl Scene for Pausable {
     fn ready(&self) -> bool {
         self.inner.ready()
     }
-
+    fn world_camera_optics(&self) -> bool {
+        !self.paused.get() && !self.concealed() && self.inner.world_camera_optics()
+    }
     fn menu_frame(&self) -> bool {
         self.still_frame()
     }
@@ -440,13 +442,14 @@ impl Scene for Pausable {
     fn note_sputters(&mut self, pops: u32) {
         self.inner.note_sputters(pops);
     }
-
     fn fullscreen(&mut self) -> Option<Fullscreen> {
         self.inner.fullscreen()
     }
-
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         self.inner.take_clip()
+    }
+    fn clip_playing(&self) -> bool {
+        self.inner.clip_playing()
     }
 
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
@@ -467,20 +470,17 @@ impl Scene for Pausable {
     fn take_world_effect_audio(&mut self) -> Vec<crate::audio::WorldEffectAudio> {
         self.inner.take_world_effect_audio()
     }
-
     fn finished(&self) -> bool {
         self.inner.finished()
     }
 
-    /// The world's panels (the entry card, the race card, the end-of-pursuit card), unless the loading screen hides the
-    /// world.
+    /// The world's panels (the entry, race and end-of-pursuit cards), unless the loading screen hides the world.
     fn ui(&mut self, ctx: &egui::Context) -> f32 {
         if self.concealed() {
             return 0.0;
         }
         self.inner.ui(ctx)
     }
-
     fn wants_ui(&self) -> bool {
         !self.concealed() && self.inner.wants_ui()
     }

@@ -3,6 +3,13 @@ use super::*;
 
 pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Settings) {
     let defaults = profiles::defaults(settings);
+    controls::checkbox(
+        ui,
+        &mut lab.options.enhanced_windows,
+        "Enhanced building windows",
+        defaults.appearance.lighting.enhanced_windows,
+    )
+    .on_hover_text("Shallow display recesses, soft reflections and selected interior lights at dusk.");
     ui.horizontal(|ui| {
         egui::ComboBox::from_label("Texture filtering").selected_text(settings.texture_filtering.label()).show_ui(
             ui,

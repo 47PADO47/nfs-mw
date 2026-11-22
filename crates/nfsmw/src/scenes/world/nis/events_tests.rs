@@ -109,15 +109,40 @@ fn a_play_effect_reads_its_name_point_and_magnitude() {
 }
 
 #[test]
-fn a_car_shake_and_a_cop_light_read_their_fields() {
+fn the_car_events_read_their_fields_for_the_car_of_their_channel() {
+    use super::super::car_events::CarEvent;
     let package = sequence();
+    let car = |event: CarEvent| Some(NisEvent::Car { system: 0, event });
     let shake =
         event(super::ids::CAR_SHAKE, &[0.003_f32.to_bits(), 0.9_f32.to_bits(), 1.0_f32.to_bits(), 6.0_f32.to_bits()]);
-    assert_eq!(decode(&package, &shake), Some(NisEvent::CarShake { shake: 0.003, rate: 0.9, ramp: 1.0, time: 6.0 }));
+    assert_eq!(decode(&package, &shake), car(CarEvent::Shake { dip: 0.003, rate: 0.9, ramp: 1.0, time: 6.0 }));
     assert_eq!(decode(&package, &event(super::ids::COP_LIGHTS, &[1])), Some(NisEvent::CopLights(true)));
+    assert_eq!(decode(&package, &event(super::ids::LIGHTS, &[1, 0])), car(CarEvent::Lights { cop: true, head: false }));
     assert_eq!(
-        decode(&package, &event(super::ids::LIGHTS, &[1, 0])),
-        Some(NisEvent::Lights { cop: true, head: false })
+        decode(&package, &event(super::ids::BRAKE_LOCK, &[0, 1])),
+        car(CarEvent::BrakeLock { front: false, rear: true })
+    );
+    assert_eq!(decode(&package, &event(super::ids::NITRO, &[1])), car(CarEvent::Nitro(true)));
+    let rev = event(super::ids::NEUTRAL_REV, &[1, 0.8_f32.to_bits(), 1.0_f32.to_bits()]);
+    assert_eq!(decode(&package, &rev), car(CarEvent::NeutralRev { on: true, throttle: 0.8, speed: 1.0 }));
+    assert_eq!(decode(&package, &event(super::ids::DETACH, &[0])), car(CarEvent::Detach));
+    assert_eq!(decode(&package, &event(super::ids::REATTACH, &[1])), car(CarEvent::Reattach { repair: true }));
+    assert_eq!(decode(&package, &event(super::ids::DAMAGE_RESET, &[])), car(CarEvent::DamageReset));
+}
+
+#[test]
+fn the_world_events_read_their_fields_and_the_inert_ones_say_so() {
+    let package = sequence();
+    assert_eq!(decode(&package, &event(super::ids::MOTION_BLUR, &[0])), Some(NisEvent::MotionBlur(false)));
+    assert_eq!(decode(&package, &event(super::ids::RAIN, &[(-1.0_f32).to_bits()])), Some(NisEvent::Rain(-1.0)));
+    assert_eq!(decode(&package, &event(super::ids::STOP_EFFECTS, &[])), Some(NisEvent::StopEffects));
+    assert_eq!(decode(&package, &event(super::ids::PHOTO_FINISH, &[])), Some(NisEvent::PhotoFinish));
+    let time =
+        event(super::ids::TIME_OF_DAY, &[0.18_f32.to_bits(), 1.0_f32.to_bits(), 4.3_f32.to_bits(), 0.1_f32.to_bits()]);
+    assert_eq!(decode(&package, &time), Some(NisEvent::Inert("ENISTimeOfDay")));
+    assert_eq!(
+        decode(&package, &event(super::ids::FAKE_FAR, &[450.0_f32.to_bits()])),
+        Some(NisEvent::Inert("ENISFakeFar"))
     );
 }
 

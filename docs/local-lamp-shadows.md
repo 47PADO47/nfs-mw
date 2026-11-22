@@ -48,7 +48,7 @@ The softness filter is a 3x3 tent of hardware bilinear comparisons spaced `radiu
 per axis. It is taken as four bilinear comparisons: up to one texel the 3x3 pattern covers four texels per axis, and
 each pair of texels becomes one tap at its weighted centre, so the result is the same filter (at radius 1 the per-axis
 texel weights are (1-f, 2-f, 1+f, f)/4 for the subtexel position f). Above one texel the pattern spans more texels;
-there two taps per axis at ±radius/√2 keep the old filter's variance, a smooth edge instead of the nine-tap
+there two taps per axis at Â±radius/âˆš2 keep the old filter's variance, a smooth edge instead of the nine-tap
 pattern's separate copies. Measured on an RTX 3070 at 2560x1440 (synthetic street, 64 lamps, 16 shadowed at 2048,
 120-frame batches): 2.00 ms to 1.92 ms per frame dry and 4.57 ms to 4.48 ms wet at radius 1 (the filter's own cost,
 against radius 0, from 0.30 ms to 0.22 ms); radius 2 and 3 from 2.01 ms to 1.85 ms. Radius 0.5 and 1 differ from the
@@ -91,8 +91,8 @@ triangles, identified by the original texture's UV band; only that group draws a
 chain, same texture-detail setting), and the rest of the mesh keeps its original material. The `_1Z_` iron and
 `_1C_`/`_1Z_` park lanterns share pane and roof triangles, so they are not split; while the main view draws such a
 LOD, the lantern keeps its glow sprite. The split applies only while street lights are enabled when the scenery loads.
-Raster environment captures can include the emissive material. Ray-traced reflection hits do not yet evaluate
-its emission. The F8
+Raster captures and ray-traced hits include masked glass emission at the current fixture power.
+Sprite-only bulbs have no glass triangles for a ray to hit. The F8
 Street lamp glow control changes their appearance without changing emitted light. Their illumination and
 glow switch off together when the placement moves or its scenery model is hidden or damaged;
 restored placements regain their light. Detached fragments do not carry working lamps.
@@ -156,7 +156,7 @@ daytime material and get additional night dimming; this does not identify every 
 
 Automatic player lights change at dusk/dawn; manual changes are retained until the next transition.
 Traffic beams fade with night. Tunnel lights remain available by day and night. The optional player
-tail-light spill uses intact rear markers and follows engine, headlights and braking. It is unshadowed
+tail-light spill uses intact rear markers and follows engine, headlights and braking. By default it is unshadowed
 and consumes the shared light budget. With enhanced lamp surfaces, the player's outer brake-lamp ON
 textures act as running tails when available; the centre brake lamp still follows the brake.
 
@@ -177,7 +177,7 @@ in the game or measured.
   neighbouring cars receive it. Its colour is scaled by the brightest lamp's level, the strength, and the same
   night fade as traffic beams.
 - Budget: the four nearest such cars within 150 m of the camera, nearest first, faded over the last 24 m before the
-  distance or count boundary like traffic beams. The lights are unshadowed (they never take a shadow slot and do not
+  distance or count boundary like traffic beams. By default the lights are unshadowed (they never take a shadow slot and do not
   make the shadow casters needed), and come out of the shared active-light limit after the player's lamps and the
   traffic beams, before the fixtures.
 - What it does not do: the flare sprites themselves are still not mirrored in screen-space road reflections. The
@@ -188,6 +188,8 @@ in the game or measured.
 Only the listed streetlight variants are covered. Park and iron-lamp fixtures were identified from the original installed meshes; their light parameters are independent approximations. Their physical lights and sprites can be disabled independently of tunnel fixtures;
 not all original lamp artwork illuminates itself. Baked daylight, an incomplete streetlight catalog,
 unshadowed-light leakage, light-budget transitions, and 4K driving performance remain limitations.
+
+The optional [moving spill shadows](dynamic-lamp-shadows.md) share two shadow slots between nearby bars and rear lamps.
 
 ## Where the local-light time goes (4K, 2026-11-16)
 

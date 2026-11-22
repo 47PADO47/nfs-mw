@@ -15,16 +15,13 @@ pub use vehicle::VehicleScene;
 use anyhow::Result;
 use blackbox_gfx::{FrameParams, Instance, RenderBackend};
 
-use crate::hud::MapBlip;
-use crate::input::ActionState;
-
-mod fullscreen;
-pub use fullscreen::{Fit, Fullscreen};
+use crate::{hud::MapBlip, input::ActionState};
 
 mod environment;
-pub use environment::{Environment, SunMode};
-
+mod fullscreen;
 mod readouts;
+pub use environment::{Environment, SunMode};
+pub use fullscreen::{Fit, Fullscreen};
 pub use readouts::{CameraReadout, HandlingFeed, HandlingMakers, PlayerCar, WorldInfo};
 
 pub trait Scene {
@@ -150,7 +147,6 @@ pub trait Scene {
     fn confirm_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.apply_garage(renderer, selection)
     }
-
     /// Pause tuning saves an owned career car, but never creates a My Cars slot for a stock race car.
     fn confirm_tuning(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.confirm_garage(renderer, selection)
@@ -175,6 +171,10 @@ pub trait Scene {
     fn set_garage_open(&mut self, _open: bool) {}
     /// Whether a tools overlay (F5, F8) is open: the world pauses for it unless the player turned that off.
     fn set_overlay_open(&mut self, _open: bool) {}
+    /// Whether this view renders the world through the gameplay camera optics.
+    fn world_camera_optics(&self) -> bool {
+        false
+    }
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;
@@ -250,8 +250,7 @@ pub trait Scene {
     fn readout(&self, _level: crate::devtools::ShowReadout) -> Option<String> {
         None
     }
-    /// Who changes gear (the transmission setting), told every frame before `update`; a scene without a car
-    /// ignores it.
+    /// Who changes gear (the transmission setting), told every frame before `update`; a scene with no car ignores it.
     fn set_transmission(&mut self, _transmission: crate::settings::Transmission) {}
     /// Which gameplay camera to use (the camera setting), told every frame; scenes without a chase camera ignore it.
     fn set_camera_mode(&mut self, _mode: crate::settings::CameraMode) {}
@@ -390,8 +389,7 @@ pub trait Scene {
     fn attach_net_client(&mut self, _client: &crate::net::ClientHandle) -> bool {
         false
     }
-    /// The scene keeps running under the pause menu (a multiplayer client: the server never pauses), with neutral
-    /// input.
+    /// Keeps running under the pause menu (a multiplayer client: the server never pauses), with neutral input.
     fn runs_while_paused(&self) -> bool {
         false
     }
@@ -441,6 +439,10 @@ pub trait Scene {
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         None
     }
+    /// Whether the movie whose sound [`Scene::take_clip`] hands over is playing: false once it ended, was skipped or stopped, and for a scene with no movie.
+    fn clip_playing(&self) -> bool {
+        false
+    }
     /// The one-shot sounds the traffic cars asked for since the last call (horns, near-miss whooshes).
     fn take_traffic_sounds(&mut self) -> Vec<crate::audio::traffic::TrafficSound> {
         Vec::new()
@@ -453,8 +455,7 @@ pub trait Scene {
     fn siren_frame(&mut self, _dt: f32) -> Option<crate::audio::SirenFrame> {
         None
     }
-    /// The NIS player's audio request: the scene whose stream plays now, if any (see `audio::nis`). Scenes without
-    /// NIS ignore it.
+    /// The NIS player's audio request: the scene whose stream plays now, if any (see `audio::nis`); scenes without NIS ignore it.
     fn nis_audio(&self) -> Option<&crate::audio::nis::NisAudioRequest> {
         None
     }

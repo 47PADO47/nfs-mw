@@ -192,7 +192,7 @@ impl ImpactPlayback {
                 let mut params = piece.params;
                 params[4] = i32::from(local.wrapping_add(azimuth));
                 params[7] = (wet * 32767.0) as i32;
-                piece.module.update(&mut DelayedSampler(audio, Group::Sfx, delay), dt, &params)
+                piece.module.update(&mut DelayedSampler(audio, Group::World, delay), dt, &params)
                     && !piece.module.finished()
             });
             !impact.pieces.is_empty()

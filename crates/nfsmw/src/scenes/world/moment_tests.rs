@@ -1,5 +1,5 @@
 use super::*;
-use crate::scenes::world::scene_space::place;
+use crate::scenes::world::scene_space::place_on_car;
 use blackbox_chunk::ice::{Key, Space};
 use nfsmw_data::nis::CameraLibrary;
 use nfsmw_data::world::moment::{MARKER_NAMES, Marker};
@@ -14,6 +14,7 @@ fn key(eye: [[f32; 3]; 2], look: [[f32; 3]; 2], sim_speed: u8) -> Key {
         cubic_look: true,
         space_eye: Space::Scene,
         space_look: Space::Scene,
+        overlay: 0,
         time: 0.0,
         tangent_length: [1.0, 1.0],
         eye,
@@ -204,8 +205,8 @@ fn installed_gas_station_cut_looks_at_the_station_it_was_authored_for() {
     let anchor = anchor_of(marker, flat);
     for t in [0.0, 0.5, 1.0] {
         let sample = track.sample(t).unwrap();
-        let eye = place(&anchor, sample.eye_space, sample.eye).unwrap();
-        let look = place(&anchor, sample.look_space, sample.look).unwrap();
+        let eye = place_on_car(&anchor, sample.eye_space, sample.eye, None).unwrap();
+        let look = place_on_car(&anchor, sample.look_space, sample.look, None).unwrap();
         let from_roof = |p: Vec3| Vec3::new(p.x - roof.x, p.y - roof.y, 0.0).length();
         eprintln!(
             "t {t}: eye {:.1} m and look {:.1} m from the roof, eye {:.1} m above it",

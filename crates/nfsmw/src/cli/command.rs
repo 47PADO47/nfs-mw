@@ -3,6 +3,7 @@
 use clap::{Parser, Subcommand};
 
 use super::Cli;
+use super::career_args::CareerRunArgs;
 use super::parse::parse_xy;
 use super::race_args::RaceRunArgs;
 use super::view_args::ViewArgs;
@@ -102,8 +103,13 @@ pub enum Command {
         /// A scripted pad for tests and screenshots, e.g. "wait 1;right;accept" (replaces the input and the clock).
         #[arg(long, hide = true, value_name = "SCRIPT")]
         ui_script: Option<String>,
+        /// With --ui-script: run the whole boot flow (movies, title screen, profile step) as an unscripted start does.
+        #[arg(long, hide = true, requires = "ui_script", conflicts_with_all = ["skip_boot", "drive", "aliases"])]
+        boot_flow: bool,
         #[command(flatten)]
         race_run: RaceRunArgs,
+        #[command(flatten)]
+        career_run: CareerRunArgs,
         #[command(flatten)]
         view: ViewArgs,
     },
@@ -120,6 +126,9 @@ pub enum Command {
         /// Preview the safe-house menu with an in-memory career, without reading or writing a profile.
         #[arg(long, hide = true, conflicts_with_all = ["pause", "options"])]
         safehouse: bool,
+        /// Preview the SMS inbox with an in-memory career holding these delivered messages, oldest first: `--sms 15,17,123`.
+        #[arg(long, hide = true, value_name = "IDS", value_delimiter = ',', conflicts_with_all = ["pause", "options"])]
+        sms: Vec<u32>,
         /// For the option screens: audio, video, gameplay, player, hud, controls or discord.
         #[arg(long, default_value = "audio")]
         category: String,
@@ -179,6 +188,16 @@ pub enum Command {
         /// How many evenly spaced frames of --bank to decode and print.
         #[arg(long, value_name = "N", requires = "bank", value_parser = clap::value_parser!(u32).range(1..))]
         sample: Option<u32>,
+    },
+    /// Play NIS scenes to their end with no window and no sound and print a JSON report: the car each channel drives,
+    /// the camera, the frames played, the events and the fallbacks. With no scene, every step of the career prologue:
+    /// `nfsmw nis-report IntroNis05 --event 16.2.3`.
+    NisReport {
+        /// The scene, e.g. IntroNis05; the whole prologue when left out.
+        scene: Option<String>,
+        /// Stand the scene as this career event's intro does (its racers and camera track), e.g. 16.2.3.
+        #[arg(long, value_name = "EVENT", requires = "scene")]
+        event: Option<String>,
     },
     /// Show a skeleton of a bundle as sticks, one box per bone, animated by one of its clips (drag to orbit, scroll to
     /// zoom, Esc to quit): `nfsmw view-anim NIS/Scene_ArrestF02_BundleB.bun --clip <name> --time 1`.
@@ -255,7 +274,8 @@ impl Command {
             | Self::ListScreens
             | Self::Strings { .. }
             | Self::DumpScreen { .. }
-            | Self::DumpAnim { .. } => None,
+            | Self::DumpAnim { .. }
+            | Self::NisReport { .. } => None,
         }
     }
 

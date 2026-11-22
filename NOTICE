@@ -13,6 +13,9 @@ PyAudioWPatch as an external Python dependency. No upstream implementation is co
 
 Bevy 0.20 — MIT OR Apache-2.0 (dependency).
   https://github.com/bevyengine/bevy
+  Native auto exposure adapts the bevy_post_process histogram algorithm under MIT.
+  Bruno Opsenica's explanation of log-luminance metering was a design reference.
+  https://bruop.github.io/exposure/
   Dynamic soft shadows use Bevy's cascaded shadow maps and Gaussian PCF filtering.
   The ACES SDR-reference calibration derives the inverse neutral RRT/ODT fit from
   Bevy's tone mapping shader; no upstream shader is copied.
@@ -494,3 +497,20 @@ Vehicle Dynamics (1997); Hairer and Wanner, Solving ODEs II (1996); Dixon, The S
 Automotive Handbook (10th ed.); van Zanten, SAE 2000-01-1633; Rajamani, Vehicle Dynamics and Control (2012); Kelly and
 Sharp, Vehicle System Dynamics (2012); SAE J266, ISO 4138, ISO 7401, ISO 3888, ISO 21994 (manoeuvre names only).
 Assetto Corsa is a trademark of Kunos Simulazioni / 505 Games; this project is not affiliated with or endorsed by them.
+
+Per-car environment lighting uses the project’s blackbox-collision queries and native glossy shader. Original implementation, no external code ported.
+Moving spill shadows reuse the project’s native local-light renderer and vehicle marker system.
+Enhanced bloom
+- Bevy contributors, bevy_post_process 0.20 bloom (MIT OR Apache-2.0).
+  https://github.com/bevyengine/bevy/tree/v0.20.0/crates/bevy_post_process/src/bloom
+  Five-group first downsample adapted under MIT. Notice in bloom.wgsl.
+- Jorge Jimenez, Next Generation Post Processing in Call of Duty: Advanced Warfare (2014).
+  https://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare/
+Road rain-ring design reference: Sébastien Lagarde, Water drop 2b (2013).
+https://seblagarde.wordpress.com/2013/01/03/water-drop-2b-dynamic-rain-and-its-effects/
+Independent implementation; no article code or assets incorporated.
+Sun shaft volume design reference: Bart Wronski, Volumetric Fog (SIGGRAPH 2014). Original implementation.
+
+Vehicle rain motion design reference: Tatarchuk and Isidoro, Artist-Directable Real-Time Rain Rendering.
+https://advances.realtimerendering.com/s2006/Tatarchuk-Rain.pdf
+Independent implementation.

@@ -89,6 +89,8 @@ pub struct Globals {
     pub camera_right: [f32; 4],
     /// Source-world clipping plane; zero disables clipping.
     pub clip_plane: [f32; 4],
+    /// Surface dampness and animation time in seconds, followed by padding.
+    pub water: [f32; 4],
 }
 
 /// The globals buffer with its bind group, and the layouts and sampler that textured draws use.
@@ -187,8 +189,8 @@ mod tests {
 
     #[test]
     fn globals_match_the_wgsl_block() {
-        // One matrix and eleven explicitly aligned vectors.
-        assert_eq!(std::mem::size_of::<Globals>(), 240);
+        // One matrix and twelve explicitly aligned vectors.
+        assert_eq!(std::mem::size_of::<Globals>(), 256);
     }
 
     #[test]

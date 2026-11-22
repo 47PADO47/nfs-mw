@@ -346,12 +346,16 @@ fn driving() -> Vec<Binding> {
         Binding::new(CycleCamera, button(GamepadButton::RightTrigger), 1.0),
         Binding::new(LookBack, button(GamepadButton::LeftTrigger), 1.0),
         Binding::new(Map, button(GamepadButton::DPadLeft), 1.0),
+        // The original HUD's pad actions: left the world map, right the phone's inbox (its keyboard default is Tab).
+        Binding::new(Inbox, key(KeyCode::Tab), 1.0),
+        Binding::new(Inbox, button(GamepadButton::DPadRight), 1.0),
     ]
 }
 
-/// The Custom HUD's map and the HUD's visibility (`docs/specs/custom-hud-map-impl.md`): Tab cycles the map's mode, T
+/// The Custom HUD's map and the HUD's visibility (`docs/specs/custom-hud-map-impl.md`): U cycles the map's mode, T
 /// opens the expanded map, I and K zoom it, O turns it north-up or heading-up, F1 hides the HUD. On a pad D-pad down
-/// cycles the mode and D-pad right turns it; the other D-pad directions are Interact (up) and the world map (left).
+/// cycles the mode; the other D-pad directions are Interact (up), the world map (left) and the inbox (right), and Tab is
+/// the inbox as in the original (`radio`).
 /// None of these keys or buttons is a driving input, so the map never accelerates, brakes or steers
 /// (`map_bindings_tests.rs`). The pad's D-pad down is also the free camera's zoom and a menu direction, which are read
 /// in other contexts.
@@ -360,14 +364,13 @@ fn hud_map() -> Vec<Binding> {
     let key = Source::Key;
     let button = Source::PadButton;
     vec![
-        Binding::new(MapMode, key(KeyCode::Tab), 1.0),
+        Binding::new(MapMode, key(KeyCode::KeyU), 1.0),
         Binding::new(MapExpand, key(KeyCode::KeyT), 1.0),
         Binding::new(MapZoomIn, key(KeyCode::KeyI), 1.0),
         Binding::new(MapZoomOut, key(KeyCode::KeyK), 1.0),
         Binding::new(MapOrientation, key(KeyCode::KeyO), 1.0),
         Binding::new(ToggleHud, key(KeyCode::F1), 1.0),
         Binding::new(MapMode, button(GamepadButton::DPadDown), 1.0),
-        Binding::new(MapOrientation, button(GamepadButton::DPadRight), 1.0),
     ]
 }
 

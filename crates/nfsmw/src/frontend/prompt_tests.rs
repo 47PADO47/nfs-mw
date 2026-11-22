@@ -30,10 +30,12 @@ fn installed_race_play_path_results_have_visible_controller_prompts() {
     for name in [screen::PHOTO, screen::POST_RACE_RESULTS] {
         let mut h = Harness::open(name, Args::default()).expect("installed race result screen");
         h.wait(3.0);
-        let raw = h.screens.trees().pop().expect("race result tree");
+        // The package's own footer is drawn, its pad copy with the controller's glyphs (`prompts/package_footer.rs`).
         let shown = h.screens.presented_trees(&Bindings::default(), InputDevice::Xbox).pop().unwrap();
-        let icons = shown.nodes[raw.nodes.len()..]
+        let icons = shown
+            .draw_order
             .iter()
+            .map(|&i| &shown.nodes[i])
             .filter(|node| {
                 node.visible && node.world_colour[3] > 0 && matches!(node.kind, NodeKind::Image { texture: ATLAS, .. })
             })

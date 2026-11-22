@@ -61,6 +61,7 @@ pub mod screen {
     /// The three sheets the Blacklist page opens (`career_screens/rep_sheets/`).
     pub const SAFE_HOUSE_RACE_SHEET: &str = "SafeHouseRaceSheet.fng";
     pub const SAFE_HOUSE_MILESTONES: &str = "SafeHouseMilestones.fng";
+    pub const IN_GAME_MILESTONES: &str = "InGameMilestones.fng";
     pub const SAFE_HOUSE_BOUNTY: &str = "SafeHouseBounty.fng";
     pub const SAFEHOUSE_REGION_UNLOCK: &str = "SafehouseRegionUnlock.fng";
     /// The marker choice after a rival is beaten (`career_screens/markers.rs`, step 1 of the arrival sequence).

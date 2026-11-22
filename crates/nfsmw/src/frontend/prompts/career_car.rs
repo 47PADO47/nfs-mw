@@ -25,5 +25,10 @@ pub(super) fn hints(footer: Footer, bindings: &Bindings, device: InputDevice) ->
 pub(super) fn hide_legacy(tree: &mut blackbox_feng::UiTree) {
     legacy::hide_children(tree, 0x84bc_f2b5);
     // Native PC action cards are rooted separately from the animated console footer.
-    legacy::hide_roots(tree, &[0xc0a3_2823, 0x73dc_b662, 0x4b89_0cdb, 0xb66f_0fec, 0xa5e3_45ef, 0xd42f_677b]);
+    // The keyboard's Showcase and Sell Car too: the package's keyboard objects are shown when it loads
+    // (`package_footer::reveal_keys`).
+    legacy::hide_roots(
+        tree,
+        &[0xc0a3_2823, 0x73dc_b662, 0x4b89_0cdb, 0xb66f_0fec, 0xa5e3_45ef, 0xd42f_677b, 0x18a4_384f, 0xd646_3100],
+    );
 }

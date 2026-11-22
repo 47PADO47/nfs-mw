@@ -6,7 +6,7 @@ const SHADERS: [(&str, &str); 10] = [
     ("flames", concat!(include_str!("shaders/flame_noise.wgsl"), include_str!("shaders/flames.wgsl"))),
     ("haze", include_str!("shaders/haze.wgsl")),
     ("light fog", include_str!("shaders/light_fog.wgsl")),
-    ("light fog grid", include_str!("shaders/light_fog_grid.wgsl")),
+    ("light fog grid", crate::light_fog::GRID_SHADER),
     ("ui", include_str!("shaders/ui.wgsl")),
     ("ui_mask", include_str!("shaders/ui_mask.wgsl")),
     ("ui_picture", include_str!("shaders/ui_picture.wgsl")),

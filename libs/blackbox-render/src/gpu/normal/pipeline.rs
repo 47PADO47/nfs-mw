@@ -157,7 +157,7 @@ pub(in crate::gpu) fn create(
     let (entry, blend, depth_write) = match mode {
         BlendMode::Opaque => ("fs_opaque", None, true),
         BlendMode::AlphaTest => ("fs_alpha_test", None, true),
-        BlendMode::AlphaBlend => ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), false),
+        BlendMode::AlphaBlend | BlendMode::AlphaOverlay => ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), false),
         BlendMode::Subtractive => ("fs_blend", Some(crate::gpu::pipelines::SUBTRACTIVE), false),
         BlendMode::Additive => (
             "fs_blend",

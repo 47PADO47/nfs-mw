@@ -1,3 +1,5 @@
+use blackbox_feng::ids::PAD_RIGHT;
+use blackbox_feng::{PackageId, Runtime};
 use glam::Vec3;
 use nfsmw_career::blacklist::{BinDef, BinState, Blacklist};
 use nfsmw_career::milestones::speedtrap::{SpeedTrap, SpeedTrapDef};
@@ -7,7 +9,7 @@ use nfsmw_data::gameplay::{BountyJump, GameplayData, Milestone, MilestoneType, P
 use super::bounty::{bounty_rows, on_offer};
 use super::milestones::{Entry, goal_text, milestone_rows, render_xy};
 use super::race::{race_rows, speed_text, status_of};
-use super::{Kind, Status, walk};
+use super::{Args, Kind, ScreenLogic, Sheet, Status, walk};
 
 /// A bin with two free races and one boss race.
 fn def(number: u8) -> BinDef {
@@ -64,8 +66,54 @@ fn the_walk_wraps_both_ways() {
 fn the_packages_name_their_sheets() {
     assert_eq!(Kind::of("safehouseracesheet.fng"), Some(Kind::Race));
     assert_eq!(Kind::of("safehousemilestones.fng"), Some(Kind::Milestones));
+    assert_eq!(Kind::of("ingamemilestones.fng"), Some(Kind::Milestones));
     assert_eq!(Kind::of("safehousebounty.fng"), Some(Kind::Bounty));
     assert_eq!(Kind::of("safehouserivalbio.fng"), None);
+}
+
+#[test]
+fn the_in_game_milestone_sheet_only_mutes_accept() {
+    let runtime = Runtime::new();
+    let package = PackageId(0);
+    let mut sheet = Sheet::new(Kind::Milestones, Args::default());
+    let accept = 0x7B6B_89D7;
+    let cursor = 0x9197_0159;
+    assert_eq!(sheet.sound_trigger(&runtime, package, accept, Some(4)), Some(4));
+    sheet.args.pause = true;
+    assert_eq!(sheet.sound_trigger(&runtime, package, accept, Some(4)), None);
+    assert_eq!(sheet.sound_trigger(&runtime, package, cursor, Some(21)), Some(21));
+}
+
+#[test]
+fn one_sheet_move_allows_one_direction_cue() {
+    let runtime = Runtime::new();
+    let package = PackageId(0);
+    let mut sheet = Sheet::new(Kind::Milestones, Args::default());
+    assert_eq!(sheet.sound_trigger(&runtime, package, PAD_RIGHT, Some(2)), None);
+    sheet.moved = true;
+    assert_eq!(sheet.sound_trigger(&runtime, package, 0x4AC5_E165, Some(2)), Some(2));
+    assert_eq!(sheet.sound_trigger(&runtime, package, 0x4AC5_E165, Some(2)), None);
+}
+
+#[test]
+fn bounty_accept_is_muted_only_in_game() {
+    let runtime = Runtime::new();
+    let package = PackageId(0);
+    let mut sheet = Sheet::new(Kind::Bounty, Args::default());
+    assert_eq!(sheet.sound_trigger(&runtime, package, 0x7B6B_89D7, Some(4)), Some(4));
+    sheet.args.pause = true;
+    assert_eq!(sheet.sound_trigger(&runtime, package, 0x7B6B_89D7, Some(4)), None);
+    assert_eq!(sheet.sound_trigger(&runtime, package, 0x480C_9A58, Some(5)), Some(5));
+}
+
+#[test]
+fn a_race_sheet_without_an_activated_event_replaces_accept() {
+    let runtime = Runtime::new();
+    let package = PackageId(0);
+    let mut sheet = Sheet::new(Kind::Race, Args::default());
+    assert_eq!(sheet.sound_trigger(&runtime, package, 0x7B6B_89D7, Some(4)), Some(7));
+    sheet.race_chosen = true;
+    assert_eq!(sheet.sound_trigger(&runtime, package, 0x7B6B_89D7, Some(4)), Some(4));
 }
 
 #[test]

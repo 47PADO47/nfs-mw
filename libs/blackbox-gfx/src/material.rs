@@ -110,6 +110,10 @@ pub struct GlossyMaterial {
     /// rig's fill colours, strongest for upward normals and 40 percent weaker for downward ones. Zero (the default) adds
     /// nothing, which is what the stock cars use; it applies to every `GlossyModel` of the material.
     pub ambient_floor: f32,
+    /// The alpha channel of an opaque base texture selects a smoother coat.
+    pub coat_mask: bool,
+    /// Exposed paint may acquire a water film when the scene is wet.
+    pub wettable: bool,
     /// Optional Custom-only surface response. None preserves the legacy equations.
     pub surface: Option<GlossySurface>,
     /// RGBA multiplier of the lit texture; alpha scales the highlight and the reflection, and
@@ -134,6 +138,8 @@ impl Default for GlossyMaterial {
             model: GlossyModel::Custom,
             background_actor: false,
             ambient_floor: 0.0,
+            coat_mask: false,
+            wettable: false,
             surface: None,
             diffuse_min: [1.0; 4],
             diffuse_range: [0.0; 4],

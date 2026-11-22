@@ -52,6 +52,8 @@ pub struct Key {
     pub cubic_look: bool,
     pub space_eye: Space,
     pub space_look: Space,
+    /// 0x0A: the overlay the key puts over the picture, 0 for none. Which picture each value is, is the caller's.
+    pub overlay: u8,
     /// 0x10: where the key's interval starts, 0 to 1 along the track.
     pub time: f32,
     /// 0x14: how much of the interval's chord the curve takes as its tangent at the start and at the end.
@@ -88,6 +90,7 @@ impl Key {
             cubic_look: bytes[3] != 0,
             space_eye: Space::from_byte(bytes[4])?,
             space_look: Space::from_byte(bytes[5])?,
+            overlay: bytes[0x0A],
             time: f(0x10)?,
             tangent_length: pair(0x14)?,
             eye: [point(0x1C)?, point(0x28)?],
@@ -181,6 +184,8 @@ pub struct CameraSample {
     pub sim_speed: f32,
     /// Letterbox bar height as a fraction of the screen (the percent times 0.00125).
     pub letterbox: f32,
+    /// The key's overlay byte (0x0A), 0 for none.
+    pub overlay: u8,
 }
 
 /// Half the sensor width of the lens model, in millimetres (`fov = 2 atan(SENSOR / lens)`).
@@ -243,6 +248,7 @@ impl Track {
             near_clip: (near >= 0.0).then_some(near),
             sim_speed: (sim.clamp(0.0, 100.0) * 0.01).max(0.01),
             letterbox: letterbox.max(0.0) * 0.00125,
+            overlay: key.overlay,
         })
     }
 }

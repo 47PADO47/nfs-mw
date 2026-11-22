@@ -41,6 +41,8 @@ fn career_bounty_map_shows_the_city_about_the_place_under_its_pin() {
     h.open(
         screen::SAFE_HOUSE_BOUNTY,
         Box::new(Sheet {
+            moved: false,
+            race_chosen: false,
             kind: Kind::Bounty,
             bin: 8,
             page: Box::new(page),
@@ -88,6 +90,8 @@ fn career_batch13_bounty_grid_and_detail_share_the_selected_regional_crest() {
     h.open(
         screen::SAFE_HOUSE_BOUNTY,
         Box::new(Sheet {
+            moved: false,
+            race_chosen: false,
             kind: Kind::Bounty,
             bin: 8,
             page: Box::new(page),

@@ -130,7 +130,7 @@ impl AiCar {
     pub fn set_nis_pose(&mut self, pose: Option<CarPose>) {
         self.nis_pose = pose;
         if pose.is_none() {
-            self.nis_body_tilt = glam::Quat::IDENTITY;
+            self.nis_look = NisLook::default();
         }
     }
 
@@ -143,7 +143,27 @@ impl AiCar {
     }
 
     pub(in crate::scenes::world::ai) fn set_nis_body_tilt(&mut self, tilt: glam::Quat) {
-        self.nis_body_tilt = tilt;
+        self.nis_look.tilt = tilt;
+    }
+
+    /// The police lights and the head lights a NIS scene sets (`ENISLights`), `None` for the car's own.
+    pub(in crate::scenes::world::ai) fn set_nis_lights(&mut self, lights: Option<(bool, bool)>) {
+        self.nis_look.lights = lights;
+    }
+
+    /// Whether the light bar flashes: the scene's choice while it sets one, else the car's police state.
+    pub(in crate::scenes::world::ai) fn shows_emergency(&self) -> bool {
+        self.nis_look.lights.map_or_else(|| self.emergency_lights(), |(cop, _)| cop && self.is_police())
+    }
+
+    /// Repairs the car's damage for a NIS scene.
+    pub(in crate::scenes::world::ai) fn repair_nis(&mut self) {
+        self.sim.repair();
+    }
+
+    /// Whether the head lights are on: the scene's choice while it sets one, else on.
+    pub(in crate::scenes::world::ai) fn shows_headlights(&self) -> bool {
+        self.nis_look.lights.is_none_or(|(_, head)| head)
     }
 
     /// Collision separation belongs to this tick's displayed pose too.
@@ -287,5 +307,18 @@ impl AiCar {
     pub fn physics_forward(&self) -> Vec3 {
         let forward = self.sim.driver_view().forward;
         forward.try_normalize().unwrap_or(Vec3::Z)
+    }
+}
+
+/// What a NIS scene changes in how the car looks: the body tilt of its car events and the lights it sets.
+#[derive(Debug, Clone, Copy)]
+pub(in crate::scenes::world::ai) struct NisLook {
+    pub tilt: glam::Quat,
+    pub lights: Option<(bool, bool)>,
+}
+
+impl Default for NisLook {
+    fn default() -> Self {
+        Self { tilt: glam::Quat::IDENTITY, lights: None }
     }
 }

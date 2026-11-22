@@ -1,6 +1,12 @@
 //! Canonical style/quality requests shared by the menu, F8 and render bridge.
 mod budgets;
 pub mod display;
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Optics {
+    pub physical_bloom: f32,
+    pub sun_glare: f32,
+}
 mod persistence;
 pub mod registry;
 pub(crate) mod shadows;
@@ -119,6 +125,8 @@ pub struct Appearance {
     pub quality: Quality,
     pub lighting: RenderExperiments,
     pub treatment_strength: Option<f32>,
+    pub auto_exposure: bool,
+    pub optics: Optics,
     pub vignette: f32,
     pub dlss_model: DlssModel,
 }
@@ -129,6 +137,8 @@ impl Default for Appearance {
             style: Default::default(),
             quality: Default::default(),
             treatment_strength: None,
+            auto_exposure: false,
+            optics: Optics::default(),
             vignette: 0.0,
             dlss_model: DlssModel::Auto,
             lighting: RenderExperiments { original_world_materials: true, ..Default::default() },
@@ -159,6 +169,8 @@ impl Settings {
             lighting_debug: old.lighting_debug,
             ..Default::default()
         };
+        self.appearance.auto_exposure = false;
+        self.appearance.optics = Default::default();
         self.appearance.treatment_strength = None;
         self.graphics_preset = GraphicsPreset::Custom;
         self.car_shading = CarShading::Glossy;
@@ -178,6 +190,7 @@ impl Settings {
                 self.ao = AoQuality::Off;
             }
             VisualStyle::Enhanced => {
+                self.appearance.lighting.enhanced_windows = true;
                 self.appearance.lighting.world_skylight = true;
                 self.appearance.lighting.enhanced_wet_surfaces = true;
                 self.visual_treatment = VisualTreatment::Low;
@@ -284,6 +297,7 @@ impl Settings {
         lighting.freeze_sun = expected.appearance.lighting.freeze_sun;
         lighting.lighting_debug = expected.appearance.lighting.lighting_debug;
         if self.appearance.treatment_strength.is_some()
+            || self.appearance.auto_exposure
             || lighting != expected.appearance.lighting
             || self.car_shading != expected.car_shading
             || self.visual_treatment != expected.visual_treatment

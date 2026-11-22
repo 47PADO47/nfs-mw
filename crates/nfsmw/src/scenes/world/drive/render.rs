@@ -32,6 +32,7 @@ impl Drive {
         if let Some(sim) = &self.sim {
             let dark = self.lights_dark();
             let revealed = sim.events.as_ref().map(|e| e.revealed_slots()).unwrap_or_default();
+            let first = out.len();
             self.rig.instances_detail(
                 &self.render_pose(),
                 sim.events.as_ref().map(|e| &e.hidden_slots),
@@ -54,6 +55,9 @@ impl Drive {
                 },
                 out,
             );
+            for instance in &mut out[first..] {
+                instance.forward_speed = self.speed();
+            }
             self.rider.instances(&self.render_pose(), out);
         }
     }

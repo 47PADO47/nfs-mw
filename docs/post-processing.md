@@ -91,3 +91,5 @@ The tone curve is Krzysztof Narkowicz's published rational fit of the ACES curve
 the 13-tap downsample and 3x3 tent upsample described in public conference talks. FXAA is an independent
 implementation of Timothy Lottes' published algorithm; no code of the NVIDIA reference header was
 copied. All shader code is the project's own (MIT OR Apache-2.0).
+
+See [Enhanced bloom and camera glare](bloom-flare.md) for the native optical effects.

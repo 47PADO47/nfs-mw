@@ -53,7 +53,7 @@ fn section(action: Action) -> Section {
         MenuUp | MenuDown | MenuLeft | MenuRight | MenuAccept | MenuBack | MenuStart | MenuButton1 | MenuButton2
         | MenuButton3 | JukeboxGrab | MenuZoomIn | MenuZoomOut | MenuTriggerLeft | MenuTriggerRight | MenuQuit
         | Click => Section::Menus,
-        Cancel | Console | RadioToggle | RadioNext | RadioPrevious | Map => Section::General,
+        Cancel | Console | RadioToggle | RadioNext | RadioPrevious | Map | Inbox => Section::General,
     }
 }
 
@@ -116,6 +116,7 @@ fn labels(action: Action) -> (&'static str, &'static str) {
         Click => ("Skip a movie, continue at the title screen", ""),
         RadioToggle => ("Radio: pause / resume", "N"),
         Map => ("World map", "M"),
+        Inbox => ("Phone: text messages", ""),
         DismissNotification => ("Dismiss the HUD notification", ""),
         MapMode => ("HUD map: next mode (off, compact, centered, expanded)", ""),
         MapExpand => ("HUD map: expanded / back", ""),

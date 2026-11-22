@@ -182,7 +182,7 @@ impl Page {
                 Row::Part(Part::Roof) => "Roof Scoops".into(),
                 Row::Performance(category) | Row::Junkman(category) => format!("{} Packages", category.label()),
                 Row::Gauge => "Custom Gauges".into(),
-                Row::Decal(_, _) => "Decals".into(),
+                Row::Decal(zone, _) => nfsmw_data::car::customization::DecalZone::ALL[zone].label().into(),
                 _ => row.label(),
             },
             Self::RimBrands { .. } | Self::Rims { .. } => "Rims".into(),
@@ -254,7 +254,10 @@ impl Page {
             Self::Paint { color: 0, .. } => 0x055d_a70c,
             Self::Paint { color: 1, .. } => 0xe126_ff53,
             Self::Paint { color: 2..=4, .. } => 0xd8ee_1a80,
-            Self::DecalZones { .. } | Self::Choices { row: Row::Decal(_, _), .. } => 0x9559_80bc,
+            Self::DecalZones { .. } => 0x9559_80bc,
+            Self::Choices { row: Row::Decal(zone, _), .. } => {
+                [0x301d_edd3, 0x48e6_ca49, 0x3436_7c86, 0xddf8_0259, 0x8a76_97d6, 0xb1f9_b0c9][zone]
+            }
             Self::Numbers => 0x6857_e5ac,
             Self::Cart { .. } => 0x3997_28be,
             _ => return None,

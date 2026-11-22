@@ -1,8 +1,8 @@
 use super::atlas::Atlas;
 use wgpu::util::DeviceExt;
 pub(super) const MAX_INSTANCES: usize = 32768;
-// Fourteen flag bits encode the shading family/material slot; values 0..2 are non-glossy.
-pub(super) const MAX_MATERIALS: usize = (1 << 14) - 3;
+// Fourteen flag bits encode the shading family/material slot; values 0..3 are non-glossy.
+pub(super) const MAX_MATERIALS: usize = (1 << 14) - 4;
 pub(in crate::gpu) const MATERIAL_STRIDE: usize = 112;
 pub(super) fn tlas(device: &wgpu::Device, capacity: usize) -> wgpu::Tlas {
     device.create_tlas(&wgpu::CreateTlasDescriptor {
@@ -42,7 +42,7 @@ impl Bindings {
             detail: detail.view.clone(),
             sampler: atlas.sampler.clone(),
             materials: storage(device, "RT hit materials", &vec![0; MAX_MATERIALS * MATERIAL_STRIDE]),
-            winding: storage(device, "RT instance winding", &vec![0; MAX_INSTANCES * 4]),
+            winding: storage(device, "RT instance winding", &vec![0; MAX_INSTANCES * 8]),
             control: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("RT scene control"),
                 contents: &[0; 32],

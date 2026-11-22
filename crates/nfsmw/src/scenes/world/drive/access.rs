@@ -77,6 +77,12 @@ impl Drive {
         nfsmw_data::car::physics::measured::ai_performance_of_spec(&self.physics.spec, self.physics.tire_integration)
     }
 
+    /// The car's nitrous tank (seconds of a full burn) and torque boost, for matching the racers to it.
+    pub(in crate::scenes::world) fn nitrous_hardware(&self) -> blackbox_driver::NitrousHardware {
+        let nos = &self.physics.spec.nos;
+        blackbox_driver::NitrousHardware { capacity: nos.nos_capacity, boost: nos.torque_boost }
+    }
+
     /// The physics of the car, once it stands on a road.
     pub(in crate::scenes::world) fn sim(&self) -> Option<&CarSim> {
         self.sim.as_ref()

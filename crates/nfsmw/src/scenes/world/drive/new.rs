@@ -66,6 +66,7 @@ impl Drive {
             current: pose,
             nis_pose: None,
             nis_body_tilt: glam::Quat::IDENTITY,
+            nis_headlights: None,
             net_pose: None,
             telemetry: Telemetry::default(),
             gauges: Default::default(),

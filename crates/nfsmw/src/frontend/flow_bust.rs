@@ -24,6 +24,7 @@ impl Frontend {
         self.latch = true;
         self.paused.set(true);
         self.stage = Stage::Paused;
+        self.screens.set_in_game();
         let career_ticket = self.career.with(|career| Ticket::with_career(&lines, career));
         let ticket = career_ticket.unwrap_or(Ticket { lines, ..Ticket::default() });
         let commands = self.screens.open_with(INFRACTIONS, Box::new(InfractionsLogic::new(ticket)), true, env);

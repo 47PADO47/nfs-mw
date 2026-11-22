@@ -53,7 +53,7 @@ impl Slot {
 
     fn update(&mut self, audio: &mut Audio, dt: f32, params: &[i32]) {
         self.params = params.to_vec();
-        if self.module.as_mut().is_some_and(|m| !m.update(&mut EffectSampler(audio, Group::Sfx), dt, params)) {
+        if self.module.as_mut().is_some_and(|m| !m.update(&mut EffectSampler(audio, Group::World), dt, params)) {
             self.module = None;
             self.failed = true;
         }
@@ -61,7 +61,7 @@ impl Slot {
             self.module = None;
         }
         self.retired.retain_mut(|(module, params)| {
-            module.update(&mut EffectSampler(audio, Group::Sfx), dt, params) && !module.finished()
+            module.update(&mut EffectSampler(audio, Group::World), dt, params) && !module.finished()
         });
     }
 }

@@ -84,6 +84,19 @@ pub fn run(cli: Cli) -> Result<()> {
     if let Some(race_run) = command.race_run() {
         crate::parity::race_run::init(race_run.options(|name| std::env::var(name).ok()));
     }
+    if let Command::Play { career_run, .. } = &command {
+        let path =
+            crate::parity::career_trace::path_of(career_run.career_trace.clone(), |name| std::env::var(name).ok());
+        crate::parity::career_trace::init(path.as_deref());
+        crate::parity::career_trace::set_exit_after_first_car(career_run.exit_after_first_car);
+        let first_lot = career_run.career_start == crate::cli::career_args::CareerStart::FirstCarLot;
+        crate::parity::career_trace::set_run_options(
+            career_run.exit_after_first_visit,
+            career_run.skip_cinematics,
+            first_lot,
+        );
+        crate::parity::nis_capture::init_from_env();
+    }
     match command {
         Command::CheckInstall => install::check(game_dir),
         Command::Setup => setup::run(game_dir),
@@ -137,6 +150,12 @@ pub fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Command::DumpAnim { path, bank, sample } => dump_anim::run(game_dir, &path, bank.as_deref(), sample),
+        Command::NisReport { scene, event } => {
+            let dir = open_install(game_dir)?;
+            let json = crate::scenes::world::nis_report_json(&dir, scene.as_deref(), event.as_deref());
+            println!("{}", json.map_err(anyhow::Error::msg)?);
+            Ok(())
+        }
         Command::ViewAnim { path, skeleton, clip, time, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let scene =
@@ -144,14 +163,17 @@ pub fn run(cli: Cli) -> Result<()> {
             let run_options = view.run_options(&dir, false).with_mods(mods);
             crate::app::run(Box::new(scene), &Settings::load(view.settings_layer()), run_options)
         }
-        Command::Play { skip_boot, drive, aliases, ui_script, view, .. } => {
+        Command::Play { skip_boot, drive, aliases, ui_script, boot_flow, career_run, view, .. } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let settings = Settings::load(view.settings_layer());
-            let scripted = skip_boot || ui_script.is_some();
-            let start = start::of(drive || session_starts(&launch), aliases, scripted, settings.skip_intro);
+            let scripted = skip_boot || (ui_script.is_some() && !boot_flow);
+            let start = match career_run.new_career {
+                Some(alias) => crate::frontend::Start::NewCareer(alias),
+                None => start::of(drive || session_starts(&launch), aliases, scripted, settings.skip_intro),
+            };
             run_front_end(&dir, &settings, mods, (start, &launch), ui_script.as_deref(), None, &view, false)
         }
-        Command::ViewScreen { name, pause, options, safehouse, category, ui_script, look, car, view } => {
+        Command::ViewScreen { name, pause, options, safehouse, sms, category, ui_script, look, car, view } => {
             let (dir, mods) = crate::modding::open_install(game_dir, &view)?;
             let category = match category.to_ascii_lowercase().as_str() {
                 "audio" => crate::frontend::Category::Audio,
@@ -168,9 +190,12 @@ pub fn run(cli: Cli) -> Result<()> {
             if crate::ui::Catalog::load(&dir, &crate::ui::SCREEN_FILES).find(&name).is_none() {
                 anyhow::bail!("no screen {name:?} in the install (try list-screens)");
             }
-            if safehouse {
+            if safehouse || !sms.is_empty() {
                 let data = std::sync::Arc::new(crate::career::CareerData::load(&dir)?);
-                let career = crate::career::Career::new("PREVIEW", data, &Default::default())?;
+                let mut career = crate::career::Career::new("PREVIEW", data, &Default::default())?;
+                for id in &sms {
+                    anyhow::ensure!(career.settings.sms.deliver(*id), "there is no text message {id}");
+                }
                 crate::career::CareerHandle::shared().set(career);
             }
             let start = crate::frontend::Start::Screen(

@@ -9,6 +9,7 @@
 //! (a garage as large as the record slots) through [`Limits::for_players`].
 
 pub mod catalogue;
+pub mod order;
 pub mod purchase;
 pub mod sale;
 pub mod stats;
@@ -16,7 +17,7 @@ pub mod stats;
 mod tests;
 
 pub use catalogue::{
-    LotCar, LotClass, LotState, bonus_flag, bonus_unlocked, by_frontend_key, listed, rival_car_available,
+    LotCar, LotClass, LotState, bonus_flag, bonus_unlocked, by_frontend_key, listed, rival_car_available, unlocked_by,
 };
 pub use purchase::{Delivery, Purchase, PurchaseError, PurchasePrompt, add_preset_car, buy, prompt_for};
 pub use sale::{Sale, SaleError, replacement_current, sell};

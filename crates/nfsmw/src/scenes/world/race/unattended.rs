@@ -40,6 +40,7 @@ impl Unattended {
     pub(in crate::scenes::world) fn note_tick(&mut self, dt: f32) {
         self.ticks += 1;
         self.sim_time += f64::from(dt);
+        crate::parity::career_trace::note_tick(dt);
     }
 
     /// The autopilot has the player's car: a world moment that ends leaves the car with it.

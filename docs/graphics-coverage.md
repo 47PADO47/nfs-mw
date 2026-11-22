@@ -19,7 +19,7 @@ in `settings/appearance/registry.rs` supplies F8 Diagnostics.
 | Wet-road reflections | Authored projected scenery/sky, attached vehicles and optional original blur on native; elapsed-time dampness | Complete original eligibility/LOD/effects, sampler state and live reference routes; Bevy unsupported |
 | Ambient / coat / AO | Custom probe, clearcoat and GTAO | Not original-lighting parity |
 | Sky/fog | Original PC layered sky on native; authored cloud-map/preset atmosphere | Bevy layered sky, reflection-specific textures, scripted weather and full scene comparisons |
-| Weather/time | Original sun cycle/cloud map; fixed phase/cloud controls; elapsed-time wetness; custom hour clock/drops | Regional storms, wind/splashes and tunnel exposure; full night is a custom extension |
+| Weather/time | Original sun cycle/cloud map; fixed phase/cloud controls; elapsed-time wetness; custom hour clock/drops; optional [adaptive exposure](auto-exposure.md) | Regional storms, wind/splashes; full night is a custom extension |
 | Player lights | Original profiles and lamp textures | Occlusion, damage flags, auxiliary passes |
 | Speedbreaker | Original profile and mask | Full composited comparison coverage |
 | Particles | Original-derived collision/exhaust, custom tire visuals | Complete authored smoke/skid/particle behavior |

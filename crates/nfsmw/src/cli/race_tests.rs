@@ -101,3 +101,31 @@ fn only_the_commands_that_drive_have_a_race_run() {
     let cli = Cli::try_parse_from(["nfsmw", "view-car"]).unwrap();
     assert!(cli.command.unwrap().race_run().is_none());
 }
+
+#[test]
+fn the_career_run_options_start_where_asked_and_need_a_new_career() {
+    use super::career_args::CareerStart;
+    let start_of = |cli: Cli| match cli.command {
+        Some(Command::Play { career_run, .. }) => Some(career_run),
+        _ => None,
+    };
+    let plain = start_of(Cli::try_parse_from(["nfsmw", "play"]).unwrap()).unwrap();
+    assert_eq!(plain.career_start, CareerStart::Prologue, "plain play needs no career option");
+    let lot = Cli::try_parse_from([
+        "nfsmw",
+        "play",
+        "--new-career",
+        "RUN",
+        "--career-start",
+        "first-car-lot",
+        "--skip-cinematics",
+        "--exit-after-first-visit",
+    ])
+    .unwrap();
+    let lot = start_of(lot).unwrap();
+    assert_eq!(lot.career_start, CareerStart::FirstCarLot);
+    assert!(lot.skip_cinematics && lot.exit_after_first_visit);
+    assert!(Cli::try_parse_from(["nfsmw", "play", "--career-start", "first-car-lot"]).is_err(), "needs --new-career");
+    let both = ["nfsmw", "play", "--new-career", "RUN", "--exit-after-first-car", "--exit-after-first-visit"];
+    assert!(Cli::try_parse_from(both).is_err(), "one end of the run");
+}

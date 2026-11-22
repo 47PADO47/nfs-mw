@@ -120,7 +120,7 @@ impl PowerPlayback {
             }
             let Some(bank) = sound.banks.nitrous_bank() else { return false };
             self.purge =
-                self.start(audio, &format!("NOS/{bank}"), "FX_PURGE", params::purge(levels).to_vec(), Group::Sfx);
+                self.start(audio, &format!("NOS/{bank}"), "FX_PURGE", params::purge(levels).to_vec(), Group::World);
             self.purge_healthy = self.purge.is_some();
             return self.purge_healthy;
         }
@@ -132,7 +132,7 @@ impl PowerPlayback {
                 };
                 (format!("ENGINE/{bank}"), Group::Engine)
             }
-            _ => (format!("SHIFTING/{}", sound.shift.bank), Group::Sfx),
+            _ => (format!("SHIFTING/{}", sound.shift.bank), Group::World),
         };
         self.shots[slot] = self.start(audio, &bank, class, words, group);
         self.shot_healthy[slot] = self.shots[slot].is_some();
@@ -198,7 +198,7 @@ impl PowerPlayback {
                     &format!("NOS/{bank}"),
                     "FX_NITROUS",
                     params::nitrous(levels, false).to_vec(),
-                    Group::Sfx,
+                    Group::World,
                 )
             });
             self.nitrous_owned = self.nitrous.is_some();

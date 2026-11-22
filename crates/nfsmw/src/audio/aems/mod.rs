@@ -128,6 +128,10 @@ impl EffectModule {
     pub fn finished(&self) -> bool {
         self.discarded || self.part.instance.is_destroyed()
     }
+    /// Whether no voice of the module plays (none started yet, or all have run out).
+    pub fn silent(&self) -> bool {
+        self.part.voices.slots.iter().flatten().all(|voice| !voice.status().playing)
+    }
     pub fn load(audio: &mut Audio, bank: &str, class: &str, seed: u32) -> Result<Self, String> {
         Ok(Self {
             part: Part::load(audio, bank, class, seed)?,

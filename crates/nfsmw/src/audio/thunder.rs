@@ -152,7 +152,7 @@ impl Audio {
         let gain = mixer.volume(OBJECT, recording.definition.volume_slot).unwrap_or(0.0);
         let gain = (((gain.clamp(0.0, 1.0) * 32767.0) as u32) >> 8).min(127) as f32 / 127.0;
         let sound = recording.sound.clone().volume(volume::decibels(gain));
-        match self.play(Group::Sfx, sound) {
+        match self.play(Group::World, sound) {
             Ok(voice) => {
                 self.thunder.voice = Some(voice);
                 self.moment_started(Owner::Thunder, key, rank, None);

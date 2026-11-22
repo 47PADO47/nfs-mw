@@ -66,8 +66,11 @@ fn reconstruct(p:vec2<i32>,relative:vec3<f32>,n:vec3<f32>,tolerance:f32)->vec4<f
         let angle=f32(i)*2.39996323;let radius=select(select(1.0,4.0,i>=4),12.0,i>=8);
         let q=clamp(p+vec2<i32>(round(vec2(cos(angle),sin(angle))*radius)),vec2(0),high);
         let c=cell(q);
-        if compatible(c,relative,n,tolerance)<=0.0 {continue;}
         let value=textureLoad(source,c,0);
+        // This gather only expands extrema. Interior samples cannot change them,
+        // even on a compatible surface. Avoid fetching and decoding that surface.
+        if value.b<=separation && value.r>=low && value.r<=top {continue;}
+        if compatible(c,relative,n,tolerance)<=0.0 {continue;}
         separation=max(separation,value.b);
         low=min(low,value.r);top=max(top,value.r);
     }

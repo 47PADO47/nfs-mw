@@ -151,6 +151,14 @@ The first key of the track gives the space of its eye and look point:
 - Scene type 4: world (1), which is the render frame. Examples: `IntroNisDD`, `IntroNisBL13`, `EndingNis04`.
 - Car space (0) occurs in 33 keys of pack `0x8003B200`; the scenes that hold them were not identified **[unconfirmed]**.
   The replay photo uses car space in its own pack ([formats/animation.md](../formats/animation.md)).
+  `IntroNisDD` has car-space keys at 14.75 to 17.03 s and 39.0 to 43.0 s, and `GenericStart`'s two tracks are car space
+  throughout. Their points read in the car model's frame, nose `+x`, left `+y`, up `+z`: the chase keys of `IntroNisDD`
+  put the eye at `x` −59 to −9 m and look along `+x` **[verified]**. Which car the keys follow is not in the CC0 tree.
+  What the rewrite does **[ours]** (`scene_space.rs`, `nis/player_camera.rs`): car-space points are placed on the scene
+  pose of `car1` (before the ground lift). With it the end of `IntroNisDD` (39 to 43 s) frames the two racers as the
+  original does **[reference frames]**. Hybrid space is still not placed (the orbit plays). The PC mover: car space
+  follows the human racer's car; hybrid space adds that car's position with no rotation ([nis-events-3.md](nis-events-3.md)
+  section 4) **[pc]**.
 
 This matches section 5.2 of [nis-player.md](nis-player.md): type-4 cameras are authored in the render frame, so the type-4 origin and turn are zero.
 
@@ -165,7 +173,11 @@ what it is used for (for example, streaming the world around the camera) is **[u
 The ICE track is evaluated as a Hermite curve between keys, with its field of view and dutch angle. The rules are in
 [formats/animation.md](../formats/animation.md) ("ICE camera keys"). The evaluator's code is not in the CC0 tree
 **[unconfirmed – needs Ghidra]**. The key's simulation speed (100 in most scenes, 87 in `IntroNisBL13`) is a per-track
-time multiplier **[decomp: format doc; consumer unconfirmed]**.
+time multiplier **[decomp: format doc; consumer unconfirmed]**. `IntroNisDD`'s keys 9 to 14 (9.07 to 11.01 s) run at
+30 %, and the original's game clock advances at about 30 % of the wall clock over that shot while the scene stays in step
+with the game clock **[reference frames]**: the speed slows the scene, cars and camera alike. The rewrite advances the
+scene's clock by the frame time times the sample's speed **[ours]** (`nis/player.rs`). Whether the NIS sound stream
+follows it is **[unconfirmed]**.
 
 ## 11. Overlay and letterbox **[decomp; verified for the names]**
 
@@ -173,6 +185,17 @@ time multiplier **[decomp: format doc; consumer unconfirmed]**.
   (`TheVisibleSectionManager.ActivateOverlay`). **[decomp]** Twelve scenes name the overlay `FLYBY`
   ([nis-scenes.md](nis-scenes.md), section 3).
 - What the `FLYBY` overlay draws is in the visible-section code, which is not in this tree **[unconfirmed]**.
+- The camera key's byte 0x0A (the "overlay" field of the key layout) is 3 on every key of the 26 arrests' tracks and on
+  `IntroNisDD`'s keys 0 to 7 (0 to 8.0 s); 2 on keys of `IntroNisBL03`, `BL06`, `BL12`, `BL13` and `EndingNis03`; 4 on one
+  key of `IntroNisDD` (27.26 s) and of `EndingNis04` **[verified]**. The original draws the police camera look
+  (`BUSTED_OVERLAY.fng`: REC, "ROCKPORT POLICE VID CAM 01" and the crawl) over the whole arrest and over `IntroNisDD`
+  from its start to about 8.2 s, in all five recorded plays **[reference frames]**, with the crawl "STATUS: CODE 3
+  PURSUIT – DISTRICT: ROCKPORT POLICE DEPARTMENT – CONDITION: 3 – SUSPECTS: 2 VEHICLES" (language label `0x626AC047`,
+  the string after the five arrest crawls). So overlay 3 is that package. The rewrite puts it up while the sample's
+  overlay is 3, with that crawl outside an arrest **[ours]** (`scene_hud.rs`). The PC camera mover maps the byte to a
+  package: 1 `FLASHERS.fng`, 2 `BLACK_FADE_OUT.fng`, 3 `BUSTED_OVERLAY.fng`, 4 `BLACK_BACKGROUND.fng`, and swaps the
+  package when a key's byte differs from the last key's ([nis-events-3.md](nis-events-3.md) section 4) **[pc]**. What 4
+  draws on screen is not settled; the rewrite draws nothing for 2 and 4.
 - The key byte that the ICE layout calls "letterbox" is not checked here, because its offset is in question in the
   format doc (the two bytes at 0x7C and 0x7D are equal in every key sampled). **[unconfirmed]**
 
@@ -255,6 +278,15 @@ and unloads the bundle from memory.
   **[unconfirmed]**.
 - The racers (`car2` to `car8`) are set not animating, and any with no clip are left deactivated.
 - The cops that the NIS spawned are killed.
+
+### 14.5 Checking a scene headless **[ours]**
+
+`nfsmw nis-report <scene> [--event <event>]` reads a scene as the world does, plays it to its end on a 30 Hz clock with no
+window and no sound, and prints JSON: the car each channel drives (by the world's linking rule; with `--event`, the
+race's racers by grid slot and its camera track), the camera track, the frames played, every event with whether the
+player acts on it, and two lists: `problems` (defects the data settles: a channel the data has a car for that stays off,
+a stock pick, a cut ending) and `open` (the rewrite's choices where the data is silent). With no scene it reports every
+step of the career prologue. The ignored test `scene_report::tests` runs the prologue and fails on any problem.
 
 ## 15. Facts still missing (for the supervisor's Ghidra pass)
 

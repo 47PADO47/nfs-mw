@@ -163,7 +163,7 @@ impl Audio {
         let selection = [recording.bank as i32, recording.take as i32, recording.definition.volume_slot as i32];
         slot.stop();
         slot.point = point;
-        match self.play(Group::Sfx, data) {
+        match self.play(Group::World, data) {
             Ok(voice) => {
                 self.explosion.voice = Some(voice);
                 self.moment_started(Owner::Petrol, MOMENT, rank, Some(point));

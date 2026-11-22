@@ -45,6 +45,8 @@ pub struct CarMaterials {
     fallback: Option<GlossyMaterialHandle>,
     /// The light material that stands in for `CARSKIN`.
     paint: Option<u32>,
+    vinyl_material: Option<GlossyMaterialHandle>,
+    vinyl_skins: HashSet<u32>,
     window_tint: Option<u32>,
 }
 
@@ -62,11 +64,22 @@ impl CarMaterials {
         to_sun: Vec3,
         background_actor: bool,
     ) -> Self {
+        let satin = matches!(shading, CarShading::Glossy | CarShading::GlossyLamps)
+            && model.paintable
+            && model.paint.as_ref().is_some_and(|p| p.name.starts_with("MATTE"));
+        let mut vinyl_skins = HashSet::new();
         let uploaded = model
             .textures
             .iter()
             .filter(|(_, t)| !t.name.starts_with("__GARAGE_"))
-            .filter_map(|(&hash, t)| upload_texture(renderer, t).map(|handle| (hash, (handle, blend_mode(Some(t))))))
+            .filter_map(|(&hash, t)| {
+                let packed = satin.then(|| model.coated_vinyl_skin(t)).flatten();
+                let handle = upload_texture(renderer, packed.as_ref().unwrap_or(t))?;
+                if packed.is_some() {
+                    vinyl_skins.insert(hash);
+                }
+                Some((hash, (handle, blend_mode(Some(t)))))
+            })
             .collect();
         let sides = model.textures.iter().map(|(&hash, t)| (hash, Sidedness::of(Some(t)))).collect();
         let paint = model.paint.as_ref().and_then(|p| p.light_material);
@@ -83,6 +96,8 @@ impl CarMaterials {
                 fallback: None,
                 paint,
                 window_tint: None,
+                vinyl_skins,
+                vinyl_material: None,
             };
         }
         let rig = match shading.is_original() {
@@ -104,6 +119,7 @@ impl CarMaterials {
             .chain(paint)
             .chain(window_tint)
             .collect();
+        let mut vinyl_material = None;
         let glossy = used
             .iter()
             .copied()
@@ -118,6 +134,7 @@ impl CarMaterials {
                     && model.paintable
                 {
                     material.surface = model.paint.as_ref().and_then(super::paint_surface::response);
+                    material.wettable = material.surface.is_some();
                 }
                 if matches!(shading, CarShading::Glossy | CarShading::GlossyLamps) && Some(hash) != paint {
                     material.surface = if background_actor && shading == CarShading::Glossy {
@@ -140,6 +157,10 @@ impl CarMaterials {
                 material.background_actor = background_actor && shading == CarShading::Glossy;
                 if is_bike {
                     material.ambient_floor = BIKE_AMBIENT_FLOOR;
+                }
+                if Some(hash) == paint && !vinyl_skins.is_empty() {
+                    vinyl_material =
+                        Some(renderer.create_glossy_material(&GlossyMaterial { coat_mask: true, ..material }));
                 }
                 Some((hash, renderer.create_glossy_material(&material)))
             })
@@ -182,6 +203,8 @@ impl CarMaterials {
             fallback,
             paint,
             window_tint,
+            vinyl_material,
+            vinyl_skins,
         }
     }
 
@@ -199,6 +222,7 @@ impl CarMaterials {
             .glossy
             .into_values()
             .chain(self.fallback)
+            .chain(self.vinyl_material)
             .chain(self.lamp_glossy.into_values())
             .chain(self.lamp_fallback)
             .chain(self.brake_glossy.into_values())
@@ -218,13 +242,15 @@ impl CarMaterials {
 
     /// The lookup for one placement (left brakes show the mirrored caliper).
     pub fn for_placement<'a>(&'a self, swaps: &'a TextureSwaps, left_brake: bool) -> Lookup<'a> {
-        Lookup { materials: self, swaps, left_brake, lamp_surface: true }
+        Lookup { materials: self, swaps, left_brake, lamp_surface: true, window_decal: false }
     }
 
     /// Lamp glass sometimes reuses a lamp body texture slot; keep the cover non-emissive.
-    pub fn for_solid<'a>(&'a self, swaps: &'a TextureSwaps, left_brake: bool, name: &str) -> Lookup<'a> {
+    pub fn for_solid<'a>(&'a self, swaps: &'a TextureSwaps, left_brake: bool, name: &str, slot: usize) -> Lookup<'a> {
         let mut lookup = self.for_placement(swaps, left_brake);
         lookup.lamp_surface = lamp_surface_allowed(name);
+        use nfsmw_data::car::customization::DecalZone;
+        lookup.window_decal = slot == DecalZone::FrontWindow.model_slot() || slot == DecalZone::RearWindow.model_slot();
         lookup
     }
 }
@@ -245,10 +271,17 @@ pub struct Lookup<'a> {
     swaps: &'a TextureSwaps,
     left_brake: bool,
     lamp_surface: bool,
+    window_decal: bool,
 }
 
 impl MaterialLookup for Lookup<'_> {
     fn texture_shading(&self, texture_hash: u32, light_material_hash: Option<u32>) -> Option<Shading> {
+        if let Some(coated) = self.materials.vinyl_material
+            && light_material_hash == Some(CARSKIN)
+            && self.materials.vinyl_skins.contains(&self.swaps.resolve_for(texture_hash, self.left_brake))
+        {
+            return Some(Shading::Glossy(coated));
+        }
         if !self.lamp_surface || !self.swaps.lamp_is_on(texture_hash) {
             return None;
         }
@@ -270,7 +303,12 @@ impl MaterialLookup for Lookup<'_> {
         // A replacement the packs don't have falls back to the placeholder itself.
         let swapped = self.swaps.resolve_for(texture_hash, self.left_brake);
         let uploaded = &self.materials.uploaded;
-        uploaded.get(&swapped).or_else(|| uploaded.get(&texture_hash)).copied()
+        let &(texture, blend) = uploaded.get(&swapped).or_else(|| uploaded.get(&texture_hash))?;
+        let blend = match (self.window_decal, blend) {
+            (true, BlendMode::AlphaBlend) => BlendMode::AlphaOverlay,
+            _ => blend,
+        };
+        Some((texture, blend))
     }
 
     fn draws(&self, texture_hash: u32) -> bool {

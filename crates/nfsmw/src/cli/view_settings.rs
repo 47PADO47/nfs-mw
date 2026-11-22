@@ -6,6 +6,7 @@ use crate::settings::Partial;
 impl ViewArgs {
     /// `hud_default` turns the HUD on without `--hud` (driving).
     pub fn run_options(&self, dir: &game_install::GameDir, hud_default: bool) -> crate::app::RunOptions {
+        self.silent_audio.then(crate::audio::request_silent_output);
         crate::app::RunOptions {
             screenshot: self.screenshot.clone(),
             screenshot_size: self.screenshot_size,

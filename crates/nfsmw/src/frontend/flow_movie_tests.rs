@@ -120,3 +120,39 @@ fn a_tutorial_returns_to_the_screen_that_asked_for_it() {
     rig.with(|fe, host, env| fe.end_movie(host, env));
     assert_eq!(rig.fe.screens.top(), Some(MAIN_MENU_SUB), "the screen that asked opens again");
 }
+
+/// A front-end movie skipped at 2 s: the flow puts the menu back, and the movie's sound goes with the movie's scene.
+#[test]
+fn a_skipped_front_end_movie_leaves_no_sound() {
+    let Some(mut rig) = install_rig() else { return };
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let mut audio = crate::audio::Audio::replay(dir, 48_000);
+    let command = Command::PlayMovie {
+        movie: "storyfmv_saf25".to_owned(),
+        then: AfterMovie::Open(SAFE_HOUSE_RIVAL_BIO.to_owned(), Args::default()),
+    };
+    rig.with(|fe, host, env| fe.apply(vec![command], host, env));
+    let actions = crate::input::ActionState::default();
+    let opening = std::time::Instant::now();
+    let mut heard_for = 0.0;
+    while heard_for < 2.0 {
+        let host = &mut rig.host;
+        host.scene.update(host.renderer.as_mut().unwrap().as_mut(), &actions, 1.0 / 60.0);
+        audio.follow_scene_change(host.scene_changes);
+        audio.follow_clip(host.scene.as_mut());
+        audio.render_replay(800);
+        if audio.active_streams().iter().any(|s| s == "movie") {
+            heard_for += 1.0 / 60.0;
+        }
+        assert!(opening.elapsed().as_secs() < 60, "the movie's sound never started");
+        std::thread::sleep(std::time::Duration::from_millis(16));
+    }
+    // What the movie stage does on Accept, Start, Back or a click.
+    rig.with(|fe, host, env| fe.end_movie(host, env));
+    for _ in 0..30 {
+        audio.follow_scene_change(rig.host.scene_changes);
+        audio.follow_clip(rig.host.scene.as_mut());
+        audio.render_replay(800);
+    }
+    assert!(audio.active_streams().is_empty(), "left playing: {:?}", audio.active_streams());
+}

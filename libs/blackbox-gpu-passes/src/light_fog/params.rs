@@ -17,7 +17,7 @@ pub(super) struct Params {
     grid: [u32; 4],
     previous_view_proj: [[f32; 4]; 4],
     previous_camera: [f32; 4],
-    temporal: [f32; 4],
+    pub(super) temporal: [f32; 4],
     shadow_indices: [[u32; 4]; 32],
     positions: [[f32; 4]; MAX_LIGHTS],
     directions: [[f32; 4]; MAX_LIGHTS],

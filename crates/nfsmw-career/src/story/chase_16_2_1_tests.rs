@@ -45,7 +45,7 @@ fn kill_engine_before_the_call_trigger_sabotages_and_the_call_is_placed_later() 
 
 #[test]
 fn the_call_path_fades_on_at_8_s_and_ends_at_11_s_after_the_call_starts() {
-    let mut chase = Chase::new();
+    let mut chase = Chase::for_script(OPENING_SCRIPT);
     let frames = (1..=15).map(|f| ChaseInput { call_started: f == 2, ..trigger_clock(f) });
     let events = run(&mut chase, frames);
     assert_eq!(
@@ -62,7 +62,7 @@ fn the_call_path_fades_on_at_8_s_and_ends_at_11_s_after_the_call_starts() {
 
 #[test]
 fn nothing_is_emitted_after_postrace() {
-    let mut chase = Chase::new();
+    let mut chase = Chase::for_script(OPENING_SCRIPT);
     let frames = (1..=13).map(|f| ChaseInput { call_started: f == 2, ..trigger_clock(f) });
     run(&mut chase, frames);
     assert!(chase.update(trigger_clock(30)).is_empty());
@@ -72,7 +72,7 @@ fn nothing_is_emitted_after_postrace() {
 
 #[test]
 fn a_call_start_counts_only_while_the_call_is_waited_for() {
-    let mut chase = Chase::new();
+    let mut chase = Chase::for_script(OPENING_SCRIPT);
     let frames = (1..=20).map(|f| ChaseInput { dt: 1.0, call_started: f == 2, ..Default::default() });
     assert!(run(&mut chase, frames).is_empty());
     assert!(!chase.is_finished());
@@ -96,7 +96,7 @@ fn an_engine_blow_ends_the_race_1_s_after_it_happens() {
 
 #[test]
 fn an_engine_blow_before_the_fade_cancels_the_call_path() {
-    let mut chase = Chase::new();
+    let mut chase = Chase::for_script(OPENING_SCRIPT);
     let frames = (1..=15).map(|f| ChaseInput { call_started: f == 2, engine_blown: f == 5, ..trigger_clock(f) });
     let events = run(&mut chase, frames);
     assert_eq!(
@@ -108,7 +108,7 @@ fn an_engine_blow_before_the_fade_cancels_the_call_path() {
 
 #[test]
 fn an_engine_blow_after_the_fade_ends_the_race_once() {
-    let mut chase = Chase::new();
+    let mut chase = Chase::for_script(OPENING_SCRIPT);
     let frames = (1..=15).map(|f| ChaseInput { call_started: f == 2, engine_blown: f == 11, ..trigger_clock(f) });
     let events = run(&mut chase, frames);
     assert_eq!(
@@ -126,7 +126,7 @@ fn an_engine_blow_after_the_fade_ends_the_race_once() {
 fn the_timers_count_the_frame_time() {
     // Frame time 0.5 s: the call starts in frame 1, so the fade is due at clock 8 s (frame 17) and the end at clock
     // 11 s (frame 23). The backup stays below 15 s over these frames.
-    let mut chase = Chase::new();
+    let mut chase = Chase::for_script(OPENING_SCRIPT);
     let frames = (1..=24).map(|f| ChaseInput {
         secs_since_call_trigger: Some((f - 1) as f32 * 0.5),
         call_started: f == 1,
@@ -166,4 +166,27 @@ fn the_bail_trigger_runs_its_three_calls_once() {
             (4, ChaseEvent::NoNewPursuits),
         ]
     );
+}
+
+#[test]
+fn each_d_day_race_has_its_own_script() {
+    assert_eq!(script_of("16.1.0"), Some(OPENING_SCRIPT));
+    assert_eq!(script_of("16.2.1"), Some(CHASE_SCRIPT));
+    assert_eq!(script_of("16.2.2"), None);
+}
+
+#[test]
+fn the_opening_race_has_no_backup_sabotage() {
+    let mut chase = Chase::for_script(OPENING_SCRIPT);
+    let events = run(&mut chase, (1..=20).map(trigger_clock));
+    assert_eq!(events, vec![(1, ChaseEvent::PlaceCall { id: 10 })], "the call alone, no sabotage at 15 s");
+}
+
+#[test]
+fn the_chase_does_not_wait_for_its_call_so_its_start_ends_nothing() {
+    let mut chase = Chase::new();
+    let frames = (1..=14).map(|f| ChaseInput { call_started: f == 2, ..trigger_clock(f) });
+    let events = run(&mut chase, frames);
+    assert_eq!(events, vec![(1, ChaseEvent::PlaceCall { id: 10 })], "no fade and no end from the call in 16.2.1");
+    assert!(!chase.is_finished());
 }

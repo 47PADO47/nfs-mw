@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 struct Material {
     group: wgpu::BindGroup,
+    scene_group: Option<wgpu::BindGroup>,
     views: [wgpu::TextureView; 2],
 }
 
@@ -19,6 +20,8 @@ pub(super) struct Window {
     shader: wgpu::ShaderModule,
     layout: wgpu::PipelineLayout,
     material_layout: wgpu::BindGroupLayout,
+    fallback: wgpu::TextureView,
+    environment: Option<wgpu::TextureView>,
     materials: Slots<Material>,
     /// Per target format and whether the variant discards fragments behind the clip plane (`(format, clip)`).
     pipelines: HashMap<(wgpu::TextureFormat, bool), pipeline::FaceSets>,
@@ -30,12 +33,12 @@ pub(super) struct Window {
 
 impl Window {
     fn new(device: &wgpu::Device, globals: &wgpu::BindGroupLayout, shadows: &wgpu::BindGroupLayout) -> Self {
-        let texture = |binding| wgpu::BindGroupLayoutEntry {
+        let texture = |binding, view_dimension| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::FRAGMENT,
             ty: wgpu::BindingType::Texture {
                 sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                view_dimension: wgpu::TextureViewDimension::D2,
+                view_dimension,
                 multisampled: false,
             },
             count: None,
@@ -43,8 +46,9 @@ impl Window {
         let material_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("architectural glass textures"),
             entries: &[
-                texture(0),
-                texture(1),
+                texture(0, wgpu::TextureViewDimension::D2),
+                texture(1, wgpu::TextureViewDimension::D2),
+                texture(3, wgpu::TextureViewDimension::Cube),
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::FRAGMENT,
@@ -72,7 +76,32 @@ impl Window {
                 .into(),
             ),
         });
-        Self { shader, layout, material_layout, materials: Slots::new(), pipelines: HashMap::new(), clip: false, store }
+        let fallback = device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("window capture fallback"),
+                size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 6 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            })
+            .create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::Cube),
+                ..Default::default()
+            });
+        Self {
+            shader,
+            layout,
+            material_layout,
+            fallback,
+            environment: None,
+            materials: Slots::new(),
+            pipelines: HashMap::new(),
+            clip: false,
+            store,
+        }
     }
 
     pub(super) fn prepare(
@@ -85,6 +114,22 @@ impl Window {
         pipeline::fill_faces(self.pipelines.entry((format, clip)).or_default(), culled, |mode, face| {
             pipeline::create(device, shader, layout, format, (mode, face), false, store, clip, cache)
         });
+    }
+
+    pub(super) fn set_environment(
+        &mut self,
+        device: &wgpu::Device,
+        sampler: &wgpu::Sampler,
+        view: Option<&wgpu::TextureView>,
+    ) {
+        if self.environment.as_ref() == view {
+            return;
+        }
+        self.environment = view.cloned();
+        for material in self.materials.iter_mut() {
+            material.scene_group =
+                view.map(|v| material_group(device, &self.material_layout, sampler, &material.views, v));
+        }
     }
 
     /// Pick (and from the next [`Self::prepare`] on, build) the variants that discard fragments behind the clip plane.
@@ -100,7 +145,7 @@ impl Window {
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
         format: wgpu::TextureFormat,
-        (mode, mirrored_view): (BlendMode, bool),
+        (mode, mirrored_view, capture): (BlendMode, bool, bool),
         meshes: &'a Slots<GpuMesh>,
         list: &[LayerCmd],
         shadows: &'a wgpu::BindGroup,
@@ -126,7 +171,8 @@ impl Window {
             let Shading::WorldWindow(handle) = draw.shading else { continue };
             let Some(material) = self.materials.get(handle.raw()) else { continue };
             if bound_material != Some(handle.raw()) {
-                pass.set_bind_group(1, &material.group, &[]);
+                let group = material.scene_group.as_ref().filter(|_| !capture).unwrap_or(&material.group);
+                pass.set_bind_group(1, group, &[]);
                 bound_material = Some(handle.raw());
             }
             let face = cmd.face.seen(mirrored_view);
@@ -158,8 +204,18 @@ impl Renderer {
             Window::new(&self.device, &self.shared.bindings.globals_layout, &self.shared.glossy.material)
         });
         let views = [diffuse.clone(), reflection.clone()];
-        let group = material_group(&self.device, &window.material_layout, &self.shared.bindings.sampler, &views);
-        Some(WindowMaterialHandle::from_raw(window.materials.insert(Material { group, views })))
+        let group = material_group(
+            &self.device,
+            &window.material_layout,
+            &self.shared.bindings.sampler,
+            &views,
+            &window.fallback,
+        );
+        let scene_group = window
+            .environment
+            .as_ref()
+            .map(|v| material_group(&self.device, &window.material_layout, &self.shared.bindings.sampler, &views, v));
+        Some(WindowMaterialHandle::from_raw(window.materials.insert(Material { group, scene_group, views })))
     }
 
     pub fn destroy_window_material(&mut self, handle: WindowMaterialHandle) {
@@ -172,7 +228,11 @@ impl Renderer {
 impl Window {
     pub(super) fn set_sampler(&mut self, device: &wgpu::Device, sampler: &wgpu::Sampler) {
         for material in self.materials.iter_mut() {
-            material.group = material_group(device, &self.material_layout, sampler, &material.views);
+            material.group = material_group(device, &self.material_layout, sampler, &material.views, &self.fallback);
+            material.scene_group = self
+                .environment
+                .as_ref()
+                .map(|v| material_group(device, &self.material_layout, sampler, &material.views, v));
         }
     }
 }
@@ -181,6 +241,7 @@ fn material_group(
     layout: &wgpu::BindGroupLayout,
     sampler: &wgpu::Sampler,
     views: &[wgpu::TextureView; 2],
+    environment: &wgpu::TextureView,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("architectural glass material"),
@@ -188,6 +249,7 @@ fn material_group(
         entries: &[
             wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&views[0]) },
             wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&views[1]) },
+            wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(environment) },
             wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(sampler) },
         ],
     })

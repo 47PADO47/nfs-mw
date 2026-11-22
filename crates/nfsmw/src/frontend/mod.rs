@@ -69,10 +69,12 @@ mod scene;
 mod screens;
 mod script;
 mod scroller;
+mod sound_rules;
 mod splash;
 mod stage;
 mod stat_bars;
 mod step_budget;
+mod text_wrap;
 mod widget_layout;
 mod widget_menu;
 // The shared option widgets. The advanced controls screen that uses them is not wired to its package yet.

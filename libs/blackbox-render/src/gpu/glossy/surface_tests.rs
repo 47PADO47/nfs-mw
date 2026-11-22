@@ -134,12 +134,17 @@ fn rough_reflections_remove_sharp_details_without_just_darkening_them() {
     r.set_environment_faces(128, [&face; 6]);
     let sharp = mesh(&mut r, material(0.12));
     let rough = mesh(&mut r, material(0.78));
-    let (sharp_mean, sharp_contrast) = stats(&r.capture(96, 96, &frame(), &sharp).unwrap());
+    let sharp_image = r.capture(96, 96, &frame(), &sharp).unwrap();
+    let (sharp_mean, sharp_contrast) = stats(&sharp_image);
     let (rough_mean, rough_contrast) = stats(&r.capture(96, 96, &frame(), &rough).unwrap());
     eprintln!("reflection mean/contrast: sharp {sharp_mean}/{sharp_contrast}, rough {rough_mean}/{rough_contrast}");
     assert!(sharp_contrast > 30.0);
     assert!(rough_contrast < sharp_contrast * 0.55);
-    assert!((rough_mean - sharp_mean).abs() < 25.0, "filtering should retain the environment's average energy");
+    // The sampled sharp image already includes bilinear texture filtering at checker edges.
+    let expected =
+        (16..80).flat_map(|y| (16..80).map(move |x| (y * 96 + x) * 4)).map(|i| linear(sharp_image[i])).sum::<f32>()
+            / (64.0 * 64.0);
+    assert!((linear(rough_mean.round() as u8) - expected).abs() < 0.04, "rough paint must retain linear energy");
 }
 
 #[test]

@@ -23,6 +23,7 @@ pub use siren::{SirenFrame, SirenSource};
 pub mod environment;
 pub mod environment_context;
 mod filter;
+mod output;
 #[cfg(test)]
 mod replay;
 mod shaped;
@@ -53,8 +54,11 @@ pub mod preview;
 pub mod preview_play;
 mod radio;
 mod refs;
+mod scene_sound;
+mod silent;
 mod siren;
 mod speech;
+mod streams;
 mod thunder;
 mod trace;
 pub mod traffic;
@@ -69,10 +73,11 @@ use std::sync::Arc;
 use blackbox_attrib::Database;
 use ea_audio::abk::Bank;
 use game_install::GameDir;
+use kira::Tween;
 use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle};
-use kira::track::{TrackBuilder, TrackHandle};
-use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
+use kira::track::TrackHandle;
 use nfsmw_data::sound::{CarSound, EngineLoops, SoundUpgrades};
+use output::OutputManager;
 
 pub use car::{
     CarAudioTelemetry, CarContact, CarEvent, CarSoundState, CarSoundTick, ContactSource, ContactVehicle, RoadContext,
@@ -82,40 +87,19 @@ pub use engine::{EngineHandle, EngineMix, EngineVoice, LoopMix};
 pub use interactive::{MusicInput, PursuitFeed};
 pub use plugin::AudioPlugin;
 pub use radio::NowPlaying;
+pub use silent::request_silent_output;
 pub use volume::{Group, Volumes};
 
 struct Output {
     manager: OutputManager,
     sfx: TrackHandle,
+    world: TrackHandle,
     music: TrackHandle,
     music_filter: filter::CutoffHandle,
     engine: TrackHandle,
     /// The HUD's cues (`Group::Hud`).
     hud: TrackHandle,
     wet: wet::Bus,
-}
-
-enum OutputManager {
-    Device(Box<AudioManager<DefaultBackend>>),
-    #[cfg(test)]
-    Replay(Box<AudioManager<replay::ReplayBackend>>),
-}
-
-impl OutputManager {
-    fn add_sub_track(&mut self, builder: TrackBuilder) -> Result<TrackHandle, String> {
-        match self {
-            Self::Device(manager) => manager.add_sub_track(builder).map_err(|e| e.to_string()),
-            #[cfg(test)]
-            Self::Replay(manager) => manager.add_sub_track(builder).map_err(|e| e.to_string()),
-        }
-    }
-    fn volume(&mut self, volume: kira::Decibels, tween: Tween) {
-        match self {
-            Self::Device(manager) => manager.main_track().set_volume(volume, tween),
-            #[cfg(test)]
-            Self::Replay(manager) => manager.main_track().set_volume(volume, tween),
-        }
-    }
 }
 
 pub struct Audio {
@@ -135,6 +119,8 @@ pub struct Audio {
     nis: nis::NisAudio,
     dir: GameDir,
     volumes: Volumes,
+    world_muted: bool,
+    movie_active: bool,
     /// The bytes of the banks read so far, by path under `SOUND/`.
     banks: HashMap<String, Arc<Vec<u8>>>,
     module_banks: HashMap<String, Arc<blackbox_aems::ModuleBank>>,
@@ -175,8 +161,11 @@ pub struct Audio {
     second_car: Option<car::CarAudio>,
     /// The selectors of player 2's car whose sound failed, as `failed` keeps them for the first car.
     second_failed: Option<(String, SoundUpgrades)>,
-    /// The scene's soundtrack that is playing, kept so it can be stopped when the scene goes.
-    music: Option<StaticSoundHandle>,
+    /// The scene's soundtrack that is playing (a movie's sound), with its trace instance, kept so it can be stopped
+    /// when the movie or the scene goes.
+    music: Option<(StaticSoundHandle, u64)>,
+    /// The host's scene-change count the scene's sounds were last stopped for (`scene_sound.rs`).
+    scene_seen: u32,
 }
 
 /// A car's engine voice and the data that maps its RPM to the loops' frequency.
@@ -221,7 +210,7 @@ impl Audio {
     /// Open the default output device. When there is none, or it fails, the returned value is silent and says
     /// why in the log.
     pub fn new(dir: GameDir, volumes: Volumes) -> Self {
-        let output = match Output::open() {
+        let output = match Output::open(silent::wanted()) {
             Ok(output) => Some(output),
             Err(e) => {
                 log::warn!("no sound: {e}");
@@ -248,6 +237,8 @@ impl Audio {
             nis: nis::NisAudio::default(),
             dir,
             volumes,
+            world_muted: false,
+            movie_active: false,
             banks: HashMap::new(),
             module_banks: HashMap::new(),
             decoder: decode_worker::Decoder::default(),
@@ -274,12 +265,15 @@ impl Audio {
             second_car: None,
             second_failed: None,
             music: None,
+            scene_seen: 0,
         };
         if let Some(path) = std::env::var_os("NFSMW_AUDIO_TRACE")
             && let Err(error) = audio.start_trace(std::path::Path::new(&path))
         {
             log::warn!("{error}");
         }
+        let kind = audio.output.as_ref().map_or("none", |output| output.manager.kind());
+        audio.trace.note("output", kind);
         audio.set_volumes(volumes);
         audio
     }
@@ -300,9 +294,29 @@ impl Audio {
         let tween = Tween::default();
         out.manager.volume(volume::decibels(volumes.master), tween);
         out.sfx.set_volume(volume::decibels(volumes.sfx), tween);
+        out.world.set_volume(volume::decibels(if self.world_muted { 0.0 } else { volumes.sfx }), tween);
         out.music.set_volume(volume::decibels(volumes.music), tween);
-        out.engine.set_volume(volume::decibels(volumes.engine), tween);
+        out.engine.set_volume(volume::decibels(if self.world_muted { 0.0 } else { volumes.engine }), tween);
+        out.wet.world_muted(volumes, self.world_muted);
         out.hud.set_volume(volume::decibels(volumes.hud), tween);
+    }
+
+    pub(super) fn set_presentation_mix(&mut self, photo: bool, movie: bool) {
+        let muted = photo || movie;
+        if (muted, movie) == (self.world_muted, self.movie_active) {
+            return;
+        }
+        self.world_muted = muted;
+        self.movie_active = movie;
+        self.trace.note(
+            "presentation_mix",
+            match (photo, movie) {
+                (_, true) => "movie",
+                (true, false) => "photo",
+                _ => "resume",
+            },
+        );
+        self.set_volumes(self.volumes);
     }
 
     fn output(&mut self) -> Result<&mut Output, String> {
@@ -347,6 +361,7 @@ impl Audio {
         let out = self.output()?;
         let track = match group {
             Group::Sfx => &mut out.sfx,
+            Group::World => &mut out.world,
             Group::Music => &mut out.music,
             Group::Engine => &mut out.engine,
             Group::Hud => &mut out.hud,
@@ -356,16 +371,24 @@ impl Audio {
 
     /// Plays a scene's soundtrack in the music group, in place of the one playing.
     pub fn play_music(&mut self, data: StaticSoundData) -> Result<(), String> {
-        self.stop_music();
+        self.stop_music("replaced");
+        let seconds = data.duration().as_secs_f64();
         let handle = self.play(Group::Music, data)?;
-        self.music = Some(handle);
+        let instance = self.trace.instance();
+        self.trace_stream(streams::Event::Start, streams::Kind::Movie, instance, &format!("seconds={seconds:.3}"));
+        self.music = Some((handle, instance));
         Ok(())
     }
 
-    /// Stops the soundtrack, if one is playing.
-    pub fn stop_music(&mut self) {
-        let Some(mut handle) = self.music.take() else { return };
+    /// Stops the soundtrack, if one is playing; `reason` goes to the audio trace.
+    pub fn stop_music(&mut self, reason: &str) {
+        let Some((mut handle, instance)) = self.music.take() else { return };
+        let event = match handle.state() {
+            kira::sound::PlaybackState::Stopped => streams::Event::End,
+            _ => streams::Event::Stop,
+        };
         handle.stop(Tween::default());
+        self.trace_stream(event, streams::Kind::Movie, instance, reason);
     }
 
     /// The gameplay database, shared by the session (see `nfsmw_data::shared::attributes`).
@@ -404,25 +427,6 @@ impl Audio {
         let handle = output.engine.play(voice).map_err(|e| e.to_string())?;
         handle.set_wet_sender(output.wet.sender(Group::Engine));
         Ok(handle)
-    }
-}
-
-impl Output {
-    fn open() -> Result<Self, String> {
-        let mut main = kira::track::MainTrackBuilder::new();
-        let wet = main.add_effect(wet::Bus::builder());
-        let mut manager = AudioManager::<DefaultBackend>::new(AudioManagerSettings {
-            main_track_builder: main,
-            ..Default::default()
-        })
-        .map_err(|e| e.to_string())?;
-        let sfx = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
-        let mut music_builder = TrackBuilder::new();
-        let music_filter = music_builder.add_effect(filter::MusicFilterBuilder);
-        let music = manager.add_sub_track(music_builder).map_err(|e| e.to_string())?;
-        let engine = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
-        let hud = manager.add_sub_track(TrackBuilder::new()).map_err(|e| e.to_string())?;
-        Ok(Self { manager: OutputManager::Device(Box::new(manager)), sfx, music, music_filter, engine, hud, wet })
     }
 }
 

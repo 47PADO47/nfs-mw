@@ -31,8 +31,11 @@ pub struct RenderExperiments {
     pub enhanced_sky: bool,
     /// Cloud sunlight attenuation, independent of geometry shadows.
     pub cloud_shadows: bool,
+    /// Scale dynamic object environment lighting by local shelter.
+    pub per_car_environment: bool,
     /// Spatial wet-film and pooled-water response on eligible reflective surfaces.
     pub enhanced_wet_surfaces: bool,
+    pub puddle_ripples: bool,
     pub puddle_coverage: f32,
     /// World-space patch size in metres.
     pub puddle_scale: f32,
@@ -60,6 +63,8 @@ pub struct RenderExperiments {
     pub sky_sunset_warmth: f32,
     /// Reconstructed authored world material families instead of legacy prelit fallback.
     pub original_world_materials: bool,
+    /// Reflect the directional sky and horizon on world glazing.
+    pub enhanced_windows: bool,
     pub sun_shadows: bool,
     pub local_lamps: bool,
     /// Recognized streetlight fixtures, illuminated at night.
@@ -75,6 +80,8 @@ pub struct RenderExperiments {
     pub auto_player_lights: bool,
     /// Player tail and brake lights illuminate nearby surfaces.
     pub local_tail_lights: bool,
+    /// Allow moving rear and emergency spill lights to use local shadow maps.
+    pub moving_spill_shadows: bool,
     /// Flashing emergency light bars of nearby vehicles illuminate the surfaces around them.
     pub local_emergency_lights: bool,
     /// Brightness of the emergency light-bar spill.
@@ -90,6 +97,10 @@ pub struct RenderExperiments {
     pub local_street_glow: f32,
     /// Shared weather-dependent light scattering from local fixtures.
     pub local_light_fog: f32,
+    /// Scatter directional light in the shared fog volume.
+    pub sun_shafts: bool,
+    /// Directional scattering multiplier.
+    pub sun_shaft_strength: f32,
     /// View distance of the shared local-light fog in metres.
     pub local_light_fog_distance: f32,
     /// Shared fog-grid resolution, from 1 (low) to 3 (high).
@@ -182,7 +193,9 @@ impl Default for RenderExperiments {
         Self {
             enhanced_sky: true,
             cloud_shadows: false,
+            per_car_environment: false,
             enhanced_wet_surfaces: false,
+            puddle_ripples: false,
             puddle_coverage: 0.7,
             puddle_scale: 7.0,
             water_ripples: 0.5,
@@ -210,6 +223,7 @@ impl Default for RenderExperiments {
             sky_brightness: 1.0,
             sky_sunset_warmth: 1.0,
             original_world_materials: false,
+            enhanced_windows: false,
             sun_shadows: false,
             local_lamps: false,
             local_street_lights: false,
@@ -220,6 +234,7 @@ impl Default for RenderExperiments {
             full_day_night: false,
             auto_player_lights: true,
             local_tail_lights: false,
+            moving_spill_shadows: false,
             local_emergency_lights: false,
             local_emergency_strength: 1.0,
             night_sky_brightness: 0.18,
@@ -229,6 +244,8 @@ impl Default for RenderExperiments {
             local_street_range: 35.0,
             local_street_glow: 1.0,
             local_light_fog: 0.5,
+            sun_shafts: false,
+            sun_shaft_strength: 1.0,
             local_light_fog_distance: 200.0,
             local_light_fog_quality: 2,
             local_street_haze_count: 8,
@@ -301,6 +318,7 @@ impl RenderExperiments {
             local_light_strength: finite(self.local_light_strength, 1.0).clamp(0.0, 5.0),
             local_street_strength: finite(self.local_street_strength, 1.5).clamp(0.0, 5.0),
             local_street_glow: finite(self.local_street_glow, 1.0).clamp(0.0, 2.0),
+            sun_shaft_strength: finite(self.sun_shaft_strength, 1.0).clamp(0.0, 4.0),
             local_light_fog: finite(self.local_light_fog, 0.5).clamp(0.0, 4.0),
             local_light_fog_distance: finite(self.local_light_fog_distance, 200.0).clamp(80.0, 600.0),
             local_light_fog_quality: self.local_light_fog_quality.clamp(1, 3),

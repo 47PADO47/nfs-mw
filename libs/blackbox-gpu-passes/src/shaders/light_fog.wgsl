@@ -43,10 +43,15 @@ fn half_size()->vec2<u32> { return (textureDimensions(depth)+vec2(1u))/2u; }
     let a=f32(slice)/f32(params.grid.z);
     let b=f32(slice+1u)/f32(params.grid.z);
     let fraction=clamp((end-params.options.w*a*a)/max(params.options.w*(b*b-a*a),0.00001),0.0,1.0);
+    var sample_uv=uv;
+    if params.temporal.z>0.0 {
+        let jitter=fract(52.9829189*fract(dot(pixel.xy,vec2(0.06711056,0.00583715))))-0.5;
+        sample_uv+=vec2(jitter,-jitter)*0.35/vec2<f32>(params.grid.xy);
+    }
     var before=vec4(0.0,0.0,0.0,1.0);
-    if slice>0u { before=sample_cell(uv,slice-1u); }
+    if slice>0u { before=sample_cell(sample_uv,slice-1u); }
     // Alpha carries the texel's scene distance to the composite; transmission is not needed there.
-    return vec4(mix(before,sample_cell(uv,slice),fraction).rgb,end);
+    return vec4(mix(before,sample_cell(sample_uv,slice),fraction).rgb,end);
 }
 fn composite(pixel:vec4<f32>)->vec4<f32> {
     let size=vec2<f32>(textureDimensions(depth));

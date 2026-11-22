@@ -86,6 +86,8 @@ mod impact_effects;
 mod local_lights;
 #[cfg(test)]
 mod performance_tests;
+#[cfg(test)]
+mod prologue_scene_tests;
 mod prop_effects;
 mod props;
 mod pursuit_trace;
@@ -110,6 +112,7 @@ mod scenery_groups;
 mod session_rules;
 mod status_line;
 pub(crate) use session_rules::{SessionRules, ViewSource};
+mod car_environment;
 mod shadow_feed;
 mod simulation;
 mod sky;
@@ -206,6 +209,7 @@ pub struct WorldScene {
     visible: Vec<Instance>,
     /// What the rear-view mirror sees: the same world, without the player's car.
     rear_visible: Vec<Instance>,
+    car_environment: car_environment::CarEnvironment,
     shadow_feed: shadow_feed::ShadowFeed,
     original_shadows: bool,
     original_sky: bool,
@@ -397,6 +401,7 @@ const FLOWN_AWAY: f32 = 25.0;
 
 const CLEAR: [f32; 3] = [0.55, 0.63, 0.72];
 
+pub(crate) use race::scene_report::report_json as nis_report_json;
 /// The car `drive` picks when none was named.
 pub use race::{MAX_RACERS, RaceOptions, SplitSetup};
 

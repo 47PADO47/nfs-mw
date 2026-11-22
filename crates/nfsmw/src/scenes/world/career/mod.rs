@@ -7,6 +7,7 @@
 mod bust;
 pub(super) mod cooling;
 mod coop_bust;
+mod drive_pilot;
 mod drive_to_target;
 mod events;
 mod hud;

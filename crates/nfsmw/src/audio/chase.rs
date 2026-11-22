@@ -76,9 +76,7 @@ pub(crate) fn load_air_support() -> AirSupport {
 impl Audio {
     /// Stops only police speech and its pending gameplay requests when the owning scene leaves.
     pub(super) fn stop_police_radio(&mut self) {
-        if let Some(speech) = self.speech.loaded_mut() {
-            speech.silence();
-        }
+        self.silence_speech("scene changed");
         self.set_speech_context(0, 0.0, 0.0);
         self.chase_radio.reset_session();
         self.chase_cues = Cues::new();

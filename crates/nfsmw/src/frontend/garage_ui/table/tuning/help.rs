@@ -2,7 +2,6 @@
 
 use crate::frontend::logic::Cx;
 use crate::garage::{Model, menu_rows::Row};
-use blackbox_feng::font::TextStyle;
 use nfsmw_data::car::physics::tuning::TuningCategory;
 
 #[derive(Default)]
@@ -66,29 +65,7 @@ impl Help {
 }
 
 fn wrap(cx: &Cx, text: &str) -> Vec<String> {
-    let info = cx.object(0x46be_6be4).and_then(|object| cx.rt.string_info(object));
-    let Some(info) = info else { return text.lines().map(str::to_owned).collect() };
-    let Some(font) = cx.assets.font(info.font) else { return text.lines().map(str::to_owned).collect() };
-    let size = cx.assets.texture_size(cx.assets.resolve(font.texture_hash)).unwrap_or((256, 256));
-    let mut lines = Vec::new();
-    for paragraph in text.split(['^', '\n']) {
-        let mut line = String::new();
-        for word in paragraph.split_whitespace() {
-            let next = match line.is_empty() {
-                true => word.to_owned(),
-                false => format!("{line} {word}"),
-            };
-            // Native wrapping happens before the object's animated scale is applied.
-            let width = font.layout_scaled(&next, TextStyle::default(), size, cx.assets.font_scale(info.font)).width;
-            if line.is_empty() || width <= info.max_width.max(1) as f32 {
-                line = next;
-                continue;
-            }
-            lines.push(std::mem::replace(&mut line, word.to_owned()));
-        }
-        lines.push(line);
-    }
-    lines
+    crate::frontend::text_wrap::wrap(cx, cx.object(0x46be_6be4), text)
 }
 
 const TITLE: [u32; 7] = [0xc56c_5b36, 0xfcee_be1a, 0x2ee2_a74d, 0xcf62_15d1, 0x7196_acb4, 0x934f_cfa9, 0x8694_5521];

@@ -41,6 +41,8 @@ impl Fixture {
             material: GlossyMaterial {
                 background_actor: false,
                 ambient_floor: 0.0,
+                coat_mask: false,
+                wettable: false,
                 model,
                 surface: None,
                 diffuse_min: [0.1, 0.12, 0.14, 0.7],

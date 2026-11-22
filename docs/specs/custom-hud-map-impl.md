@@ -138,10 +138,12 @@ player's arrow (57). Line widths are in HUD units times the HUD scale, the same 
 
 ## 6. Keys
 
-`MapMode` (Tab, D-pad down) cycles off, compact, centered, expanded, then off. `MapExpand` (T) opens Expanded and goes
+`MapMode` (U, D-pad down) cycles off, compact, centered, expanded, then off. `MapExpand` (T) opens Expanded and goes
 back to the mode it was opened from (Centered when Expanded was reached by the cycle). `MapZoomIn` / `MapZoomOut`
-(I, K) multiply or divide `map_zoom` by 1.25 within 0.5 to 2. `MapOrientation` (O, D-pad right) flips `minimap` between
-fixed and rotating (off becomes rotating). `ToggleHud` (F1) flips the `hud` setting.
+(I, K) multiply or divide `map_zoom` by 1.25 within 0.5 to 2. `MapOrientation` (O) flips `minimap` between
+fixed and rotating (off becomes rotating). `ToggleHud` (F1) flips the `hud` setting. Tab and D-pad right are the phone's
+inbox, as in the original ([fe-package-footer.md](fe-package-footer.md) section 4); map mode had Tab and orientation D-pad
+right until 2026-11-19.
 
 - The design page leaves Expanded out of the `MapMode` cycle; the PR 7b brief puts it in, so the pad (which has no
   `MapExpand` default) can reach it. The code follows the brief.

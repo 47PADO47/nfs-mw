@@ -420,7 +420,10 @@ impl BioLogic {
 impl ScreenLogic for BioLogic {
     fn start(&mut self, cx: &mut Cx) {
         self.vertical = cx.screen_list_look(ListScreen::Blacklist);
-        post_opening(cx, &[RIVAL_OPENED_PLAIN, RIVAL_OPENED_CAREER, RIVAL_BIO_CONTENT]);
+        // One open message by the context (`career-safehouse-2.md` 11.1 and 11.6): the Blacklist sequence's hides the Back
+        // prompt and the side groups, the plain one shows them. The bio panel shows on its own message.
+        let opened = if self.sequence { RIVAL_OPENED_CAREER } else { RIVAL_OPENED_PLAIN };
+        post_opening(cx, &[opened, RIVAL_BIO_CONTENT]);
         if self.sequence {
             self.first_visit = enter_first_bin_on_open();
         }

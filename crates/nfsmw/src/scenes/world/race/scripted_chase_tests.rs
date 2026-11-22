@@ -117,8 +117,10 @@ fn the_cop_trigger_turns_the_cops_on_and_spawns_two_mid_size_cars() {
 }
 
 #[test]
-fn a_started_call_ends_the_race_11_seconds_later_with_the_fade_at_8() {
-    let mut run = run_with(CALL);
+fn the_opening_races_started_call_ends_it_11_seconds_later_with_the_fade_at_8() {
+    let mut zones: [Option<Zone>; 4] = [None, None, None, None];
+    zones[CALL] = sphere();
+    let mut run = ChaseRun::from_zones_with(zones, nfsmw_career::story::chase_16_2_1::OPENING_SCRIPT);
     assert_eq!(run.update(inside(), 0.0), vec![ChaseEvent::PlaceCall { id: CHASE_CALL_ID }]);
     let mut fade_at = None;
     let mut post_at = None;
@@ -136,6 +138,19 @@ fn a_started_call_ends_the_race_11_seconds_later_with_the_fade_at_8() {
     assert_eq!(post_at, Some(load + 11), "3 s after the fade");
     assert!(run.is_finished());
     assert!(run.update(outside(), 1.0).is_empty(), "nothing is emitted after the race ends");
+}
+
+#[test]
+fn the_chases_started_call_ends_nothing_and_its_engine_does() {
+    let mut run = run_with(CALL);
+    run.set_speed(30.0);
+    assert_eq!(run.update(inside(), 0.0), vec![ChaseEvent::PlaceCall { id: CHASE_CALL_ID }]);
+    let mut events = Vec::new();
+    for _ in 1..=16 {
+        events.extend(run.update(outside(), 1.0));
+    }
+    assert_eq!(events, vec![ChaseEvent::SabotageEngine { level: SABOTAGE_LEVEL }], "the backup at 15 s, no fade");
+    assert!(!run.is_finished(), "the call start does not end 16.2.1");
 }
 
 /// A plane across the x axis at the origin, facing along +z (heading 0), 20 m wide.
@@ -175,7 +190,7 @@ fn a_step_beside_or_short_of_the_plane_misses_it() {
 }
 
 #[test]
-fn the_opening_race_has_only_the_call_and_its_engine_gives_out_after_the_sabotage() {
+fn a_chase_with_only_the_call_trigger_still_gives_out_after_the_sabotage() {
     let mut zones: [Option<Zone>; 4] = [None, None, None, None];
     zones[CALL] = Some(Zone::Plane(plane()));
     let mut run = ChaseRun::from_zones(zones);
@@ -236,4 +251,12 @@ fn the_cops_spawn_at_the_races_own_spawn_points_facing_their_markers() {
     assert!((points[0].1 - Vec3::Z).length() < 1e-5, "heading 0 faces +z");
     assert!((points[1].1 - Vec3::new(-1.0, 0.0, 0.0)).length() < 1e-5, "heading 90 faces -x");
     assert!(cop_points(&data, "16_1_0_partial_dday").is_empty());
+}
+
+#[test]
+fn the_two_d_day_races_run_their_own_scripts() {
+    use nfsmw_career::story::chase_16_2_1::{CHASE_SCRIPT, OPENING_SCRIPT, script_of};
+    assert_eq!(script_of(CHASE_EVENT), Some(CHASE_SCRIPT));
+    assert_eq!(script_of("16.1.0"), Some(OPENING_SCRIPT), "the opening race's call ends it");
+    assert_eq!(script_of("16.2.2"), None);
 }

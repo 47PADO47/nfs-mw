@@ -76,9 +76,9 @@ fn a_message_runs_its_seconds_then_the_nis_plays_then_the_intro_is_done() {
     let (mut world, mut current) = (FakeWorld::default(), Playing::Idle);
     assert_eq!(intro_frame(&mut world, &mut current, &mut steps, &env, 0.0), Progress::Running);
     assert_eq!(world.started, [Cue::Message(2)]);
-    assert_eq!(intro_frame(&mut world, &mut current, &mut steps, &env, 4.0), Progress::Running);
+    assert_eq!(intro_frame(&mut world, &mut current, &mut steps, &env, MESSAGE_SECS - 0.1), Progress::Running);
     assert_eq!(world.started.len(), 1, "the card is still up");
-    assert_eq!(intro_frame(&mut world, &mut current, &mut steps, &env, 0.5), Progress::Running);
+    assert_eq!(intro_frame(&mut world, &mut current, &mut steps, &env, 0.2), Progress::Running);
     assert_eq!(world.started.last(), Some(&at_start("IntroNis10", 0)), "the card ran out: the NIS starts");
     world.nis_ends = true;
     assert_eq!(intro_frame(&mut world, &mut current, &mut steps, &env, 0.0), Progress::Done);
@@ -194,4 +194,23 @@ fn the_story_fields_of_a_race_are_its_intro_and_outro_fields() {
             outro_movie: Some("om".to_owned()),
         }
     );
+}
+
+#[test]
+fn a_career_flashback_without_an_intro_message_opens_on_its_movie_not_a_card() {
+    // `16_2_2_sprint` sets a movie and a NIS and no `IntroMessageID`: its intro is the movie, then the NIS.
+    let story = RaceStory {
+        intro_movie: Some("storyfmv_cro06_coh06a".into()),
+        intro_nis: Some("GenericStart".into()),
+        dday: true,
+        ..RaceStory::default()
+    };
+    let steps: Vec<IntroStep> = intro_plan(&story, true).into();
+    assert_eq!(
+        steps,
+        [IntroStep::Nis { scene: "GenericStart".into(), movie: Some("storyfmv_cro06_coh06a".into()) }],
+        "no message card the race data does not set"
+    );
+    let carded = RaceStory { intro_message_id: Some(2), intro_nis: Some("IntroNis10".into()), dday: true, ..story };
+    assert_eq!(intro_plan(&carded, true).front(), Some(&IntroStep::Message(2)));
 }

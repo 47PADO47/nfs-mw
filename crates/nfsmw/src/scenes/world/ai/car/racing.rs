@@ -188,12 +188,15 @@ impl AiCar {
             steering: self.sim.steering_input(),
             gear: telemetry.gear,
             rpm: telemetry.rpm,
+            drive_torque: self.sim.drive_torque(),
+            wheels_on_ground: telemetry.wheels_on_ground as u32,
             target_speed: if reversing { RECOVERY_SPEED } else { self.speed },
             base_skill: racer.base_skill,
             catch_up: racer.glue,
             skill: racer.skill(),
             catch_up_force: racer.cheat(),
             stand_in: self.stand_in.active,
+            nitrous: telemetry.nos_burning,
         })
     }
 }

@@ -39,3 +39,20 @@ fn uniform_blocks_have_the_size_rust_packs() {
     assert_eq!(struct_size(&module, "Rig") as usize, std::mem::size_of::<RigUniform>());
     assert_eq!(struct_size(&module, "Material") as usize, std::mem::size_of::<MaterialUniform>());
 }
+
+#[test]
+fn glossy_fragment_entry_points_validate_after_constant_folding() {
+    let module = module();
+    let info = naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::empty())
+        .validate(&module)
+        .unwrap();
+    for entry in ["fs_opaque", "fs_alpha_test", "fs_blend"] {
+        naga::back::pipeline_constants::process_overrides(
+            &module,
+            &info,
+            Some((naga::ShaderStage::Fragment, entry)),
+            &Default::default(),
+        )
+        .unwrap_or_else(|error| panic!("{entry}: {error:?}"));
+    }
+}

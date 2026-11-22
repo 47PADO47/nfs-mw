@@ -42,9 +42,9 @@ comparison against the running unmodified PC game. Free-camera curtain height
 uses the camera anchor. Thunder uses resident-section readiness as its streaming
 guard, and the audio speech queue as its channel-busy guard.
 
-The implementation deliberately retains the existing authored wet-road reflection
-capture. Road roughness, puddle masks, improved water response and an Enhanced rain
-presentation remain separate work.
+Original PC uses the authored wet-road reflection capture. The native Enhanced
+renderer adds [wet materials](specs/enhanced-wet-surfaces.md) and optional
+[puddle contours and rain rings](puddle-ripples.md).
 
 ### F8 adjustments
 

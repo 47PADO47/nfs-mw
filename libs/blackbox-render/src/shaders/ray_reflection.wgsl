@@ -8,9 +8,9 @@ struct RtControl { scene: vec4<u32>, tuning: vec4<f32> };
 @group(0) @binding(6) var<uniform> rt_control: RtControl;
 // Per TLAS instance: bit 0 baked winding flip, bits 1.. the triangle index where the mesh's second
 // (opaque) BLAS geometry starts.
-@group(0) @binding(7) var<storage,read> rt_winding: array<u32>;
+@group(0) @binding(7) var<storage,read> rt_instance: array<vec2<u32>>;
 fn rt_triangle_index(custom:u32,instance:u32,geometry:u32,primitive:u32)->u32 {
-    return custom+primitive+select(0u,rt_winding[instance]>>1u,geometry!=0u);
+    return custom+primitive+select(0u,rt_instance[instance].x>>1u,geometry!=0u);
 }
 @group(0) @binding(9) var rt_detail_textures: texture_2d_array<f32>;
 
@@ -83,10 +83,10 @@ fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,ran
             let c=rt_vertices[triangle.z].position.xyz;
             let local_ray=candidate.world_to_object*vec4(ray,0.0);
             let front=dot(cross(b-a,c-a),local_ray)<0.0;
-            if front==((rt_winding[candidate.instance_index]&1u)!=0u) { continue; }
+            if front==((rt_instance[candidate.instance_index].x&1u)!=0u) { continue; }
         }
         let family=((triangle.w>>16u)&255u)|((triangle.w>>26u)<<8u);
-        if family>=3u && rt_materials[family-3u].live.x<0.5 { continue; }
+        if family>=4u && rt_materials[family-4u].live.x<0.5 { continue; }
         let bary=vec3(1.0-candidate.barycentrics.x-candidate.barycentrics.y,candidate.barycentrics);
         if (triangle.w&(1u<<24u))!=0u && rt_tex(triangle,bary,0.0).a<0.5 { continue; }
         rayQueryConfirmIntersection(&query);
@@ -124,12 +124,18 @@ fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,ran
     let tex=rt_tex(triangle,bary,lod);
     let kind=((triangle.w>>16u)&255u)|((triangle.w>>26u)<<8u);
     var radiance=2.0*tex.rgb*colour.rgb;
-    if kind!=0u && kind<3u {
+    if kind!=0u && kind<4u {
         let ambient=select(vec3(0.35),globals.surface_ambient.rgb*globals.fog_color.w,globals.surface_ambient.w>0.5);
         let diffuse=select(vec3(0.65),globals.surface_diffuse.rgb,globals.surface_ambient.w>0.5);
         let visible=capture_sun_visibility(position,n);
         radiance=2.0*tex.rgb*(ambient*colour.rgb+diffuse*max(dot(n,-globals.light_dir.xyz),0.0)*visible);
     }
-    if kind>=3u { radiance=rt_glossy_hit(rt_materials[kind-3u],tex.rgb,colour,n,-ray,position); }
+    if kind==3u {
+        let power=bitcast<f32>(rt_instance[hit.instance_index].y);
+        let distance=length(position-globals.camera_pos.xyz);
+        let transmission=1.0-saturate((distance-globals.fog_range.x)/max(globals.fog_range.y-globals.fog_range.x,0.001));
+        radiance+=tex.rgb*tex.a*power*transmission;
+    }
+    if kind>=4u { radiance=rt_glossy_hit(rt_materials[kind-4u],tex.rgb,colour,n,-ray,position); }
     return RtHit(mix(radiance,screen.rgb,screen.w),position,hit.t,true);
 }

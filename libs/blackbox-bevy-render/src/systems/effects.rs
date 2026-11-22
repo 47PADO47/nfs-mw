@@ -98,6 +98,7 @@ fn globals_of(view: &ExtractedView, params: &Params, mip_bias: f32) -> Globals {
         surface_diffuse: [0.0; 4],
         camera_right: [0.0; 4],
         clip_plane: [0.0; 4],
+        water: [0.0; 4],
     }
 }
 

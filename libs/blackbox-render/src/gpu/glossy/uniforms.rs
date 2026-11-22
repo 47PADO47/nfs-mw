@@ -62,8 +62,8 @@ impl MaterialUniform {
             lighting: [
                 u8::from(m.background_actor && m.model == blackbox_gfx::GlossyModel::Custom) as f32,
                 m.ambient_floor.clamp(0.0, 2.0),
-                0.0,
-                0.0,
+                u8::from(m.coat_mask) as f32,
+                u8::from(m.wettable) as f32,
             ],
             diffuse_min: m.diffuse_min,
             diffuse_range: m.diffuse_range,

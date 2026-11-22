@@ -32,8 +32,8 @@ pub fn resolve(car: &CarSound, sound: SoundRef) -> Option<BankRef> {
     let engine = &car.engine;
     match sound {
         // Original FX_SHIFTING_01 id1 is up, id0 down; direct playback remains an explicit fallback.
-        SoundRef::GearClunk { up } => at(SHIFTING_DIR, &car.shift.bank, if up { 2 } else { 1 }, Group::Sfx),
-        SoundRef::BrakeMash => at(SHIFTING_DIR, &car.shift.bank, 3, Group::Sfx),
+        SoundRef::GearClunk { up } => at(SHIFTING_DIR, &car.shift.bank, if up { 2 } else { 1 }, Group::World),
+        SoundRef::BrakeMash => at(SHIFTING_DIR, &car.shift.bank, 3, Group::World),
         // `CAR_SWTN` plays bank sound `id + 1` (verified by running its module, docs/specs/engine-sound-aems.md §4):
         // id 0 is the 73 ms sound 1, id 1 the 147 ms sound 2.
         SoundRef::Sweetener(kind) => {
@@ -41,26 +41,26 @@ pub fn resolve(car: &CarSound, sound: SoundRef) -> Option<BankRef> {
         }
         SoundRef::ReverseWhine => at(ENGINE_DIR, engine.sweet_banks.get(1)?, 1, Group::Engine),
         SoundRef::TurboSpool => at(TURBO_DIR, &car.turbo.as_ref()?.bank, 1, Group::Engine),
-        SoundRef::TurboBlowoff(n) => at(TURBO_DIR, &car.turbo.as_ref()?.bank, 2 + usize::from(n.min(2)), Group::Sfx),
-        SoundRef::Nitrous => at(NOS_DIR, car.banks.nitrous_bank()?, 1, Group::Sfx),
-        SoundRef::Purge => at(NOS_DIR, car.banks.nitrous_bank()?, 3, Group::Sfx),
+        SoundRef::TurboBlowoff(n) => at(TURBO_DIR, &car.turbo.as_ref()?.bank, 2 + usize::from(n.min(2)), Group::World),
+        SoundRef::Nitrous => at(NOS_DIR, car.banks.nitrous_bank()?, 1, Group::World),
+        SoundRef::Purge => at(NOS_DIR, car.banks.nitrous_bank()?, 3, Group::World),
         SoundRef::Skid { surface, sideways } => {
             // Asphalt and the like have a squeal and a burnout loop, the loose surfaces (dirt, grass) another pair.
             let pair = usize::from(surface.min(1)) * 2;
-            at(SKIDS_DIR, car.banks.skid_bank()?, 1 + pair + usize::from(!sideways), Group::Sfx)
+            at(SKIDS_DIR, car.banks.skid_bank()?, 1 + pair + usize::from(!sideways), Group::World)
         }
         // The loops are sounds 1 to 7 for the loop values 0 to 6; metal and the stitch loop have none.
         SoundRef::RoadNoise(n) => {
-            (n <= 6).then(|| BankRef { bank: ROAD_NOISE_BANK.into(), index: usize::from(n) + 1, group: Group::Sfx })
+            (n <= 6).then(|| BankRef { bank: ROAD_NOISE_BANK.into(), index: usize::from(n) + 1, group: Group::World })
         }
-        SoundRef::Wind => Some(BankRef { bank: WIND_BANK.into(), index: 1, group: Group::Sfx }),
+        SoundRef::Wind => Some(BankRef { bank: WIND_BANK.into(), index: 1, group: Group::World }),
         SoundRef::Scrape(kind) => {
             let index = match kind {
                 ScrapeKind::Ground => 1,
                 ScrapeKind::Wall => 2,
                 ScrapeKind::Car => 3,
             };
-            Some(BankRef { bank: SCRAPE_BANK.into(), index, group: Group::Sfx })
+            Some(BankRef { bank: SCRAPE_BANK.into(), index, group: Group::World })
         }
     }
 }

@@ -158,6 +158,8 @@ pub struct Catalog {
     pub finishes: Vec<(String, u32)>,
     /// Installed material family, retained for the garage's finish tabs.
     pub paint_families: HashMap<u32, String>,
+    /// Native list position and BRAND_NAME, independent of localized developer-menu order.
+    pub paint_swatch_order: HashMap<u32, (usize, u32)>,
     /// Installed BRAND_NAME and INNER_RADIUS attributes, keyed by wheel part.
     pub rim_metadata: HashMap<u32, (u32, u32)>,
     /// Original low-five-bit customization group, including mod-defined groups.

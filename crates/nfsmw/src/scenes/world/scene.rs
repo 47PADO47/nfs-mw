@@ -1,17 +1,17 @@
 //! Viewer integration, controls and world updates.
 
 use super::*;
+use crate::extra_options::Action as ExtraAction;
 use crate::viewer::Fullscreen;
 
 impl Scene for WorldScene {
+    fn world_camera_optics(&self) -> bool {
+        self.garage_backdrop.is_none()
+    }
     fn extra_options(&mut self) -> Option<&mut crate::extra_options::State> {
         Some(&mut self.extra)
     }
-    fn apply_extra_option(
-        &mut self,
-        renderer: &mut dyn RenderBackend,
-        action: crate::extra_options::Action,
-    ) -> anyhow::Result<()> {
+    fn apply_extra_option(&mut self, renderer: &mut dyn RenderBackend, action: ExtraAction) -> Result<()> {
         self.extra_action(renderer, action)
     }
     fn screenshot_ui_hidden(&self) -> bool {
@@ -110,8 +110,7 @@ impl Scene for WorldScene {
         self.scene_ui(ctx)
     }
 
-    /// Whether any of the panels above has something to draw (see `ui_panels::Panels`). The scene's readout line is the
-    /// metrics overlay's, so the UI pass asks the metrics for it.
+    /// Whether a panel has something to draw (`ui_panels::Panels`). The readout line is the metrics overlay's, asked there.
     fn wants_ui(&self) -> bool {
         self.panels().any()
     }
@@ -121,11 +120,12 @@ impl Scene for WorldScene {
     fn take_clip(&mut self) -> Option<ea_audio::Pcm> {
         self.story_movie.take_clip()
     }
-
+    fn clip_playing(&self) -> bool {
+        self.story_movie.is_playing()
+    }
     fn set_tire_effects(&mut self, smoke: bool, skid_marks: bool) {
         self.scene_set_tire_effects(smoke, skid_marks)
     }
-
     fn refresh_effects(&mut self, renderer: &mut dyn RenderBackend) {
         self.update_car_shading(renderer);
         self.update_shadow_casters(renderer);

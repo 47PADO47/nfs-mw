@@ -1,7 +1,9 @@
 //! The keys the console's `get` and `set` know, in the order `get` lists them.
 
 /// Every setting the console can show, by its key.
-pub(super) const KEYS: [&str; 133] = [
+pub(super) const KEYS: [&str; 141] = [
+    "sun_shafts",
+    "sun_shaft_strength",
     "traffic_preset",
     "traffic_population",
     "traffic_density",
@@ -9,6 +11,7 @@ pub(super) const KEYS: [&str; 133] = [
     "car_geometry",
     "geometry_range",
     "visibility_range",
+    "per_car_environment",
     "highest_world",
     "highest_player",
     "deadzone_mode",
@@ -53,6 +56,7 @@ pub(super) const KEYS: [&str; 133] = [
     "speed_trail_style",
     "exhaust_flames",
     "enhanced_exhaust",
+    "moving_spill_shadows",
     "turn_signals",
     "rider_gear",
     "easy_wheelie",
@@ -78,6 +82,9 @@ pub(super) const KEYS: [&str; 133] = [
     "motion_blur_strength",
     "grading_strength",
     "post_tonemap",
+    "auto_exposure",
+    "physical_bloom",
+    "sun_glare",
     "post_bloom",
     "post_aa",
     "visual_treatment",
@@ -93,6 +100,7 @@ pub(super) const KEYS: [&str; 133] = [
     "shadows",
     "ao",
     "ao_intensity",
+    "puddle_ripples",
     "ao_compare",
     "ao_depth_mips",
     "ao_method",

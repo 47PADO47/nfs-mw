@@ -296,6 +296,7 @@ Cash is the `u32` at `profile + 0xb4` (career settings `+0xc`). **[exe]**
 |---|---|
 | Spend | `cash = max(cash - amount, 0)` (`0x0056d7a0`); never negative |
 | Career race win | when the finishing racer is placed first in a race with race mode 2: `cash += round(event.CashValue)`, **every** win (not only the first); first completion also grants the event's reward objects |
+| NIS shell (`NISShell`, the prologue's `16.8.1`) | no cash **[exe]**: the race-win cash is paid only in the finish record of the racer placed first (`NotifyRaceFinished`, see the row above), which the scripts call from the racing state's finish line; a shell never enters its racing state, so nothing is paid. `CashValue` is read with inheritance, so the shell's value would be the `race` template's 1,000 **[verified]**. The prologue then leaves 30,000, the values of `16.2.2`, `16.2.3` and `16.1.1` (observed in the running original, 2026-11-18) |
 | Event reward of kind cash | `cash += round(reward.amount)` |
 | Sell a car | `cash += Cost >> 1` (half the `Cost`, integer shift); the record's bounty, evaded and busted counts and both infraction sets move into the sold history first |
 | Buy a car | `SpendCash(Cost)` |

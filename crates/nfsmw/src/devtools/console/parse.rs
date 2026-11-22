@@ -45,7 +45,7 @@ pub enum Command {
 }
 
 /// Names of the built-in commands, for `help` and tab completion.
-pub const BUILT_IN: [(&str, &str); 71] = [
+pub const BUILT_IN: [(&str, &str); 74] = [
     ("trace start [seconds]|stop|mark [label]|status", "performance trace; F9 record/stop, F10 bookmark"),
     ("bind <action> <input>", "replace one device family's action assignments; keys lists action names"),
     ("addbind <action> <input>", "add another physical input to an action"),
@@ -80,6 +80,9 @@ pub const BUILT_IN: [(&str, &str); 71] = [
     ),
     ("hud-layout <pc|classic|xbox360>", "change HUD placement and scale"),
     ("post_tonemap <off|aces>", "filmic tone mapping (darkens the image)"),
+    ("auto_exposure <on|off>", "adapt exposure in dark scenes"),
+    ("physical_bloom <0..100>", "enhanced physical bloom strength"),
+    ("sun_glare <0..100>", "enhanced sun glare strength"),
     ("post_bloom <off|low|medium|high>", "glow around bright areas"),
     (
         "upscale_quality <auto|native|quality|balanced|performance|ultra_performance>",
@@ -132,7 +135,7 @@ pub const BUILT_IN: [(&str, &str); 71] = [
 ];
 
 /// Further shorthands for `set`: `vsync off` is `set vsync off`.
-const SET_SHORTHANDS: [&str; 49] = [
+const SET_SHORTHANDS: [&str; 52] = [
     "fps",
     "renderer",
     "vsync",
@@ -171,6 +174,9 @@ const SET_SHORTHANDS: [&str; 49] = [
     "radio_hud",
     "radio-hud",
     "post_tonemap",
+    "auto_exposure",
+    "physical_bloom",
+    "sun_glare",
     "post_bloom",
     "post_aa",
     "visual_treatment",

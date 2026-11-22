@@ -29,6 +29,7 @@ impl StoryMovie {
             return Err("a movie is playing; stop it first".into());
         }
         let movie = MoviePlayback::open(dir, name, 0.0).map_err(|e| format!("{e:#}"))?;
+        crate::parity::career_trace::record("movie_start", serde_json::json!({"movie": name, "player": "world"}));
         self.ended = false;
         self.playing = Some(movie);
         Ok(())
@@ -52,6 +53,8 @@ impl StoryMovie {
         if movie.finished() {
             self.playing = None;
             self.ended = true;
+            let how = if skip { "skipped" } else { "finished" };
+            crate::parity::career_trace::record("movie_end", serde_json::json!({"player": "world", "how": how}));
         }
     }
 
@@ -59,6 +62,9 @@ impl StoryMovie {
     pub fn stop(&mut self) -> bool {
         let was = self.playing.take().is_some();
         self.ended |= was;
+        if was {
+            crate::parity::career_trace::record("movie_end", serde_json::json!({"player": "world", "how": "stopped"}));
+        }
         was
     }
 
@@ -107,7 +113,11 @@ impl WorldScene {
     /// Reads the skip and plays the movie on real frame time. Runs before the world reads the frame's input, so the
     /// world can freeze while a movie plays.
     pub(in crate::scenes::world) fn update_story_movie(&mut self, input: &ActionState, dt: f32) {
-        let skip = input.just_pressed(Action::MenuAccept) || input.just_pressed(Action::MenuStart);
+        let skip = input.just_pressed(Action::MenuAccept)
+            || input.just_pressed(Action::MenuStart)
+            || crate::parity::career_trace::skip_cinematics();
+        // The NIS frame capture looks at the scenes only: the story movies before them are passed over.
+        let skip = skip || (crate::parity::nis_capture::enabled() && self.story_movie.is_playing());
         self.story_movie.update(skip, dt);
     }
 
@@ -140,3 +150,7 @@ pub(in crate::scenes::world) fn movie_command(world: &mut WorldScene, args: &[&s
         _ => Err(USAGE.into()),
     }
 }
+
+#[cfg(test)]
+#[path = "story_movie_tests.rs"]
+mod tests;

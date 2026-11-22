@@ -105,10 +105,20 @@ impl Audio {
 
     /// Once per frame, with the time since the last one. Does nothing until speech has been asked for.
     pub fn update_speech(&mut self, dt: f32) {
+        let was_busy = self.speech.channel_busy();
         let State::Ready(speech) = &mut self.speech.state else { return };
         speech.set_context(self.speech.context);
         speech.dispatcher_mut().set_pursuit_secs(self.speech.pursuit_secs);
         speech.update(dt);
+        // The audio trace marks when a line starts to sound (the stop is traced by `silence_speech`).
+        if !was_busy && self.speech.channel_busy() {
+            self.trace_stream(
+                crate::audio::streams::Event::Start,
+                crate::audio::streams::Kind::Speech,
+                0,
+                "line starts",
+            );
+        }
     }
 
     /// The speech volume (linear, 0 to 1). Zero refuses requests and keeps speech from loading.

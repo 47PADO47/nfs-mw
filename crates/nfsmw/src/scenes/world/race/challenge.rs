@@ -244,6 +244,7 @@ impl WorldScene {
             pool: Vec::new(),
             challenge: Some(challenge),
             walls: self.raise_race_walls(&race.barriers),
+            deferred_walls: Vec::new(),
             collisions: 0,
             origin: super::Origin { race: race.clone(), course: None },
             route: None,

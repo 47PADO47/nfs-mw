@@ -25,7 +25,9 @@ material whose name contains GLASS, since headlamp lenses share that wording.
 - Glass retains authored tint and alpha, adds neutral angle-dependent Fresnel
   reflection, and increases coverage towards grazing angles. It has no extra
   experimental clearcoat. Existing alpha blend modes remain authoritative.
-  This is a thin-surface approximation without refracted scene transmission.
+  Blended panes receive sun shadows at the pane position. The opaque depth behind a
+  window must not cut a driver-shaped hole in the highlight. Limit the direct solar
+  highlight in the display-referred pass. This is a thin-surface approximation.
 - Carbon keeps its installed weave texture. A dielectric base and a smoother
   optional resin coat have independent highlight/reflection widths.
 - Bare metal/chrome have coloured conductor reflections and no diffuse lobe.
@@ -34,8 +36,10 @@ material whose name contains GLASS, since headlamp lenses share that wording.
   to eligible wheel solids, including driving LODs; tyres and brakes are not
   recoloured. Rubber uses rough weak reflection without clearcoat.
 - Gloss has a dielectric base and optional smoother coat. Metallic adds a broad
-  tinted flake lobe and subtle UV-stable variation. Subpixel variation fades to
-  its mean using derivatives. Pearl retains its authored facing-colour ramps
+  tinted flake lobe beneath the neutral coat. The flakes displace some diffuse pigment
+  and have fine, softly bounded grains in model space. Subpixel variation fades to
+  its mean using derivatives. Coloured pigment filters the neutral flake reflection in its weaker channels.
+  Neutral silver and the clearcoat keep their existing response. Pearl retains its authored facing-colour ramps
   and adds a broad tinted layer whose strength varies with viewing angle.
   These are artistic approximations, not measured flake/thin-film optics.
 - Interior, underside and plastic hubcaps receive corrected indirect diffuse
@@ -99,3 +103,21 @@ There is no added diffuse pigment layer: selected colour and vinyl contrast modu
 the conductor reflection. Original PC shading and disabled material response retain
 their existing equations. GPU coverage checks saturated colours with zero authored
 diffuse, composite stripe contrast and the absence of invented light in a black probe.
+
+Enhanced paint projects its sharp coat using the coat roughness. The pigment still samples the
+broader environment lobe. Normal changes within a pixel widen the coat highlight. Coloured
+metallic pigment filters more of the neutral flake return when direct sun is weak.
+
+Painted wheel groups retain the selected pigment and angular ramps. Groups authored as
+polished chrome take a narrower highlight and gunmetal groups take a wider one. A wheel
+with only one paintable group has one finish; no lip or barrel geometry is inferred.
+
+With enhanced wet surfaces, accumulated dampness adds an exterior dielectric film to body
+paint. Coverage is strongest on upward-facing panels. Model-space beads perturb the film
+normal at close range and fade as they become smaller than a pixel. Showrooms use dry paint.
+
+Enhanced wet satin scatters the continuous film reflection. Resolved beads can catch sharp reflections above that film. Two object-space bead sizes fade with projected size. Gloss, chrome and matte wheel rows retain distinct finishes. Matte powder uses a broad, finely textured highlight fixed to the wheel.
+
+Surface rain leaves small beads pinned. Larger drops run along the panel under gravity and vehicle-relative airflow, leaving short trails. Exterior glass samples the changed reflection at its normal opacity, before exterior lettering. Wetness and runoff use the weather simulation clock. Painted wheel grain is fine and concentrated in highlights.
+
+Larger drops gather and release in bursts along irregular downhill paths. Moving drops leave a tapered wake among clustered fine beads. Meandering tracks are informed by [Tatarchuk and Isidoro](https://advances.realtimerendering.com/s2006/Tatarchuk-Rain.pdf). Painted metal reflects a broad band of surrounding light, with filtered grain at two scales.

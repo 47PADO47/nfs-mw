@@ -171,11 +171,34 @@ fn wet_noise(p:vec2<f32>)->f32 {
     return mix(mix(wet_hash(cell),wet_hash(cell+vec2(1,0)),t.x),
         mix(wet_hash(cell+vec2(0,1)),wet_hash(cell+vec2(1,1)),t.x),t.y);
 }
-fn pooled_coverage(world:vec2<f32>)->f32 {
+// A compact wave packet stays inside its cell throughout the impact.
+fn drop_wave(p:vec2<f32>, time:f32)->vec2<f32> {
+    let cell = vec2<i32>(floor(p));
+    let seed = wet_hash(cell);
+    let delta = fract(p)-vec2(0.4+0.2*seed,0.4+0.2*wet_hash(cell+vec2(31,17)));
+    let radius = length(delta);
+    let age = fract(time+seed);
+    let front = (radius-0.32*age)/0.075;
+    let envelope = max(0.0,1.0-front*front)*age*(1.0-age);
+    return delta/max(radius,0.001)*sin(6.283185*front)*envelope;
+}
+fn puddle_relief(in:Output)->f32 {
+    if light.reflection.w < 0.5 { return 0.0; }
+    // Recover divergence of the horizontal geometric normal in world metres.
+    // A concave cross-section has converging normals; a crown has diverging normals.
+    let dx = dpdx(in.world.xy);
+    let dy = dpdy(in.world.xy);
+    let nx = dpdx(unit(in.normal).xy);
+    let ny = dpdy(unit(in.normal).xy);
+    let det = dx.x*dy.y-dy.x*dx.y;
+    let curvature = (nx.x*dy.y-ny.x*dx.y+ny.y*dx.x-nx.y*dy.x)*sign(det)/max(abs(det),1e-10);
+    return clamp(-curvature*1.5,-0.14,0.14);
+}
+fn pooled_coverage(world:vec2<f32>, relief:f32)->f32 {
     if light.wet_tuning.y<=0.0 { return 0.0; }
     let p = world/max(light.wet_tuning.z,0.25);
     let field = 0.7*wet_noise(p)+0.3*wet_noise(p*3.7+vec2(19.0));
-    let threshold = 0.86-0.48*light.water.y*light.wet_tuning.y;
+    let threshold = 0.66-relief-0.48*light.water.y*light.wet_tuning.y;
     // Widen edges when patches fall below a pixel; no screen-anchored dither or temporal history.
     let width = max(0.025,fwidth(field));
     return smoothstep(threshold-width,threshold+width,field)*light.water.y;
@@ -192,7 +215,7 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     let slope = smoothstep(0.90,0.995,unit(in.normal).z);
     let damp = light.water.x*slope;
     let ray_footprint = max(length(dpdx(in.world)),length(dpdy(in.world)));
-    let pool = pooled_coverage(in.world.xy)*slope;
+    let pool = pooled_coverage(in.world.xy,puddle_relief(in))*slope;
     let p = in.world.xy;
     let footprint = max(length(dpdx(p)),length(dpdy(p)));
     // Finish derivatives before a pixel-dependent return. Vertical receivers are dry.
@@ -200,7 +223,16 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     let ripple_fade = 1.0-smoothstep(0.12,0.8,footprint);
     let phase = light.water.z*0.785398163;
     let ripples = vec2(sin(dot(p,vec2(7.3,4.1))+phase),cos(dot(p,vec2(-3.7,8.9))-phase*2.0));
-    let ripple = ripples*(0.012*light.wet_tuning.w*light.water.w*pool*ripple_fade);
+    var ripple = ripples*(0.012*light.wet_tuning.w*light.water.w*pool*ripple_fade);
+    if light.reflection.w > 0.5 {
+        ripple = vec2(0.0);
+        let strength = pool*light.water.w*light.wet_tuning.w*(1.0-smoothstep(0.015,0.08,footprint));
+        if strength > 0.0 {
+            let wave = drop_wave(p*1.8,light.water.z)+drop_wave(p*2.2+vec2(0.37),light.water.z*1.25);
+            let tilt = vec3(wave,0.0);
+            ripple = vec2(dot(tilt,unit(in.tangent)),dot(tilt,unit(in.binormal)))*strength*0.8;
+        }
+    }
     // Water smooths the road micro-normal, but keeps its geometric slope.
     let water_n = unit(mix(n,vec3(ripple,1.0),pool*0.94));
     let nv = clamp(dot(water_n,v),0.0,1.0);

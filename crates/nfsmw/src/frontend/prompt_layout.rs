@@ -30,6 +30,9 @@ impl Frame {
         if let Some(frame) = super::prompts::race::frame(tree, name) {
             return Some(frame);
         }
+        if let Some(frame) = super::prompts::sms::frame(tree, footer) {
+            return Some(frame);
+        }
         if footer == Footer::GarageTuningHelp {
             let root = tree.nodes.iter().find(|n| n.name_hash == 0x64bc_dff2)?;
             return Some(Self::new(root, root.world, 140.0, 26.0, false));
@@ -80,7 +83,7 @@ impl Frame {
         // These groups own the footer fade; the image supplies its rectangle, not its low background alpha.
         let (group, background) = match name.to_ascii_lowercase().as_str() {
             "pause_main.fng" => (0x2FE7_4244, 0x81B4_FAD0),
-            "pause_options.fng" | "pause_pc_controller.fng" | "postrace_milestonerewards.fng" => {
+            "pause_options.fng" | "pause_pc_controller.fng" | "postrace_milestonerewards.fng" | "sms_mailboxes.fng" => {
                 (0xB3A6_9E89, 0x81B4_FAD0)
             }
             "options.fng" | "ea_trax_jukebox.fng" | "challengeseries.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),

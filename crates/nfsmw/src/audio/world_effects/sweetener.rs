@@ -106,7 +106,7 @@ impl Voice {
         mixer.set_input(InputKey::object(0, 0, 6, 5), 0);
         let Some((gain, pan)) = explosion::levels(mixer, definition) else { return };
         self.stop();
-        match audio.play(Group::Sfx, data.volume(volume::decibels(gain)).panning(pan)) {
+        match audio.play(Group::World, data.volume(volume::decibels(gain)).panning(pan)) {
             Ok(voice) => {
                 self.voice = Some(voice);
                 self.current = Some((key, definition));

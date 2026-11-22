@@ -92,6 +92,9 @@ pub struct ViewArgs {
     /// Play no sound (no output device is opened).
     #[arg(long)]
     pub no_sound: bool,
+    /// Run the audio through a silent output: no device opens, the audio trace still works [env NFSMW_AUDIO_OUTPUT=silent].
+    #[arg(long, conflicts_with = "no_sound")]
+    pub silent_audio: bool,
     /// Master volume, 0 to 100 [env NFSMW_MASTER_VOLUME; config `master_volume`; default 80].
     #[arg(long, value_name = "0-100")]
     pub volume: Option<crate::settings::Percent>,

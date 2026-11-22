@@ -83,6 +83,34 @@ fn the_lot_lists_locked_cars_and_drops_the_ones_not_offered() {
 }
 
 #[test]
+fn the_lot_lists_by_unlock_rank_highest_first() {
+    let cat = vec![
+        lot("elise", 1, 1, 48_000, 7, LotClass::Europe),
+        lot("tt", 2, 2, 35_000, 14, LotClass::Europe),
+        lot("is300", 3, 3, 27_000, 16, LotClass::Japan),
+        lot("a3_20t", 4, 4, 32_000, 14, LotClass::Europe),
+        lot("punto", 5, 5, 27_000, 16, LotClass::Europe),
+    ];
+    for stage in [16, 14] {
+        let rows = listed(&cat, stage);
+        assert_eq!(rows.len(), 5);
+        assert!(rows.windows(2).all(|pair| pair[0].0.unlock_rank >= pair[1].0.unlock_rank));
+        // The buyable cars come first: every buyable rank is above every locked one.
+        let first_locked = rows.iter().position(|(_, state)| *state == LotState::Locked).unwrap();
+        assert!(rows[first_locked..].iter().all(|(_, state)| *state == LotState::Locked), "stage {stage}");
+    }
+}
+
+#[test]
+fn a_car_is_opened_by_the_member_one_above_its_rank() {
+    assert_eq!(unlocked_by(14), Some(15));
+    assert_eq!(unlocked_by(2), Some(3));
+    assert_eq!(unlocked_by(16), None);
+    assert_eq!(unlocked_by(15), None);
+    assert_eq!(unlocked_by(0), None);
+}
+
+#[test]
 fn a_region_or_maker_collection_with_no_price_is_not_a_car_of_the_lot() {
     let europe = lot("europe", 0x20, 0xD0, 0, 15, LotClass::Europe);
     assert!(europe.for_sale, "the collection inherits the flag");

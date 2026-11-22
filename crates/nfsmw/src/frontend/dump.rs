@@ -64,6 +64,11 @@ fn tree(p: &Package, index: usize, depth: usize, out: &mut String) {
             tracks.join(" "),
             events.join(" ")
         );
+        // The colour keys say what a fade or a flash goes to (raw words: blue, green, red, alpha).
+        for t in s.tracks.iter().filter(|t| t.param == blackbox_feng::package::ParamType::Colour) {
+            let keys: Vec<String> = t.keys.iter().map(|k| format!("{}:{:?}", k.time, k.value)).collect();
+            let _ = writeln!(out, "{pad}    colour base {:?} keys [{}]", t.base.value, keys.join(" "));
+        }
     }
     for r in &o.responses {
         let _ = writeln!(out, "{pad}  on {:#010x}: {}", r.message, responses(&r.responses));

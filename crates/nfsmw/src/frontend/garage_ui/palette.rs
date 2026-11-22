@@ -1,7 +1,7 @@
 //! The original Paint.fng eighty-swatch grid, populated with installed colours.
 
 use super::{GarageUi, Page, Request, chrome};
-use crate::frontend::icon_strip::{Face, Hit, IconStrip, WHITE};
+use crate::frontend::icon_strip::{Face, IconStrip, WHITE};
 use crate::frontend::logic::{Cx, Footer, ScreenLogic};
 use crate::garage::{Selection, menu_rows::Row};
 use blackbox_feng::{ObjectRef, ids::*};
@@ -10,13 +10,15 @@ use nfsmw_data::car::customization::Category as Part;
 
 mod finish;
 mod highlight;
-use finish::family_page;
+use finish::page_for;
 
 struct Swatch {
     hash: Option<u32>,
     rgb: [u8; 3],
     option: usize,
 }
+
+mod pointer;
 
 pub(super) struct Palette {
     handle: GarageUi,
@@ -41,14 +43,14 @@ impl Palette {
         let mut families: Vec<String> = Vec::new();
         if let Some(catalog) = model.selected().and_then(|car| car.parts.as_ref()) {
             for (_, hash) in &catalog.finishes {
-                if let Some(family) = catalog.paint_families.get(hash).map(|name| family_page(name).to_owned())
+                if let Some(family) = page_for(catalog, *hash).map(str::to_owned)
                     && !families.contains(&family)
                 {
                     families.push(family);
                 }
             }
             for choice in &catalog.choices[Part::Paint as usize] {
-                if let Some(family) = catalog.paint_families.get(&choice.hash).map(|name| family_page(name).to_owned())
+                if let Some(family) = page_for(catalog, choice.hash).map(str::to_owned)
                     && !families.contains(&family)
                 {
                     families.push(family);
@@ -58,10 +60,13 @@ impl Palette {
         if families.is_empty() {
             families.push(String::new());
         }
-        let family = model.draft.parts.parts[Part::Paint as usize]
-            .and_then(|hash| {
-                let family = model.selected()?.parts.as_ref()?.paint_families.get(&hash)?;
-                families.iter().position(|candidate| candidate == family_page(family))
+        let family = model
+            .selected()
+            .and_then(|car| car.parts.as_ref())
+            .and_then(|catalog| {
+                let hash = model.draft.parts.parts[Part::Paint as usize].or(catalog.stock[Part::Paint as usize])?;
+                let family = page_for(catalog, hash)?;
+                families.iter().position(|candidate| candidate == family)
             })
             .unwrap_or(0);
         let mut channels = model
@@ -133,16 +138,13 @@ impl Palette {
         };
         let family = &self.families[self.family];
         if let Some(hash) = catalog.stock[category as usize]
-            && (self.color() == 1
-                || catalog.paint_families.get(&hash).map(|name| family_page(name)) == Some(family.as_str()))
+            && (self.color() == 1 || page_for(catalog, hash) == Some(family.as_str()))
             && let Some(rgb) = catalog.colors.get(&hash).copied()
         {
             self.colors.push(Swatch { hash: None, rgb, option: 0 });
         }
         for (index, choice) in catalog.choices[category as usize].iter().enumerate() {
-            if self.color() == 0
-                && catalog.paint_families.get(&choice.hash).map(|name| family_page(name)) != Some(family.as_str())
-            {
+            if self.color() == 0 && page_for(catalog, choice.hash) != Some(family.as_str()) {
                 continue;
             }
             let Some(rgb) = catalog.colors.get(&choice.hash).copied() else {
@@ -150,6 +152,7 @@ impl Palette {
             };
             self.colors.push(Swatch { hash: Some(choice.hash), rgb, option: index + 1 });
         }
+        self.sort_swatches(catalog, category);
         let selected = match self.color() {
             0 => model.draft.parts.parts[Part::Paint as usize],
             1 => model.draft.parts.parts[Part::RimPaint as usize],
@@ -159,7 +162,8 @@ impl Palette {
         self.picked = self
             .colors
             .iter()
-            .position(|swatch| selected.map_or(rgb == Some(swatch.rgb), |hash| swatch.hash == Some(hash)))
+            .position(|swatch| swatch.hash == selected)
+            .or_else(|| self.colors.iter().position(|swatch| rgb == Some(swatch.rgb)))
             .unwrap_or(0);
         self.refresh(cx);
     }
@@ -167,9 +171,12 @@ impl Palette {
     fn refresh(&self, cx: &mut Cx) {
         self.handle.header(cx, self.page);
         if self.color() == 1 || (matches!(self.page, Page::Paint { color: 2..=4, .. }) && self.channels == 1) {
-            for hash in [0x2c52_6172, 0x2c3c_c2d3, 0x5363_9a10, 0x7800_8599] {
+            for hash in [0x2c52_6172, 0x2c3c_c2d3, 0x5363_9a10] {
                 cx.hide(hash, true);
             }
+        }
+        if self.color() == 1 {
+            cx.hide(0x7800_8599, false);
         }
         let count = self.objects.len().max(1);
         let base = self.picked / count * count;
@@ -333,6 +340,19 @@ impl Palette {
 }
 
 impl ScreenLogic for Palette {
+    fn sound_trigger(
+        &mut self,
+        _: &blackbox_feng::Runtime,
+        _: blackbox_feng::PackageId,
+        _: u32,
+        cue: Option<i32>,
+    ) -> Option<i32> {
+        cue.filter(|id| {
+            !matches!(id, 41 | 42)
+                || (self.color() != 1 && (!matches!(self.page, Page::Paint { color: 2..=4, .. }) || self.channels > 1))
+        })
+    }
+
     fn covers_screens(&self) -> bool {
         true
     }
@@ -443,40 +463,7 @@ impl ScreenLogic for Palette {
     }
 
     fn click(&mut self, cx: &mut Cx, point: Vec2) -> bool {
-        if let Some(layers) = &self.layers
-            && let Some(hit) = layers.hit(cx, point)
-        {
-            if let Hit::Icon(index) = hit {
-                let by = index as isize - self.channel as isize;
-                self.change_finish(cx, by);
-            }
-            return true;
-        }
-        if matches!(self.page, Page::GaugeColors { .. }) {
-            for (hashes, by) in [([0x204b_882c, 0x0603_c1d1], -1), ([0x611d_6eae, 0xc6ea_c384], 1)] {
-                let arrows: Vec<_> = hashes.into_iter().filter_map(|hash| cx.object(hash)).collect();
-                if cx.rt.object_at(&arrows, point).is_some() {
-                    self.shift(cx, by);
-                    return true;
-                }
-            }
-        }
-        for (hashes, by) in [([0x6b36_4f8b, 0xd1cd_a594], -1), ([0x7935_4351, 0x9345_e4a7], 1)] {
-            let arrows: Vec<_> = hashes.into_iter().filter_map(|hash| cx.object(hash)).collect();
-            if cx.rt.object_at(&arrows, point).is_some() {
-                self.change_finish(cx, by);
-                return true;
-            }
-        }
-        let Some(hit) = cx.rt.object_at(&self.objects, point) else {
-            return false;
-        };
-        let Some(index) = self.objects.iter().position(|object| *object == hit) else {
-            return false;
-        };
-        let count = self.objects.len().max(1);
-        self.choose(cx, self.picked / count * count + index);
-        true
+        self.click_palette(cx, point)
     }
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {

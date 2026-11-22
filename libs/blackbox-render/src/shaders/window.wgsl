@@ -12,6 +12,7 @@ struct Globals {
 @group(1) @binding(0) var diffuse_texture: texture_2d<f32>;
 @group(1) @binding(1) var reflection_texture: texture_2d<f32>;
 @group(1) @binding(2) var material_sampler: sampler;
+@group(1) @binding(3) var window_environment: texture_cube<f32>;
 struct Input {
     @location(0) position: vec3<f32>, @location(1) normal: vec3<f32>,
     @location(2) color_bgra: vec4<f32>, @location(3) uv: vec2<f32>,
@@ -81,10 +82,25 @@ fn vs_main(v: Input, placed: InstanceIn) -> Output {
     out.scatter = fog.scatter;
     return out;
 }
+// Recover the origin of the authored UV plane. A continuous shop display gets one
+// switch, while separately mapped windows can have different occupants.
+fn room_seed(world: vec3<f32>, uv: vec2<f32>) -> f32 {
+    let x = dpdx(uv);
+    let y = dpdy(uv);
+    let det = x.x*y.y - x.y*y.x;
+    let du = dpdx(world)*y.y - dpdy(world)*x.y;
+    let dv = dpdy(world)*x.x - dpdx(world)*y.x;
+    let origin = world - (du*uv.x + dv*uv.y) / select(1.0, det, abs(det)>1e-14);
+    let cell = floor(origin * 0.5 + 0.5);
+    let p = fract(cell * vec3(0.1031, 0.1030, 0.0973));
+    let h = p + dot(p, p.yzx + vec3(33.33));
+    return select(0.0, fract((h.x+h.y)*h.z), abs(det)>1e-14);
+}
+
 fn shade(v: Output) -> vec4<f32> {
     if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(v.world, 1.0)) < 0.0 { discard; }
     let tex = textureSampleBias(diffuse_texture,material_sampler,v.uv,globals.fog_range.z);
-    let reflection = textureSampleBias(reflection_texture,material_sampler,v.reflection_uv,globals.fog_range.z);
+
     let plane = receiver_normal(v.world,v.normal);
     if globals.fog_range.w<0.5 && shadow_data.debug.x>0.5 {
         return vec4<f32>(lighting_debug_colour(v.world,plane,v.clip.xy),1.0);
@@ -95,12 +111,74 @@ fn shade(v: Output) -> vec4<f32> {
     // Daytime sky reflections and in-scattering are baked into these authored windows.
     // Reduce those two terms at night while retaining the source window pattern.
     let night = shadow_data.local_options.w;
-    let reflected = tex.a * reflection.rgb * mix(1.0, 0.45, night);
+    var reflected: vec3<f32>;
+    var base_weight = 1.0;
+    var highlight = v.highlight;
+    if globals.camera_right.w > 0.5 {
+        let eye = unit(globals.camera_pos.xyz - v.world);
+        let authored_normal = unit(v.normal);
+        let normal = select(plane, authored_normal, abs(dot(plane, authored_normal)) > 0.98);
+        let ray = reflect(-eye, normal);
+        let edge = 1.0 - clamp(abs(dot(eye, normal)), 0.0, 1.0);
+        let fresnel = 0.12 + 0.32 * edge * edge * edge;
+        let weight = tex.a * fresnel;
+        let horizon = globals.fog_color.rgb;
+        let sky = mix(horizon, horizon * vec3(0.66, 0.83, 1.12), smoothstep(0.0, 0.8, ray.z));
+        let ground = mix(horizon * 0.14, globals.surface_ambient.rgb * 0.35, 0.5);
+        var outside = mix(ground, sky, smoothstep(-0.18, 0.12, ray.z));
+        if globals.camera_right.w > 1.5 {
+            let levels = textureNumLevels(window_environment);
+            if levels > 1u {
+                // Keep only large-scale surroundings. This optional pyramid already exists for car paint.
+                let lod = min(f32(levels-1u), log2(f32(textureDimensions(window_environment).x)) - 3.5);
+                let broad = textureSampleLevel(window_environment, material_sampler, ray, max(lod,0.0));
+                outside = mix(outside, broad.rgb, 0.55*broad.a);
+            } else {
+                let axes = ray * ray;
+                let dir = select(vec3(-1.0), vec3(1.0), ray >= vec3(0.0));
+                let distant = axes.x * textureSampleLevel(window_environment, material_sampler, vec3(dir.x,0,0),0).rgb
+                    + axes.y * textureSampleLevel(window_environment, material_sampler, vec3(0,dir.y,0),0).rgb
+                    + axes.z * textureSampleLevel(window_environment, material_sampler, vec3(0,0,dir.z),0).rgb;
+                outside = mix(outside, distant, 0.65);
+            }
+        }
+        // Trace to a backing plane 12 cm behind the glass. Only the opening mask moves:
+        // frames, lettering and merchandise can share a single diffuse atlas.
+        let dx = dpdx(v.world);
+        let dy = dpdy(v.world);
+        let area = cross(dx, dy);
+        let depth = 0.12 / max(abs(dot(eye, normal)), 0.28);
+        let travel = depth * (dot(eye, normal)*normal - eye);
+        let inv_area = area / max(dot(area, area), 1e-16);
+        let uv_shift = dpdx(v.uv)*dot(cross(travel, dy),inv_area) + dpdy(v.uv)*dot(cross(dx,travel),inv_area);
+        let behind = textureSampleBias(diffuse_texture,material_sampler,v.uv + uv_shift,globals.fog_range.z).a;
+        let reveal = 1.0 - 0.38 * max(tex.a - behind, 0.0);
+        base_weight = (1.0 - weight) * reveal;
+        let surface = 2.0 * tex.rgb * (v.ambient + v.diffuse*q);
+        // The photographed display behind the pane has its own diffuse light, even under an awning.
+        let display = max(surface, 0.60 * sqrt(tex.rgb));
+        let interior = mix(surface, display, smoothstep(0.02,0.55,tex.a) * (1.0-night)) * reveal;
+        let glass = sqrt((1.0-weight) * interior * interior + weight * outside * outside);
+        reflected = glass - base_weight*surface;
+        let sun = max(dot(ray, unit(-globals.light_dir.xyz)), 0.0);
+        highlight = fresnel * pow(sun, 96.0);
+    } else {
+        let reflection = textureSampleBias(reflection_texture,material_sampler,v.reflection_uv,globals.fog_range.z);
+        reflected = tex.a * reflection.rgb * mix(1.0, 0.45, night);
+    }
     let scatter = v.scatter * mix(1.0, 0.035, night);
-    var rgb = 2.0*(tex.rgb*v.ambient+(tex.rgb*v.diffuse+2.0*tex.a*v.highlight)*q)+reflected+scatter;
+    var rgb = 2.0*(base_weight*tex.rgb*(v.ambient+v.diffuse*q)+2.0*tex.a*highlight*q)+reflected+scatter;
     if shadow_data.local_options.w > 0.0 {
         rgb *= mix(vec3(1.0), vec3(0.30, 0.35, 0.45), shadow_data.local_options.w);
         if globals.fog_range.w < 0.5 { rgb += shadow_data.local_options.w*2.0*tex.rgb*local_lighting(v.world,plane); }
+    }
+    if globals.camera_right.w > 0.5 && night > 0.0 {
+        let seed = room_seed(v.world, v.uv);
+        let fade = smoothstep(0.08 + 0.32*seed, 0.66 + 0.28*seed, night);
+        let luminance = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
+        let lamp = mix(vec3(1.0, 0.56, 0.27), vec3(1.0, 0.83, 0.59), seed);
+        let glow = (0.30*sqrt(luminance) + 1.5*luminance) * tex.a;
+        rgb += select(vec3(0.0), fade * glow * lamp * base_weight, seed > 0.42);
     }
     return extended_output(vec4(rgb,tex.a));
 }

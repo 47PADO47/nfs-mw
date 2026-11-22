@@ -202,7 +202,8 @@ fn local_lights(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
         super::controls::checkbox(ui, &mut lab.options.local_tail_lights, "Player tail/brake light spill", defaults.local_tail_lights)
             .on_hover_text("Adds a small red light behind the player car. It follows the light switch, braking and lamp damage.");
         super::controls::checkbox(ui, &mut lab.options.local_emergency_lights, "Police light bar spill", defaults.local_emergency_lights)
-            .on_hover_text("Flashing light bars of nearby police cars light the road and cars around them, in step with their flares. Unshadowed; up to four cars, sharing the light budget. Fades with night like traffic beams.");
+            .on_hover_text("Flashing light bars of nearby police cars light the road and cars around them, in step with their flares. Up to four cars, sharing the light budget. Fades with night like traffic beams.");
+        super::controls::checkbox(ui, &mut lab.options.moving_spill_shadows, "Moving spill shadows", defaults.moving_spill_shadows);
         super::controls::slider(ui, &mut lab.options.local_emergency_strength, 0.0..=5.0, "Light bar strength", defaults.local_emergency_strength);
         super::controls::checkbox(ui, &mut lab.options.local_traffic_headlights, "Traffic headlight beams", defaults.local_traffic_headlights)
             .on_hover_text("Nearby traffic uses its lamp markers and damage state. Beams share the light and shadow budgets.");
@@ -213,6 +214,8 @@ fn local_lights(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
         super::controls::slider(ui, &mut lab.options.local_street_strength, 0.0..=5.0, "Street light strength", defaults.local_street_strength);
         super::controls::slider(ui, &mut lab.options.local_street_glow, 0.0..=2.0, "Street lamp glow", defaults.local_street_glow)
             .on_hover_text("Changes the visible lamp glow without changing illumination or shadow cost.");
+        super::controls::checkbox(ui, &mut lab.options.sun_shafts, "Sun shafts", defaults.sun_shafts);
+        super::controls::slider(ui, &mut lab.options.sun_shaft_strength, 0.0..=4.0, "Sun shaft strength", defaults.sun_shaft_strength);
         super::controls::slider(ui, &mut lab.options.local_light_fog, 0.0..=4.0, "Local light fog", defaults.local_light_fog)
             .on_hover_text("Weather-dependent illuminated air from nearby local lights. Zero disables it.");
         super::controls::slider(ui, &mut lab.options.local_light_fog_distance, 80.0..=600.0, "Fog visibility distance (m)", defaults.local_light_fog_distance)

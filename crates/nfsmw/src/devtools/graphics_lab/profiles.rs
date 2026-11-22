@@ -72,11 +72,15 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             settings.post_tonemap = defaults.post_tonemap;
             settings.visual_treatment = defaults.visual_treatment;
             settings.appearance.treatment_strength = None;
+            settings.appearance.auto_exposure = defaults.appearance.auto_exposure;
+            settings.appearance.optics = defaults.appearance.optics;
             settings.appearance.vignette = defaults.appearance.vignette;
         }
         Tab::Lighting => {
+            let enhanced_windows = lab.options.enhanced_windows;
             let reflections = (lab.options.cached_reflections, lab.options.screen_reflections);
             lab.options = defaults.appearance.lighting;
+            lab.options.enhanced_windows = enhanced_windows;
             lab.options.cached_reflections = reflections.0;
             lab.options.screen_reflections = reflections.1;
             lab.options.original_world_materials = settings.appearance.lighting.original_world_materials;
@@ -84,6 +88,7 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
             lab.options.lighting_debug = settings.appearance.lighting.lighting_debug;
         }
         Tab::Materials => {
+            lab.options.enhanced_windows = defaults.appearance.lighting.enhanced_windows;
             lab.options.cached_reflections = defaults.appearance.lighting.cached_reflections;
             lab.options.screen_reflections = defaults.appearance.lighting.screen_reflections;
             settings.texture_filtering = defaults.texture_filtering;

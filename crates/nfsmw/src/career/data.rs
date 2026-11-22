@@ -45,7 +45,8 @@ pub struct CareerData {
     pub milestones: Vec<MilestoneDef>,
     /// The speed traps of bins 1 to 15, in the reader's order (bin, then name).
     pub traps: Vec<SpeedTrapDef>,
-    /// The car lot's cars, in the reader's order.
+    /// The car lot's cars, in a new career's stable order (`career_cars::in_stable_order`); the lot sorts them by unlock
+    /// rank (`carlot::listed`).
     pub cars: Vec<LotCar>,
     /// The cop heat values. `None` when `pursuitlevels/default` is missing from the attribute database.
     pub heat: Option<CareerHeat>,
@@ -65,7 +66,10 @@ impl CareerData {
         let gameplay = gameplay::load(dir)?;
         let attributes = shared::attributes(dir)?;
         let frontend = frontend_database(dir, &attributes)?;
-        let cars = career_cars::catalogue(&frontend);
+        let cars = career_cars::in_stable_order(
+            career_cars::catalogue(&frontend),
+            &career_cars::vehicle_walk_order(&frontend),
+        );
         let heat = pursuit::career_heat(&attributes);
         let ranks = rank_thresholds::rank_thresholds(&frontend);
         Ok(CareerData::from_parts(gameplay, &cars, heat, ranks))
@@ -203,16 +207,19 @@ fn trap_index(name: &str) -> Option<u8> {
 
 /// One car of the lot. `None` when the car has no name, no unlock rank or no class (the rules need all three).
 ///
-/// The handle and the vehicle key are both the name hash (`vlt_hash` of the name). **[unconfirmed]** the spec does not
-/// say which handle a bought car gets, nor which vehicle collection the lot record points at; the name hash is what
-/// the preset cars use. A negative price becomes 0 (the rules take a `u32`).
+/// The handle is the name hash (`vlt_hash` of the name). **[unconfirmed]** the spec does not say which handle a bought car
+/// gets; the name hash is what the preset cars use. The vehicle key is the key of the `pvehicle` collection whose `frontend`
+/// field names the car (the preset rides pair the same keys: `BL5` is the front-end `corvette_car` on the vehicle
+/// `corvette`), and the name hash for a car no vehicle names. A negative price becomes 0 (the rules take a `u32`).
 fn lot_car(car: &CatalogueCar) -> Option<LotCar> {
     let name = car.name.clone()?;
     let unlock_rank = car.unlock_rank?;
     let class = lot_class(car.class?);
+    // The car's vehicle is the `pvehicle` collection that names it; a car no vehicle names keeps its own name's hash.
+    let vehicle_key = car.vehicle.as_ref().map_or_else(|| vlt_hash(&name), |vehicle| vehicle.key);
     Some(LotCar {
         handle: vlt_hash(&name),
-        vehicle_key: vlt_hash(&name),
+        vehicle_key,
         name,
         frontend_key: car.key,
         price: u32::try_from(car.price).unwrap_or(0),
