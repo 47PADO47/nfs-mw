@@ -49,6 +49,7 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         }
     });
     if custom {
+        ui.checkbox(&mut lab.options.per_car_environment, "Per-car environment lighting");
         ui.small("Paint finish controls reflections and clearcoat. Sunlight follows weather; indirect light follows the captured sky, scenery and shelter.");
         if !enhanced(&lab.options) {
             ui.small("Advanced overrides are active. Select Enhanced (automatic) to restore the coordinated lighting features.");

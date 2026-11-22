@@ -80,5 +80,7 @@ pub(in crate::gpu) fn instance_words(instance: &blackbox_gfx::Instance) -> [f32;
     words[..16].copy_from_slice(&instance.transform.to_cols_array());
     words[16] = f32::from(u8::from(instance.shadow.receive));
     words[17] = instance.emission;
+    words[18] = instance.environment_occlusion;
+    words[19] = instance.forward_speed;
     words
 }

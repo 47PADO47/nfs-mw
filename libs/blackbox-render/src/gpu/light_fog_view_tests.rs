@@ -84,3 +84,25 @@ fn view_captures_keep_their_own_fog_and_leave_the_main_view_alone() {
     assert!(mixed_bytes[1..].windows(2).all(|w| w[0] == w[1]), "alternating views reallocate nothing");
     assert_eq!(alone.rgba, mixed.rgba, "captures between main frames leave the main fog unchanged");
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn directional_fog_without_lamps_peaks_toward_the_light() {
+    let _gpu = super::test_support::serial();
+    let mut renderer = super::test_support::headless((160, 90)).expect("GPU adapter");
+    let mut energy = |enabled, direction| {
+        renderer.set_render_experiments(blackbox_gfx::RenderExperiments {
+            sun_shafts: enabled,
+            local_light_fog_count: 0,
+            ..Default::default()
+        });
+        renderer.set_effects(&EffectLayer { light_fog: [0.0, 1.0], ..Default::default() });
+        renderer.render(&FrameParams { light_dir: direction, camera_cut: true, ..frame(Vec3::ZERO) }, &[]).unwrap();
+        let image = renderer.read_output().unwrap().unwrap();
+        image.rgba.as_chunks::<4>().0.iter().map(|p| u64::from(p[0])).sum::<u64>()
+    };
+    let toward = energy(true, -Vec3::X);
+    let away = energy(true, Vec3::X);
+    assert!(toward > away, "the phase function must favour the active light");
+    assert_eq!(energy(false, -Vec3::X), 0, "switching off clears directional scattering");
+}

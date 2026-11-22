@@ -57,6 +57,7 @@ fn installed_original_car_materials_resolve_paint_glass_and_custom_parts() {
                         };
                         if mode == CarShading::Glossy && Some(actual_hash) == materials.paint {
                             expected.surface = model.paint.as_ref().and_then(super::super::paint_surface::response);
+                            expected.wettable = expected.surface.is_some();
                         }
                         if mode == CarShading::Glossy && Some(actual_hash) != materials.paint {
                             expected.surface = super::super::material_response::response(authored);
@@ -118,4 +119,34 @@ fn installed_original_car_tint_material_uses_selected_preset() {
         assert!(renderer.glossy_materials.is_empty());
     }
     eprintln!("preset {} ({folder}) resolves windshield material {tint:08X}", preset.preset_name);
+}
+
+#[test]
+#[ignore = "requires installed Mustang decal textures"]
+fn installed_window_lettering_draws_after_glass() {
+    use nfsmw_data::car::customization::DecalZone;
+
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+    let catalog = Inventory::load(&dir).unwrap().catalog(&dir, "MUSTANGGT").unwrap();
+    let zone = DecalZone::FrontWindow;
+    let decals = &catalog.decals[zone as usize];
+    let choice = decals
+        .choices
+        .iter()
+        .find(|choice| choice.label.contains("Alpine") && decals.variants[&choice.hash].matches(false))
+        .expect("white Alpine decal");
+    let mut selection = Selection::default();
+    selection.decals[zone as usize][0] = Some(choice.hash);
+    let options = nfsmw_data::car::LoadOptions { lod: 'A', all_parts: false, preset: None };
+    let model = nfsmw_data::car::load_customized_driving(&dir, "MUSTANGGT", &options, &selection).unwrap();
+    let mut renderer = NullBackend::new(crate::settings::test_caps::native()).with_glossy_tracking();
+    let materials = CarMaterials::upload(&mut renderer, &model, CarShading::Glossy, Vec3::Z);
+    let placement = model.placements.iter().find(|p| p.slot == zone.model_slot()).unwrap();
+    let solid = &model.solids[&placement.solid];
+    let lookup = materials.for_solid(&model.swaps, false, &solid.name, placement.slot);
+    let texture = solid.groups[0].diffuse_texture(solid).unwrap();
+    assert_eq!(lookup.material(texture).unwrap().1, BlendMode::AlphaOverlay);
+    assert_eq!(materials.for_placement(&model.swaps, false).material(texture).unwrap().1, BlendMode::AlphaBlend);
+    println!("White Alpine decal part {}", choice.hash);
+    materials.destroy(&mut renderer);
 }

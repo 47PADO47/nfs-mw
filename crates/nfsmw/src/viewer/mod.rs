@@ -148,7 +148,6 @@ pub trait Scene {
     fn confirm_garage(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.apply_garage(renderer, selection)
     }
-
     /// Pause tuning saves an owned career car, but never creates a My Cars slot for a stock race car.
     fn confirm_tuning(&mut self, renderer: &mut dyn RenderBackend, selection: crate::garage::Selection) -> Result<()> {
         self.confirm_garage(renderer, selection)
@@ -173,6 +172,10 @@ pub trait Scene {
     fn set_garage_open(&mut self, _open: bool) {}
     /// Whether a tools overlay (F5, F8) is open: the world pauses for it unless the player turned that off.
     fn set_overlay_open(&mut self, _open: bool) {}
+    /// Whether this view renders the world through the gameplay camera optics.
+    fn world_camera_optics(&self) -> bool {
+        false
+    }
     fn title(&self) -> String;
     /// Upload the initial resources.
     fn init(&mut self, renderer: &mut dyn RenderBackend) -> Result<()>;

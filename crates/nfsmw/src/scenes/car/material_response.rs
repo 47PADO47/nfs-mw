@@ -3,7 +3,21 @@ use blackbox_gfx::{GlossySurface, SurfaceKind};
 use nfsmw_data::car::LightMaterial;
 
 pub(super) fn response(material: &LightMaterial) -> Option<GlossySurface> {
-    let (roughness, coat, kind) = classify(&material.name)?;
+    let (name, group) = material.name.split_once(':').unwrap_or((&material.name, ""));
+    let (mut roughness, mut coat, kind) = classify(name)?;
+    if name.starts_with("__GARAGE_RIM_PAINT_") {
+        match group {
+            "MAGCHROME" => {
+                roughness *= 0.66;
+                coat = (coat + 0.18).min(1.0);
+            }
+            "MAGGUNMETAL" => {
+                roughness = (roughness + 0.10).min(0.48);
+                coat *= 0.55;
+            }
+            _ => {}
+        }
+    }
     Some(GlossySurface { roughness, coat, kind })
 }
 
@@ -19,7 +33,7 @@ pub(super) fn scene_response(material: &LightMaterial) -> Option<GlossySurface> 
 fn classify(name: &str) -> Option<(f32, f32, SurfaceKind)> {
     use SurfaceKind::*;
     Some(match name {
-        "WINDSHIELD" | "WINDOWMASK" => (0.10, 0.0, Glass),
+        "WINDSHIELD" => (0.10, 0.0, Glass),
         n if n.starts_with("WINDSHIELD_TINT_") => (0.10, 0.0, Glass),
         "CARBONFIBER" | "CARBONFIBER2" => (0.38, 0.85, Composite),
         "MAGCHROME" | "CHROME" => (0.12, 0.0, Conductor),
@@ -27,9 +41,14 @@ fn classify(name: &str) -> Option<(f32, f32, SurfaceKind)> {
         "ALUMINUM" | "BRAKEDISC" => (0.42, 0.0, Conductor),
         "MAGGUNMETAL" => (0.38, 0.4, PaintedMetal),
         "MAGSILVERGLOSS" => (0.24, 0.7, PaintedMetal),
-        "RUBBER" => (0.88, 0.0, Rubber),
+        "RUBBER" | "WINDOWMASK" => (0.88, 0.0, Rubber),
         "INTERIOR" | "PLASTICHUBCAP" | "BOTTOM" => (0.65, 0.0, Diffuse),
         "__GARAGE_RIM_PAINT_MAGCHROME" | "__GARAGE_RIM_PAINT_CHROME" => (0.12, 0.0, Conductor),
+        // Installed powder coats carry distinct angular reflection ramps. Retain the selected
+        // pigment in all rows. Matte powder has a broad, textured painted-metal response.
+        "__GARAGE_RIM_PAINT_USER_RIMS" => (0.27, 0.40, Legacy),
+        "__GARAGE_RIM_PAINT_USER_RIMS_CHROME" => (0.20, 0.43, Legacy),
+        "__GARAGE_RIM_PAINT_USER_RIMS_GUNMETAL" => (0.39, 0.13, PaintedMetal),
         n if n.starts_with("__GARAGE_RIM_PAINT_") => (0.28, 0.65, PaintedMetal),
         _ => return None,
     })

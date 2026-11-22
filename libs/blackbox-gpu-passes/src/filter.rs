@@ -144,6 +144,11 @@ impl Filter {
         self
     }
 
+    /// Bind parameters produced by a preceding GPU pass in the same command stream.
+    pub fn copy_param_prefix(&self, encoder: &mut wgpu::CommandEncoder, source: &wgpu::Buffer, size: u64) {
+        encoder.copy_buffer_to_buffer(source, 0, &self.params, 0, size);
+    }
+
     /// Upload the parameters every draw of this frame's encode reads. Queue writes land before the
     /// submitted commands run, so one block serves all the draws of an encode.
     pub fn set_params(&self, queue: &wgpu::Queue, params: &Params) {

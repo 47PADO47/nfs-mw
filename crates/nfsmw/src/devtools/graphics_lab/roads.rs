@@ -16,6 +16,9 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             ui.small("Hardware RT is unavailable in this session. Use the Vulkan RT launcher to enable it at startup.");
         }
         ui.collapsing("Advanced wet surfaces", |ui| {
+            ui.add_enabled_ui(lab.options.enhanced_wet_surfaces, |ui| {
+                ui.checkbox(&mut lab.options.puddle_ripples, "Puddle contours and rain rings");
+            });
             ui.add(egui::Slider::new(&mut lab.options.puddle_coverage, 0.0..=1.0).text("Puddle coverage"));
             ui.add(egui::Slider::new(&mut lab.options.puddle_scale, 2.0..=30.0).text("Puddle patch size (m)"));
             ui.add(egui::Slider::new(&mut lab.options.water_ripples, 0.0..=2.0).text("Rain ripples"));

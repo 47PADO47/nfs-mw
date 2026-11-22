@@ -91,7 +91,7 @@ fn finish(
 ) -> anyhow::Result<()> {
     let info = renderer.info();
     log::info!("renderer: {} on {} (requested backend: {})", info.renderer, info.summary(), settings.backend);
-    host.graphics.apply(renderer.as_mut(), settings);
+    host.graphics.apply(renderer.as_mut(), settings, host.scene.world_camera_optics());
     host.scene.init(renderer.as_mut())?;
     host.scene.set_transmission(host.transmission);
     host.scene.set_traffic(host.traffic);

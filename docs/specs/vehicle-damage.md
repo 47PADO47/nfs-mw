@@ -92,11 +92,10 @@ source paint/deformation/presentation remain incomplete.
 - **Scraped paint texture.** The procedural overlay is removed; original paint scuff rendering remains missing.
 - **Cracked windows.** The cracked-window texture is `WINDOW_DAMAGE0` in `GLOBAL/GLOBALB.BUN` (key
   `0x0A155545`). Each glazed zone with a crack swaps its window placeholders to it (`zone_windows`,
-  `TextureSwaps::with_window_hashes`), re-uploading the car when the set changes. Confirmed in a screenshot after a
-  glazed rear hit: the rear window shows the shattered-glass texture. The swap keys on the window solid's own
-  diffuse texture (`zone_window_solid`), because the rear glass does not draw `WINDOW_REAR`.
-  (Earlier note, now superseded:) a screenshot
-  after a rear hit shows the rear panels lighter, but the crack pattern on the window is not yet confirmed.
+  `TextureSwaps::with_window_hashes`). A named window solid can also draw the pane using a shared diffuse texture.
+  Replace that texture only on the damaged window solid, at each driving detail level. Other parts can use the
+  same texture for opaque trim. In original-game rear views of the damaged 911 Turbo, the recess below the
+  rear badge stays dark while the rear window shows fractures.
 - **Original spike prop presentation** and the complete original `blown_tires` integration.
 - **Repair in the garage or between races.** The `repair` world console command clears the damage and
   the punctures; no in-game repair exists yet.

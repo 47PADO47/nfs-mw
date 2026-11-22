@@ -51,6 +51,7 @@ impl WorldScene {
             }
         }
         // Vehicle geometry is merged from the actual main draw, keeping wheel/damage transforms.
+        super::super::local_lights::set_instance_emission(&mut self.wet_road.instances, &self.fixture_emission);
         renderer.set_ray_reflection_instances(&self.wet_road.instances);
     }
 }

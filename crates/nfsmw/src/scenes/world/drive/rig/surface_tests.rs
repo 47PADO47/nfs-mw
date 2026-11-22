@@ -74,6 +74,7 @@ fn assert_materials(
     actor: u32,
     drawn: &[Instance],
     swaps: &TextureSwaps,
+    glass: u16,
 ) -> usize {
     let appearance = rig.appearance.borrow();
     let mut checked = 0;
@@ -82,6 +83,19 @@ fn assert_materials(
             continue;
         };
         let solid = &rig.model.solids[&part.placement.solid];
+        let pane;
+        let swaps = if rig.cracked_window_solids(glass).contains(&part.placement.solid) {
+            let textures = solid
+                .groups
+                .iter()
+                .filter(|g| solid.light_material_hashes.get(usize::from(g.light_material)) != Some(&hash("WINDOWMASK")))
+                .filter_map(|g| g.diffuse_texture(solid))
+                .collect::<Vec<_>>();
+            pane = swaps.clone().with_window_hashes(&textures);
+            &pane
+        } else {
+            swaps
+        };
         let expected = solid
             .groups
             .iter()
@@ -170,8 +184,8 @@ fn installed_experimental_head_damage_is_per_actor_and_repairs() {
     rig.prepare_surfaces(&mut backend, &BTreeSet::from([SurfaceDamage::new(0, 1)]), Vec3::Z);
     let intact = draw(&rig, 7, 0, 0, [true, true]);
     let broken = draw(&rig, 8, 0, 1, [true, true]);
-    assert!(assert_materials(&rig, &backend, 7, &intact, &intact_swaps) > 0);
-    assert!(assert_materials(&rig, &backend, 8, &broken, &left_swaps) > 0);
+    assert!(assert_materials(&rig, &backend, 7, &intact, &intact_swaps, 0) > 0);
+    assert!(assert_materials(&rig, &backend, 8, &broken, &left_swaps, 0) > 0);
     let appearance = rig.appearance.borrow();
     let part = appearance
         .parts
@@ -239,9 +253,9 @@ fn installed_surface_variants_isolate_actors_combine_glass_and_retire() {
             assert!(!intact.is_empty() && !damaged.is_empty());
             let before = rig.swaps().with_lamp_state(lamps[0], lamps[1], &rig.model.textures);
             let after =
-                rig.swaps_for([0]).with_broken_brake_lights(8).with_lamp_state(lamps[0], lamps[1], &rig.model.textures);
-            assert!(assert_materials(&rig, &backend, 7, &intact, &before) > 0);
-            assert!(assert_materials(&rig, &backend, 8, &damaged, &after) > 0);
+                rig.swaps_for(1).with_broken_brake_lights(8).with_lamp_state(lamps[0], lamps[1], &rig.model.textures);
+            assert!(assert_materials(&rig, &backend, 7, &intact, &before, 0) > 0);
+            assert!(assert_materials(&rig, &backend, 8, &damaged, &after, 1) > 0);
             let intact_again = draw(&rig, 9, 0, 0, lamps);
             assert_eq!(
                 intact.iter().map(|i| i.mesh).collect::<Vec<_>>(),

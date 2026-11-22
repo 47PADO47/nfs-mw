@@ -235,7 +235,7 @@ impl CarScene {
                 continue;
             }
             let mesh = *cache.entry((p.solid, p.left_brake)).or_insert_with(|| {
-                let lookup = materials.for_solid(&swaps, p.left_brake, &self.model.solids[&p.solid].name);
+                let lookup = materials.for_solid(&swaps, p.left_brake, &self.model.solids[&p.solid].name, p.slot);
                 upload_solid(renderer, &self.model.solids[&p.solid], &lookup, self.solid_shading)
             });
             if let Some(mesh) = mesh {

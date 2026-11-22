@@ -54,6 +54,6 @@ fn rough_paint_color(base: vec3<f32>, environment: vec3<f32>, highlight: vec3<f3
     gain: f32, intensity: f32, occlusion: f32, alpha: f32) -> vec3<f32> {
     // Keep the existing diffuse lighting and occlusion, but combine reflected energy
     // in linear light. No ambient floor: a black environment must remain black.
-    let reflected = paint_linear(environment) * gain * intensity;
+    let reflected = environment * gain * intensity;
     return paint_encoded(paint_linear(base) + (reflected + highlight) * occlusion * alpha);
 }

@@ -36,15 +36,20 @@ Rough paint (perceptual roughness at least 0.45) combines the legacy diffuse
 result, reflected environment and sun specular in linear light, then encodes
 the result for the legacy scene pipeline. The cube is display-encoded, so its
 4 percent dielectric reflectance must not multiply encoded bytes directly.
-Filtering still averages encoded probe samples; this remains a hybrid rather
-than a fully linear capture/IBL pipeline. Layered materials use a separate linear
-pyramid decoded before reduction. Both now integrate spatially filtered source
-footprints; see [reflection filtering](../reflection-filtering.md). There is no ambient floor.
+Matte base and coat sample the same linear environment pyramid as layered paint.
+Decoding each source sample before filtering preserves bright details in broad reflections; see [reflection filtering](../reflection-filtering.md). There is no ambient floor.
 
 Global clearcoat remains an enable switch. Opted-in paint scales that coat by
 its own finish strength; matte uses roughness 0.52 and coat strength 0.25.
 Rough paint's coat uses its own broad highlight and filtered environment,
 with coat roughness 85 percent of the surface roughness (minimum 0.35).
+For satin paint with a fixed vinyl, coverage from the installed artwork mask blends
+coat roughness towards 0.23 and coat strength towards 0.82. Covered and uncovered
+pixels can share the same RGB. The enhanced body draw samples coverage from its
+opaque composite texture. Spoilers without the artwork use the base finish.
+Metallic paint retains its neutral clearcoat above a broader, tinted pigment highlight.
+Resolved fine flakes vary the direct pigment highlight. Distant flakes contribute its mean.
+
 Gloss, metallic, pearl, chrome and recognized non-paint surfaces now use the
 separate layered response. Matte retains its tuned reflection model; indirect
 lighting uses the shared linear-light correction. No global exposure or fixed

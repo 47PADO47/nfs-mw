@@ -98,10 +98,11 @@ impl Renderer {
         depth: &wgpu::TextureView,
         frame: &FrameParams,
     ) {
+        let strength = self.post.effect_settings().sun_glare;
         let Some(state) = self
             .sun_glare_state
             .as_ref()
-            .filter(|s| s.strength.is_finite() && s.strength > 0.0 && !s.layers.is_empty())
+            .filter(|s| s.strength.is_finite() && s.strength > 0.0 && (!s.layers.is_empty() || strength > 0.0))
         else {
             return;
         };
@@ -126,19 +127,23 @@ impl Renderer {
         let size = (depth.texture().width(), depth.texture().height());
         let radius =
             (size.1 as f32 * state.angular_radius.to_radians().tan() / (2.0 * (fov_y * 0.5).tan())).clamp(1.0, 12.0);
-        for layer in state.layers.iter().take(8) {
-            if !layer.radius.is_finite() || !layer.brightness.is_finite() || !layer.rotation.is_finite() {
+        let artwork = state.layers.iter().take(8).filter_map(|layer| {
+            let image = self.texture_views.get(&layer.texture.raw())?;
+            Some((image, layer.radius, layer.brightness, layer.rotation, false))
+        });
+        let veil = (strength > 0.0).then_some((&glare.fallback, 0.22, strength * 0.16, 0.0, true));
+        for (image, radius_fraction, brightness, rotation, procedural) in artwork.chain(veil) {
+            if !radius_fraction.is_finite() || !brightness.is_finite() || !rotation.is_finite() {
                 continue;
             }
-            let Some(image) = self.texture_views.get(&layer.texture.raw()) else { continue };
             let params = Params {
-                sun: [ndc.x, ndc.y, 0.0, 1.0],
+                sun: [ndc.x, ndc.y, f32::from(procedural), 1.0],
                 screen: [size.0 as f32, size.1 as f32, radius, u8::from(cloud.is_some()) as f32],
                 colour: [state.colour[0], state.colour[1], state.colour[2], state.strength.clamp(0.0, 8.0)],
                 layer: [
-                    layer.radius.clamp(0.001, 0.5),
-                    layer.brightness.clamp(0.0, 8.0),
-                    layer.rotation,
+                    radius_fraction.clamp(0.001, 0.5),
+                    brightness.clamp(0.0, 8.0),
+                    rotation,
                     state.weather_visibility.clamp(0.0, 1.0),
                 ],
                 cloud_uv: [

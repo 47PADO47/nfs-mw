@@ -70,7 +70,7 @@ impl WorldScene {
         let glow_strength = renderer.render_experiments().local_street_glow;
         let fog_strength = renderer.render_experiments().local_light_fog;
         let weather = self.rain.visible_intensity().max(self.atmosphere.intensity() * 0.5);
-        let shelters = match fog_strength > 0.0 && weather > 0.0 {
+        let shelters = match (fog_strength > 0.0 || renderer.render_experiments().sun_shafts) && weather > 0.0 {
             true => fog_shelters(
                 &self.camera_environment.regions,
                 position,

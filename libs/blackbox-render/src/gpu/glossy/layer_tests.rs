@@ -186,3 +186,88 @@ fn paint_layers_are_distinct_and_all_classes_restore_legacy_and_ignore_original_
         "paint layers: {paint_values:?}"
     );
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn opaque_coat_coverage_changes_the_highlight_at_equal_pigment() {
+    use blackbox_gfx::{PixelFormat, TextureDesc};
+
+    let _serial = test_support::serial();
+    let Some(mut r) = test_support::headless(SIZE) else { return };
+    rig(&mut r, 0.06);
+    environment(&mut r, 0);
+    r.set_render_experiments(RenderExperiments { clearcoat: true, ..Default::default() });
+    let mut peaks = Vec::new();
+    for (masked, coverage) in [(false, 255u8), (true, 0), (true, 128), (true, 255)] {
+        let desc = GlossyMaterial { coat_mask: masked, ..layer(SurfaceKind::Legacy, 0.52, 0.25) };
+        let handle = r.create_glossy_material(&desc);
+        let pixel = [30, 30, 30, coverage];
+        let texture = r.create_texture(&TextureDesc {
+            label: "paint coverage",
+            width: 1,
+            height: 1,
+            format: PixelFormat::Rgba8,
+            mips: vec![&pixel],
+        });
+        let mut quad = MeshBuilder::new();
+        quad.state(Some(texture), BlendMode::Opaque, Shading::Glossy(handle));
+        quad.flat_quad(
+            [
+                Vec3::new(-2.0, -2.0, 0.0),
+                Vec3::new(2.0, -2.0, 0.0),
+                Vec3::new(2.0, 2.0, 0.0),
+                Vec3::new(-2.0, 2.0, 0.0),
+            ],
+            [128, 128, 128, 255],
+        );
+        let instance = Instance::new(quad.finish().upload(&mut r, "satin panel"), Mat4::IDENTITY);
+        peaks.push(center(&r.capture(96, 96, &frame(), &[instance]).unwrap()));
+    }
+    assert_eq!(peaks[0], peaks[1], "uncovered paint matches unmasked satin");
+    assert!(peaks[1] < peaks[2] && peaks[2] < peaks[3], "coverage and peak {peaks:?}");
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn surface_water_changes_exposed_paint_and_dries_back_to_the_same_finish() {
+    let _serial = test_support::serial();
+    let Some(mut r) = test_support::headless(SIZE) else { return };
+    rig(&mut r, 0.06);
+    environment(&mut r, 90);
+    r.set_render_experiments(RenderExperiments { enhanced_wet_surfaces: true, clearcoat: true, ..Default::default() });
+    let desc = layer(SurfaceKind::Legacy, 0.52, 0.25);
+    let paint = mesh(&mut r, GlossyMaterial { wettable: true, ..desc });
+    let trim = mesh(&mut r, desc);
+    let dry = r.capture(96, 96, &frame(), &paint).unwrap();
+    r.set_surface_water(blackbox_gfx::SurfaceWater { dampness: 1.0, ..Default::default() });
+    let wet = r.capture(96, 96, &frame(), &paint).unwrap();
+    assert!(center(&wet) > center(&dry), "the wet top panel catches a sharper highlight");
+    assert_eq!(dry, r.capture(96, 96, &frame(), &trim).unwrap());
+    r.set_surface_water(Default::default());
+    assert_eq!(dry, r.capture(96, 96, &frame(), &paint).unwrap());
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn runoff_moves_on_parked_glass_and_responds_to_vehicle_speed() {
+    let _serial = test_support::serial();
+    let Some(mut r) = test_support::headless(SIZE) else { return };
+    let face: Vec<u8> = (0..64 * 64).flat_map(|i| [if (i / 3) % 2 == 0 { 200 } else { 35 }, 75, 90, 255]).collect();
+    r.set_environment_faces(64, [&face; 6]);
+    rig(&mut r, 0.8);
+    r.set_render_experiments(RenderExperiments { enhanced_wet_surfaces: true, ..Default::default() });
+    let mut view = frame();
+    view.projection = Projection::PerspectiveInfiniteReverse { fov_y: 0.055, aspect: 1.0, near: 0.1 };
+    let glass = layer(SurfaceKind::Glass, 0.1, 0.0);
+    let mut pane = mesh(&mut r, glass);
+    pane[0].transform = Mat4::from_rotation_x(0.75);
+    let mut capture = |time, speed, dampness| {
+        pane[0].forward_speed = speed;
+        r.set_surface_water(blackbox_gfx::SurfaceWater { dampness, time, ..Default::default() });
+        r.capture(96, 96, &view, &pane).unwrap()
+    };
+    let parked = capture(1.0, 0.0, 1.0);
+    assert!(parked != capture(2.5, 0.0, 1.0));
+    assert!(parked != capture(1.0, 20.0, 1.0));
+    assert!(capture(1.0, 0.0, 0.0) == capture(2.5, 20.0, 0.0));
+}

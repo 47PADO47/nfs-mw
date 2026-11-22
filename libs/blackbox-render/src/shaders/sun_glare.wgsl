@@ -34,6 +34,12 @@ fn cloud_visibility()->f32 {
     return out;
 }
 @fragment fn fs(in:Out)->@location(0)vec4<f32> {
+    if params.sun.z > 0.5 {
+        let r = length(in.uv * 2.0 - 1.0);
+        let edge = 1.0 - smoothstep(0.85, 1.0, max(abs(params.sun.x),abs(params.sun.y)));
+        let falloff = exp(-4.5*r*r) * (1.0-smoothstep(0.7,1.0,r));
+        return vec4(params.colour.rgb * params.colour.a * params.layer.y * in.visibility * falloff * edge, 0.0);
+    }
     let art=textureSample(artwork,art_sampler,in.uv);
     return vec4(art.rgb*art.a*params.colour.rgb*params.colour.a*params.layer.y*in.visibility,0.0);
 }

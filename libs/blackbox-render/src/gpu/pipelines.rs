@@ -16,8 +16,14 @@ use super::targets::write_mask;
 use crate::{BlendMode, GlossyMaterialHandle, Shading, Vertex};
 
 /// Draw order: opaque and alpha-tested first, blended last.
-pub(super) const BLEND_ORDER: [BlendMode; 5] =
-    [BlendMode::Opaque, BlendMode::AlphaTest, BlendMode::AlphaBlend, BlendMode::Subtractive, BlendMode::Additive];
+pub(super) const BLEND_ORDER: [BlendMode; 6] = [
+    BlendMode::Opaque,
+    BlendMode::AlphaTest,
+    BlendMode::AlphaBlend,
+    BlendMode::AlphaOverlay,
+    BlendMode::Subtractive,
+    BlendMode::Additive,
+];
 pub(super) const SHADINGS: [Shading; 12] = [
     Shading::Lit,
     Shading::Prelit,
@@ -286,7 +292,9 @@ impl Pipelines {
         let (entry, blend, depth_write) = match blend_mode {
             BlendMode::Opaque => ("fs_opaque", None, true),
             BlendMode::AlphaTest => ("fs_alpha_test", None, true),
-            BlendMode::AlphaBlend => ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), false),
+            BlendMode::AlphaBlend | BlendMode::AlphaOverlay => {
+                ("fs_blend", Some(wgpu::BlendState::ALPHA_BLENDING), false)
+            }
             BlendMode::Subtractive => ("fs_blend", Some(SUBTRACTIVE), false),
             BlendMode::Additive => ("fs_blend", Some(ADDITIVE), false),
         };
@@ -412,7 +420,7 @@ mod tests {
     #[test]
     fn only_prepass_draws_read_the_screen_shadow_masks() {
         assert!(reads_screen_shadow_mask(BlendMode::Opaque) && reads_screen_shadow_mask(BlendMode::AlphaTest));
-        for blend in [BlendMode::AlphaBlend, BlendMode::Subtractive, BlendMode::Additive] {
+        for blend in [BlendMode::AlphaBlend, BlendMode::AlphaOverlay, BlendMode::Subtractive, BlendMode::Additive] {
             assert!(!reads_screen_shadow_mask(blend), "{blend:?} is not in the depth prepass");
         }
     }

@@ -10,7 +10,7 @@ use nfsmw_data::car::customization::Category as Part;
 
 mod finish;
 mod highlight;
-use finish::family_page;
+use finish::page_for;
 
 struct Swatch {
     hash: Option<u32>,
@@ -43,14 +43,14 @@ impl Palette {
         let mut families: Vec<String> = Vec::new();
         if let Some(catalog) = model.selected().and_then(|car| car.parts.as_ref()) {
             for (_, hash) in &catalog.finishes {
-                if let Some(family) = catalog.paint_families.get(hash).map(|name| family_page(name).to_owned())
+                if let Some(family) = page_for(catalog, *hash).map(str::to_owned)
                     && !families.contains(&family)
                 {
                     families.push(family);
                 }
             }
             for choice in &catalog.choices[Part::Paint as usize] {
-                if let Some(family) = catalog.paint_families.get(&choice.hash).map(|name| family_page(name).to_owned())
+                if let Some(family) = page_for(catalog, choice.hash).map(str::to_owned)
                     && !families.contains(&family)
                 {
                     families.push(family);
@@ -60,10 +60,13 @@ impl Palette {
         if families.is_empty() {
             families.push(String::new());
         }
-        let family = model.draft.parts.parts[Part::Paint as usize]
-            .and_then(|hash| {
-                let family = model.selected()?.parts.as_ref()?.paint_families.get(&hash)?;
-                families.iter().position(|candidate| candidate == family_page(family))
+        let family = model
+            .selected()
+            .and_then(|car| car.parts.as_ref())
+            .and_then(|catalog| {
+                let hash = model.draft.parts.parts[Part::Paint as usize].or(catalog.stock[Part::Paint as usize])?;
+                let family = page_for(catalog, hash)?;
+                families.iter().position(|candidate| candidate == family)
             })
             .unwrap_or(0);
         let mut channels = model
@@ -135,16 +138,13 @@ impl Palette {
         };
         let family = &self.families[self.family];
         if let Some(hash) = catalog.stock[category as usize]
-            && (self.color() == 1
-                || catalog.paint_families.get(&hash).map(|name| family_page(name)) == Some(family.as_str()))
+            && (self.color() == 1 || page_for(catalog, hash) == Some(family.as_str()))
             && let Some(rgb) = catalog.colors.get(&hash).copied()
         {
             self.colors.push(Swatch { hash: None, rgb, option: 0 });
         }
         for (index, choice) in catalog.choices[category as usize].iter().enumerate() {
-            if self.color() == 0
-                && catalog.paint_families.get(&choice.hash).map(|name| family_page(name)) != Some(family.as_str())
-            {
+            if self.color() == 0 && page_for(catalog, choice.hash) != Some(family.as_str()) {
                 continue;
             }
             let Some(rgb) = catalog.colors.get(&choice.hash).copied() else {
@@ -152,6 +152,7 @@ impl Palette {
             };
             self.colors.push(Swatch { hash: Some(choice.hash), rgb, option: index + 1 });
         }
+        self.sort_swatches(catalog, category);
         let selected = match self.color() {
             0 => model.draft.parts.parts[Part::Paint as usize],
             1 => model.draft.parts.parts[Part::RimPaint as usize],
@@ -161,7 +162,8 @@ impl Palette {
         self.picked = self
             .colors
             .iter()
-            .position(|swatch| selected.map_or(rgb == Some(swatch.rgb), |hash| swatch.hash == Some(hash)))
+            .position(|swatch| swatch.hash == selected)
+            .or_else(|| self.colors.iter().position(|swatch| rgb == Some(swatch.rgb)))
             .unwrap_or(0);
         self.refresh(cx);
     }
@@ -169,9 +171,12 @@ impl Palette {
     fn refresh(&self, cx: &mut Cx) {
         self.handle.header(cx, self.page);
         if self.color() == 1 || (matches!(self.page, Page::Paint { color: 2..=4, .. }) && self.channels == 1) {
-            for hash in [0x2c52_6172, 0x2c3c_c2d3, 0x5363_9a10, 0x7800_8599] {
+            for hash in [0x2c52_6172, 0x2c3c_c2d3, 0x5363_9a10] {
                 cx.hide(hash, true);
             }
+        }
+        if self.color() == 1 {
+            cx.hide(0x7800_8599, false);
         }
         let count = self.objects.len().max(1);
         let base = self.picked / count * count;

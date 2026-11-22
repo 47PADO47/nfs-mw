@@ -16,14 +16,14 @@ pub(super) fn upload_parts(
     (parts, meshes, materials)
 }
 
-/// Upload the placed solids of `model` drawn with `materials`: all of them, or only those in `only`. The parts
+/// Upload the placed solids of `model` drawn with `materials`: all of them, or only those in the damage variant. The parts
 /// are sorted by mesh, as the renderer wants instances of one mesh together.
 pub(super) fn upload_solids(
     renderer: &mut dyn RenderBackend,
     model: &CarModel,
     swaps: &TextureSwaps,
     materials: &CarMaterials,
-    only: Option<&HashSet<u32>>,
+    damage: Option<(&HashSet<u32>, &HashSet<u32>)>,
     background_actor: bool,
 ) -> (Vec<Part>, Vec<(u32, MeshHandle)>) {
     let mut cache: HashMap<(u32, bool, u8), Option<MeshHandle>> = HashMap::new();
@@ -52,10 +52,22 @@ pub(super) fn upload_solids(
                     .position(|canonical| canonical.slot == p.slot && canonical.corner == p.corner)
                     .unwrap_or(model.placements.len() + p.slot * 8 + p.corner.map_or(0, |c| c + 1)),
             };
-            if only.is_some_and(|only| !only.contains(&p.solid)) {
+            if damage.is_some_and(|(only, _)| !only.contains(&p.solid)) {
                 continue;
             }
             let solid = &model.solids[&p.solid];
+            let window_textures: Vec<_> = match damage {
+                Some((_, cracked)) if cracked.contains(&p.solid) => solid
+                    .groups
+                    .iter()
+                    .filter(|g| {
+                        solid.light_material_hashes.get(usize::from(g.light_material))
+                            != Some(&blackbox_hash::bstring_hash("WINDOWMASK"))
+                    })
+                    .filter_map(|g| g.diffuse_texture(solid))
+                    .collect(),
+                _ => Vec::new(),
+            };
             let lamp_material = materials.enhanced_lamps_for(&solid.name);
             let relevant = solid.groups.iter().filter_map(|g| g.diffuse_texture(solid)).fold(0, |mask, hash| {
                 let head = variants[0].resolve_for(hash, p.left_brake) != variants[1].resolve_for(hash, p.left_brake)
@@ -81,7 +93,15 @@ pub(super) fn upload_solids(
                     })
                     .unwrap_or(state);
                 *cache.entry((p.solid, p.left_brake, canonical as u8 & relevant)).or_insert_with(|| {
-                    let lookup = materials.for_solid(&variants[state], p.left_brake, &solid.name);
+                    let pane_swaps;
+                    let swaps = match window_textures.is_empty() {
+                        true => &variants[state],
+                        false => {
+                            pane_swaps = variants[state].clone().with_window_hashes(&window_textures);
+                            &pane_swaps
+                        }
+                    };
+                    let lookup = materials.for_solid(swaps, p.left_brake, &solid.name, p.slot);
                     upload_solid(renderer, solid, &lookup, Shading::Lit)
                 })
             });

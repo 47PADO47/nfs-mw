@@ -18,6 +18,7 @@ pub(super) mod lantern;
 mod light_bars;
 mod profile;
 mod selection;
+mod spill_shadows;
 mod taillights;
 pub(super) use fixtures::{Fixture, FixturePlace};
 pub(super) use light_bars::{LightBar, siren_colour};
@@ -97,7 +98,7 @@ impl WorldScene {
             let priority = traffic.len().min(4);
             lights.extend(traffic.drain(..priority));
         }
-        // Light bars fade with night as traffic beams do; they never take a shadow slot.
+        // Light bars fade with night as traffic beams do.
         if options.local_emergency_lights
             && traffic_strength > 0.0
             && let Some(cars) = &self.traffic
@@ -107,6 +108,17 @@ impl WorldScene {
             let remaining = selection::remaining_slots(options.local_light_limit, used);
             let strength = options.local_emergency_strength * traffic_strength;
             light_bars::emit_nearest(cars.light_bars(), camera, strength, remaining, bars);
+        }
+        if options.moving_spill_shadows && (!bars.is_empty() || !tail.is_empty()) {
+            let camera = self.gameplay_lens(renderer.aspect_ratio()).position;
+            spill_shadows::prioritize(
+                lights,
+                tail,
+                bars,
+                camera,
+                options.local_shadow_distance,
+                options.local_shadow_count,
+            );
         }
         let street_night = match options.full_day_night {
             true => self.sun.cycle().map_or_else(|| super::full_cycle::at(self.day.hour()).night, |c| c.night),

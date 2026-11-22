@@ -13,6 +13,7 @@ struct Fixture {
     ambient_alpha: f32,
     vertex_alpha: u8,
     texture_alpha: u8,
+    room_uv: Option<f32>,
     black_reflection: bool,
     reflection_alpha: u8,
     fog: bool,
@@ -26,6 +27,7 @@ impl Default for Fixture {
             ambient_alpha: 0.5,
             vertex_alpha: 102,
             texture_alpha: 128,
+            room_uv: None,
             black_reflection: false,
             reflection_alpha: 255,
             fog: false,
@@ -87,7 +89,7 @@ fn capture(renderer: &mut Renderer, f: &Fixture, blend: BlendMode) -> RgbaImage 
         position,
         normal: f.normal,
         color_bgra: [191, 128, 64, f.vertex_alpha],
-        uv: [0.25, 0.25],
+        uv: f.room_uv.map_or([0.25, 0.25], |offset| [0.5 * position[0] + offset, 0.5 * position[1] + offset]),
     });
     let mesh = renderer.create_mesh(&MeshDesc {
         label: "synthetic original window quad",
@@ -220,4 +222,48 @@ fn night_dims_authored_window_reflections_and_restores_day() {
     assert!(night.pixel(32, 32).unwrap()[0] < before.pixel(32, 32).unwrap()[0]);
     renderer.set_render_experiments(day);
     assert_eq!(before.pixel(32, 32), capture(&mut renderer, &Fixture::default(), BlendMode::Opaque).pixel(32, 32));
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn enhanced_windows_replace_the_authored_reflection_and_respect_the_gloss_mask() {
+    let _gpu = test_support::serial();
+    let mut renderer = Renderer::headless((64, 64), test_support::options()).unwrap();
+    let original = RenderExperiments { original_world_materials: true, ..Default::default() };
+    renderer.set_render_experiments(original);
+    let masked = capture(&mut renderer, &fixture(3), BlendMode::Opaque);
+    let authored = capture(&mut renderer, &fixture(0), BlendMode::Opaque);
+    renderer.set_render_experiments(RenderExperiments { enhanced_windows: true, ..original });
+    let enhanced = capture(&mut renderer, &fixture(0), BlendMode::Opaque);
+    assert_ne!(authored.pixel(32, 32), enhanced.pixel(32, 32));
+    assert_eq!(enhanced.pixel(32, 32), capture(&mut renderer, &fixture(5), BlendMode::Opaque).pixel(32, 32));
+    assert_eq!(masked.pixel(32, 32), capture(&mut renderer, &fixture(3), BlendMode::Opaque).pixel(32, 32));
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn window_rooms_light_selectively_after_dusk_and_reflect_the_bound_environment() {
+    let _gpu = test_support::serial();
+    let mut renderer = Renderer::headless((64, 64), test_support::options()).unwrap();
+    let day = RenderExperiments { original_world_materials: true, enhanced_windows: true, ..Default::default() };
+    renderer.set_render_experiments(day);
+    // Measure the environment away from the direct sun highlight, which clips to white in SDR.
+    let room = Fixture { room_uv: Some(1.0), light: [1.0, 0.0, 0.0], ..Default::default() };
+    let closed = Fixture { room_uv: Some(2.0), ..room };
+    let pixel = |r: &mut Renderer, f: &Fixture| capture(r, f, BlendMode::Opaque).pixel(32, 32).unwrap();
+    let red = [240, 0, 0, 255];
+    // A captured surface can write zero alpha while still reflecting blue light.
+    let blue = [0, 0, 240, 0];
+    renderer.set_environment(blackbox_gfx::Environment::Faces { size: 1, faces: [&red; 6] });
+    let red_glass = pixel(&mut renderer, &room);
+    renderer.set_environment(blackbox_gfx::Environment::Faces { size: 1, faces: [&blue; 6] });
+    let blue_glass = pixel(&mut renderer, &room);
+    assert!(red_glass[0] > blue_glass[0] && red_glass[2] < blue_glass[2], "red {red_glass:?}, blue {blue_glass:?}");
+    assert_eq!(blue_glass, pixel(&mut renderer, &closed));
+    renderer.set_render_experiments(RenderExperiments { experimental_night: true, ..day });
+    let lit = pixel(&mut renderer, &room);
+    let unlit = pixel(&mut renderer, &closed);
+    assert!(lit[0] > unlit[0] + 10, "lit {lit:?}, unlit {unlit:?}");
+    renderer.set_render_experiments(day);
+    assert_eq!(blue_glass, pixel(&mut renderer, &room));
 }

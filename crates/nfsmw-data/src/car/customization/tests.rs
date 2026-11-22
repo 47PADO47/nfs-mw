@@ -266,8 +266,7 @@ fn installed_fixed_vinyls_recolor_without_losing_artwork_and_rim_paint_is_isolat
     selection.rim_color = Some([25, 180, 230]);
     catalog.validate(&selection).unwrap();
     let painted = super::super::load_customized_driving(&dir, "COBALTSS", &options, &selection).unwrap();
-    let rim = bstring_hash("__GARAGE_RIM_PAINT");
-    assert!(painted.light_materials.contains_key(&rim));
+    let groups = ["MAGSILVER", "MAGCHROME", "MAGGUNMETAL"];
     let eligible: std::collections::HashSet<_> = before
         .placements
         .iter()
@@ -281,13 +280,13 @@ fn installed_fixed_vinyls_recolor_without_losing_artwork_and_rim_paint_is_isolat
         for (old, new) in solid.light_material_hashes.iter().zip(&after.light_material_hashes) {
             let change =
                 eligible.contains(hash) && ["MAGSILVER", "MAGCHROME", "MAGGUNMETAL"].map(bstring_hash).contains(old);
-            assert_eq!(
-                *new,
-                match change {
-                    true => rim,
-                    false => *old,
-                }
-            );
+            if change {
+                let material = &painted.light_materials[new];
+                let group = groups.iter().find(|name| bstring_hash(name) == *old).unwrap();
+                assert!(material.name.starts_with("__GARAGE_RIM_PAINT_") && material.name.ends_with(group));
+            } else {
+                assert_eq!(new, old);
+            }
             replaced += usize::from(change);
         }
     }

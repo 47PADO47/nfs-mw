@@ -138,7 +138,9 @@ impl Scene for Pausable {
     fn ready(&self) -> bool {
         self.inner.ready()
     }
-
+    fn world_camera_optics(&self) -> bool {
+        !self.paused.get() && !self.concealed() && self.inner.world_camera_optics()
+    }
     fn menu_frame(&self) -> bool {
         self.still_frame()
     }

@@ -147,7 +147,9 @@ impl Renderer {
         });
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
         let timing = self.timing.take();
+        self.post.set_warming(true);
         self.submit_frame(None, &view, size, frame, &[]);
+        self.post.set_warming(false);
         self.timing = timing;
         self.temporal.stop();
     }

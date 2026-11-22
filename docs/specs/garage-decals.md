@@ -114,6 +114,11 @@ cause a decal to appear on another zone. Retain the mesh's original UVs,
 transforms, material groups and installed texture alpha. No generated atlas,
 guessed screen placement or movable decal transform is involved.
 
+On front and rear windows, draw alpha-blended lettering after the glazing, with the decal texture's own
+alpha and ordinary depth testing. Mesh allocation order can change when previewing another brand.
+The original Mustang windshield shows the selected white lettering across reflected scenery, in the shop
+and on the road. The choice page names the selected location.
+
 Decal textures remain independent of paint and vinyl composition, so repainting
 does not erase them. Stock assembly keeps every decal surface hidden. Existing
 preset rides with populated native decal slots use the same drawing path.
