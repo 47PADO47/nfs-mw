@@ -121,6 +121,22 @@ fn a_key_not_drawn_for_long_gives_its_slot_back() {
 }
 
 #[test]
+fn a_flush_joins_scattered_ranges_into_a_bounded_number_of_writes() {
+    let mut ranges: Vec<_> = (0..100u32).map(|i| i * 50..i * 50 + 1).collect();
+    super::limit(&mut ranges, 8);
+    assert!(ranges.len() <= 8, "{ranges:?}");
+    assert_eq!((ranges[0].start, ranges.last().unwrap().end), (0, 4951), "every dirty slot stays covered");
+    assert!(ranges.windows(2).all(|pair| pair[0].end < pair[1].start), "sorted and disjoint: {ranges:?}");
+    // Two far clusters stay two writes: the gap between them is not copied.
+    let mut clusters = vec![0..4, 10..12, 100_000..100_002];
+    super::limit(&mut clusters, 2);
+    assert_eq!(clusters, vec![0..12, 100_000..100_002]);
+    let mut few = vec![0..1, 500..501];
+    super::limit(&mut few, 8);
+    assert_eq!(few, vec![0..1, 500..501], "few ranges are written as they are");
+}
+
+#[test]
 fn dirty_slots_coalesce_into_sorted_ranges() {
     let mut out = Vec::new();
     let mut dirty = vec![5, 1, 2, 3, 9, 20, 21, 2];

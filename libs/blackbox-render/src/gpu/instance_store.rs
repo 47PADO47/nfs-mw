@@ -23,6 +23,10 @@ use blackbox_gfx::{Instance, InstanceKey};
 pub(in crate::gpu) const RETAIN_EPOCHS: u32 = 120;
 /// Unchanged slots a dirty range may span to join its neighbour: one larger write beats two small ones.
 const JOIN_GAP: u32 = 4;
+/// The most writes one flush makes. Every queue write allocates a staging buffer of its own, which costs far more
+/// than copying the unchanged slots between two ranges, so a frame that changes slots all over the store (a fast
+/// camera reorders the transient ones) joins its ranges across wider gaps until this many are left.
+const MAX_WRITES: usize = 8;
 /// Slots the store holds before it first grows.
 const INITIAL_SLOTS: u32 = 4096;
 /// Bytes of one slot: a column-major 4x4 matrix and aligned receiver metadata.
@@ -190,9 +194,11 @@ impl SlotTable {
         self.dirty.push(slot);
     }
 
-    /// The slots written since the last call, as few ranges as [`JOIN_GAP`] allows, into `out`.
+    /// The slots written since the last call, as few ranges as [`JOIN_GAP`] allows and at most [`MAX_WRITES`],
+    /// into `out`.
     pub(in crate::gpu) fn take_dirty(&mut self, out: &mut Vec<Range<u32>>) {
         coalesce(&mut self.dirty, JOIN_GAP, out);
+        limit(out, MAX_WRITES);
     }
 
     /// Forget the written slots (the whole store is being uploaded).
@@ -214,6 +220,25 @@ pub(in crate::gpu) fn coalesce(dirty: &mut Vec<u32>, gap: u32, out: &mut Vec<Ran
         }
     }
     dirty.clear();
+}
+
+/// Join the sorted `ranges` across their narrowest gaps until at most `max` are left.
+pub(in crate::gpu) fn limit(ranges: &mut Vec<Range<u32>>, max: usize) {
+    let mut gap = JOIN_GAP;
+    while ranges.len() > max.max(1) {
+        gap = gap.saturating_mul(4);
+        let mut kept = 0;
+        for index in 1..ranges.len() {
+            let next = ranges[index].clone();
+            if next.start <= ranges[kept].end.saturating_add(gap) {
+                ranges[kept].end = next.end;
+                continue;
+            }
+            kept += 1;
+            ranges[kept] = next;
+        }
+        ranges.truncate(kept + 1);
+    }
 }
 
 /// The store's GPU buffer and the bind group the pipelines read it through.
