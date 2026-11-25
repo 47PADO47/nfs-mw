@@ -112,6 +112,7 @@ impl RenderBackend for Renderer {
     }
     fn set_shadow_casters(&mut self, casters: Option<&[Instance]>) {
         if let Some(casters) = casters {
+            let _trace = blackbox_trace::scope("Renderer CPU: copy shadow casters");
             let stored = self.shadow_casters.get_or_insert_with(Vec::new);
             stored.clear();
             stored.extend_from_slice(casters);

@@ -230,10 +230,10 @@ impl Renderer {
 
     /// Records `faces` of the cube after the commands `encoder` holds.
     ///
-    /// The faces are prepared here in face order, then recorded at the same time, each into a command buffer of its
-    /// own, when there are several. Those go out ahead of what `encoder` records next, in the same submission, as
-    /// queued captures do (see `queued.rs`): the commands recorded before the faces with the first face, then every
-    /// other face in order, so the GPU runs everything in the order a face-by-face recording gave.
+    /// The faces are prepared and recorded here in face order, each into a command buffer of its own when there are
+    /// several. Those go out ahead of what `encoder` records next, in the same submission, as queued captures do
+    /// (see `queued.rs`): the commands recorded before the faces with the first face, then every other face in
+    /// order, so the GPU runs everything in the order a face-by-face recording gave.
     fn draw_cube_faces(
         &mut self,
         capture: &mut ReflectionCapture,
@@ -253,12 +253,20 @@ impl Renderer {
             }
             return;
         }
+        // Every face but the first gets an encoder of its own. Recording is cheap; finishing an encoder is not, so
+        // workers finish them (and the commands recorded before the faces) while the frame goes on recording.
         let after = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
-        let before = std::mem::replace(encoder, after);
-        let recorded = record_in_parallel(draw, &self.device, outputs, &prepared, before);
-        for commands in recorded {
-            self.queue_capture(commands);
+        let mut current = std::mem::replace(encoder, after);
+        let queue = &self.queued_captures.commands;
+        for (index, job) in prepared.iter().enumerate() {
+            if index > 0 {
+                let label = Some("reflection face");
+                let face = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label });
+                queue.finish_later(std::mem::replace(&mut current, face), true);
+            }
+            record_face(draw, outputs, &mut current, job);
         }
+        queue.finish_later(current, true);
     }
 
     /// Count `faces` as drawn. Once every face has been drawn since the last time, the diffuse and specular light are
@@ -314,7 +322,7 @@ impl Renderer {
     }
 }
 
-/// Fewer faces than this are recorded on the frame thread, into the frame's encoder: a worker is only worth starting
+/// Fewer faces than this are recorded into the frame's encoder: a command buffer of its own is only worth making
 /// beside another face.
 const PARALLEL_FACES: usize = 2;
 
@@ -347,38 +355,4 @@ fn record_face(
         effects.draw_light_lenses(&mut pass, Some(shadows));
     }
     store.draw(encoder, &faces[*face], *face);
-}
-
-/// Record the prepared faces `jobs` on reusable workers: the first after the commands `first` holds,
-/// every other into an encoder of its own. Recording only reads the renderer's state, and
-/// wgpu's device, encoders and resources may be used from any thread. Returns the command buffers in the jobs' order,
-/// `first`'s at the start.
-fn record_in_parallel(
-    draw: SceneDraw<'_>,
-    device: &wgpu::Device,
-    outputs: FaceOutputs<'_>,
-    jobs: &[(usize, PreparedView)],
-    mut first: wgpu::CommandEncoder,
-) -> Vec<wgpu::CommandBuffer> {
-    let Some((head, rest)) = jobs.split_first() else { return vec![first.finish()] };
-    // Keep OS worker identities stable. Creating fresh GPU-recording threads every frame can
-    // retain driver thread-local allocations even after those threads have exited.
-    use rayon::prelude::*;
-    let (head, tail) = rayon::join(
-        || {
-            record_face(draw, outputs, &mut first, head);
-            first.finish()
-        },
-        || {
-            rest.par_iter()
-                .map(|job| {
-                    let label = Some("reflection face");
-                    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label });
-                    record_face(draw, outputs, &mut encoder, job);
-                    encoder.finish()
-                })
-                .collect::<Vec<_>>()
-        },
-    );
-    std::iter::once(head).chain(tail).collect()
 }

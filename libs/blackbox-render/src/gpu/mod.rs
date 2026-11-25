@@ -43,6 +43,7 @@ mod output;
 mod parallel;
 #[cfg(test)]
 mod parity;
+mod pending;
 mod pipeline_cache;
 mod pipelines;
 mod planar;

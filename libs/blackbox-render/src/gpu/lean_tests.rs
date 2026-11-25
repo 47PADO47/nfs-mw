@@ -57,6 +57,7 @@ fn run(device: &wgpu::Device, queue: &wgpu::Queue, chain: &mut PostChain, size: 
         frame_generation: false,
         secondary_view: false,
         dlss_model: 0,
+        prefix: None,
     };
     chain.encode(&ctx, &mut encoder, (&view, wgpu::TextureFormat::Rgba8Unorm));
     queue.submit([encoder.finish()]);

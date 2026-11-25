@@ -165,8 +165,8 @@ pub(super) fn evaluate(
     encoder: &mut wgpu::CommandEncoder,
     views: [&wgpu::TextureView; 4],
     frame: &TemporalFrame,
-    mode: u32,
-    model: u32,
+    (mode, model): (u32, u32),
+    prefix: Option<&super::super::pending::PendingCommands>,
 ) -> Result<(), String> {
     let images = views
         .into_iter()
@@ -192,7 +192,17 @@ pub(super) fn evaluate(
     // Submit the scene/transitions, a raw-only DLSS buffer, then continue on a fresh wgpu encoder.
     let continuation = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("after DLSS") });
     let before = std::mem::replace(encoder, continuation);
-    queue.submit([before.finish()]);
+    // The frame thread finishes this encoder while workers finish the ones queued ahead of it.
+    let commands = {
+        let _trace = blackbox_trace::scope("GPU API: finish command encoder");
+        before.finish()
+    };
+    let queued = prefix.map(|prefix| prefix.take_all()).unwrap_or_default();
+    {
+        let _trace = blackbox_trace::scope("GPU API: queue submit");
+        queue.submit(queued.into_iter().chain(std::iter::once(commands)));
+    }
+    let _trace = blackbox_trace::scope("Renderer CPU: DLSS evaluation");
     let result = match unsafe { device.as_hal::<wgpu::hal::api::Dx12>() }.is_some() {
         true => {
             let result = super::dx12::evaluate(&images, &constants);

@@ -108,12 +108,6 @@ impl Renderer {
         secondary_view: bool,
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: post-processing / upscaling");
-        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
-        if self.dlss.is_some() {
-            // Parallel cube faces may own the frame prefix, including the TLAS build.
-            // Native DLSS submits this encoder internally, so that prefix must reach the queue first.
-            self.flush_captures();
-        }
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
         #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         let frame_generation = targets.is_none() && self.presentation.status.generation_active;
@@ -128,6 +122,9 @@ impl Renderer {
             frame_generation,
             secondary_view,
             dlss_model: self.graphics.dlss_model,
+            // Cube faces and closed parts of the frame may hold the frame's prefix, including the TLAS build.
+            // Native DLSS submits this encoder itself, so it sends that prefix ahead of it.
+            prefix: Some(&self.queued_captures.commands),
         };
         if self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
             && self.info.api != blackbox_gfx::GraphicsApi::Gl
@@ -159,6 +156,7 @@ impl Renderer {
             || self.ray_cars_active(frame)
             || self.ray_shadows_active(frame)
         {
+            let _trace = blackbox_trace::scope("Renderer CPU: ray scene");
             self.prepare_ray_reflections(encoder, instances, frame);
         }
         if let Some(timing) = &mut self.timing {
@@ -166,15 +164,21 @@ impl Renderer {
         }
         let depth = targets.unwrap_or(&self.targets).depth_view().clone();
         let mip_bias = self.scene_mip_bias(false, targets.is_some());
-        self.encode_surfaces(encoder, size, (frame, mip_bias), instances, &depth);
-        self.encode_effect_motion(encoder, frame, instances);
-        self.encode_contact(encoder, size, frame);
-        self.encode_ray_shadows(encoder, size, frame);
+        {
+            let _trace = blackbox_trace::scope("Renderer CPU: surfaces / contact / ray shadows");
+            self.encode_surfaces(encoder, size, (frame, mip_bias), instances, &depth);
+            self.encode_effect_motion(encoder, frame, instances);
+            self.encode_contact(encoder, size, frame);
+            self.encode_ray_shadows(encoder, size, frame);
+        }
+        // The prepass and the cascades are each finished on a worker while the frame records on (`pending.rs`).
+        self.split_frame(encoder);
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 5);
             timing.stamp(encoder, 2);
         }
         self.encode_shadows(encoder, frame, instances);
+        self.split_frame(encoder);
         self.encode_local_shadows(encoder, frame, instances);
         self.encode_cascade_history(encoder, frame);
         if self.experiments.cloud_shadows
@@ -195,12 +199,16 @@ impl Renderer {
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 6);
         }
-        self.encode_ambient(encoder, frame);
+        {
+            let _trace = blackbox_trace::scope("Renderer CPU: ambient occlusion");
+            self.encode_ambient(encoder, frame);
+        }
         if let Some(timing) = &mut self.timing {
             timing.stamp(encoder, 7);
         }
         self.encode_scene_mode(encoder, targets, output, frame, instances, false, None);
         let colour = targets.unwrap_or(&self.targets).offscreen().map_or(output, |off| &off.color_view).clone();
+        let _trace = blackbox_trace::scope("Renderer CPU: glare / motion");
         self.encode_sun_glare(encoder, &colour, &depth, frame);
         self.encode_motion(encoder, targets, instances);
     }

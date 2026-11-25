@@ -82,6 +82,10 @@ pub(super) struct PassContext<'a> {
     pub secondary_view: bool,
     #[allow(dead_code, reason = "used by the optional Windows Streamline pass")]
     pub dlss_model: u32,
+    /// The command buffers queued ahead of the encoder the chain records into. A pass that submits that encoder
+    /// itself sends them first.
+    #[allow(dead_code, reason = "used by the optional Windows Streamline pass")]
+    pub prefix: Option<&'a crate::gpu::pending::PendingCommands>,
 }
 
 /// The image a pass reads and the one it writes.

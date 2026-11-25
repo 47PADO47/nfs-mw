@@ -113,6 +113,7 @@ impl Gpu {
             frame_generation,
             secondary_view: false,
             dlss_model: 0,
+            prefix: None,
         };
         chain.encode(&ctx, &mut encoder, (&view, OUTPUT_FORMAT));
         let row = (out.0 * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
