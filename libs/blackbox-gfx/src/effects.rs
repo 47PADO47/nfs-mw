@@ -77,7 +77,7 @@ pub struct EffectVertex {
     pub position: [f32; 3],
     pub color: [u8; 4],
     pub uv: [f32; 2],
-    /// Procedural particles: age in seconds and stable variation seed.
+    /// Procedural particles: age in seconds and stable variation seed. A negative seed selects a liquid wake strip.
     /// Textured particles: positive RGBA brightness multiplier in X (zero defaults to one), unused Y.
     /// Streaks and glows: positive emission multiplier in X (zero defaults to one).
     /// Streaks and glows: a Y of one takes the sun's shadow. A negative Y selects a rounded lens mask.

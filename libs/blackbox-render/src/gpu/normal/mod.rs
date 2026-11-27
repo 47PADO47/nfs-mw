@@ -169,7 +169,7 @@ impl Normal {
             [water.0.dampness, water.0.pooling, water.0.time, water.0.rain],
             [
                 u8::from(water.1.enhanced_wet_surfaces) as f32,
-                water.1.puddle_coverage,
+                water.0.puddle_threshold(water.1.puddle_coverage).unwrap_or(-1.0),
                 water.1.puddle_scale,
                 water.1.water_ripples,
             ],

@@ -266,6 +266,30 @@ fn enhanced_water_keeps_dry_pixels_and_produces_stable_patches() {
         .filter(|(a, b)| a[..3] != b[..3])
         .count();
     assert!(changed > 100, "pooled water must differ from the damp film: {changed}");
+    // Screen pixel centres map onto this flat 40 m square. Exclude patch edges
+    // where the fragment derivative deliberately widens the shading transition.
+    let mut totals = [0_u32; 2];
+    let mut matches = [0_u32; 2];
+    let pixel = 40.0 / pooled.width as f32;
+    for y in 1..pooled.height - 1 {
+        for x in 1..pooled.width - 1 {
+            let wx = -20.0 + (x as f32 + 0.5) * pixel;
+            let wy = 20.0 - (y as f32 + 0.5) * pixel;
+            let samples = [(0.0, 0.0), (-pixel, 0.0), (pixel, 0.0), (0.0, -pixel), (0.0, pixel)]
+                .map(|(dx, dy)| water.puddle([wx + dx, wy + dy], options.puddle_coverage, options.puddle_scale));
+            let expected = usize::from(samples[0] > 0.5);
+            if !samples.iter().all(|s| (*s - expected as f32).abs() < 0.001) {
+                continue;
+            }
+            let i = ((y * pooled.width + x) * 4) as usize;
+            let visible = pooled.rgba[i..i + 3] != film.rgba[i..i + 3];
+            totals[expected] += 1;
+            matches[expected] += u32::from(usize::from(visible) == expected);
+        }
+    }
+    for (matched, total) in matches.into_iter().zip(totals) {
+        assert!(total > 100 && matched * 100 >= total * 98, "flat contact/render pool agreement {matched}/{total}");
+    }
     assert_ne!(
         pooled.rgba,
         draw(&mut r, mesh, SurfaceWater { time: 11.0, ..water }, false).rgba,

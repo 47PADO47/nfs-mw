@@ -25,15 +25,20 @@ impl SurfaceWater {
         }
     }
 
+    /// Flat receiver threshold supplied to both the road shader and contact queries.
+    pub fn puddle_threshold(self, coverage: f32) -> Option<f32> {
+        (self.pooling > 0.0 && coverage > 0.0).then(|| 0.66 - 0.48 * self.pooling * coverage.min(1.0))
+    }
+
     /// Approximate coverage, not terrain drainage. Coordinates are metres in the surface's horizontal plane.
     /// The caller must restrict this to suitable materials and apply slope/exposure separately.
     pub fn puddle(self, xy: [f32; 2], coverage: f32, scale: f32) -> f32 {
-        if self.pooling <= 0.0 || coverage <= 0.0 || !xy.into_iter().all(f32::is_finite) {
+        let Some(threshold) = self.puddle_threshold(coverage) else { return 0.0 };
+        if !xy.into_iter().all(f32::is_finite) {
             return 0.0;
         }
         let p = xy.map(|v| v / scale.max(0.25));
         let field = noise(p) * 0.7 + noise(p.map(|v| v * 3.7 + 19.0)) * 0.3;
-        let threshold = 0.86 - 0.48 * self.pooling * coverage.clamp(0.0, 1.0);
         smooth(threshold - 0.025, threshold + 0.025, field) * self.pooling
     }
 }
@@ -88,15 +93,17 @@ mod tests {
     fn puddles_are_stable_continuous_and_grow_with_accumulation() {
         let wet = SurfaceWater { dampness: 1.0, pooling: 1.0, ..Default::default() };
         let damp = SurfaceWater { pooling: 0.3, ..wet };
+        // Intermediate coverage exercises both exposed asphalt and full pools along this transect.
+        let coverage = 0.45;
         let mut occupied = 0;
         for x in -100..100 {
             let p = [x as f32 * 0.7, 17.3];
-            let full = wet.puddle(p, 0.7, 7.0);
+            let full = wet.puddle(p, coverage, 7.0);
             assert!((0.0..=1.0).contains(&full));
-            assert!(full >= damp.puddle(p, 0.7, 7.0));
-            assert!((full - wet.puddle([p[0] + 0.001, p[1]], 0.7, 7.0)).abs() < 0.01);
+            assert!(full >= damp.puddle(p, coverage, 7.0));
+            assert!((full - wet.puddle([p[0] + 0.001, p[1]], coverage, 7.0)).abs() < 0.01);
             occupied += usize::from(full > 0.1);
-            assert_eq!(full, SurfaceWater { time: 1000.0, ..wet }.puddle(p, 0.7, 7.0));
+            assert_eq!(full, SurfaceWater { time: 1000.0, ..wet }.puddle(p, coverage, 7.0));
         }
         assert!(occupied > 10 && occupied < 180, "patches must have both wet and exposed regions");
         assert_eq!(SurfaceWater::default().puddle([0.0; 2], 1.0, 7.0), 0.0);

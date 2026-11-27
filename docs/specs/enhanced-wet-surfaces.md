@@ -19,6 +19,7 @@ Independent authored-material extension; not original-game parity.
 Two smooth world-space noise scales approximate irregular patch coverage. They do not identify actual low
 spots, drainage, curbs or puddle depth. The same integer lattice hash and smooth interpolation define CPU
 wheel-contact coverage and GPU coverage. GPU edges widen with the pixel footprint to suppress distant aliasing.
+The renderer receives the flat pool threshold from the wheel-contact implementation. Each driven or traffic tire samples three equal strips across its steered tread and emits at the wet centroid. The fragment shader can also offset the edge with visible receiver curvature. Contact queries use the collision normal and lack per-texel material masks. On paved contact the near-wheel sheet breaks into detached mist as its deposited sections age.
 Coverage is independent of camera motion and time. Patch size and coverage are advanced controls.
 
 Damp asphalt darkens in an approximate linear-light domain. Pooled water smooths the tangent normal toward

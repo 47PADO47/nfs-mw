@@ -9,12 +9,36 @@ pub(in crate::scenes::world) struct WaterContact {
     pub point: Vec3,
     pub surface: u32,
     pub normal: Vec3,
+    tread: super::spray::Tread,
+    pub width: f32,
     pub slip: f32,
     pub slide: f32,
     pub flat: bool,
 }
+impl WaterContact {
+    pub fn from_wheel(
+        contact: super::super::effects::Contact,
+        wheel: blackbox_vehicle::WheelState,
+        surface: u32,
+        flat: bool,
+    ) -> Self {
+        Self {
+            point: contact.point,
+            normal: contact.normal,
+            width: contact.width,
+            surface,
+            flat,
+            slip: wheel.slip,
+            slide: wheel.lateral_speed,
+            tread: super::spray::Tread { forward: contact.forward, radius: wheel.radius, spin: wheel.angular_velocity },
+        }
+    }
+}
+
 pub(in crate::scenes::world) struct WaterEffects {
     data: TireWaterData,
+    spray: [super::spray::Spray; 4],
+    contact_pool: [f32; 4],
     groups: [PcSparks; 12],
     /// Rain on the car: tires run their wet records, else their dry ones (dust, grass, leaves).
     pub wet: bool,
@@ -26,6 +50,8 @@ impl WaterEffects {
     pub fn new(data: TireWaterData) -> Self {
         Self {
             data,
+            spray: Default::default(),
+            contact_pool: [0.0; 4],
             groups: std::array::from_fn(|_| {
                 let mut group = PcSparks::default();
                 group.set_limit(128);
@@ -37,30 +63,69 @@ impl WaterEffects {
         }
     }
     pub fn clear(&mut self) {
+        self.spray = Default::default();
+        self.contact_pool = [0.0; 4];
         for group in &mut self.groups {
             group.clear();
         }
     }
     pub fn disconnect(&mut self) {
+        self.contact_pool = [0.0; 4];
+        self.spray.iter_mut().for_each(|wake| wake.stop());
         for group in &mut self.groups {
             group.disconnect();
         }
     }
     pub fn age(&mut self, dt: f32) {
+        self.spray.iter_mut().for_each(|wake| wake.age(dt));
         for group in &mut self.groups {
             group.age(dt);
         }
     }
     pub fn status(&self) -> String {
         format!(
-            "tire surface wet={}: {} live, {} emitted",
+            "tire surface wet={}: {} live, {} emitted; {} wake sections emitted; wheel pool % {:?}",
             self.wet,
             self.groups.iter().map(PcSparks::len).sum::<usize>(),
             self.groups.iter().map(|group| group.emitted).sum::<u64>(),
+            self.spray.iter().map(|wake| wake.births).sum::<u64>(),
+            self.contact_pool.map(|p| (p * 100.0).round() as u8),
         )
     }
     pub fn step(&mut self, contacts: [Option<WaterContact>; 4], pose: CarPose, velocity: Vec3, dt: f32) {
         for (wheel, contact) in contacts.into_iter().enumerate() {
+            if self.wet
+                && let (Some((water, options)), Some(c)) = (self.surface_water, contact)
+                && !super::super::effects::is_loose_surface(c.surface)
+                && self.data.effect(c.surface, 0, true, c.flat).is_some()
+            {
+                let normal = c.normal.normalize_or_zero();
+                let slope = ((normal.z - 0.9) / 0.095).clamp(0.0, 1.0);
+                let half_span = normal.cross(c.tread.forward) * (c.width / 3.0);
+                let sample = |offset: f32| {
+                    water.puddle(
+                        (c.point + half_span * offset).truncate().to_array(),
+                        options.puddle_coverage,
+                        options.puddle_scale,
+                    )
+                };
+                let (pool, bias) = footprint(sample);
+                let pool = pool * slope * slope * (3.0 - 2.0 * slope);
+                self.contact_pool[wheel] = pool;
+                let film = 0.15 * water.dampness;
+                let load = (film + 0.85 * pool).clamp(0.0, 1.0);
+                let point = c.point + half_span * bias * (0.85 * pool / load.max(0.001));
+                let left = pose.rotation * Vec3::Y;
+                let side = (c.point - pose.position).dot(left).signum() * left;
+                let outward = (side - normal * side.dot(normal)).normalize_or_zero();
+                self.spray[wheel].emit(c.tread, point, normal, outward, velocity, load);
+                for group in &mut self.groups[wheel * 3..wheel * 3 + 3] {
+                    group.stop_scrape();
+                }
+                continue;
+            }
+            self.contact_pool[wheel] = 0.0;
+            self.spray[wheel].stop();
             for kind in 0..3 {
                 let group = &mut self.groups[wheel * 3 + kind];
                 let selected = contact.and_then(|c| {
@@ -87,6 +152,11 @@ impl WaterEffects {
             }
         }
     }
+    pub fn spray_geometry(&self, camera: Vec3, forward: Vec3, out: &mut Vec<blackbox_gfx::EffectVertex>) {
+        for (wheel, wake) in self.spray.iter().enumerate() {
+            wake.draw(wheel as f32 * 7.31, camera, forward, out);
+        }
+    }
     pub fn geometry(
         &self,
         forward: Vec3,
@@ -99,9 +169,25 @@ impl WaterEffects {
     }
 }
 
+// Three equal-width strips, sampled at their midpoints. The centroid moves the
+// source toward the wet shoulder when the tread straddles a puddle boundary.
+fn footprint(sample: impl Fn(f32) -> f32) -> (f32, f32) {
+    let [right, middle, left] = [-1.0, 0.0, 1.0].map(sample);
+    let total = right + middle + left;
+    (total / 3.0, (left - right) / total.max(0.001))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_clipped_puddle_wets_one_shoulder_and_shifts_the_source() {
+        assert_eq!(footprint(|_| 0.0), (0.0, 0.0));
+        assert_eq!(footprint(|_| 1.0), (1.0, 0.0));
+        assert_eq!(footprint(|x| u8::from(x > 0.0) as f32), (1.0 / 3.0, 1.0));
+        assert_eq!(footprint(|x| u8::from(x < 0.0) as f32), (1.0 / 3.0, -1.0));
+    }
     #[test]
     #[ignore = "requires the original surface and emitter profiles"]
     fn installed_wet_tire_groups_emit_and_stop_when_contact_is_lost() {
@@ -117,7 +203,16 @@ mod tests {
             rotation: glam::Quat::IDENTITY,
             wheels: [nfsmw_data::car::WheelPose::default(); 4],
         };
-        let contact = WaterContact { point: Vec3::ZERO, normal: Vec3::Z, surface, slip: 0.0, slide: 0.0, flat: false };
+        let contact = WaterContact {
+            point: Vec3::ZERO,
+            normal: Vec3::Z,
+            tread: super::super::spray::Tread { forward: Vec3::X, radius: 0.33, spin: 40.0 },
+            width: 0.24,
+            surface,
+            slip: 0.0,
+            slide: 0.0,
+            flat: false,
+        };
         for _ in 0..120 {
             water.age(1.0 / 60.0);
             water.step([Some(contact); 4], pose, Vec3::X * effect.max, 1.0 / 60.0);
@@ -136,7 +231,16 @@ mod tests {
         }
     }
     fn contact(surface: u32, slide: f32) -> WaterContact {
-        WaterContact { point: Vec3::ZERO, normal: Vec3::Z, surface, slip: 0.0, slide, flat: false }
+        WaterContact {
+            point: Vec3::ZERO,
+            normal: Vec3::Z,
+            tread: super::super::spray::Tread { forward: Vec3::X, radius: 0.33, spin: 40.0 },
+            width: 0.24,
+            surface,
+            slip: 0.0,
+            slide,
+            flat: false,
+        }
     }
     fn emitted(water: &WaterEffects) -> u64 {
         water.groups.iter().map(|g| g.emitted).sum()

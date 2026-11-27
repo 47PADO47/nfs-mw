@@ -10,6 +10,7 @@ use game_install::GameDir;
 use nfsmw_data::car::{LoadOptions, physics::PhysicsData};
 use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex};
 
+mod concrete;
 mod driving;
 mod emergency;
 mod lamp_damage;

@@ -195,10 +195,10 @@ fn puddle_relief(in:Output)->f32 {
     return clamp(-curvature*1.5,-0.14,0.14);
 }
 fn pooled_coverage(world:vec2<f32>, relief:f32)->f32 {
-    if light.wet_tuning.y<=0.0 { return 0.0; }
+    if light.wet_tuning.y<0.0 { return 0.0; }
     let p = world/max(light.wet_tuning.z,0.25);
     let field = 0.7*wet_noise(p)+0.3*wet_noise(p*3.7+vec2(19.0));
-    let threshold = 0.66-relief-0.48*light.water.y*light.wet_tuning.y;
+    let threshold = light.wet_tuning.y-relief;
     // Widen edges when patches fall below a pixel; no screen-anchored dither or temporal history.
     let width = max(0.025,fwidth(field));
     return smoothstep(threshold-width,threshold+width,field)*light.water.y;

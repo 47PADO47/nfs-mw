@@ -81,7 +81,7 @@ impl SoftParticles {
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("procedural soft particles"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/soft_particles.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(crate::SOFT_PARTICLES_WGSL.into()),
         });
         let mut soft = Self {
             shader,
