@@ -237,7 +237,8 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
     let probe_width = select(material.surface.x, coat_width, sharp_coat);
     var probe_ray = reflected;
     if finish_on && material.lighting.x < 0.5 { probe_ray = probe_direction(in.world, reflected, probe_width); }
-    let sharp_env = sharp_environment(in.world, n, reflected, textureSampleLevel(env_map, env_sampler, probe_ray, 0.0).rgb);
+    set_env_scale(material.surface.w, finish_on);
+    let sharp_env = env_lights(env_scale * sharp_environment(in.world, n, reflected, textureSampleLevel(env_map, env_sampler, probe_ray, 0.0).rgb));
     var env = sharp_env;
     var sun_specular = glint * spec;
     var coat_scale = 1.0;
@@ -283,7 +284,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
             if beads.w > 0.0 {
                 layer_normal = beads.xyz;
                 layer_ray = probe_direction(in.world, reflect(-v, layer_normal), material.surface.x);
-                layer_sharp = textureSampleLevel(env_map, env_sampler, layer_ray, 0.0).rgb;
+                layer_sharp = env_scale * textureSampleLevel(env_map, env_sampler, layer_ray, 0.0).rgb;
             }
         }
         let color = layered_material(layer_normal, saturate(dot(n,v)), v, sun, diffuse_rgb, layer_albedo, diff.a,
@@ -327,7 +328,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         let width = mix(0.10, 0.34, matte_film);
         let ray = reflect(-v, wet_normal);
         let wet_probe = probe_direction(in.world, ray, width);
-        let env_water = layer_environment(wet_probe, width, textureSampleLevel(env_map, env_sampler, wet_probe, 0.0).rgb);
+        let env_water = layer_environment(wet_probe, width, env_scale * textureSampleLevel(env_map, env_sampler, wet_probe, 0.0).rgb);
         let water_f = layer_fresnel(vec3<f32>(0.021), saturate(dot(wet_normal,v)), width);
         let water_sun = visibility * rig.color[0].xyz * surface_brdf(wet_normal,v,sun,max(0.13, width),vec3<f32>(0.021));
         let base = paint_linear(out.rgb);
@@ -359,10 +360,22 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
         return out;
     }
 
-    if !emissive { out.rgb *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w); }
+    let night = mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
+    if !emissive {
+        // Night dims the paint's own colour fully, but what it reflects only by half (in log terms), as on the wet
+        // road: otherwise a glossy coat loses its reflections and reads matte in the dark.
+        let reflected = max(out.rgb - diffuse_rgb, vec3(0.0));
+        out.rgb = min(out.rgb, diffuse_rgb)*night + reflected*sqrt(night);
+    }
     if globals.fog_range.w < 0.5 {
-        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,0.0,0.0);
-        out.rgb += tex.rgb*diff.rgb*local.diffuse + clamp(spec,vec3(0.0),vec3(1.0))*diff.a*occlusion*local.specular;
+        // Glossy finishes also mirror the lamps themselves, near sharply on a clear coat, each lamp at its own size.
+        let roughness = select(0.3, material.surface.x, finish_on);
+        let gloss = 1.0 - smoothstep(0.15, 0.55, roughness);
+        let lobe = select(mix(48.0, 384.0, gloss), 1.0/(1.0/mix(48.0, 1600.0, gloss*gloss) + variance), finish_on);
+        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,select(0.0, lobe, gloss > 0.0 && !emissive),0.0,select(0.0, shadow_data.car_night.w, finish_on));
+        let coat_fresnel = 0.04 + 0.96 * pow(1.0 - saturate(dot(n, v)), 5.0);
+        out.rgb += tex.rgb*diff.rgb*local.diffuse + clamp(spec,vec3(0.0),vec3(1.0))*diff.a*occlusion*local.specular
+            + local.glint*gloss*mix(0.5, 1.0, coat_fresnel)*diff.a*occlusion*select(1.0, mix(1.0, shadow_data.car_night.y, saturate(shadow_data.local_options.w)), finish_on);
     }
     let distance = length(in.world - globals.camera_pos.xyz);
     let fog = clamp((distance - globals.fog_range.x) / max(globals.fog_range.y - globals.fog_range.x, 0.001), 0.0, 1.0);
@@ -476,7 +489,7 @@ fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
         + env * spec.a * diff.a * environment_gain;
     if material.surface.w<=11.5 { raw *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w); }
     if globals.fog_range.w < 0.5 {
-        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,0.0,0.0);
+        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,0.0,0.0,0.0);
         raw += tex.rgb*clamp(material.diffuse_min.rgb+material.diffuse_range.rgb*0.5,vec3(0.05),vec3(1.0))*local.diffuse + spec.rgb*local.specular;
     }
     out.rgb = clamp(raw,vec3(0.0),vec3(1.0));

@@ -58,7 +58,7 @@ fn rt_glossy_hit(m:RtHitMaterial,tex:vec3<f32>,colour:vec4<f32>,n:vec3<f32>,v:ve
     let ambient=select(vec3(0.35),globals.surface_ambient.rgb*globals.fog_color.w,globals.surface_ambient.w>0.5);
     let sun_colour=select(vec3(0.65),globals.surface_diffuse.rgb,globals.surface_ambient.w>0.5);
     let sun=max(dot(n,-globals.light_dir.xyz),0.0)*capture_sun_visibility(position,n);
-    let base=tex*diffuse.rgb*(ambient+sun_colour*sun)*occlusion;
+    let base=rt_hit_lit(tex*diffuse.rgb*(ambient+sun_colour*sun)*occlusion,tex*diffuse.rgb*occlusion,position,n);
     if kind==10u { return base; }
     if kind==6u { return base*0.25+reflected; }
     if enhanced { return base*(1.0-max(fresnel.r,max(fresnel.g,fresnel.b)))+reflected; }
@@ -130,12 +130,13 @@ fn trace_environment(world:vec3<f32>,normal:vec3<f32>,ray:vec3<f32>,bias:f32,ran
         let visible=capture_sun_visibility(position,n);
         radiance=2.0*tex.rgb*(ambient*colour.rgb+diffuse*max(dot(n,-globals.light_dir.xyz),0.0)*visible);
     }
+    if kind<4u { radiance=rt_hit_lit(radiance,tex.rgb,position,n); }
     if kind==3u {
         let power=bitcast<f32>(rt_instance[hit.instance_index].y);
         let distance=length(position-globals.camera_pos.xyz);
         let transmission=1.0-saturate((distance-globals.fog_range.x)/max(globals.fog_range.y-globals.fog_range.x,0.001));
         radiance+=tex.rgb*tex.a*power*transmission;
     }
-    if kind>=4u { radiance=rt_glossy_hit(rt_materials[kind-4u],tex.rgb,colour,n,-ray,position); }
+    if kind>=4u { radiance=rt_glossy_hit(rt_materials[kind-4u],tex.rgb,colour,n,-ray,position)*rt_glossy_hit_scale(); }
     return RtHit(mix(radiance,screen.rgb,screen.w),position,hit.t,true);
 }

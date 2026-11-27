@@ -116,7 +116,9 @@ impl WorldScene {
         let tops = [own.map(|z| z + RESET_ABOVE), Some(estimate.unwrap_or(0.0) + 40.0)];
         // A saved spot: the ground right there, whatever its surface, facing the saved way.
         let saved = match self.extra.teleport_anywhere {
-            true => tops.into_iter().flatten().find_map(|top| road::probe(collision, request.near[0], request.near[1], top)),
+            true => {
+                tops.into_iter().flatten().find_map(|top| road::probe(collision, request.near[0], request.near[1], top))
+            }
             false => None,
         }
         .map(|surface| Spawn {

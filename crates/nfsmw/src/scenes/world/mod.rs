@@ -214,6 +214,8 @@ pub struct WorldScene {
     shadow_feed: shadow_feed::ShadowFeed,
     original_shadows: bool,
     original_sky: bool,
+    /// Night amount, moonlight share and cloud block for `surface_light` (`sky.rs`).
+    moonlight: [f32; 3],
     colour_treatment: Option<blackbox_gfx::ColourTreatment>,
     time_of_day: Option<nfsmw_data::time_of_day::Presets>,
     atmosphere: lighting::Clouds,

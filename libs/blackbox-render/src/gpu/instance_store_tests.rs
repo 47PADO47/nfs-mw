@@ -160,7 +160,7 @@ fn dirty_slots_coalesce_into_sorted_ranges() {
 /// The scene shaders with the store's instance input, as the pipelines build them, parse and validate.
 #[test]
 fn store_shader_variants_validate() {
-    let receiver = include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2");
+    let receiver = crate::shadow_receiver_source("2");
     let sources = [
         (
             "scene",

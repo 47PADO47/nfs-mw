@@ -46,7 +46,7 @@ impl RayPass {
                 format!(
                     "enable wgpu_ray_query;\n{}\n{}\n{}",
                     source,
-                    include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "3"),
+                    crate::shadow_receiver_source("3"),
                     include_str!("../../shaders/ray_reflection.wgsl")
                 )
                 .into(),

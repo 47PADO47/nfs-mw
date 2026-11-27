@@ -39,3 +39,7 @@ fn rt_screen_radiance(position:vec3<f32>)->vec4<f32> {
 fn rt_hit_environment(position:vec3<f32>,direction:vec3<f32>,roughness:f32)->vec3<f32> {
     return road_probe_at(position,direction,roughness);
 }
+
+// Road reflections keep their tuned hit lighting (`reflection_ray_car.wgsl` lights car hits for the night).
+fn rt_hit_lit(lit:vec3<f32>,albedo:vec3<f32>,position:vec3<f32>,n:vec3<f32>)->vec3<f32> { return lit; }
+fn rt_glossy_hit_scale()->f32 { return 1.0; }

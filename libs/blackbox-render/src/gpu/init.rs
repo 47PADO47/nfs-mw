@@ -290,7 +290,7 @@ fn assemble(
     let mut ui = super::ui::Ui::new(&device, pipeline_cache.as_ref());
     ui.use_format(&device, format);
     // The streaks and glows can take the sun's shadow: the receiver sits at group 1 of their pipelines.
-    let receiver = include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "1");
+    let receiver = crate::shadow_receiver_source("1");
     let effects = super::effects::Effects::with_shadows(
         &device,
         plan.format,

@@ -62,20 +62,49 @@ impl WorldScene {
     /// each other material family keeps its own response and cars use their separate rig.
     pub(super) fn surface_light(&self) -> Option<blackbox_gfx::SurfaceLight> {
         let inputs = self.atmosphere_inputs()?;
+        let diffuse = inputs.lighting.diffuse.map(|channel| channel.min(1.0));
+        let (keep, fill) = self.moonlight(diffuse);
+        let moon = |colour: [f32; 3]| self.moon_colour(colour).map(|channel| channel * keep);
+        let ambient = std::array::from_fn(|i| (inputs.lighting.ambient[i] + fill[i]).min(1.0));
         Some(blackbox_gfx::SurfaceLight {
             shadow_strength: nfsmw_data::time_of_day::shadows::strength(
                 self.atmosphere.intensity(),
                 self.sun.preset_height(),
             ),
-            ambient: inputs.lighting.ambient.map(|channel| channel.min(1.0)),
+            ambient,
             // The common PC shader updater caps diffuse before the material's Lambert term.
-            diffuse: inputs.lighting.diffuse.map(|channel| channel.min(1.0)),
+            diffuse: moon(diffuse),
             ambient_alpha: inputs.ambient_alpha,
-            specular: inputs.lighting.specular,
+            specular: moon(inputs.lighting.specular),
             specular_power: inputs.specular_power,
             reflection_scale: self.wet_road.contribution(),
             reflective_specular_scale: 1.0 - self.atmosphere.intensity(),
         })
+    }
+
+    /// At night the sun stands in for the moon: the share of its direct light `diffuse` to keep (the moonlight
+    /// share, less under clouds) and the ambient light that replaces the rest, so the night stays as bright but its
+    /// shadows and highlights are weak.
+    fn moonlight(&self, diffuse: [f32; 3]) -> (f32, [f32; 3]) {
+        let [night, share, block] = self.moonlight;
+        let kept = share * (1.0 - block * self.atmosphere.intensity().clamp(0.0, 1.0));
+        let keep = 1.0 + (kept - 1.0) * night.clamp(0.0, 1.0);
+        (keep, self.moon_colour(diffuse).map(|channel| channel * (1.0 - keep) * 0.35))
+    }
+
+    /// `colour` as moonlight at night: the presets give the night the sunset's warm light, the moon's is a cool white
+    /// of the same brightness.
+    fn moon_colour(&self, colour: [f32; 3]) -> [f32; 3] {
+        const MOON: [f32; 3] = [0.88, 1.0, 1.17];
+        let night = self.moonlight[0].clamp(0.0, 1.0);
+        let luma = colour[0] * 0.2126 + colour[1] * 0.7152 + colour[2] * 0.0722;
+        std::array::from_fn(|i| colour[i] + (luma * MOON[i] - colour[i]) * night)
+    }
+
+    /// The ambient light the moonlight conversion adds (`moonlight`), for car rigs whose fills a probe replaces.
+    pub(super) fn moon_fill(&self) -> glam::Vec3 {
+        let Some(inputs) = self.atmosphere_inputs() else { return glam::Vec3::ZERO };
+        glam::Vec3::from_array(self.moonlight(inputs.lighting.diffuse.map(|channel| channel.min(1.0))).1)
     }
 
     /// The fog colour for the sun's height and the blend weight `t`.

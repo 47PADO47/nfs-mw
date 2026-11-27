@@ -35,3 +35,10 @@ pub use blackbox_gfx::{
 };
 pub use gpu::{Renderer, available_apis};
 pub use options::RendererOptions;
+
+/// The shadow receiver WGSL with its bind group set to `group`: the sun, cascade and projected shadows
+/// (`shaders/shadow_receiver.wgsl`), then the local lights (`shaders/local_lights.wgsl`).
+pub(crate) fn shadow_receiver_source(group: &str) -> String {
+    concat!(include_str!("shaders/shadow_receiver.wgsl"), "\n", include_str!("shaders/local_lights.wgsl"))
+        .replace("SHADOW_GROUP", group)
+}

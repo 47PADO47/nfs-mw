@@ -201,6 +201,27 @@ fn panorama_clouds(ray: vec3<f32>) -> vec4<f32> {
     return vec4(mix(light_a, light_b, t) * fade, 1.0 - mix(cover_a, cover_b, t) * fade);
 }
 
+// The procedural moon's face: darker seas over the bright highlands and a rim that dims towards the edge, a pale grey.
+fn moon_hash(c: vec2<i32>) -> f32 {
+    var h = bitcast<u32>(c.x) * 1597334677u ^ bitcast<u32>(c.y) * 3812015801u;
+    h = (h ^ (h >> 16u)) * 2246822519u;
+    return f32((h ^ (h >> 13u)) & 65535u) / 65535.0;
+}
+fn moon_noise(p: vec2<f32>) -> f32 {
+    let i = vec2<i32>(floor(p)); let f = fract(p); let u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(moon_hash(i), moon_hash(i + vec2(1, 0)), u.x), mix(moon_hash(i + vec2(0, 1)), moon_hash(i + vec2(1, 1)), u.x), u.y);
+}
+fn moon_surface(ray: vec3<f32>, moon: vec3<f32>, angle: f32) -> vec3<f32> {
+    let up = select(vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), abs(moon.z) > 0.99);
+    let right = normalize(cross(up, moon));
+    let q = vec2(dot(ray, right), dot(ray, cross(moon, right))) / 0.011 * 2.0;
+    let seas = moon_noise(q * 1.6 + vec2(3.1, 7.7)) * 0.65 + moon_noise(q * 4.0 + vec2(1.3, 2.9)) * 0.35;
+    let albedo = mix(1.0, 0.58, smoothstep(0.45, 0.7, seas)) * mix(0.92, 1.0, moon_noise(q * 11.0));
+    let limb = mix(0.62, 1.0, sqrt(max(1.0 - pow(angle / 0.011, 2.0), 0.0)));
+    // Dim enough that tone mapping and bloom keep the seas instead of a white blur.
+    return vec3(0.80, 0.83, 0.88) * albedo * limb * 0.3;
+}
+
 // The moon as its picture: a square of half-width `moon_pic.y` radians facing the eye, the disc in its middle.
 fn moon_picture_colour(ray: vec3<f32>, moon: vec3<f32>) -> vec3<f32> {
     if dot(ray, moon) <= 0.0 { return vec3(0.0); }
@@ -228,14 +249,19 @@ fn moon_picture_colour(ray: vec3<f32>, moon: vec3<f32>) -> vec3<f32> {
     if material.moon.w > 0.0 && ray.z > 0.0 {
         let moon = normalize(material.moon.xyz);
         let moon_angle = acos(clamp(dot(ray, moon), -0.9999999, 0.9999999));
-        let moon_disk = (1.0 - smoothstep(0.009, 0.013, moon_angle)) * smoothstep(-0.02, 0.04, ray.z);
+        let edge = max(fwidth(moon_angle), 0.0001);
+        let moon_disk = (1.0 - smoothstep(0.011 - edge, 0.011 + edge, moon_angle)) * smoothstep(-0.02, 0.04, ray.z);
         // Stable direction-space stars; clouds occlude them without screen-space swimming.
         let cell = floor(ray * 700.0);
         let random = fract(sin(dot(cell, vec3(12.9898, 78.233, 39.425))) * 43758.5453);
         let star = smoothstep(0.9985, 0.9998, random) * (1.0 - smoothstep(0.15, 0.5, length(fract(ray*700.0)-vec3(0.5))));
-        var moon_colour = vec3(0.65,0.72,0.9)*moon_disk*0.7;
+        var moon_colour = moon_surface(ray, moon, moon_angle) * moon_disk;
+        // A faint glow around the disc, as moonlight scatters in the air.
+        moon_colour += vec3(0.55,0.62,0.78) * 0.03 * exp(-moon_angle / 0.035) * smoothstep(-0.02, 0.04, ray.z);
         if material.moon_pic.x > 0.5 { moon_colour = moon_picture_colour(ray, moon) * 0.9; }
-        celestial = (moon_colour + vec3(0.35,0.42,0.6)*star) * material.moon.w * cloud.a * smoothstep(0.0, 0.08, ray.z);
+        // An overcast hides the moon and the stars even where the cloud map has a gap.
+        let veil = 1.0 - smoothstep(0.55, 0.95, coverage);
+        celestial = (moon_colour + vec3(0.35,0.42,0.6)*star) * material.moon.w * cloud.a * veil * smoothstep(0.0, 0.08, ray.z);
     }
     let colour = sky_output((background * cloud.a + cloud.rgb) * brightness, solar_disk(ray, sun) * cloud.a * brightness + celestial);
     return vec4(colour, 1.0);

@@ -18,11 +18,8 @@ pub(super) struct Resolve {
 }
 impl Resolve {
     fn new(device: &wgpu::Device, size: (u32, u32)) -> Self {
-        let source = format!(
-            "{}\n{}",
-            include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "1"),
-            include_str!("../shaders/shadow_resolve.wgsl")
-        );
+        let source =
+            format!("{}\n{}", crate::shadow_receiver_source("1"), include_str!("../shaders/shadow_resolve.wgsl"));
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("cascade visibility resolve"),
             source: wgpu::ShaderSource::Wgsl(source.into()),

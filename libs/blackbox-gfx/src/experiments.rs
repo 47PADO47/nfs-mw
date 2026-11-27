@@ -40,6 +40,20 @@ pub struct RenderExperiments {
     /// World-space patch size in metres.
     pub puddle_scale: f32,
     pub water_ripples: f32,
+    /// How much a continuous water film smooths and polishes wet surfaces outside the pools: 0 a damp film, 1 close
+    /// to standing water.
+    pub wet_sheen: f32,
+    /// Brightness of lights in wet surfaces: lamp glints and bright reflected sources (1 = unboosted).
+    pub wet_light_strength: f32,
+    /// At night, the brightness of a clear coat's sharp reflection relative to the night world it mirrors (1 = as
+    /// bright); chrome, bare metal and rough lobes take its square root.
+    pub car_night_reflections: f32,
+    /// Brightness of lights in car paint at night: lamp glints and bright reflected sources (1 = unboosted).
+    pub car_light_strength: f32,
+    /// RT car reflections light what they hit as the world is lit: the night tint and the local lamps.
+    pub car_rt_lamp_lighting: bool,
+    /// Radius in metres of a street lamp's emitter mirrored in car paint (headlights half of it); 0 a point.
+    pub car_lamp_size: f32,
     /// Use hardware geometry queries when the renderer was started with RT support.
     pub ray_road_reflections: bool,
     /// Hardware reflections on custom glossy materials; rough lobes keep their filtered probe.
@@ -88,6 +102,11 @@ pub struct RenderExperiments {
     pub local_emergency_strength: f32,
     /// Enhanced sky brightness during the experimental night mode.
     pub night_sky_brightness: f32,
+    /// At night the sun's direct light becomes moonlight: the share of it kept on a clear night (shadows and
+    /// highlights); the rest turns into soft ambient light.
+    pub moonlight: f32,
+    /// How much a full overcast takes away of that moonlight (1 = all of it).
+    pub moon_cloud_block: f32,
     pub local_light_distance: f32,
     pub local_light_strength: f32,
     /// Streetlight brightness and physical reach, independent of tunnel fixtures.
@@ -217,6 +236,12 @@ impl Default for RenderExperiments {
             puddle_coverage: 0.7,
             puddle_scale: 7.0,
             water_ripples: 0.5,
+            wet_sheen: 0.6,
+            wet_light_strength: 2.0,
+            car_night_reflections: 2.0,
+            car_light_strength: 2.0,
+            car_rt_lamp_lighting: true,
+            car_lamp_size: 0.25,
             road_reflection_range: 320.0,
             road_reflection_fade: 0.65,
             ray_road_reflections: true,
@@ -256,6 +281,8 @@ impl Default for RenderExperiments {
             local_emergency_lights: false,
             local_emergency_strength: 1.0,
             night_sky_brightness: 0.18,
+            moonlight: 0.2,
+            moon_cloud_block: 0.9,
             local_light_distance: 160.0,
             local_light_strength: 1.0,
             local_street_strength: 1.5,
@@ -327,6 +354,8 @@ impl RenderExperiments {
     pub fn sanitized(self) -> Self {
         Self {
             night_sky_brightness: finite(self.night_sky_brightness, 0.18).clamp(0.05, 0.4),
+            moonlight: finite(self.moonlight, 0.2).clamp(0.0, 1.0),
+            moon_cloud_block: finite(self.moon_cloud_block, 0.9).clamp(0.0, 1.0),
             local_light_distance: finite(self.local_light_distance, 160.0).clamp(80.0, 600.0),
             local_headlight_strength: finite(self.local_headlight_strength, 1.15).clamp(0.0, 5.0),
             local_emergency_strength: finite(self.local_emergency_strength, 1.0).clamp(0.0, 5.0),
@@ -380,6 +409,11 @@ impl RenderExperiments {
             ray_road_blend: finite(self.ray_road_blend, 1.0).clamp(0.0, 1.0),
             ray_road_screen_reuse: finite(self.ray_road_screen_reuse, 1.0).clamp(0.0, 1.0),
             water_ripples: finite(self.water_ripples, 0.5).clamp(0.0, 2.0),
+            wet_sheen: finite(self.wet_sheen, 0.6).clamp(0.0, 1.0),
+            wet_light_strength: finite(self.wet_light_strength, 2.0).clamp(0.0, 5.0),
+            car_night_reflections: finite(self.car_night_reflections, 2.0).clamp(0.25, 3.0),
+            car_light_strength: finite(self.car_light_strength, 2.0).clamp(0.0, 5.0),
+            car_lamp_size: finite(self.car_lamp_size, 0.25).clamp(0.0, 1.0),
             sky_wind_speed: finite(self.sky_wind_speed, 2.0).clamp(0.0, 12.0),
             sky_sun_size: finite(self.sky_sun_size, 2.0).clamp(0.5, 3.0),
             sky_sun_brightness: finite(self.sky_sun_brightness, 1.0).clamp(0.0, 3.0),
@@ -444,56 +478,4 @@ pub struct ExperimentStats {
 }
 
 #[cfg(test)]
-mod ray_shadow_tests {
-    use super::RenderExperiments;
-    #[test]
-    fn invalid_sun_ray_controls_are_bounded_and_old_profiles_stay_opt_in() {
-        let defaults = RenderExperiments::default();
-        assert!(!defaults.ray_sun_shadows);
-        let invalid = RenderExperiments {
-            ray_shadow_samples: 100,
-            ray_shadow_resolution: 999,
-            far_shadow_scale: f32::INFINITY,
-            ray_shadow_filter: f32::NAN,
-            ray_shadow_range: f32::NAN,
-            ray_shadow_length: f32::INFINITY,
-            ray_shadow_bias: -1.0,
-            ..defaults
-        }
-        .sanitized();
-        assert_eq!(invalid.ray_shadow_samples, 16);
-        assert_eq!(RenderExperiments { ray_shadow_samples: 2, ..defaults }.sanitized().ray_shadow_samples, 2);
-        assert_eq!(RenderExperiments { ray_shadow_samples: 0, ..defaults }.sanitized().ray_shadow_samples, 4);
-        assert_eq!(invalid.ray_shadow_resolution, 100);
-        assert_eq!(invalid.far_shadow_scale, 3.0);
-        let range = RenderExperiments {
-            sun_shadows: true,
-            far_shadows: true,
-            shadow_distance: 160.0,
-            far_shadow_scale: 2.5,
-            ..defaults
-        };
-        assert_eq!(range.caster_distance(), 400.0);
-        assert_eq!(invalid.ray_shadow_filter, 0.75);
-        assert_eq!(invalid.ray_shadow_range, 100.0);
-        assert_eq!(invalid.ray_shadow_length, 300.0);
-        assert_eq!(invalid.ray_shadow_bias, 0.001);
-        let large =
-            RenderExperiments { ray_shadow_range: 900.0, ray_shadow_length: 900.0, ray_shadow_bias: 1.0, ..defaults }
-                .sanitized();
-        assert_eq!((large.ray_shadow_range, large.ray_shadow_length, large.ray_shadow_bias), (240.0, 800.0, 0.05));
-    }
-}
-
-#[cfg(test)]
-mod light_fog_tests {
-    use super::RenderExperiments;
-    #[test]
-    fn the_fog_light_budget_is_bounded_and_defaults_to_the_old_haze_count() {
-        let defaults = RenderExperiments::default();
-        assert_eq!(defaults.local_light_fog_count, defaults.local_street_haze_count);
-        let large = RenderExperiments { local_light_fog_count: 500, ..defaults }.sanitized();
-        assert_eq!(large.local_light_fog_count, 64);
-        assert_eq!(RenderExperiments { local_light_fog_count: 0, ..defaults }.sanitized().local_light_fog_count, 0);
-    }
-}
+mod tests;

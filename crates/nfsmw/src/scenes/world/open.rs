@@ -239,6 +239,7 @@ impl WorldScene {
                 shadow_feed: Default::default(),
                 original_shadows: true,
                 original_sky: false,
+                moonlight: [0.0, 1.0, 0.0],
                 colour_treatment,
                 time_of_day,
                 atmosphere,

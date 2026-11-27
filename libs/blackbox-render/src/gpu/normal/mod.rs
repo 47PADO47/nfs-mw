@@ -85,7 +85,7 @@ impl Normal {
                 format!(
                     "{}\n{}\n{}\n{}",
                     instance_view::instance_source(include_str!("../../shaders/normal.wgsl"), store.then_some(3)),
-                    include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"),
+                    crate::shadow_receiver_source("2"),
                     include_str!("../../shaders/road_reflection.wgsl"),
                     include_str!("../../shaders/road_probe.wgsl")
                 )
@@ -181,8 +181,8 @@ impl Normal {
             [
                 u8::from(water.1.world_specular && water.1.shadow_projection.is_none()) as f32,
                 u8::from(water.1.world_specular_aa) as f32,
-                0.0,
-                0.0,
+                water.1.wet_sheen,
+                water.1.wet_light_strength,
             ],
         ];
         if self.written_lighting == Some(lighting) {

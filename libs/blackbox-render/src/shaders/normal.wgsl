@@ -206,7 +206,7 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
         surface *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
     }
     if globals.fog_range.w < 0.5 {
-        if !local_done { local = local_lights(in.world,shading_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,0.0,alpha2); }
+        if !local_done { local = local_lights(in.world,shading_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,0.0,alpha2,0.0); }
         surface += 2.0*tex.rgb*local.diffuse + spec_tex.rgb*local.specular;
     }
     var rgb = surface*in.extinction+in.scatter*mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
@@ -292,6 +292,8 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     let pool = pooled_coverage(in.world.xy,puddle_relief(in))*slope;
     let p = in.world.xy;
     let footprint = max(length(dpdx(p)),length(dpdy(p)));
+    // Normal-map variance within the pixel: a glint narrower than it would sparkle, so it widens instead (Toksvig).
+    let normal_variance = dot(dpdx(n),dpdx(n))+dot(dpdy(n),dpdy(n));
     // Finish derivatives before a pixel-dependent return. Vertical receivers are dry.
     // Night dims what the surface itself is lit by, in the encoded space the dry road uses (`shade`); light the
     // water carries from elsewhere (reflections, lamp glints) keeps its own brightness, as wet asphalt at night does.
@@ -310,26 +312,30 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
             ripple = vec2(dot(tilt,unit(in.tangent)),dot(tilt,unit(in.binormal)))*strength*0.8;
         }
     }
+    // Sheen (F8): a continuous film between the pools fills part of the micro-relief and polishes the surface. `film`
+    // is the gloss of the whole receiver: the sheen's share of a mirror pool, or the pool itself.
+    let sheen = light.controls.z;
+    let film = max(pool,0.45*sheen);
     // Water smooths the road micro-normal, but keeps its geometric slope.
-    let water_n = unit(mix(n,vec3(ripple,1.0),pool*0.94));
+    let water_n = unit(mix(n,vec3(ripple,1.0),max(pool*0.94,0.55*sheen)));
     let nv = clamp(dot(water_n,v),0.0,1.0);
     let fresnel = 0.02+0.98*pow(1.0-nv,5.0);
     let mask = clamp(2.0*spec_tex.r*tex.a*in.ambient.a,0.0,1.0);
     // The legacy mask already attenuates the old nonphysical reflection. Keep its zero regions,
     // but let a continuous water layer approach dielectric reflectance within eligible regions.
     let water_mask = mix(mask,smoothstep(0.0,0.08,mask),pool);
-    let reflectance = fresnel*mix(0.3,1.0,pool)*water_mask;
+    let reflectance = fresnel*mix(mix(0.3,0.75,sheen),1.0,pool)*water_mask;
     // Receiver pixel size for the road march's origin bias. Derivatives must stay in uniform control flow.
     let world_footprint = ray_footprint;
     var filtered = vec3(0.0);
     let road_environment_path = light.reflection.z > 0.5 && uv_offset.value.w>0.5;
     // Same roughness as the road environment lookup: a damp film (0.32) to a near-mirror pool (0.07).
-    let occlusion = specular_occlusion(ao,nv,mix(0.32,0.07,pool));
+    let occlusion = specular_occlusion(ao,nv,mix(0.32,0.07,film));
     // The capture taps only serve the paths that do not trace the road environment.
     if !road_environment_path && reflectance > 0.0 {
         let uv = in.projected_reflection.xy/in.projected_reflection.w;
         let pixel = vec2(1.0)/vec2<f32>(textureDimensions(reflection_texture));
-        let radius = mix(3.5,0.35,pool);
+        let radius = mix(3.5,0.35,film);
         let center = wet_capture(uv,pixel);
         // Spatially filtered film; pooled water retains the capture's detail. No fabricated parallax offsets.
         filtered = (wet_capture(uv+pixel*vec2(radius,0.0),pixel)
@@ -339,34 +345,47 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     }
     let shading_normal = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
     let base = 2.0*tex.rgb*(in.ambient.rgb*world_environment(world_ambient_normal(shading_normal,in.clip.xy,ao))*ao+diffuse_light*max(dot(water_n,l),0.0)*q);
-    let power = mix(24.0,192.0,pool);
+    let smooth_power = mix(mix(24.0,96.0,sheen),192.0,pool);
+    // Water hides the micro-normal it covers, in proportion to how flat it made the receiver.
+    let covered = max(pool*0.94,0.55*sheen);
+    let power = smooth_power/(1.0+smooth_power*normal_variance*(1.0-covered));
+    // Lamp glints and bright reflected sources (F8 "Wet light reflections"); 1 leaves them unboosted.
+    let light_boost = light.controls.w;
     var local_glint = vec3(0.0);
     if globals.fog_range.w < 0.5 {
         let dry_normal = unit(in.tangent*n.x+in.binormal*n.y+in.normal*n.z);
-        *local = local_lights(in.world,dry_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,power,alpha2);
+        *local = local_lights(in.world,dry_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,power,alpha2,0.0);
         *local_done = true;
         local_glint = (*local).glint;
     }
-    let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
+    // The glint is light carried from the emitter, added as linear radiance: decoding it like a surface colour would
+    // crush the faint, distant reflections that make a wet street's light streaks.
+    let glint_linear = local_glint*water_mask*light_boost;
+    // A film darkens asphalt beyond the damp look: the water fills the pores that scatter light.
+    let diffuse = wet_linear(base)*mix(1.0,0.72-0.14*sheen,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
     let h = unit(l+v);
     let glint = pow(max(dot(water_n,h),0.0),power)*(power+2.0)/50.0;
     let spec = wet_linear(light.specular.rgb)*glint*q*fresnel*water_mask;
     // A ray or screen march only pays where it could show: a reflection that differs from the probe by half a
     // unit must move the pixel by 3/255 or more (encoded). Pools, grazing film and dark receivers still trace;
     // faint film on a lit road keeps the probe: docs/weather-gpu-tuning.md.
-    let lit = diffuse+spec+wet_linear(local_glint)*water_mask;
+    let lit = diffuse+spec+glint_linear;
     let level = max(lit.r,max(lit.g,lit.b));
     let trace = damp*(pow(level+0.5*reflectance*occlusion,1.0/2.2)-pow(level,1.0/2.2)) >= 3.0/255.0;
     if road_environment_path && reflectance > 0.0 {
         let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
         let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
         // Resolve the fallback only for misses or partial traced contributions.
+        // Only pools trace: the film's ray would follow the road's micro-normal and come out as grain.
         filtered = road_environment_at(in.world,world_n,ray,pool,world_footprint,trace);
     }
-    let env = wet_linear(filtered)*reflectance*occlusion*select(0.0,1.0,light.reflection.x>0.0);
+    let source = wet_linear(filtered);
     let night_linear = wet_linear(night);
+    // Only reflected sources that stay bright at night (lit windows, lamp heads, signs) take the light boost; dim
+    // surroundings and a daylit background stay as they are.
+    let bright = smoothstep(0.08,0.5,dot(source*sqrt(night_linear),vec3(0.2126,0.7152,0.0722)));
+    let env = source*mix(1.0,light_boost,bright)*reflectance*occlusion*select(0.0,1.0,light.reflection.x>0.0);
     // The reflected surroundings are lit by the same night as the road, but a wet surface still reads brighter than
     // the matte asphalt around it: half the night tint (in log terms) on reflections, none on lamp glints.
-    return mix(dry*night,wet_encoded((diffuse+spec)*night_linear+env*sqrt(night_linear)
-        +wet_linear(local_glint)*water_mask),damp);
+    return mix(dry*night,wet_encoded((diffuse+spec)*night_linear+env*sqrt(night_linear)+glint_linear),damp);
 }

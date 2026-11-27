@@ -4,7 +4,7 @@
 fn layer_environment(direction: vec3<f32>, roughness: f32, sharp: vec3<f32>) -> vec3<f32> {
     if textureNumLevels(linear_environment) <= 1u { return paint_linear(sharp); }
     let level = roughness * f32(textureNumLevels(linear_environment) - 1u);
-    let filtered = textureSampleLevel(linear_environment, env_sampler, direction, level).rgb;
+    let filtered = pow(env_scale, vec3(2.2)) * textureSampleLevel(linear_environment, env_sampler, direction, level).rgb;
     return mix(paint_linear(sharp), filtered, smoothstep(0.08, 0.32, roughness));
 }
 

@@ -111,6 +111,16 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
             ui.add(egui::Slider::new(&mut lab.options.ray_car_range, 40.0..=800.0).text("Car reflection ray range (m)"));
             ui.add(egui::Slider::new(&mut lab.options.ray_car_blend, 0.0..=1.0).text("Car RT geometry contribution"));
         });
+        controls::checkbox(ui, &mut lab.options.car_rt_lamp_lighting, "Night-lit RT car reflections", lighting.car_rt_lamp_lighting)
+            .on_hover_text("Lights what RT car reflections hit as the world is lit: dark at night, with the street lamps' pools of light and lit windows. Off: the older daylight hit lighting.");
+    });
+    ui.collapsing("Car paint at night", |ui| {
+        controls::slider(ui, &mut lab.options.car_night_reflections, 0.25..=3.0, "Car reflections at night", lighting.car_night_reflections)
+            .on_hover_text("Brightness of a clear coat's sharp reflection at night, relative to the night street it mirrors: 1 is as bright as the street, higher reads glossier. Chrome, bare metal and matte finishes take a milder lift (the square root). Daylight is unchanged.");
+        controls::slider(ui, &mut lab.options.car_light_strength, 0.0..=5.0, "Car light reflections", lighting.car_light_strength)
+            .on_hover_text("Brightness of lamp highlights and of bright reflected lights (lamps, signs, lit windows) in car paint at night. 1 is unboosted.");
+        controls::slider(ui, &mut lab.options.car_lamp_size, 0.0..=1.0, "Lamp highlight size (m)", lighting.car_lamp_size)
+            .on_hover_text("Size of the street lamps mirrored in car paint (headlights are half of it): their highlights grow as the car nears them. 0 treats each lamp as a point.");
     });
     super::reflections::show(ui, lab, settings);
     roads::show(ui, lab, settings);

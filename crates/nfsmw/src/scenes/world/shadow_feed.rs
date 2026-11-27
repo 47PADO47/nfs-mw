@@ -72,10 +72,14 @@ impl WorldScene {
             self.shadow_feed.rig.send(renderer, &rig);
         }
         if !self.car_shading.is_original() {
-            let rig = crate::scenes::car::lighting::world_rig(
+            let mut rig = crate::scenes::car::lighting::world_rig(
                 self.sun.to_sun(),
                 settings.weather_car_lighting.then(|| self.surface_light()).flatten(),
             );
+            // The sky probe replaces the rig's ambient fills, so the light the moon gave up comes in as ambient.
+            if settings.weather_car_lighting && settings.car_skylight {
+                rig.ambient += self.moon_fill();
+            }
             self.shadow_feed.rig.send(renderer, &rig);
         }
         self.shadow_feed.fed = false;

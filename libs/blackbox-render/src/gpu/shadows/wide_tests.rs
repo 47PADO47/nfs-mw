@@ -24,7 +24,7 @@ fn mixed_resolution_maps_route_all_layers_and_blend_continuously() {
 
             let point=vec3<f32>(0.0,0.0,0.5);let n=vec3<f32>(0.0,0.0,1.0);
             return vec4<f32>(cascade_sample(point,n,u32(p.x)).x,sun_sample(point,n).x,0.0,1.0);}}",
-        include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "0")
+        crate::shadow_receiver_source("0")
     );
     let shader = r.device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("mixed-resolution production receiver probe"),

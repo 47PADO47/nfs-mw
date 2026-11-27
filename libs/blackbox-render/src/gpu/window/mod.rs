@@ -71,7 +71,7 @@ impl Window {
                 format!(
                     "{}\n{}",
                     instance_view::instance_source(include_str!("../../shaders/window.wgsl"), store.then_some(3)),
-                    include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
+                    crate::shadow_receiver_source("2")
                 )
                 .into(),
             ),

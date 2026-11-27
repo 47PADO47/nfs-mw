@@ -43,7 +43,7 @@ fn blocker_search_is_invariant_to_light_depth_origin() {
     let source = format!(
         "{}\n{}\n@fragment fn fs()->@location(0) vec4<f32>{{
         return vec4<f32>(cascade_sample(vec3<f32>(0.0),vec3<f32>(0.0,0.0,1.0),0u),1.0);}}",
-        include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "0"),
+        crate::shadow_receiver_source("0"),
         vertex
     );
     let shader = r.device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -232,7 +232,7 @@ fn dense_wide_penumbra_adds_taps_and_switches_continuously() {
         "{}\n{vertex}\n@fragment fn fs(@builtin(position) p:vec4<f32>)->@location(0) vec4<f32>{{
         let world=vec3<f32>(p.x/128.0-1.0,1.0-p.y/128.0,0.8);
         let v=cascade_sample(world,vec3<f32>(0.0,0.0,1.0),0u).x;return vec4<f32>(v,v,v,1.0);}}",
-        include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "0")
+        crate::shadow_receiver_source("0")
     );
     let pipeline = render_pipeline(&r.device, &shader(source), Some(wgpu::TextureFormat::Rgba8Unorm), false);
     let uniform = r.device.create_buffer(&wgpu::BufferDescriptor {

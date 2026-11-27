@@ -39,7 +39,7 @@ fn screen_environment(world: vec3<f32>, normal: vec3<f32>, direction: vec3<f32>,
             let edge = min(min(hit_uv.x, 1.0-hit_uv.x), min(hit_uv.y, 1.0-hit_uv.y));
             let confidence = smoothstep(0.0, 0.08, edge) * (1.0 - fraction * fraction);
             let colour = textureSampleLevel(screen_colour, env_sampler, hit_uv, 0.0).rgb;
-            return mix(fallback, colour, confidence);
+            return mix(fallback, env_scale * colour, confidence);
         }
         last_t = t;
     }

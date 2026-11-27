@@ -5,7 +5,7 @@
 use blackbox_gfx::LocalLight;
 use glam::Vec2;
 
-/// Cells per side; must match `local_light_mask` in `shadow_receiver.wgsl`.
+/// Cells per side; must match `local_light_mask` in `local_lights.wgsl`.
 const SIDE: i32 = 16;
 /// Smallest cell edge in metres, so clustered lights do not produce needlessly tiny cells.
 const MIN_CELL: f32 = 4.0;

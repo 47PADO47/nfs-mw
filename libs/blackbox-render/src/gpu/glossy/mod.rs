@@ -418,7 +418,7 @@ impl Renderer {
         let glossy =
             ensure(&mut self.glossy, &self.device, &self.queue, &self.shared.glossy, self.pipeline_cache.as_ref());
         let (view, face_view) = environment_view(&self.device, &self.queue, size, &faces.map(|f| &f[..texel_bytes]));
-        self.queue.write_buffer(&glossy.probe.sky, 0, bytemuck::cast_slice(&probe::sky_colours(size, faces)));
+        glossy.probe.set_sky(&self.queue, probe::sky_colours(size, faces));
         self.queue.write_buffer(&glossy.probe.control, 0, bytemuck::cast_slice(&[0.0_f32; 4]));
         glossy.probe.active = false;
         glossy.scene = scene_group(
