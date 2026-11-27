@@ -31,6 +31,7 @@ impl Plugin for InputLayerPlugin {
             .init_resource::<ActionState>()
             .init_resource::<MouseCapture>()
             .init_resource::<UiFocus>()
+            .init_resource::<super::CameraPassthrough>()
             .init_resource::<InputPresentation>()
             .init_resource::<SplitInput>()
             .add_observer(super::device_settings::configure_added_gamepad)
@@ -50,6 +51,7 @@ pub(crate) fn update_actions(
     pads: Query<(Entity, &Gamepad)>,
     capture: Res<MouseCapture>,
     focus: Res<UiFocus>,
+    passthrough: Option<Res<super::CameraPassthrough>>,
     time: Res<Time<Real>>,
     bindings: Res<Bindings>,
     settings: Option<Res<crate::settings::Settings>>,
@@ -114,6 +116,10 @@ pub(crate) fn update_actions(
     *held = snapshot.pad_buttons.clone();
     if split.devices().is_none() {
         state.update(&bindings, &snapshot, focus.0);
+        // A tools panel leaves the free camera the keyboard and the mouse; split screen has no free camera.
+        if let Some(passthrough) = passthrough.filter(|_| focus.0) {
+            passthrough.apply(&mut state, &bindings, &snapshot);
+        }
         return;
     }
     // Split screen: the second player's actions come from their own device; either player's Start pauses.

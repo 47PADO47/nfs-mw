@@ -114,6 +114,9 @@ pub struct State {
     pub persistence_error: Option<String>,
     pub local_allowed: bool,
     pub teleport_heading: Option<f32>,
+    /// The pending teleport goes to a saved spot: the car is put on whatever ground is there (a cobbled lane, a car
+    /// park), not only on a road, and the road search is the fallback.
+    pub teleport_anywhere: bool,
     pub free_roll: f32,
     pub restore_environment: Option<crate::viewer::Environment>,
     pub environment: Option<crate::viewer::Environment>,

@@ -1,6 +1,26 @@
 use super::*;
 
 #[test]
+fn world_highlights_and_bent_normals_save_independently_and_respect_style() {
+    let mut settings = settings();
+    settings.select_visual_style(VisualStyle::Enhanced);
+    settings.appearance.lighting.world_specular = true;
+    settings.appearance.lighting.bent_normal_ao = true;
+    let stored = settings.appearance.value().unwrap();
+    settings.appearance = Appearance::read(&stored, "world shading round-trip").unwrap();
+    assert!(settings.appearance.lighting.world_specular);
+    assert!(!settings.appearance.lighting.world_specular_aa);
+    assert!(settings.graphics().ao.directional());
+    settings.ao_method = super::super::AoMethod::Ssao;
+    assert!(!settings.graphics().ao.directional());
+    settings.select_visual_style(VisualStyle::OriginalPc);
+    assert!(!settings.appearance.lighting.world_specular);
+    assert!(!settings.graphics().ao.bent_normals);
+    let old = Appearance::read(&toml::from_str("version=1").unwrap(), "older profile").unwrap();
+    assert!(!old.lighting.world_specular && !old.lighting.world_specular_aa && !old.lighting.bent_normal_ao);
+}
+
+#[test]
 fn world_skylight_is_an_enhanced_style_choice_with_persistent_calibration() {
     let mut settings = Settings::from(crate::settings::Partial::default());
     settings.select_visual_style(VisualStyle::Enhanced);

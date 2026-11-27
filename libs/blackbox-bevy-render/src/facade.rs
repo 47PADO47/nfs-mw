@@ -408,6 +408,7 @@ mod tests {
             diffuse: texture,
             normal: texture,
             specular: texture,
+            roughness: None,
             uv_offset: [0.0; 2],
         };
         let before = lock(&backend.shared).ops.len();

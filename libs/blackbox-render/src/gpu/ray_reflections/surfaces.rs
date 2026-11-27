@@ -92,6 +92,7 @@ mod tests {
             normal: TextureHandle::from_raw(2),
             specular: TextureHandle::from_raw(3),
             reflection: None,
+            roughness: None,
             uv_offset: [0.5, 0.25],
         };
         apply(

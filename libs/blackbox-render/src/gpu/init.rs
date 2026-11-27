@@ -376,6 +376,7 @@ fn assemble(
         textures: Slots::new(),
         texture_views: Default::default(),
         texture_scrolls: Default::default(),
+        texture_params: Default::default(),
         meshes: Slots::new(),
         instances,
         effects,

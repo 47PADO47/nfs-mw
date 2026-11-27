@@ -112,6 +112,8 @@ pub struct AoSettings {
     /// smoothed low-poly face does not occlude itself. 0 always keeps the shading normal. The default (about 70 degrees)
     /// catches the badly smoothed boxes of the original models and leaves the noisier depth normals of distant ground alone.
     pub normal_guard: f32,
+    /// Resolve the direction of ambient visibility alongside scalar XeGTAO.
+    pub bent_normals: bool,
 }
 
 impl Default for AoSettings {
@@ -125,6 +127,7 @@ impl Default for AoSettings {
             depth_mips: false,
             thin_occluders: 0.5,
             normal_guard: 0.35,
+            bent_normals: false,
         }
     }
 }
@@ -143,6 +146,11 @@ impl AoSettings {
 
     pub fn active(self) -> bool {
         self.quality != AoQuality::Off && self.intensity > 0.0
+    }
+
+    /// Directional visibility is available from both XeGTAO methods.
+    pub fn directional(self) -> bool {
+        self.bent_normals && self.active() && self.method.is_xe()
     }
 }
 

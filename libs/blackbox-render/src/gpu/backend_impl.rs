@@ -303,6 +303,11 @@ impl RenderBackend for Renderer {
         Renderer::set_texture_uv_offset(self, texture, offset);
     }
 
+    fn set_texture_variation(&mut self, texture: TextureHandle, cell: f32) {
+        self.touch_scene();
+        Renderer::set_texture_variation(self, texture, cell);
+    }
+
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {
         self.touch_scene();
         Renderer::create_mesh(self, desc)

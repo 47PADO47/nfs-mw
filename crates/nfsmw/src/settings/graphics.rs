@@ -42,6 +42,10 @@ impl Settings {
                 compare: self.ao_compare,
                 depth_mips: self.ao_depth_mips,
                 method: self.ao_method,
+                bent_normals: self.appearance.lighting.bent_normal_ao
+                    && self.appearance.lighting.world_skylight
+                    && self.appearance.lighting.world_skylight_strength > 0.0
+                    && self.appearance.lighting.shadow_projection.is_none(),
                 ..AoSettings::default()
             },
         }

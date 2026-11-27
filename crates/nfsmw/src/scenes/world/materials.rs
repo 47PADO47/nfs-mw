@@ -57,12 +57,18 @@ where
 mod gpu_install_tests;
 #[cfg(test)]
 mod installed_surface_tests;
+pub(crate) mod surface_finish;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod toll_animation_tests;
+pub(super) mod variation;
 mod windows;
 pub(super) use windows::window_materials;
+
+/// Resident normal materials keyed by authored inputs and enhanced dry finish.
+pub(crate) type NormalMaterials =
+    HashMap<(NormalModel, [TextureHandle; 3], surface_finish::Finish), NormalMaterialHandle>;
 
 /// Resolve the verified family only when all required resident inputs exist.
 /// Backend rejection leaves the ordinary per-group legacy fallback in place.
@@ -70,7 +76,7 @@ pub(crate) fn normal_materials(
     renderer: &mut dyn RenderBackend,
     solid: &Solid,
     lookup: &impl Fn(u32) -> Option<(TextureHandle, BlendMode)>,
-    cache: &mut HashMap<(NormalModel, [TextureHandle; 3]), NormalMaterialHandle>,
+    cache: &mut NormalMaterials,
 ) -> Vec<Option<Shading>> {
     solid
         .groups
@@ -95,7 +101,10 @@ pub(crate) fn normal_materials(
                 1 => NormalModel::Reflective,
                 _ => NormalModel::Bump,
             };
-            if let Some(handle) = cache.get(&(model, textures)) {
+            let diffuse = *solid.texture_hashes.get(usize::from(group.texture_slots[0]))?;
+            let finish = surface_finish::Finish::for_diffuse(diffuse);
+            let key = (model, textures, finish);
+            if let Some(handle) = cache.get(&key) {
                 return Some(Shading::WorldNormal(*handle));
             }
             let handle = renderer.create_normal_material(&NormalMaterialDesc {
@@ -104,9 +113,10 @@ pub(crate) fn normal_materials(
                 normal: textures[1],
                 specular: textures[2],
                 reflection: None,
+                roughness: Some(finish.roughness()),
                 uv_offset: [0.0; 2],
             })?;
-            cache.insert((model, textures), handle);
+            cache.insert(key, handle);
             Some(Shading::WorldNormal(handle))
         })
         .collect()

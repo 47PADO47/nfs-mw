@@ -11,6 +11,8 @@ pub(super) struct Overlay {
     active: bool,
     /// An egui text field had the keyboard last pass: the heat keys stay off.
     pub typing: bool,
+    /// egui wanted the pointer last pass (it is over a panel, or dragging): the mouse does not look round.
+    pub pointer: bool,
     /// The heat toast and when it goes (seconds of real time).
     pub toast: Option<(String, f64)>,
 }
@@ -48,6 +50,7 @@ pub(super) fn toggle(
     mut garage: ResMut<crate::garage::Overlay>,
     mut lab: ResMut<super::GraphicsLab>,
     mut console: ResMut<super::Console>,
+    (passthrough, dev): (Option<ResMut<crate::input::CameraPassthrough>>, Option<Res<super::panels::DevPanels>>),
 ) {
     if keys.just_pressed(KeyCode::F5) && !garage.menu {
         overlay.open = !overlay.open;
@@ -104,6 +107,16 @@ pub(super) fn toggle(
     }
     overlay.sync(&mut capture, &mut focus);
     host.scene.set_overlay_open(overlay.open || lab.open);
+    // The free camera keeps the keyboard and the mouse under F5 and F8 while egui does not want them (`input/camera_pass.rs`).
+    if let Some(mut passthrough) = passthrough {
+        let other = console.open || garage.open || garage.menu || dev.is_some_and(|dev| dev.any());
+        *passthrough = crate::input::CameraPassthrough::for_panels(
+            overlay.open || lab.open,
+            other,
+            overlay.typing,
+            overlay.pointer,
+        );
+    }
     if lab.open || console.open {
         capture.0 = false;
         focus.0 = true;

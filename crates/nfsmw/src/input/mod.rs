@@ -9,6 +9,7 @@ mod action;
 #[cfg(test)]
 mod air_input_tests;
 mod bindings;
+mod camera_pass;
 pub mod commands;
 #[cfg(test)]
 mod config_tests;
@@ -41,6 +42,7 @@ mod weight_axis;
 
 pub use action::Action;
 pub(crate) use bindings::Source;
+pub use camera_pass::CameraPassthrough;
 pub use presentation::{InputDevice, InputPresentation};
 pub use slots::Control;
 pub use split::{CoopDevice, PlayerDevice, SplitInput, coop_seats, start_press};

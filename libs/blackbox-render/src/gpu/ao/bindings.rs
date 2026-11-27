@@ -2,12 +2,12 @@
 use super::pipelines::Pipelines;
 
 pub(super) struct Inputs {
-    views: [wgpu::TextureView; 5],
+    views: [wgpu::TextureView; 7],
     pub groups: [wgpu::BindGroup; 4],
 }
 
 impl Inputs {
-    pub fn matches(&self, views: [&wgpu::TextureView; 5]) -> bool {
+    pub fn matches(&self, views: [&wgpu::TextureView; 7]) -> bool {
         self.views.iter().zip(views).all(|(stored, current)| stored == current)
     }
 
@@ -15,9 +15,9 @@ impl Inputs {
         device: &wgpu::Device,
         pipelines: &Pipelines,
         params: &wgpu::Buffer,
-        views: [&wgpu::TextureView; 5],
+        views: [&wgpu::TextureView; 7],
     ) -> Self {
-        let [depth, normals, raw, filtered, hierarchy] = views;
+        let [depth, normals, raw, filtered, hierarchy, static_depth, tiles] = views;
         let uniform = || wgpu::BindGroupEntry { binding: 0, resource: params.as_entire_binding() };
         let view = |binding, view| wgpu::BindGroupEntry { binding, resource: wgpu::BindingResource::TextureView(view) };
         let make = |label, layout, entries: &[wgpu::BindGroupEntry<'_>]| {
@@ -27,7 +27,15 @@ impl Inputs {
             make(
                 "AO generate inputs",
                 &pipelines.generate.get_bind_group_layout(0),
-                &[uniform(), view(1, depth), view(2, raw), view(4, normals), view(5, hierarchy)],
+                &[
+                    uniform(),
+                    view(1, depth),
+                    view(2, raw),
+                    view(4, normals),
+                    view(5, hierarchy),
+                    view(6, static_depth),
+                    view(7, tiles),
+                ],
             ),
             make(
                 "AO filter inputs",
@@ -36,7 +44,7 @@ impl Inputs {
             ),
             make(
                 "AO composite inputs",
-                &pipelines.resolve.get_bind_group_layout(0),
+                &pipelines.resolve[0].get_bind_group_layout(0),
                 &[uniform(), view(1, depth), view(2, filtered), view(4, normals)],
             ),
             make(

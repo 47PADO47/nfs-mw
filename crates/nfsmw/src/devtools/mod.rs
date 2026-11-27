@@ -241,6 +241,8 @@ fn run_ui(
     }
     extra.sync(&mut capture, &mut focus);
     extra.typing = gui.ctx.egui_wants_keyboard_input();
+    // Over a panel even with a button held: a right drag that starts on a panel does not turn the free camera.
+    extra.pointer = gui.ctx.is_pointer_over_egui() || gui.ctx.egui_is_using_pointer();
     let drew_nothing = out.layer.as_ref().is_some_and(|layer| layer.meshes.is_empty());
     *settled = ui_gate::Settled::after_pass(
         drew_nothing,

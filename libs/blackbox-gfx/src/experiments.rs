@@ -162,6 +162,24 @@ pub struct RenderExperiments {
     /// Replace a portion of authored ambient with directional sky/ground illumination.
     pub world_skylight: bool,
     pub world_skylight_strength: f32,
+    /// Break up the repetition of tiled terrain, cliff and concrete textures the game flags
+    /// (`RenderBackend::set_texture_variation`). Off keeps every texture as authored.
+    pub texture_variation: bool,
+    /// Parallax occlusion mapping on normal-mapped scenery whose normal map carries a height in alpha (a texture mod's
+    /// DXT5 normal map). Maps without alpha read as flat and keep their look.
+    pub parallax: bool,
+    /// Relief depth of a full alpha swing, in centimetres.
+    pub parallax_depth: f32,
+    /// Most height samples per pixel; grazing views take the most.
+    pub parallax_steps: u32,
+    /// Distance over which parallax fades out, in metres.
+    pub parallax_distance: f32,
+    /// Use roughness-based direct highlights for normal-mapped scenery.
+    pub world_specular: bool,
+    /// Widen unresolved world highlights before raster output.
+    pub world_specular_aa: bool,
+    /// Steer the directional world ambient light with XeGTAO.
+    pub bent_normal_ao: bool,
     pub freeze_sun: bool,
     pub lighting_debug: LightingDebug,
     /// Overall indirect lighting multiplier, independent of hemisphere calibration.
@@ -276,6 +294,14 @@ impl Default for RenderExperiments {
             world_ambient_tint: 0.35,
             world_skylight: false,
             world_skylight_strength: 0.65,
+            texture_variation: false,
+            parallax: false,
+            parallax_depth: 4.0,
+            parallax_steps: 24,
+            parallax_distance: 40.0,
+            world_specular: false,
+            world_specular_aa: false,
+            bent_normal_ao: false,
             freeze_sun: false,
             lighting_debug: LightingDebug::Off,
             indirect_strength: 1.0,
@@ -326,6 +352,9 @@ impl RenderExperiments {
             local_light_fog_count: self.local_light_fog_count.min(64),
             local_street_range: finite(self.local_street_range, 35.0).clamp(10.0, 120.0),
             world_skylight_strength: finite(self.world_skylight_strength, 0.65).clamp(0.0, 1.0),
+            parallax_depth: finite(self.parallax_depth, 4.0).clamp(0.0, 15.0),
+            parallax_steps: self.parallax_steps.clamp(4, 64),
+            parallax_distance: finite(self.parallax_distance, 40.0).clamp(5.0, 200.0),
             puddle_coverage: finite(self.puddle_coverage, 0.7).clamp(0.0, 1.0),
             puddle_scale: finite(self.puddle_scale, 7.0).clamp(2.0, 30.0),
             road_reflection_range: finite(self.road_reflection_range, 320.0).clamp(80.0, 800.0),

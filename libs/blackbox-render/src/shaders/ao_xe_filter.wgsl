@@ -55,14 +55,35 @@ fn denoise_xe(@builtin(global_invocation_id) id: vec3<u32>) {
                                 edges.w*b.x+edges.x*l.w,edges.y*r.w+edges.w*b.y);
     let beta=select(0.24,1.2,FINAL_PASS);
     var sum=data.x*beta+dot(vec4<f32>(left.x,right.x,top.x,bottom.x),edges);
-    sum+=dot(vec4<f32>(xe_load(p+vec2<i32>(-1,-1)).x,xe_load(p+vec2<i32>(1,-1)).x,
-                       xe_load(p+vec2<i32>(-1,1)).x,xe_load(p+vec2<i32>(1,1)).x),diagonal);
+    let top_left=xe_load(p+vec2<i32>(-1,-1));
+    let top_right=xe_load(p+vec2<i32>(1,-1));
+    let bottom_left=xe_load(p+vec2<i32>(-1,1));
+    let bottom_right=xe_load(p+vec2<i32>(1,1));
+    sum+=dot(vec4<f32>(top_left.x,top_right.x,bottom_left.x,bottom_right.x),diagonal);
     let weight=beta+dot(edges,vec4<f32>(1.0))+dot(diagonal,vec4<f32>(1.0));
+    var packed_bent=data.w;
+    if params.tuning.z>0.5 {
+        let current=unpack_ao_normal(data.w);
+        var bent=current*beta;
+        let neighbors=array(left,right,top,bottom,top_left,top_right,bottom_left,bottom_right);
+        for (var i=0u;i<8u;i++) {
+            let neighbor=neighbors[i];
+            if neighbor.y<=0.0 { continue; }
+            let w=select(edges[i%4u],diagonal[i%4u],i>=4u);
+            bent+=unpack_ao_normal(neighbor.w)*w;
+        }
+        packed_bent=pack_ao_normal(safe_normal(bent,current));
+    }
     if !FINAL_PASS {
-        textureStore(filtered_ao,id.xy,vec4<f32>(sum/weight,data.yzw));
+        textureStore(filtered_ao,id.xy,vec4<f32>(sum/weight,data.yz,packed_bent));
         return;
     }
     let pixel=ao_pixel(p);
     let center=view_at(vec2<f32>(pixel),data.y);
-    textureStore(filtered_ao,id.xy,vec4<f32>(sum/weight,data.y,encode_normal(normal_at(pixel,center))));
+    let normal=normal_at(pixel,center);
+    if params.tuning.z>0.5 {
+        textureStore(filtered_ao,id.xy,vec4<f32>(sum/weight,data.y,pack_ao_normal(normal),packed_bent));
+        return;
+    }
+    textureStore(filtered_ao,id.xy,vec4<f32>(sum/weight,data.y,encode_normal(normal)));
 }

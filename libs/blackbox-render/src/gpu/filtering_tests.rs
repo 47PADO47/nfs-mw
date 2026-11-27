@@ -111,6 +111,7 @@ fn scene_filtering_changes_live_and_round_trips_retained_materials() {
             normal: flat,
             specular: black,
             reflection: None,
+            roughness: None,
             uv_offset: [0.0; 2],
         })
         .unwrap();
@@ -121,6 +122,7 @@ fn scene_filtering_changes_live_and_round_trips_retained_materials() {
             normal: flat,
             specular: black,
             reflection: None,
+            roughness: None,
             uv_offset: [0.0; 2],
         })
         .unwrap();

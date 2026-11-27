@@ -361,7 +361,7 @@ fn shade(in: VsOut, receive_ao: bool) -> Shaded {
 
     if !emissive { out.rgb *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w); }
     if globals.fog_range.w < 0.5 {
-        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,0.0);
+        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,0.0,0.0);
         out.rgb += tex.rgb*diff.rgb*local.diffuse + clamp(spec,vec3(0.0),vec3(1.0))*diff.a*occlusion*local.specular;
     }
     let distance = length(in.world - globals.camera_pos.xyz);
@@ -476,7 +476,7 @@ fn original_pixel(in: VsOut, tex: vec4<f32>) -> Shaded {
         + env * spec.a * diff.a * environment_gain;
     if material.surface.w<=11.5 { raw *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w); }
     if globals.fog_range.w < 0.5 {
-        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,0.0);
+        let local = local_lights(in.world,n,globals.camera_pos.xyz-in.world,32.0,n,0.0,0.0);
         raw += tex.rgb*clamp(material.diffuse_min.rgb+material.diffuse_range.rgb*0.5,vec3(0.05),vec3(1.0))*local.diffuse + spec.rgb*local.specular;
     }
     out.rgb = clamp(raw,vec3(0.0),vec3(1.0));

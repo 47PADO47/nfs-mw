@@ -160,6 +160,7 @@ fn capture(renderer: &mut Renderer, f: &Fixture, blend: BlendMode, supplied_refl
             normal: handles[1],
             specular: handles[2],
             reflection: supplied_reflection.then_some(handles[3]),
+            roughness: None,
             uv_offset: f.uv_offset,
         })
         .expect("reflective surface material");

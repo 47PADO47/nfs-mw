@@ -1,5 +1,6 @@
 //! GPU timestamps for direct and depth-prefiltered AO, including hierarchy construction and excluding readback.
-//! Run with `cargo test -p blackbox-render ao_gpu_timings -- --ignored --nocapture`.
+//! Run with `cargo test -p blackbox-render ao_gpu_timings -- --ignored --nocapture`. XeGTAO is also timed with a
+//! static depth snapshot that lacks the fixture's box, as when a car stands on the road (snapshot copy included).
 
 use super::{AmbientOcclusion, Draw};
 use blackbox_gfx::{AoMethod, AoQuality, AoSettings, FrameParams, Projection};
@@ -55,7 +56,9 @@ fn ao_gpu_timings() {
         .expect("gtao, ssao or xegtao benchmark method");
     for size in [(1920, 1080), (3840, 2160)] {
         let normals = crate::gpu::surface::targets::Targets::new(&device, size).normals;
-        let (color, depth) = fixture(&device, &queue, size);
+        let (color, depth) = fixture(&device, &queue, size, true);
+        let (_, ground) = fixture(&device, &queue, size, false);
+        let mut snapshot = crate::gpu::surface::static_depth::StaticDepth::new(&device, None);
         let frame = FrameParams {
             view: Mat4::IDENTITY,
             projection: Projection::PerspectiveInfiniteReverse {
@@ -73,11 +76,18 @@ fn ao_gpu_timings() {
             shadow_tuning: None,
         };
         for quality in [AoQuality::Low, AoQuality::Medium, AoQuality::High] {
-            for depth_mips in [false, true] {
+            for (depth_mips, hidden) in [(false, false), (true, false), (true, true)] {
+                if hidden && !method.is_xe() {
+                    continue;
+                }
                 let mut times = Vec::new();
                 for index in 0..32 {
                     let mut encoder = device.create_command_encoder(&Default::default());
                     encoder.write_timestamp(&queries, 0);
+                    if hidden {
+                        snapshot.capture(&device, &mut encoder, &ground, size);
+                        snapshot.mark(&device, &mut encoder, &depth);
+                    }
                     ao.encode(
                         &device,
                         &queue,
@@ -91,6 +101,7 @@ fn ao_gpu_timings() {
                             frame: &frame,
                             settings: AoSettings { quality, method, depth_mips, ..Default::default() },
                             jittered: false,
+                            static_depth: hidden.then(|| snapshot.current()).flatten(),
                         },
                     );
                     encoder.write_timestamp(&queries, 1);
@@ -109,7 +120,7 @@ fn ao_gpu_timings() {
                 }
                 times.sort_by(f64::total_cmp);
                 eprintln!(
-                    "{}x{} {method} {quality} depth_mips={depth_mips}: median {:.3} ms, p90 {:.3} ms (24 samples)",
+                    "{}x{} {method} {quality} depth_mips={depth_mips} static_depth={hidden}: median {:.3} ms, p90 {:.3} ms (24 samples)",
                     size.0, size.1, times[12], times[21]
                 );
             }
@@ -117,7 +128,12 @@ fn ao_gpu_timings() {
     }
 }
 
-fn fixture(device: &wgpu::Device, queue: &wgpu::Queue, size: (u32, u32)) -> (wgpu::TextureView, wgpu::TextureView) {
+fn fixture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    size: (u32, u32),
+    with_box: bool,
+) -> (wgpu::TextureView, wgpu::TextureView) {
     let texture = |format, usage| {
         device
             .create_texture(&wgpu::TextureDescriptor {
@@ -148,10 +164,10 @@ fn fixture(device: &wgpu::Device, queue: &wgpu::Queue, size: (u32, u32)) -> (wgp
             @fragment fn fs(@builtin(position) p: vec4<f32>) -> @builtin(frag_depth) f32 {{
                 let uv = p.xy / vec2<f32>({}.0, {}.0);
                 if uv.y < 0.25 {{ return 0.0; }}
-                if uv.x > 0.35 && uv.x < 0.65 && uv.y < 0.6 {{ return 0.1 / 6.0; }}
+                if {} && uv.x > 0.35 && uv.x < 0.65 && uv.y < 0.6 {{ return 0.1 / 6.0; }}
                 return 0.1 / (3.0 + (1.0 - uv.y) * 20.0);
             }}",
-                size.0, size.1
+                size.0, size.1, with_box
             )
             .into(),
         ),

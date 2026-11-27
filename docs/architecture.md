@@ -112,7 +112,7 @@ bevy_winit window ─► PreUpdate: input/ resolves devices into actions (Action
     the shorthands `fps 60` / `vsync off` / `metrics advanced`, and `resolution <w> <h>`. Changes last for
     the run; the config file is not written.
   - The car viewer adds `car <folder>`, `garage` and `freecam` (orbit ↔ free camera). The world viewer adds
-    `drive`, `reset`, `repair`, `damage`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug collisions`, `garage` and
+    `drive`, `reset`, `repair`, `damage`, `tp`, `goto`, `cam`, `freecam`, `pos`, `props`, `debug collisions`, `garage` and
     `coop on <CAR> [arrows|pad]` / `coop off` (a co-op player 2, [co-op career](specs/coop-career.md)) ([Driving](#driving-view-world---drive)).
     Scenes offer commands through `Scene::commands` and `Scene::command`; "spawn AI" arrives with milestone 7.
   - `--exec "<command>"` (repeatable) runs commands at startup, like Quake's `+exec`; `--open-console`
@@ -280,7 +280,7 @@ and prop timers. See [physics timing](physics-timing.md) for ordering and frame-
   second (they are recorded whether or not they are drawn); the scene status line counts them. A wall the car
   cannot see (the playtest report of walls on leaves, curbs and sidewalks) shows up as a marker with nothing
   visible behind it.
-- **Console:** `drive [car]`, `reset`, `tp <x> <y>`, `goto <x> <y> [height]`, `freecam`, `pos`, `props [radius]`,
+- **Console:** `drive [car]`, `reset`, `tp <x> <y>`, `goto <x> <y> [height]`, `cam <x> <y> <z> <heading> <pitch> [fov]` (the exact pose the status line's `cam` line prints), `freecam`, `pos`, `props [radius]`,
   `debug collisions` and `garage` (every car for now; later the player's own). `--drive-script "3:throttle=1;1:steer=0.5,throttle=0.6;0.1:reset"`
   (hidden option) drives with a script: keys `throttle`, `brake`, `steer`, `handbrake`, `nos`, `up`, `down`,
   `reset`. With `--screenshot` the script runs in batches, waits for the map around the car to load and the

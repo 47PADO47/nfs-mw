@@ -269,6 +269,7 @@ fn local_highlight_responds_to_the_strength_control() {
             normal,
             specular,
             reflection: None,
+            roughness: None,
             uv_offset: [0.0; 2],
         })
         .expect("normal material");

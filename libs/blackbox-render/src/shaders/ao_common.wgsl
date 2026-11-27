@@ -6,7 +6,9 @@ struct AoParams {
     sampling: vec4<u32>, // resolution divisor, slices, steps per side, comparison
     fog: vec4<f32>, // frames of stepped sample phases (zero: fixed), unused, XeGTAO depth weights, temporal phase
     view: mat4x4<f32>,
-    tuning: vec4<f32>, // XeGTAO thin occluder compensation, shading normal guard (min cosine to the depth normal), unused
+    // XeGTAO thin occluder compensation, shading normal guard (min cosine to the depth normal), bent normals,
+    // static depth search (1: XeGTAO also reads static_depth)
+    tuning: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> params: AoParams;
 @group(0) @binding(1) var scene_depth: texture_depth_2d;
@@ -77,6 +79,24 @@ fn decode_normal(oct: vec2<f32>) -> vec3<f32> {
     if n.z < 0.0 { n = vec3<f32>((1.0 - abs(n.yx)) * sign_nonzero(n.xy), n.z); }
     return normalize(n);
 }
+// Store two seven-bit octahedral coordinates in one FP16 channel. Map the bits
+// into finite, normal half floats so the storage conversion is lossless.
+fn pack_ao_normal(n: vec3<f32>) -> f32 {
+    let oct = vec2<u32>(round(clamp(encode_normal(n)*0.5+0.5, vec2(0.0), vec2(1.0))*127.0));
+    let bits = oct.x | (oct.y<<7u);
+    let exponent = (127u+(bits>>10u))<<23u;
+    return bitcast<f32>(exponent | ((bits&1023u)<<13u));
+}
+fn unpack_ao_normal(packed: f32) -> vec3<f32> {
+    let value = bitcast<u32>(packed);
+    let bits = (((value>>23u)-127u)<<10u) | ((value>>13u)&1023u);
+    let oct = vec2<f32>(f32(bits&127u),f32((bits>>7u)&127u))*(2.0/127.0)-1.0;
+    return decode_normal(oct);
+}
+fn ao_geometry_normal(value: vec4<f32>) -> vec3<f32> {
+    if params.tuning.z > 0.5 { return unpack_ao_normal(value.z); }
+    return decode_normal(value.zw);
+}
 fn ao_pixel(pixel: vec2<i32>) -> vec2<i32> {
     return min(pixel * i32(params.sampling.x) + vec2<i32>(i32(params.sampling.x / 2u)),
                vec2<i32>(params.sizes.xy) - 1);
@@ -85,7 +105,7 @@ fn ao_pixel(pixel: vec2<i32>) -> vec2<i32> {
 // Normal agreement further prevents filtering across corners.
 fn surface_weight(center: vec3<f32>, normal: vec3<f32>, pixel: vec2<i32>, data: vec4<f32>) -> f32 {
     if data.y <= 0.0 { return 0.0; }
-    return geometry_weight(center, normal, view_at(vec2<f32>(ao_pixel(pixel)), data.y), decode_normal(data.zw));
+    return geometry_weight(center, normal, view_at(vec2<f32>(ao_pixel(pixel)), data.y), ao_geometry_normal(data));
 }
 fn geometry_weight(center: vec3<f32>, normal: vec3<f32>, neighbor: vec3<f32>, neighbor_normal: vec3<f32>) -> f32 {
     let delta = neighbor - center;

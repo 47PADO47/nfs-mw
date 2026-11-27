@@ -7,6 +7,16 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings
     super::super::controls::checkbox(ui, &mut lab.options.world_skylight,
         "Directional sky and ground light", defaults.world_skylight)
         .on_hover_text("Replaces part of ambient light with broad sky colour and ground bounce. Keeps baked shading and AO. No ray tracing or frame history.");
+    ui.add_enabled_ui(
+        lab.options.shadow_projection.is_none() && lab.options.world_skylight && lab.options.world_skylight_strength > 0.0
+            && lab.caps.is_none_or(|caps| caps.ambient_occlusion)
+            && settings.ao != AoQuality::Off && settings.ao_intensity.0 > 0 && settings.ao_method.is_xe(),
+        |ui| {
+            super::super::controls::checkbox(ui, &mut lab.options.bent_normal_ao,
+                "Directional AO (bent normals)", defaults.bent_normal_ao)
+                .on_hover_text("Uses XeGTAO to steer sky and ground light toward open space. Requires XeGTAO and directional sky and ground light.");
+        },
+    );
     if lab.options.world_skylight && lab.options.shadow_projection.is_some() {
         ui.small(
             "Select Enhanced visual style to use this lighting. Original PC projection keeps its authored lighting.",

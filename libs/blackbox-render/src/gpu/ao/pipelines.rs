@@ -6,7 +6,7 @@ pub(super) struct Pipelines {
     pub xe_filter: wgpu::ComputePipeline,
     pub xe_intermediate: wgpu::ComputePipeline,
     pub filter: wgpu::ComputePipeline,
-    pub resolve: wgpu::RenderPipeline,
+    pub resolve: [wgpu::RenderPipeline; 2],
     pub depth_first: wgpu::ComputePipeline,
     pub depth_reduce: wgpu::ComputePipeline,
     pub depth_layout: wgpu::BindGroupLayout,
@@ -46,6 +46,8 @@ impl Pipelines {
                 storage(2, wgpu::TextureFormat::Rgba16Float),
                 sampled(4, wgpu::TextureSampleType::Float { filterable: true }),
                 sampled(5, wgpu::TextureSampleType::Float { filterable: false }),
+                sampled(6, wgpu::TextureSampleType::Float { filterable: false }),
+                sampled(7, wgpu::TextureSampleType::Float { filterable: false }),
             ],
         });
         let layout = |label, group: &wgpu::BindGroupLayout| {
@@ -91,6 +93,20 @@ impl Pipelines {
                 cache,
             })
         };
+        let fragment_texture = |binding, sample_type| wgpu::BindGroupLayoutEntry {
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ..sampled(binding, sample_type)
+        };
+        let resolve_group = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("AO resolve inputs"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry { visibility: wgpu::ShaderStages::FRAGMENT, ..uniform },
+                fragment_texture(1, wgpu::TextureSampleType::Depth),
+                fragment_texture(2, wgpu::TextureSampleType::Float { filterable: true }),
+                fragment_texture(4, wgpu::TextureSampleType::Float { filterable: true }),
+            ],
+        });
+        let resolve_layout = layout("AO resolve", &resolve_group);
         Self {
             xe_intermediate: device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("XeGTAO intermediate spatial denoise"),
@@ -125,30 +141,32 @@ impl Pipelines {
             depth_reduce: depth_pipeline(false),
             depth_layout,
             filter: compute(1, "denoise", &filter_pipeline_layout),
-            resolve: device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("ambient visibility resolve"),
-                layout: None,
-                vertex: wgpu::VertexState {
-                    module: &shaders[2],
-                    entry_point: Some("vs_main"),
-                    compilation_options: Default::default(),
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shaders[2],
-                    entry_point: Some("fs_main"),
-                    compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::R8Unorm,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::RED,
-                    })],
-                }),
-                primitive: Default::default(),
-                depth_stencil: None,
-                multisample: Default::default(),
-                multiview_mask: None,
-                cache,
+            resolve: [wgpu::TextureFormat::R8Unorm, wgpu::TextureFormat::Rgba8Unorm].map(|format| {
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("ambient visibility resolve"),
+                    layout: Some(&resolve_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shaders[2],
+                        entry_point: Some("vs_main"),
+                        compilation_options: Default::default(),
+                        buffers: &[],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shaders[2],
+                        entry_point: Some("fs_main"),
+                        compilation_options: Default::default(),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format,
+                            blend: None,
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    primitive: Default::default(),
+                    depth_stencil: None,
+                    multisample: Default::default(),
+                    multiview_mask: None,
+                    cache,
+                })
             }),
         }
     }

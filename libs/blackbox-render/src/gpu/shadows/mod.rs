@@ -243,12 +243,15 @@ impl Renderer {
             true => settings.lighting_debug as u32 as f32,
             false => 0.0,
         };
+        // Lane y: texture variation on (`scene.wgsl`).
+        params.debug[1] = f32::from(u8::from(settings.texture_variation));
         if self.graphics.ao.active()
             && self.screen_lighting_active(frame)
             && let Some(surfaces) = &self.surfaces
         {
             let size = surfaces.targets.size;
-            params.ambient = [size.0 as f32, size.1 as f32, 1.0, 0.0];
+            let directional = self.graphics.ao.directional() && params.world[3] > 0.0;
+            params.ambient = [size.0 as f32, size.1 as f32, 1.0, f32::from(u8::from(directional))];
         }
         if !stats.supported {
             params.options[0] = 0.0;

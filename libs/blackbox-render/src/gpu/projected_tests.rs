@@ -80,6 +80,7 @@ fn material(r: &mut Renderer, textures: [TextureHandle; 3], reflection: Option<T
         normal: textures[1],
         specular: textures[2],
         reflection,
+        roughness: None,
         uv_offset: [0.0; 2],
     })
     .unwrap()
@@ -194,6 +195,7 @@ fn projected_capture_normal_family_uses_verified_fixed_function_colour() {
                 normal: flat,
                 specular: mask,
                 reflection: None,
+                roughness: None,
                 uv_offset: [0.0; 2],
             })
             .unwrap();

@@ -62,6 +62,7 @@ impl Renderer {
             self.textures.remove(handle.raw());
             self.texture_views.remove(&handle.raw());
             self.texture_scrolls.remove(&handle.raw());
+            self.texture_params.remove(&handle.raw());
             self.redirects.forget(handle.raw());
             if let Some(rt) = &mut self.ray_reflections {
                 rt.remove_texture(handle.raw());
@@ -111,6 +112,16 @@ impl Renderer {
     }
 
     pub fn set_texture_uv_offset(&mut self, handle: TextureHandle, offset: [f32; 2]) {
+        self.write_texture_params(handle, |p| [p[0], p[1]] = offset);
+    }
+
+    /// The variation cell of a tiled texture, in repeats (`texture_scroll.z` in `scene.wgsl`); 0 is off.
+    pub fn set_texture_variation(&mut self, handle: TextureHandle, cell: f32) {
+        self.write_texture_params(handle, |p| p[2] = cell.max(0.0));
+    }
+
+    /// Change the per-texture uniform (UV offset in xy, variation cell in z), creating it on first use.
+    fn write_texture_params(&mut self, handle: TextureHandle, change: impl FnOnce(&mut [f32; 4])) {
         let Some(view) = self.texture_views.get(&handle.raw()) else { return };
         if !self.texture_scrolls.contains_key(&handle.raw()) {
             let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -130,7 +141,8 @@ impl Renderer {
                 *slot = group;
             }
         }
-        let words = [offset[0], offset[1], 0.0, 0.0];
-        self.queue.write_buffer(&self.texture_scrolls[&handle.raw()], 0, bytemuck::cast_slice(&words));
+        let words = self.texture_params.entry(handle.raw()).or_default();
+        change(words);
+        self.queue.write_buffer(&self.texture_scrolls[&handle.raw()], 0, bytemuck::cast_slice(&words[..]));
     }
 }

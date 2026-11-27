@@ -2,7 +2,7 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 15] = [
+const SHADERS: [(&str, &str); 16] = [
     ("screen displacement", include_str!("shaders/screen_distortion.wgsl")),
     ("scene", include_str!("shaders/scene.wgsl")),
     ("resolve", include_str!("shaders/resolve.wgsl")),
@@ -18,6 +18,7 @@ const SHADERS: [(&str, &str); 15] = [
     ("window", include_str!("shaders/window.wgsl")),
     ("motion", include_str!("shaders/motion.wgsl")),
     ("reflection depth", include_str!("shaders/reflection_depth.wgsl")),
+    ("static depth", include_str!("shaders/static_depth.wgsl")),
 ];
 
 fn entry_points(name: &str) -> Vec<String> {

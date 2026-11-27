@@ -10,15 +10,17 @@ fn vs_main(@builtin(vertex_index) vertex: u32) -> @builtin(position) vec4<f32> {
 @fragment
 fn fs_main(@builtin(position) fragment: vec4<f32>) -> @location(0) vec4<f32> {
     let pixel = vec2<i32>(fragment.xy);
-    if params.sampling.w != 0u && fragment.x < params.sizes.x * 0.5 { return vec4<f32>(1.0); }
+    if params.sampling.w != 0u && fragment.x < params.sizes.x * 0.5 { return vec4<f32>(1.0,0.0,0.0,0.0); }
     let center = position_at(pixel);
-    if center.z == 0.0 { return vec4<f32>(1.0); }
+    if center.z == 0.0 { return vec4<f32>(1.0,0.0,0.0,0.0); }
     let normal = normal_at(pixel, center);
     let position = (fragment.xy - 0.5) / f32(params.sampling.x) - f32(params.sampling.x / 2u) / f32(params.sampling.x);
     let base = vec2<i32>(floor(position));
     let fraction = fract(position);
     var sum = 0.0;
     var weight_sum = 0.0;
+    var bent = vec3(0.0);
+    let directional = params.tuning.z > 0.5;
     for (var y = 0; y <= 1; y++) {
         for (var x = 0; x <= 1; x++) {
             let neighbor = base + vec2<i32>(x, y);
@@ -31,11 +33,17 @@ fn fs_main(@builtin(position) fragment: vec4<f32>) -> @location(0) vec4<f32> {
             let weight = surface_weight(center, normal, neighbor, value) * bilinear.x * bilinear.y;
             sum += value.x * weight;
             weight_sum += weight;
+            if directional && weight > 0.0 { bent += unpack_ao_normal(value.w)*weight; }
         }
     }
-    if weight_sum < 1e-4 { return vec4<f32>(1.0); }
+    if weight_sum < 1e-4 { return vec4<f32>(1.0,0.0,0.0,0.0); }
     let occlusion = 1.0 - clamp(sum / weight_sum, 0.0, 1.0);
     // A visibility term, consumed by ambient lighting before fog. Direct light is untouched.
     let factor = 1.0 - params.effect.y * occlusion;
-    return vec4<f32>(factor, 0.0, 0.0, 1.0);
+    if directional {
+        let direction = safe_normal(bent,vec3(0.0,0.0,1.0));
+        let strength = smoothstep(0.015,0.25,occlusion)*params.effect.y;
+        return vec4<f32>(factor,encode_normal(direction)*0.5+0.5,strength);
+    }
+    return vec4<f32>(factor,0.0,0.0,0.0);
 }

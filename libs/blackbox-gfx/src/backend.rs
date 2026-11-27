@@ -132,6 +132,10 @@ pub trait RenderBackend {
     /// Set the authored diffuse UV translation, in texture repeats.
     fn set_texture_uv_offset(&mut self, _texture: TextureHandle, _offset: [f32; 2]) {}
 
+    /// Break up the visible repetition of a tiled texture when texture variation is on: `cell` is the size, in texture
+    /// repeats, over which the variation changes. 0 leaves the texture as authored.
+    fn set_texture_variation(&mut self, _texture: TextureHandle, _cell: f32) {}
+
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle;
     fn destroy_mesh(&mut self, handle: MeshHandle);
 

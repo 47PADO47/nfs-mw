@@ -246,6 +246,7 @@ Rendering concepts
     a5b1686c7ea37788eeb3576b5be47f7c03db532c. Full MIT notices are retained in
     ao_xegtao.wgsl and ao_xe_filter.wgsl. The depth weighting adaptation in ao_depth.wgsl
     is covered by its accompanying Intel MIT notice. See docs/ambient-occlusion.md for deviations.
+    The optional bent-normal moment uses the same XeGTAO MainPass implementation of GTAO Algorithm 2.
     Its depth-prefiltering discussion also informed the independent linear-depth hierarchy in
     libs/blackbox-render/src/shaders/ao_depth.wgsl and gpu/ao/depth.rs.
   Quasar — https://github.com/dev25bansal-ops/quasar — MIT.

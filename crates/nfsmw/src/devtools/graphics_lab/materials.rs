@@ -10,6 +10,50 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         defaults.appearance.lighting.enhanced_windows,
     )
     .on_hover_text("Shallow display recesses, soft reflections and selected interior lights at dusk.");
+    controls::checkbox(
+        ui,
+        &mut lab.options.texture_variation,
+        "Texture variation (experimental)",
+        defaults.appearance.lighting.texture_variation,
+    )
+    .on_hover_text("Breaks up the repeating grid of tiled grass, hillside, cliff and concrete textures. Road strips, buildings and decals keep their authored look. One extra texture read on those surfaces.");
+    let lighting = &defaults.appearance.lighting;
+    controls::checkbox(ui, &mut lab.options.parallax, "Parallax relief (experimental)", lighting.parallax)
+        .on_hover_text("Gives depth to normal-mapped surfaces whose texture mod stores a height in the normal map's alpha, such as cobbles. Other surfaces are unchanged. Shapes, shadows and reflections keep the flat surface.");
+    ui.add_enabled_ui(lab.options.parallax, |ui| {
+        controls::slider(ui, &mut lab.options.parallax_depth, 0.0..=15.0, "Relief depth (cm)", lighting.parallax_depth);
+        ui.horizontal(|ui| {
+            ui.add(egui::Slider::new(&mut lab.options.parallax_steps, 4..=64).text("Parallax samples"));
+            controls::reset(ui, &mut lab.options.parallax_steps, lighting.parallax_steps, "Parallax samples");
+        });
+        controls::slider(
+            ui,
+            &mut lab.options.parallax_distance,
+            5.0..=200.0,
+            "Parallax fade distance (m)",
+            lighting.parallax_distance,
+        );
+    });
+    ui.add_enabled_ui(lab.options.shadow_projection.is_none(), |ui| {
+        controls::checkbox(
+            ui,
+            &mut lab.options.world_specular,
+            "Roughness-based world highlights",
+            defaults.appearance.lighting.world_specular,
+        )
+        .on_hover_text("Uses material roughness for sunlight and lamp highlights on normal-mapped scenery.");
+        ui.add_enabled_ui(lab.options.world_specular, |ui| {
+            controls::checkbox(
+                ui,
+                &mut lab.options.world_specular_aa,
+                "World highlight anti-aliasing",
+                defaults.appearance.lighting.world_specular_aa,
+            )
+            .on_hover_text(
+                "Softens highlights where the normal changes sharply within a pixel. Compare with DLSS on or off.",
+            );
+        });
+    });
     ui.horizontal(|ui| {
         egui::ComboBox::from_label("Texture filtering").selected_text(settings.texture_filtering.label()).show_ui(
             ui,

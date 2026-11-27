@@ -26,6 +26,7 @@ impl WorldScene {
         ensure!(self.start_at_point(spot.jump), "No player car");
         self.extra.previous_location = Some(previous);
         self.extra.teleport_heading = None;
+        self.extra.teleport_anywhere = false;
         self.view = View::Chase;
         self.extra.freecam = false;
         self.extra.selected_bookmark = None;

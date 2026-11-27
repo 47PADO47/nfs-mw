@@ -114,8 +114,18 @@ impl WorldScene {
         let at = drive.position();
         let own = (drive.has_sim() && (at.x - request.near[0]).hypot(at.y - request.near[1]) < 1.0).then_some(at.z);
         let tops = [own.map(|z| z + RESET_ABOVE), Some(estimate.unwrap_or(0.0) + 40.0)];
+        // A saved spot: the ground right there, whatever its surface, facing the saved way.
+        let saved = match self.extra.teleport_anywhere {
+            true => tops.into_iter().flatten().find_map(|top| road::probe(collision, request.near[0], request.near[1], top)),
+            false => None,
+        }
+        .map(|surface| Spawn {
+            position: Vec3::new(request.near[0], request.near[1], surface.height),
+            heading: self.extra.teleport_heading.unwrap_or_else(|| drive.heading()),
+        });
         let found = match request.exact {
             Some(spawn) if drive.spawn(spawn, collision, surfaces) => Some(spawn),
+            _ if saved.is_some_and(|spawn| drive.spawn(spawn, collision, surfaces)) => saved,
             _ => tops.into_iter().flatten().find_map(|top| {
                 road::find(request.near, |x, y| road::probe(collision, x, y, top))
                     .map(|mut spawn| {
@@ -131,6 +141,7 @@ impl WorldScene {
             }),
         };
         self.extra.teleport_heading = None;
+        self.extra.teleport_anywhere = false;
         match found {
             Some(spawn) => log_placed(&drive.car_name, spawn),
             // No road in reach: the last place the car stood on one, if there is any.

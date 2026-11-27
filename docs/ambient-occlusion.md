@@ -216,7 +216,7 @@ authored normals and reverse-Z geometry, decorrelated per-pixel sample phases, n
 each unobstructed slice and a small coplanar rejection bias to preserve open slopes,
 engine distance fade and common R8
 ambient composition. There are no bent
-normals, TAA, history accumulation or animated noise. The port does not promise the
+normals in its initial port, TAA, history accumulation or animated noise. The port does not promise the
 quality or cost of Intel's full renderer. Open surfaces, ground contacts, material
 coverage, repeated frames and live method switches are covered by GPU regressions.
 
@@ -251,6 +251,29 @@ Together they cut the tunnel pixels darkened by more than 40 % from 4.77 % to 1.
 0.951), with no change on the open highway at `--at 2418,3415` (0.36 % either way) and no measurable frame time cost
 (10.9 to 11.1 ms in interleaved runs). Measured against the same frame with AO off. `BLACKBOX_AO_NORMAL_GUARD` and `BLACKBOX_AO_THIN_OCCLUDERS` (0 to 1, 0 turns each off) override
 them for comparisons.
+
+## Static surfaces hidden by a car (XeGTAO)
+
+A car parked on the sidewalk against a stone wall (`--at 1291,567`, zone T4) erased the crease occlusion where the
+wall meets the sidewalk, in a band along the car's silhouette. The wall base just above the bonnet is occluded by the
+sidewalk in front of it, and that sidewalk is hidden behind the car: the horizon search found the bonnet instead, a
+metre nearer the camera, which the falloff and the thin occluder compensation mostly discount. In the AO view a box
+along the crease above the bonnet read 0.88 visibility with the car and 0.74 at the same camera without it.
+
+The prepass now draws the static scene first, copies its depth to an R32F image, then draws the dynamic models
+(`Lit`, `Glossy` and `Character` materials) over it and marks the 16-pixel tiles they cover, with a max mip chain of
+those tiles. This happens only while XeGTAO is active and in a frame that drew a dynamic model. A static receiver with
+a covered tile within its search radius tests, at every tap in a covered tile, the static surface behind the model
+with the same falloff; the horizon takes the higher of the two. The model still occludes what is around it, and a
+receiver on the model itself searches the full depth as before. Frames without a dynamic model, and every pixel
+without one in its reach, are unchanged. The same box now reads 0.76. `BLACKBOX_AO_STATIC_DEPTH=0` turns it off for
+comparisons.
+
+The static depth costs four bytes per scene pixel (about 11 MiB at DLSS Balanced 4K). With the synthetic benchmark's
+box treated as a car (`BLACKBOX_AO_BENCH_METHOD=xegtao`, RTX 5070 Ti, Vulkan, High with the depth prefilter, snapshot
+and tile marking included) the AO passes went from 1.46 to 1.65 ms at 3840x2160 and from 0.41 to 0.47 ms at 1920x1080.
+Without the tile gates the extra reads cost several milliseconds. GPU tests cover the restored crease (no pixel
+brightens), unchanged static scenes and frame-to-frame variation under a temporal upscaler (4.0 to 3.8/255).
 
 ## Larger alternatives
 
@@ -352,3 +375,22 @@ Tried and not kept: skipping the exact-depth confirmation of a coarse blocker wh
 either: its cost is the scattered full-resolution depth reads of 64 taps per pixel. Fewer steps, fewer slices or a
 lower resolution would change the AO beyond the screenshot noise floor (it is deterministic), so the budget was left
 as it is.
+
+
+## Optional XeGTAO bent normals
+
+The existing horizon search also integrates the first moment of the visible
+arc in each slice, following Intel XeGTAO's implementation of GTAO Algorithm 2.
+The open-arc moment compensates for bias from the finite slice count. The
+direction is converted to world space and uses the existing XeGTAO edge
+filter. The half-resolution textures pack the two octahedral components into
+one exact FP16 payload. Bilateral resolve keeps scalar visibility in red,
+stores the direction in green and blue, and stores the blend weight in alpha.
+The resolved texture switches from R8 to RGBA8 while the option is active.
+
+Temporal XeGTAO reuses its depth, motion and normal history rejection and
+accepts history directions only when they agree with the current frame.
+Disoccluded and open surfaces lose the effect immediately. AO intensity and
+distance fade also limit the directional response. Only diffuse world ambient
+receivers use the direction. The scalar mask remains the source for specular
+occlusion. The Original PC preset and other AO methods retain scalar AO.

@@ -124,9 +124,41 @@ fn material_emission(shaded: vec4<f32>, source: vec4<f32>, in: VsOut) -> vec4<f3
     return extended_output(vec4<f32>(shaded.rgb + source.rgb * source.a * in.emission * (1.0 - fog), shaded.a));
 }
 
+// Texture variation (graphics lab): a tiled texture the game flagged (`texture_scroll.z`, the cell size in repeats) is
+// read at one of eight virtual offsets picked by a smooth value noise over its UVs, blending into the next offset where
+// the noise moves between them (after Quilez, "Texture repetition", technique 3). Both reads use the pixel's own
+// (biased) gradients, so they match the single read in mip level. Off, or unflagged: the one authored read.
+fn variation_hash(p: vec2<f32>) -> f32 { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+fn variation_noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    let a = mix(variation_hash(i), variation_hash(i + vec2(1.0, 0.0)), u.x);
+    let b = mix(variation_hash(i + vec2(0.0, 1.0)), variation_hash(i + vec2(1.0, 1.0)), u.x);
+    return mix(a, b, u.y);
+}
+fn sample_diffuse(uv: vec2<f32>) -> vec4<f32> {
+    let bias = exp2(globals.fog_range.z);
+    let gx = dpdx(uv) * bias;
+    let gy = dpdy(uv) * bias;
+    if texture_scroll.z <= 0.0 || shadow_data.debug.y < 0.5 {
+        return textureSampleBias(diffuse, diffuse_sampler, uv, globals.fog_range.z);
+    }
+    // A strip texture (one side longer) repeats only along its length; across it runs an authored edge, so shifts stay
+    // on the long axis. A square texture shifts both ways.
+    let size = vec2<f32>(textureDimensions(diffuse));
+    let axes = select(select(vec2(1.0, 0.0), vec2(0.0, 1.0), size.y > size.x), vec2(1.0), size.x == size.y);
+    let k = variation_noise(uv / texture_scroll.z) * 8.0;
+    let i = floor(k);
+    let f = fract(k);
+    let a = textureSampleGrad(diffuse, diffuse_sampler, uv + sin(vec2(3.0, 7.0) * i) * axes, gx, gy);
+    let b = textureSampleGrad(diffuse, diffuse_sampler, uv + sin(vec2(3.0, 7.0) * (i + 1.0)) * axes, gx, gy);
+    return mix(a, b, smoothstep(0.2, 0.8, f - 0.1 * dot(a.rgb - b.rgb, vec3(1.0))));
+}
+
 fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
     if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
-    let source = textureSampleBias(diffuse, diffuse_sampler, in.uv + texture_scroll.xy, globals.fog_range.z);
+    let source = sample_diffuse(in.uv + texture_scroll.xy);
     let texel = vec4<f32>(source.rgb, select(source.a, 1.0, MASKED_EMISSIVE));
     if WORLD_KIND > 0u && globals.light_dir.w > 0.5 {
         return material_emission(world_pixel(in, texel, receive_ao), source, in);
@@ -142,7 +174,7 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
     if receive_ao && FOG && globals.fog_range.w < 0.5 { ao = ambient_visibility(in.clip.xy); }
     if PRELIT {
         lit = min(base.rgb * 2.0, vec3<f32>(1.0));
-        if FOG { lit *= prelit_illumination(in.color.rgb, receiver, ao, scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) * cloud_visibility(in.world)); }
+        if FOG { lit *= prelit_illumination(in.color.rgb, world_ambient_normal(receiver,in.clip.xy,ao), ao, scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) * cloud_visibility(in.world)); }
     } else {
         let n = normalize(in.normal);
         let diffuse_light = max(dot(n, -globals.light_dir.xyz), 0.0);
@@ -152,7 +184,7 @@ fn shade(in: VsOut, receive_ao: bool) -> vec4<f32> {
         let on = globals.surface_ambient.w > 0.5;
         let ambient = select(vec3<f32>(0.35), globals.surface_ambient.xyz, on);
         let diffuse = select(vec3<f32>(0.65), globals.surface_diffuse.xyz, on);
-        lit = base.rgb * (ambient * world_environment(n) * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) * cloud_visibility(in.world) + back_light * ao);
+        lit = base.rgb * (ambient * world_environment(world_ambient_normal(n,in.clip.xy,ao)) * ao + diffuse * diffuse_light * scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow) * cloud_visibility(in.world) + back_light * ao);
     }
     lit *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
     if globals.fog_range.w < 0.5 { lit += texel.rgb*local_lighting(in.world,receiver); }

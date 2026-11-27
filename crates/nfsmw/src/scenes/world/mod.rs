@@ -8,6 +8,7 @@ mod camera_bike;
 mod camera_choice;
 mod camera_cycle;
 mod camera_original;
+mod camera_pose;
 mod car_light_flares;
 mod car_lights;
 mod car_loader;

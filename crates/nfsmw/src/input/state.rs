@@ -128,6 +128,16 @@ impl ActionState {
         out
     }
 
+    /// Adds a binding's value that a tools panel lets through to the free camera (`camera_pass.rs`), held to -1..1 as
+    /// [`Self::update`] holds it.
+    pub(super) fn add_passed(&mut self, action: Action, value: f32) {
+        let slot = &mut self.now[action.index()];
+        *slot += value;
+        if action.is_bounded() {
+            *slot = slot.clamp(-1.0, 1.0);
+        }
+    }
+
     /// The action's value: a signed amount for axes, 0 or 1 for buttons.
     pub fn value(&self, action: Action) -> f32 {
         self.now[action.index()]
