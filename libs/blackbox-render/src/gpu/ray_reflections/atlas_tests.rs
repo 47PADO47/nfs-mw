@@ -48,7 +48,9 @@ fn bounded_road_cache_preserves_high_frequency_texture_detail() {
     });
     let mut variances = Vec::new();
     for mut atlas in [Atlas::new(&gpu.device), Atlas::detail(&gpu.device)] {
-        assert_eq!(atlas.layer(&gpu.device, &gpu.queue, 1, &source), Some(0));
+        let mut upload = gpu.device.create_command_encoder(&Default::default());
+        assert_eq!(atlas.layer(&gpu.device, &mut upload, 1, &source), Some(0));
+        gpu.queue.submit([upload.finish()]);
         let group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("atlas detail test"),
             layout: &pipeline.get_bind_group_layout(0),

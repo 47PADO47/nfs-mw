@@ -138,7 +138,7 @@ impl Renderer {
             ray.enabled = self.experiments.ray_road_reflections;
         }
         if let Some(timing) = &mut self.timing {
-            timing.stamp(encoder, 10);
+            timing.open(encoder, super::super::timing::pair::ROAD);
         }
         let previous = normal.water.screen.color.clone();
         normal.water.screen.capture(&self.device, encoder, target, depth);
@@ -188,7 +188,7 @@ impl Renderer {
         }
         drop(pass);
         if let Some(timing) = &mut self.timing {
-            timing.stamp(encoder, 11);
+            timing.close(encoder, super::super::timing::pair::ROAD);
         }
     }
 }

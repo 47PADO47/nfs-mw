@@ -338,11 +338,24 @@ impl PostChain {
 
     /// Record every pass. The last one writes `output`: the output copy follows the passes only when
     /// [`plan::needs_resolve`] says the last pass cannot write it exactly.
+    /// [`Self::encode_timed`] without timers, for the tests.
+    #[cfg(test)]
     pub(super) fn encode(
         &mut self,
         ctx: &PassContext<'_>,
         encoder: &mut wgpu::CommandEncoder,
         output: (&wgpu::TextureView, wgpu::TextureFormat),
+    ) {
+        self.encode_timed(ctx, encoder, output, &mut |_, _, _, _| {});
+    }
+
+    /// [`Self::encode`], calling `timer(encoder, index, name, start)` around each pass of the chain, in order.
+    pub(super) fn encode_timed(
+        &mut self,
+        ctx: &PassContext<'_>,
+        encoder: &mut wgpu::CommandEncoder,
+        output: (&wgpu::TextureView, wgpu::TextureFormat),
+        timer: &mut dyn FnMut(&mut wgpu::CommandEncoder, usize, &'static str, bool),
     ) {
         let Self { passes, resolve, temporal, scratch, scratch_idle, signature, extents, steps, fuse, warming, .. } =
             self;
@@ -390,7 +403,7 @@ impl PostChain {
         let mut written: [Option<ScratchKey>; 2] = [None, None];
         // Once a pass has upscaled, every pass after it writes the output size.
         let mut upscaled = false;
-        for (pass, step) in chain.into_iter().zip(steps.iter().copied()) {
+        for (index, (pass, step)) in chain.into_iter().zip(steps.iter().copied()).enumerate() {
             if let Target::Scratch(slot) = step.target {
                 let size = match plan::written_extent(upscaled, pass.extent()) {
                     Extent::Render => scene.size,
@@ -418,7 +431,10 @@ impl PostChain {
                 }
             };
             let io = PassIo { input, input_size, output: view, output_format: format, output_size: size };
+            let name = pass.name();
+            timer(encoder, index, name, true);
             pass.encode(ctx, &io, encoder);
+            timer(encoder, index, name, false);
             upscaled |= pass.extent() == Extent::Output;
         }
     }

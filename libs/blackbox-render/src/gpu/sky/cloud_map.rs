@@ -130,7 +130,7 @@ impl CloudMap {
             })
         });
         if let Some(timing) = timing.as_mut() {
-            timing.stamp(encoder, 8);
+            timing.open(encoder, super::super::timing::pair::CLOUDS);
         }
         let load = match rebuild {
             Rebuild::Full => wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -155,7 +155,7 @@ impl CloudMap {
         pass.draw(0..3, 0..1);
         drop(pass);
         if let Some(timing) = timing {
-            timing.stamp(encoder, 9);
+            timing.close(encoder, super::super::timing::pair::CLOUDS);
         }
         // Every pass marches from this eye, so the distance moved is measured from the last pass of any kind.
         self.origin = origin;

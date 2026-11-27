@@ -158,7 +158,10 @@ impl CarRig {
         let lights = CarLights::for_model(&model);
         let hinges = nfsmw_data::car::mods::hinged::of(&model.name);
         let driver_poses = (poses::steer_count(&model.placements), poses::has_back(&model.placements));
-        let flares = super::super::car_light_flares::CarLightFlares::upload(renderer, &model);
+        let flares = {
+            let _trace = blackbox_trace::scope("Car upload: light flares");
+            super::super::car_light_flares::CarLightFlares::upload(renderer, &model)
+        };
         Self {
             background_actor,
             detail_radius: super::car_detail::radius(&model),

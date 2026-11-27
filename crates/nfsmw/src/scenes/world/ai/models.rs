@@ -20,6 +20,10 @@ use crate::scenes::world::{WorldScene, sun};
 
 /// The models a frame installs while they arrive in the background.
 const INSTALLS_PER_FRAME: usize = 2;
+/// Once a frame's installs took this long, the next waits for the next frame. A model's upload grows with its size,
+/// and a mod's detailed car can take tens of milliseconds on its own; two of them in one frame were a visible hitch.
+/// Only when a model is installed changes (a frame later), as it already varies with the loader thread's reading.
+const INSTALL_BUDGET: std::time::Duration = std::time::Duration::from_millis(4);
 const NO_ROADS: &str = "this track has no road network";
 
 #[cfg(test)]
@@ -186,7 +190,11 @@ fn pump(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, blocking: bool
         true => usize::MAX,
         false => INSTALLS_PER_FRAME,
     };
+    let started = std::time::Instant::now();
     for _ in 0..limit {
+        if !blocking && started.elapsed() >= INSTALL_BUDGET {
+            return;
+        }
         let Some(done) = next_done(scene, blocking) else { return };
         handle(scene, renderer, done);
     }
@@ -237,7 +245,14 @@ fn fail_cop(scene: &mut WorldScene, name: &str, error: &str) {
 }
 
 fn install_traffic(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, vehicle: &str, load: TrafficLoad) {
-    match traffic_model(scene, renderer, vehicle, load) {
+    let started = std::time::Instant::now();
+    let model = {
+        let _trace = blackbox_trace::scope("World: install traffic model");
+        traffic_model(scene, renderer, vehicle, load)
+    };
+    let ms = started.elapsed().as_secs_f64() * 1000.0;
+    blackbox_trace::global().note("Traffic model installed", &format!("{vehicle}: {ms:.1} ms"));
+    match model {
         Ok(model) => {
             log::info!("traffic: loaded {vehicle}");
             if let Some(traffic) = scene.traffic.as_mut() {
@@ -256,10 +271,12 @@ fn traffic_model(
     load: TrafficLoad,
 ) -> Result<TrafficModel, String> {
     let TrafficLoad { body, trailer } = load;
+    let physics = blackbox_trace::scope("Car install: physics");
     let body = car_parts(scene, vehicle, body)?;
     let trailer = trailer
         .map(|(name, model)| car_parts(scene, &name, model).map_err(|e| format!("its trailer {name}: {e}")))
         .transpose()?;
+    drop(physics);
     let mut model = upload(scene, renderer, body);
     model.trailer = trailer.map(|parts| Box::new(upload(scene, renderer, parts)));
     Ok(model)

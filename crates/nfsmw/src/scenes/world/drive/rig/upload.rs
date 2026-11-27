@@ -11,7 +11,11 @@ pub(super) fn upload_parts(
     to_sun: Vec3,
     background_actor: bool,
 ) -> (Vec<Part>, Vec<(u32, MeshHandle)>, CarMaterials) {
-    let materials = CarMaterials::upload_with_background_policy(renderer, model, shading, to_sun, background_actor);
+    let materials = {
+        let _trace = blackbox_trace::scope("Car upload: materials and textures");
+        CarMaterials::upload_with_background_policy(renderer, model, shading, to_sun, background_actor)
+    };
+    let _trace = blackbox_trace::scope("Car upload: solids");
     let (parts, meshes) = upload_solids(renderer, model, swaps, &materials, None, background_actor);
     (parts, meshes, materials)
 }
@@ -110,5 +114,12 @@ pub(super) fn upload_solids(
         }
     }
     parts.sort_by_key(|p| p.mesh);
+    let uploaded: Vec<_> = cache.iter().filter(|(_, m)| m.is_some()).map(|((solid, _, _), _)| *solid).collect();
+    let vertices: usize = uploaded.iter().map(|s| model.solids[s].vertices.len()).sum();
+    let distinct: std::collections::HashSet<_> = uploaded.iter().collect();
+    blackbox_trace::global().note(
+        "Car solids uploaded",
+        &format!("{} meshes of {} solids, {vertices} vertices", uploaded.len(), distinct.len()),
+    );
     (parts, cache.into_iter().filter_map(|((solid, _, _), mesh)| mesh.map(|m| (solid, m))).collect())
 }

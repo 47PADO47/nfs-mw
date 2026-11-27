@@ -5,14 +5,21 @@ use blackbox_gfx::{
 };
 use std::collections::HashMap;
 
+type FastMap<K, V> = HashMap<K, V, foldhash::fast::FixedState>;
+
+/// A vertex no draw has used yet in [`classify`].
+const UNSEEN: u8 = u8::MAX;
+
 pub(super) fn classify(
     mesh: &mut Mesh,
     desc: &MeshDesc<'_>,
     layers: &[Option<u32>],
     surfaces: &[Option<NormalMaterialDesc>],
 ) {
-    let mut first = HashMap::new();
-    let mut copies = HashMap::new();
+    // The mode each source vertex was first used with, by index: every triangle corner looks it up, so a table instead
+    // of a map. Copies made below are appended past its end and never looked up.
+    let mut first = vec![UNSEEN; mesh.vertices.len()];
+    let mut copies = FastMap::default();
     let mut at = 0;
     for ((draw, layer), surface) in desc.draws.iter().zip(layers).zip(surfaces) {
         if layer.is_none()
@@ -22,7 +29,7 @@ pub(super) fn classify(
             continue;
         }
         // 0 opaque, 1 ordinary cutout, 2 tree/window, 3 doubled prelit, 4 reflective normal, 5 world.
-        let mode = match (draw.blend, draw.shading) {
+        let mode: u8 = match (draw.blend, draw.shading) {
             (BlendMode::AlphaTest, Shading::Tree | Shading::WorldWindow(_)) => 2,
             (BlendMode::AlphaTest, Shading::WorldPrelit) => 3,
             (BlendMode::AlphaTest, Shading::World | Shading::WorldDistant | Shading::WorldNoFog) => 5,
@@ -38,14 +45,17 @@ pub(super) fn classify(
         for triangle in &mut mesh.triangles[at..end] {
             for index in &mut triangle[..3] {
                 let original = *index;
-                let previous = *first.entry(original).or_insert(mode);
-                if previous == mode {
-                    mesh.vertices[original as usize].normal[3] = mode as f32;
+                let previous = &mut first[original as usize];
+                if *previous == UNSEEN {
+                    *previous = mode;
+                }
+                if *previous == mode {
+                    mesh.vertices[original as usize].normal[3] = f32::from(mode);
                     continue;
                 }
                 *index = *copies.entry((original, mode)).or_insert_with(|| {
                     let mut vertex = mesh.vertices[original as usize];
-                    vertex.normal[3] = mode as f32;
+                    vertex.normal[3] = f32::from(mode);
                     let id = mesh.vertices.len() as u32;
                     mesh.vertices.push(vertex);
                     id
