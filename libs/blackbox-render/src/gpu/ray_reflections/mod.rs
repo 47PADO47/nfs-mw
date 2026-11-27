@@ -52,8 +52,10 @@ pub(super) struct Scene {
     pending: bool,
     /// Meshes taken out for a detail swap, which come back this frame whatever the budget.
     refresh: std::collections::HashSet<usize>,
-    /// New meshes waiting for a later frame. They are left out of the TLAS without marking it incomplete.
+    /// New meshes waiting for a later frame. They are left out of the TLAS and mark it incomplete.
     deferred: std::collections::HashSet<usize>,
+    /// How much waiting work the next frame does: a frame's budget, or all of it for a one-off capture.
+    limits: staging::Limits,
     /// Large meshes whose hit data is being prepared on a worker (`preparing.rs`).
     preparing: preparing::Preparing,
 }
@@ -90,6 +92,7 @@ impl Scene {
             pending: false,
             refresh: Default::default(),
             deferred: Default::default(),
+            limits: staging::Limits::FRAME,
             preparing: Default::default(),
         })
     }
@@ -172,7 +175,7 @@ impl Scene {
             self.ranked_at = Some(self.camera);
         }
         // A few detail swaps a frame: each resamples its texture and re-adds the meshes that use it (`staging.rs`).
-        let swaps = staging::detail_step(&self.detail_textures, &self.detail_target, staging::DETAIL_SWAPS);
+        let swaps = staging::detail_step(&self.detail_textures, &self.detail_target, self.limits.swaps);
         for handle in &swaps {
             if !self.detail_textures.remove(handle) {
                 self.detail_textures.insert(*handle);
@@ -239,7 +242,7 @@ impl Scene {
                 distances.entry(i.mesh.raw()).and_modify(|d| *d = d.min(distance)).or_insert(distance);
             }
             staging::nearest_first(&mut new, &distances);
-            let mut budget = staging::AddBudget::new(staging::ADD_BUDGET, staging::LAYER_BUDGET);
+            let mut budget = staging::AddBudget::new(self.limits.add, self.limits.layers);
             let layers_before = self.atlas.len() + self.detail.len();
             self.deferred.clear();
             let mut all_fit = true;
@@ -296,9 +299,9 @@ impl Scene {
         }
         for (i, mask) in unique.values() {
             let Some(offset) = self.arena.offset(i.mesh.raw()) else {
-                // A mesh still waiting its turn (`staging.rs`) joins in a later frame; only one that did not fit
-                // makes the shadow pass keep the cascades.
-                complete &= self.deferred.contains(&i.mesh.raw());
+                // Any mesh missing from the TLAS, including one still waiting its turn (`staging.rs`), keeps the
+                // cascades: a deferred mesh can stay out for many frames, and RT shadows would drop its shadow.
+                complete = false;
                 continue;
             };
             if count == bindings::MAX_INSTANCES {
@@ -333,6 +336,15 @@ impl Scene {
     }
 }
 impl Renderer {
+    /// Whether the frames drawn from now on join all waiting meshes and detail swaps at once (`staging.rs`): set
+    /// around a one-off capture, which no later frame completes.
+    pub(super) fn stage_whole_ray_scene(&mut self, whole: bool) {
+        let Some(rt) = &mut self.ray_reflections else { return };
+        rt.limits = match whole {
+            true => staging::Limits::WHOLE,
+            false => staging::Limits::FRAME,
+        };
+    }
     pub(super) fn add_ray_mesh(&mut self, handle: usize, desc: &MeshDesc<'_>) {
         let Some(rt) = &mut self.ray_reflections else { return };
         let layers: Vec<_> = desc

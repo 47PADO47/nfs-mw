@@ -6,9 +6,15 @@
 //! textures were resampled, and the detail cache swaps [`DETAIL_SWAPS`] textures a frame. A resample is cheap to
 //! record but costs one render pass per mip when its encoder is finished, which the frame waits for.
 //!
-//! A mesh that waits is left out of the TLAS for those frames without marking the scene incomplete, which would
-//! hand every sun-shadow pixel back to the cascades. Meshes that were in the scene already (re-added after a
-//! detail swap) are never held back, so nothing that was drawn disappears.
+//! A mesh that waits is left out of the TLAS for those frames and marks the scene incomplete, so the sun keeps its
+//! cascades until every caster is in (RT shadows would otherwise drop the waiting meshes' shadows). Meshes that
+//! were in the scene already (re-added after a detail swap) are never held back, so nothing that was drawn
+//! disappears.
+//!
+//! The spreading relies on the frames that follow. A one-off capture (a screenshot, a test image) is the only frame
+//! drawn of its scene: a screenshot run draws nothing between its captures, so a budgeted capture showed the few
+//! nearest meshes of a freshly loaded scene and the probe in place of every other reflection. Such a frame takes
+//! [`Limits::WHOLE`] and joins everything at once.
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
@@ -18,6 +24,21 @@ pub(super) const ADD_BUDGET: Duration = Duration::from_millis(2);
 pub(super) const LAYER_BUDGET: usize = 12;
 /// Detail-cache textures swapped in or out per frame.
 pub(super) const DETAIL_SWAPS: usize = 4;
+
+/// How much of the waiting work one frame does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Limits {
+    pub add: Duration,
+    pub layers: usize,
+    pub swaps: usize,
+}
+
+impl Limits {
+    /// A frame among others: the budgets above.
+    pub const FRAME: Self = Self { add: ADD_BUDGET, layers: LAYER_BUDGET, swaps: DETAIL_SWAPS };
+    /// A one-off capture: all of it.
+    pub const WHOLE: Self = Self { add: Duration::MAX, layers: usize::MAX, swaps: usize::MAX };
+}
 
 /// Up to `limit` handles whose detail-cache membership moves `applied` towards `target`: textures leaving first,
 /// as they free layers for the ones joining, each group in handle order.
@@ -92,5 +113,14 @@ mod tests {
         let mut roomy = AddBudget::new(Duration::from_secs(60), 12);
         assert!((0..100).all(|_| roomy.admit(11)));
         assert!(!roomy.admit(12), "the resampled layers stop it as well");
+    }
+
+    #[test]
+    fn a_whole_frame_joins_every_waiting_mesh_and_finishes_the_detail_swaps() {
+        let mut budget = AddBudget::new(Limits::WHOLE.add, Limits::WHOLE.layers);
+        assert!((0..10_000).all(|n| budget.admit(n)), "neither time nor resampled layers hold a mesh back");
+        let target: HashSet<_> = (0..500).collect();
+        assert_eq!(detail_step(&HashSet::new(), &target, Limits::WHOLE.swaps).len(), 500);
+        assert_eq!(Limits::FRAME, Limits { add: ADD_BUDGET, layers: LAYER_BUDGET, swaps: DETAIL_SWAPS });
     }
 }

@@ -102,7 +102,10 @@ impl Renderer {
             true => self.fog_view.replace(blackbox_gpu_passes::FogView::Unkeyed),
             false => self.fog_view,
         };
+        // The capture is the only frame of its scene that anyone sees: nothing in the RT scene may wait for later.
+        self.stage_whole_ray_scene(true);
         self.submit_frame(Some(&scene), &view, (width, height), frame, instances);
+        self.stage_whole_ray_scene(false);
         self.fog_view = main_fog;
         let result = self.read_texture_bytes(&target, (width, height));
         self.output = old_output;
@@ -155,7 +158,9 @@ impl Renderer {
         let target = texture.clone();
         let view = target.create_view(&Default::default());
         let scene = SceneTargets::new(&self.device, &self.scene_plan((width, height), false));
+        self.stage_whole_ray_scene(true);
         self.submit_frame(Some(&scene), &view, (width, height), frame, instances);
+        self.stage_whole_ray_scene(false);
         let result = self.read_raw_texture(&target, (width, height), 8).map(|bytes| {
             bytes
                 .as_chunks::<8>()
