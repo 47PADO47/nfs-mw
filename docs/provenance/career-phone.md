@@ -56,6 +56,11 @@ Image base `0x00400000`; program `/speed.exe`.
 Pad hash check: `PAD_BUTTON0` is `0xC519BFBF` (multiplicative hash, seed `0xFFFFFFFF`), so `0xC519BFC3` is button 4 and
 `0xC519BFC4` is button 5; `PAD_BACK` is `0x911AB364`; `EXIT_COMPLETE` is a string of the executable.
 
+The PC mailbox notification handler at `0x5534F0` routes Left directly to the tab toggle and Right to
+`0x549130`. Both invert the same tab flag and call the same list builder. Neither handler tests the other
+tab's row count before switching. The installed mailbox package sends both direction messages.
+When the constructor at `0x553260` receives a message ID, it skips the normal list-panel reveal.
+
 ## Dead ends
 
 - The caller of the second flush path in the manager vtable: none needed; the update calls the flush directly.

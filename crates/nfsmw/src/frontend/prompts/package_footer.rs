@@ -78,11 +78,17 @@ const CAR_SELECT: [Button; 3] = [
 const CAR_SELECT_UNUSED: [u32; 3] = [0xD646_3100, 0xD42F_677B, 0x5F34_A28C];
 /// The captions of the car select's Accept (keyboard, pad).
 const CAR_SELECT_ACCEPT: [u32; 2] = [0x0013_35F0, 0xB941_39F4];
+const BIO_CONTINUE: [Button; 1] = [button(0xDDE3_DB34, 0x1E61_7016, Action::MenuAccept)];
 
 /// The buttons of a screen that draws its package's footer, or `None` for a screen with the host's hint row.
 fn buttons(name: &str, footer: Footer) -> Option<&'static [Button]> {
+    const LOADING_TIP: [Button; 1] = [button(0xB857_7932, 0x381F_EA80, Action::MenuAccept)];
     let is = |file: &str| name.eq_ignore_ascii_case(file);
+    if is(screen::LOADING_TIPS) {
+        return Some(&LOADING_TIP);
+    }
     match footer {
+        Footer::RivalBioContinue if is(screen::SAFE_HOUSE_RIVAL_BIO) => Some(&BIO_CONTINUE),
         Footer::RacePhoto { .. } if is(screen::PHOTO) => Some(&PHOTO),
         Footer::RaceResults { .. } if is(screen::POST_RACE_RESULTS) => Some(&RESULTS),
         Footer::SmsMessage { .. } => Some(&MESSAGE),
@@ -118,6 +124,20 @@ pub fn apply(
     };
     hide_subtrees(tree, &other);
     hide_by_state(tree, footer);
+    if footer == Footer::RivalBioContinue {
+        let [continue_button] = BIO_CONTINUE;
+        let other = if pad { continue_button.keys } else { continue_button.pad };
+        legacy::hide_roots(tree, &[other]);
+    }
+    if pad && footer == (Footer::RacePhoto { race: true }) {
+        // On the pad the offset Race Stats shadow and the caption have identical depth in the PC package.
+        let position = |guid| tree.draw_order.iter().position(|&i| tree.nodes[i].guid == guid);
+        if let (Some(caption), Some(shadow)) = (position(0x000F_C866), position(0x000F_C868))
+            && caption < shadow
+        {
+            tree.draw_order.swap(caption, shadow);
+        }
+    }
     if pad {
         for b in buttons {
             set_pad_icons(tree, b.pad, prompts::for_action(bindings, b.action, device));

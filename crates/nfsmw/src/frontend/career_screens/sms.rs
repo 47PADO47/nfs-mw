@@ -12,7 +12,7 @@
 
 use std::sync::Mutex;
 
-use blackbox_feng::ids::{PAD_BACK, PAD_BUTTON0};
+use blackbox_feng::ids::{PAD_BACK, PAD_BUTTON0, PAD_LEFT, PAD_RIGHT};
 use blackbox_text::label_hash;
 use nfsmw_career::phone::{InboxTab, ListEntry, OpenEffect, from_label_for, subject_label_for};
 use nfsmw_career::settings::SmsInbox;
@@ -35,7 +35,6 @@ const DELETE_QUESTION: u32 = 0x8C3C_2171;
 /// The messages the list sends: a row pressed (`0x0C407210`, also the Read hint's hotspot), the tab hotspots
 /// (`0x9120409E`, either one), and the list's arrows (`0x72619778` up, `0x911C0A4B` down).
 const ROW: u32 = 0x0C40_7210;
-const TAB: u32 = 0x9120_409E;
 const UP: u32 = 0x7261_9778;
 const DOWN: u32 = 0x911C_0A4B;
 
@@ -311,7 +310,10 @@ impl InboxLogic {
             show_row(cx, slot, shown.get(slot).copied());
         }
         // The rows are inside a group that is out when the package loads, so the runtime gives none of them the focus.
-        if !self.entries.is_empty() {
+        if self.entries.is_empty() {
+            // Accept on a hidden row would still run its package script and disable input.
+            cx.rt.clear_focus(cx.package);
+        } else {
             cx.rt.set_focus(cx.package, ROW_BUTTONS[self.at - self.first]);
         }
         let (story_mark, tips_mark) = unread_marks(self.tab, story_unread, tips_unread);
@@ -364,6 +366,9 @@ impl InboxLogic {
     /// otherwise the list goes out under the message and comes back when the message closes.
     fn open_focused(&mut self, cx: &mut Cx) {
         let Some(entry) = self.focused(cx) else { return };
+        if !self.args.safehouse {
+            cx.rt.post_to_package(cx.package, LIST_OUT);
+        }
         self.open_message(cx, entry.id);
     }
 
@@ -375,7 +380,6 @@ impl InboxLogic {
             return;
         }
         self.reading = true;
-        cx.rt.post_to_package(cx.package, LIST_OUT);
         // The message closes back to this list, also over free roam.
         cx.send(Command::Push(screen::SMS_MESSAGE.to_string(), Args { from_world: false, ..self.args }));
     }
@@ -405,9 +409,14 @@ impl ScreenLogic for InboxLogic {
         }
         self.show_tab(cx);
         self.refresh(cx);
-        self.list_in(cx);
-        cx.rt.post_to_package(cx.package, INPUT_ENABLE);
-        let Some(id) = open else { return };
+        let Some(id) = open else {
+            self.list_in(cx);
+            cx.rt.post_to_package(cx.package, INPUT_ENABLE);
+            return;
+        };
+        // Auto-delivery leaves the package's list panel on its authored HIDE script. READ drives
+        // the exit of the covered list, and the message's Back restores the panel.
+        self.reading = true;
         if let Some(at) = self.entries.iter().position(|entry| entry.id == id) {
             (self.at, self.first) = moved(at, self.first, 0, self.entries.len());
             self.refresh(cx);
@@ -440,7 +449,7 @@ impl ScreenLogic for InboxLogic {
             PAD_BACK => leave(cx, self.args),
             ROW => self.open_focused(cx),
             DELETE => self.delete_focused(cx),
-            TAB => {
+            PAD_LEFT | PAD_RIGHT => {
                 self.tab = other_tab(self.tab);
                 (self.at, self.first) = (0, 0);
                 self.show_tab(cx);

@@ -272,6 +272,9 @@ Each platform file has an `EmitterLibrary` chunk (`docs/specs/world-emitter-plac
 - the backroom: `fxenv_small_steam3` and a group with key `0x48D22C27`;
 - the car lot: `fxenv_leaves1` and the third group.
 
+The car lot also has named `FX_HAZEFOG_EMITTER_*` and `FX_LEAF_EMITTER_*` placement proxy solids. The room
+colour pass omits the proxies. The emitter library still supplies the live fog and leaf effects.
+
 The menu runs them with the world's ambient effect system (`frontend/room_fx.rs`), at their authored matrices in the
 unturned frame. The crib's steam then rises behind the car on the right under the silos, where the original's does
 **[verified: recordings]**. Its density is the installed PC groups'. The modded reference's thicker Xbox 360-style

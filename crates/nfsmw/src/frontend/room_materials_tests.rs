@@ -33,3 +33,18 @@ fn stage_shared_materials_resolve_transparent_sky_and_grey_on_both_platforms() {
         assert_eq!(blend_mode(Some(grey)), BlendMode::Opaque);
     }
 }
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_car_lot_draws_the_room_without_emitter_proxy_meshes() {
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
+    let stage = super::Stage::CarLot;
+    let file = dir.read(stage.file()).unwrap();
+    let all = blackbox_solid::read_solids(&file).unwrap();
+    let room = super::RoomData::read(&dir, stage).unwrap();
+    assert_eq!(all.len() - room.solids.len(), 4);
+    assert_eq!(
+        room.solids.iter().map(|solid| solid.name.as_str()).collect::<Vec<_>>(),
+        ["BACKDROP_CAST_SHADOW_MAP", "BACKDROP_CURRGEN", "BACKDROP_CRIB", "OBJECT01"]
+    );
+    assert!(!room.placements().is_empty(), "the car-lot particles still have authored placements");
+}

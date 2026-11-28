@@ -170,7 +170,7 @@ impl WorldScene {
             return;
         }
         self.refresh_race_locks();
-        let shown = self.race_starts.iter().filter(|(name, _)| !self.career_race_locked(name)).map(|(_, blip)| *blip);
+        let shown = self.race_starts.iter().filter(|(name, _)| self.ordinary_race_marker(name)).map(|(_, blip)| *blip);
         out.extend(shown);
     }
 }

@@ -177,3 +177,27 @@ only; the private symbol map for names. Checked against the first car lot observ
 Not read: where a class table is first sized (the reserve is taken from the fit), the filter and availability routines
 in detail, `CareerSettings::AwardCash`, `Game_AwardCash`. Not confirmed live: the stable slot order and the list as the
 screen builds it (the fit to one observed run stands in).
+## First safe-house bio package timing (2026-11-23)
+
+**[live]** One modded PC capture (executable SHA-256
+`bde12bdd158b7f861078ad4527f5a656f34c6068e4a2120f28044f92f0fa158c`) opened
+`SafeHouseRivalBio.fng` after a front-end movie. The observed authored script IDs track the installed package:
+the initial input gate ran for 6600 UI ticks, and the final bio panel reveal started about 10000 UI ticks after
+opening. The package then went to the rival movie and the reputation overview.
+
+**[exe]** The PC rival texture ready callback at `0x51F520` and the authored package in the PC retail
+installation explain the message chain. The background-ready callback starts the title script, which sends
+`0xEDE51D10` at its tick 4000. The 6000-tick script it starts sends the final reveal `0x8BBAB3ED`.
+
+## Engage Mechanic on first arrival (2026-11-23)
+
+**[exe]** PC retail 1.3, SHA-256 `80774c2e5d619b4f120b48d4462896fd504c263399d203a238769cffde1d253c`.
+`LoadingTips::WhatTipScreenShouldIUseToday` (`0x597CF0`) inlines the first-entry predicate (`0x56AF30`) and
+chooses tip table index 1 on success. The loading tip handler (`0x57DF10`) waits for load completion and
+the five-second display interval. `AllowInput` (`0x56AF70`) posts `0x9938A38F`, which starts the Continue
+prompt and enables input in the installed package.
+
+**[live]** The same modded PC run opened `Loading_Tips.fng` before the safe-house intro movie. Its Continue
+script started 5.011 seconds after package load, and Accept switched to the movie. Earlier owner reference
+imagery identifies the tip as Engage Mechanic. The capture's later audio and package events continued after the
+video stopped providing fresh samples, so the package trace supplies the timing.

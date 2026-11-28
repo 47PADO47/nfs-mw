@@ -73,6 +73,31 @@ fn the_tab_marks_and_frame_follow_the_selected_tab() {
     assert!(node(&tips, STORY_NEW).visible, "the unread story message is marked beside the Voice tab");
     assert!(!node(&tips, TIPS_NEW).visible);
     assert!(node(&tips, TAB_FRAME).position.x > at_story + 50.0, "the frame moves to the Text tab");
+    h.press(pad::RIGHT);
+    assert_eq!(node(&h.tree(), TAB_FRAME).position.x, at_story, "Right returns to Voice");
+    h.press(pad::RIGHT);
+    assert_eq!(node(&h.tree(), TAB_FRAME).position.x, node(&tips, TAB_FRAME).position.x, "Right wraps to Text");
+    h.press(pad::LEFT);
+    assert_eq!(node(&h.tree(), TAB_FRAME).position.x, at_story, "Left wraps to Voice");
+    CareerHandle::shared().clear();
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn either_direction_can_select_an_empty_tab_without_opening_the_other_tabs_message() {
+    let _guard = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    CareerHandle::shared().set(career_with(&[15]));
+    let mut h = Harness::installed();
+    open_inbox(&mut h);
+    let voice = node(&h.tree(), TAB_FRAME).position.x;
+    for direction in [pad::LEFT, pad::RIGHT] {
+        h.press(direction);
+        assert!(node(&h.tree(), TAB_FRAME).position.x > voice + 50.0, "the empty Text tab can be selected");
+        h.press(pad::ACCEPT);
+        assert!(h.screens.top().is_some_and(|name| name.eq_ignore_ascii_case(screen::SMS_MAILBOXES)));
+        h.press(direction);
+        assert_eq!(node(&h.tree(), TAB_FRAME).position.x, voice, "a second press wraps to Voice");
+    }
     CareerHandle::shared().clear();
 }
 
@@ -153,7 +178,8 @@ fn accept_opens_the_highlighted_message_and_back_brings_the_list_back() {
     h.press(pad::ACCEPT);
     assert_eq!(h.screens.top(), Some(screen::SMS_MESSAGE));
     assert_eq!(super::opened(), Some(15), "Down then Accept opens the second row (the older message)");
-    h.press(pad::BACK);
+    h.run(pad::BACK, 1);
+    assert_eq!(h.screens.top(), Some(screen::SMS_MESSAGE), "Back starts the exit script");
     h.run(0, 60);
     assert!(
         h.screens.top().is_some_and(|top| top.eq_ignore_ascii_case(screen::SMS_MAILBOXES)),
@@ -163,5 +189,41 @@ fn accept_opens_the_highlighted_message_and_back_brings_the_list_back() {
     assert!(shows_list(&h.tree()), "the list is back after the message");
     let (shown, _) = drawn_hints(&h, InputDevice::Keyboard);
     assert!(drawn_group(&shown, KEY_HINTS[0]), "the footer's Read is back");
+    CareerHandle::shared().clear();
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn done_waits_for_the_message_exit_before_stopping_speech() {
+    use crate::audio::cell_call::screen_speaks;
+    use crate::input::{Action, Bindings};
+
+    const DONE_FOOTER: u32 = 0x5232_50E9;
+    let _guard = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    CareerHandle::shared().set(career_with(&[15]));
+    let mut h = Harness::installed();
+    open_inbox(&mut h);
+    h.press(pad::ACCEPT);
+    assert_eq!(h.screens.top(), Some(screen::SMS_MESSAGE));
+    assert!(screen_speaks());
+
+    let tree = h.presented(InputDevice::Keyboard);
+    let done = tree.nodes.iter().position(|node| node.name_hash == DONE_FOOTER).expect("Done footer group");
+    let icon = tree
+        .draw_order
+        .iter()
+        .map(|&i| &tree.nodes[i])
+        .find(|node| node.parent == Some(done) && matches!(node.kind, NodeKind::Image { .. }))
+        .expect("drawn Done footer icon");
+    let point = icon.world.w_axis.truncate().truncate();
+    assert_eq!(h.screens.hint_at(point, &Bindings::default(), InputDevice::Keyboard), Some(Action::MenuBack));
+    // The frontend turns this footer action into a one-frame Back press.
+    h.run(pad::BACK, 1);
+    assert_eq!(h.screens.top(), Some(screen::SMS_MESSAGE), "Done starts the exit script");
+    h.run(0, 15);
+    assert!(screen_speaks(), "voicemail remains active during the exit script");
+    h.run(0, 30);
+    assert!(h.screens.top().is_some_and(|name| name.eq_ignore_ascii_case(screen::SMS_MAILBOXES)));
+    assert!(!screen_speaks(), "voicemail stops when the message closes");
     CareerHandle::shared().clear();
 }

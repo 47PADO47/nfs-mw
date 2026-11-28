@@ -58,6 +58,7 @@ pub mod screen {
     pub const SAFE_HOUSE_RIVAL_BIO: &str = "SafeHouseRivalBio.fng";
     /// The safe house's Blacklist page in the Original look (`career_screens/reputation_overview.rs`).
     pub const SAFE_HOUSE_REPUTATION_OVERVIEW: &str = "SafeHouseReputationOverview.fng";
+    pub const IN_GAME_REPUTATION_OVERVIEW: &str = "InGameReputationOverview.fng";
     /// The three sheets the Blacklist page opens (`career_screens/rep_sheets/`).
     pub const SAFE_HOUSE_RACE_SHEET: &str = "SafeHouseRaceSheet.fng";
     pub const SAFE_HOUSE_MILESTONES: &str = "SafeHouseMilestones.fng";

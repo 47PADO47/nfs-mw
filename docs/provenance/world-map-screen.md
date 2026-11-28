@@ -73,3 +73,22 @@ breakers, roadblocks and spike strips) are not drawn by the port.
 
 The executable's zoom, pan, filter, list, cursor and GPS behaviour is in `world-map-ghidra.md`. The port's behaviour
 and its differences from the executable are in `docs/specs/world-map.md`.
+## Installed first-bin race-markers audit (2026-11-23)
+
+**[verified data]** PC retail 1.3 install with executable SHA-256
+`80774c2e5d619b4f120b48d4462896fd504c263399d203a238769cffde1d253c`. The installed bin 15
+`WorldRaces` IDs are `15.1.1`, `15.2.1`, `15.3.1`, each with an `engagetrigger` targeting the same race record.
+The rival's IDs are `15.1.2` and `15.1.1.r`. Only the first has an authored road entry. Existing executable
+research identifies a separate Rival type in the World Map Races filter (see `world-map-ghidra.md`).
+
+The prior remake treated unlisted names as open and discarded reverse suffixes in the map lock lookup.
+The installed audit found 51 initial candidates before icon-pool limits, including six prologue records,
+35 Challenge Series records, one online record and six reverse course variants. Three later-bin reverse courses
+had real engage triggers, and the old lookup made them eligible for the road too. The revised roaming gate
+requires an engage target and looks up the exact stored event ID against opened Blacklist bins or the side ladder.
+
+**[live]** One unmodded pre-safe-house World Map run has three settled snapshots in the Locations filter.
+All ordinary race pools remain parked and only the first safe house occupies its location pool. The paired
+first-visit runs did not open World Map after entering bin 15, so the exact stock post-arrival icon set and
+position remain open. This data audit concerns world and minimap entries. The rival's Race Events sheet
+already uses its bin's `WorldRaces` list.

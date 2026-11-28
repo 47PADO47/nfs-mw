@@ -28,6 +28,10 @@ impl MenuScene {
             false => ALL_FACES,
         };
         let origin = Vec3::Z * 0.95;
+        let light = match self.look.stage() {
+            crate::frontend::stage::Stage::CarLot => room.light(),
+            _ => None,
+        };
         renderer.set_reflection_scene(Some(ReflectionScene {
             sun_shadows: false,
             fade_distance: None,
@@ -35,7 +39,8 @@ impl MenuScene {
             quality,
             frame: blackbox_gfx::FrameParams {
                 camera_position: origin,
-                light_dir: Vec3::new(-0.4, -0.3, -1.0),
+                light_dir: light.map_or(Vec3::new(-0.4, -0.3, -1.0), |light| light.light_dir),
+                surface_light: light.map(|light| light.surface),
                 clear_color: [0.18, 0.2, 0.24],
                 ..flat_frame()
             },

@@ -119,3 +119,19 @@ fn installed_race_presentation_photo_delivers_transition_and_shutter_audio() {
     assert!(peaks.iter().all(|peak| *peak > 0.001), "both timing windows must produce PCM: {peaks:?}");
     std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+#[ignore = "needs installed speed camera photo package"]
+fn speed_camera_photo_continue_requests_the_checkpoint_once() {
+    let mut h = Harness::open(screen::PHOTO, Args::default()).unwrap();
+    let mut env = Env { settings: &mut h.settings, changed: &mut h.changed, caps: test_caps::native(), mods: None };
+    let photo = crate::viewer::PhotoReport {
+        kind: crate::viewer::PhotoKind::SpeedTrap,
+        ..crate::viewer::PhotoReport::sample()
+    };
+    let logic = crate::frontend::photo::PhotoLogic::for_trap(photo);
+    h.screens.open_with(screen::PHOTO, Box::new(logic), true, &mut env);
+    h.wait(4.0);
+    h.press(pad::ACCEPT);
+    assert_eq!(h.commands.iter().filter(|command| **command == Command::AcceptTrapPhoto).count(), 1);
+}

@@ -282,6 +282,7 @@ fn menu_reflections_capture_only_the_room_and_follow_live_graphics_settings() {
     menu.update(&mut renderer, &ActionState::default(), 0.0);
     let capture = renderer.reflection.as_ref().expect("menu submits a local room capture");
     assert_eq!(capture.quality, ReflectionQuality::High);
+    assert!(capture.frame.surface_light.is_none(), "the main menu retains its original reflection lighting");
     assert_eq!(capture.refresh, ALL_FACES);
     for face in &capture.faces {
         let room = menu.room.as_ref().unwrap().instances();
@@ -318,6 +319,37 @@ fn menu_reflections_capture_only_the_room_and_follow_live_graphics_settings() {
     menu.set_car_shading(CarShading::Simple);
     menu.update(&mut renderer, &ActionState::default(), 0.0);
     assert!(renderer.reflection.is_none(), "simple shading follows the same rule as driving");
+    menu.close(&mut renderer);
+}
+
+#[test]
+#[ignore = "requires installed car lot geometry; set NFSMW_GAME_DIR"]
+fn car_lot_submits_authored_casters_and_reflects_the_lit_room() {
+    let dir = install().expect("installed car lot");
+    let mut renderer = backend();
+    let mut graphics = *renderer.graphics();
+    graphics.reflections = blackbox_gfx::ReflectionQuality::High;
+    renderer.apply_graphics(&graphics);
+    let rig = CameraRig::settled();
+    let look = Look::CarLot(CarLook::named("IS300", None));
+    let mut menu = menu_on(&dir, look, &rig, &mut renderer);
+    menu.update(&mut renderer, &ActionState::default(), 0.0);
+
+    let room = menu.room.as_ref().expect("the platform was uploaded");
+    assert!(!room.shadow_casters().is_empty());
+    for caster in room.shadow_casters() {
+        let label = &renderer.mesh_labels[&caster.mesh];
+        assert!(label.starts_with("BACKDROP_CAST_SHADOW_MAP"));
+        assert!(room.instances().iter().any(|part| {
+            part.mesh != caster.mesh && renderer.mesh_labels[&part.mesh] == *label && part.transform == caster.transform
+        }));
+    }
+    let capture = renderer.reflection.as_ref().expect("the car lot supplies a room reflection");
+    let (main, _) = menu.frame(16.0 / 9.0);
+    assert!(main.surface_light.is_some(), "the room has authored lighting");
+    assert_eq!(capture.frame.surface_light, main.surface_light);
+    assert_eq!(capture.frame.light_dir, main.light_dir);
+    assert!(renderer.planar.is_none(), "the lot has no verified planar receiver");
     menu.close(&mut renderer);
 }
 

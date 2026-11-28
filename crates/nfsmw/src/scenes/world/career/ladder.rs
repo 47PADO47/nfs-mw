@@ -9,7 +9,6 @@ use std::collections::BTreeSet;
 use nfsmw_career::settings::NodeStates;
 use nfsmw_data::gameplay::GameplayData;
 
-use super::events::RaceEntry;
 use crate::career::{race_event_id, race_has_event};
 use crate::scenes::world::WorldScene;
 
@@ -57,20 +56,6 @@ impl WorldScene {
         let won = self.career.handle.with(|career| side_events_won(&data, &career.settings.nodes()));
         self.career.side_won = won.unwrap_or_default();
         self.career.locks.get_mut().invalidate();
-    }
-
-    /// Whether the ladder holds this race zone's event shut.
-    pub(in crate::scenes::world) fn side_race_locked(&self, event: &str) -> bool {
-        let Some(data) = self.gameplay.as_ref() else { return false };
-        side_locked(data, &self.career.side_won, event)
-    }
-
-    /// A race outside the Blacklist is open unless the ladder holds it.
-    pub(super) fn side_entry(&self, event: &str) -> RaceEntry {
-        match self.side_race_locked(event) {
-            true => RaceEntry::Locked,
-            false => RaceEntry::NotCareer,
-        }
     }
 }
 

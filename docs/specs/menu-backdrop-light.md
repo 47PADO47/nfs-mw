@@ -42,7 +42,11 @@ presets leave the scenery on the renderer's fixed terms rather than invented col
 - Room groups use the world routing and normal materials. Groups missing normal-map inputs fall back to the World
   family.
 - Shadow casters stay separate inputs; they are not drawn twice.
+- The car lot's installed `BACKDROP_CAST_SHADOW_MAP` geometry supplies room casters, alongside the car's own
+  casters. The caster pass uses the same platform transform as the colour view.
 - The menu frame carries the scenery light: its direction and surface light. The car keeps its own front-end rig.
+- The local reflection cube in the car lot uses that same scenery light. Reflected bodywork gets the scenery colour
+  rendered by the main camera, before the existing reflection capture's shadow and material rules.
 - The renderer's original-world-materials setting selects the authored arithmetic. With it off, the remake's
   approximate world lighting applies, as in gameplay.
 - No global brightness factor, grade or emitter compensates for the light.

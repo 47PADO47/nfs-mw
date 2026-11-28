@@ -38,6 +38,7 @@ posted by:
 | Poster | When | Condition |
 |---|---|---|
 | `SetRoaming` (`0x005FE3E0`) | every time free roam starts (after the world loads, after every event ends, after "Resume Free Roam") | none |
+| free-roam speed camera photo | Continue dismisses the photo and unpauses the world | photo type 2; the profile autosave gate still applies |
 | event start (`0x00602010`, called by the `Game_StartRace` hook `0x0060DBD0`) | an event starts | the node exists, carries the node flag `0x8CB01ABF` (`0x005FBD20`) and its name is not `16.1.0`; **or** the current node is `1.8.1` |
 | pursuit evaded (`0x00411070`, via `0x00602770(1)`) | the pursuit listener sees a pursuit end as evaded, after it updated `pursuits_in_a_row` and `pursuit_evasion_time` | no event underway (gameplay manager `+0x1960 == 0`) |
 

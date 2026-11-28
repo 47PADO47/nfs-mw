@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use blackbox_feng::runtime::pad;
 use game_install::GameDir;
 use nfsmw_career::safehouse::{BlacklistStepper, FrontEndContext, StepAction};
 use nfsmw_career::settings::{CareerSettings, FIRST_RIVAL_STAGE, Flags, NewCareer, PROLOGUE_STAGE};
@@ -14,7 +15,9 @@ use crate::career::{Career, CareerData, CareerHandle};
 use crate::frontend::flow::Stage;
 use crate::frontend::flow::flow_movie::AfterMovie;
 use crate::frontend::flow_movie_tests::{Rig, install_rig};
-use crate::frontend::ids::screen::{SAFE_HOUSE_REPUTATION_OVERVIEW, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE};
+use crate::frontend::ids::screen::{
+    LOADING_TIPS, SAFE_HOUSE_REPUTATION_OVERVIEW, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE,
+};
 use crate::frontend::logic::Command;
 
 #[test]
@@ -70,7 +73,18 @@ fn career_flags() -> Flags {
 fn the_first_visit_plays_the_intro_and_the_bio_enters_bin_15() {
     let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
     let Some(mut rig) = prologue_rig() else { return };
-    assert!(rig.with(|fe, host, _| fe.first_visit_intro(host)), "the intro plays at stage 16");
+    assert!(rig.with(|fe, host, env| fe.first_visit_tip(host, env)));
+    assert_eq!(rig.fe.screens.top(), Some(LOADING_TIPS));
+    rig.with(|fe, host, env| {
+        fe.screens.update(1.0 / 60.0, 0, env);
+        assert!(fe.screens.update(1.0 / 60.0, pad::ACCEPT, env).is_empty(), "the tip requires five seconds");
+        for _ in 0..305 {
+            assert!(fe.screens.update(1.0 / 60.0, 0, env).is_empty());
+        }
+        let commands = fe.screens.update(1.0 / 60.0, pad::ACCEPT, env);
+        assert_eq!(commands, [Command::ContinueFirstSafeHouse]);
+        fe.apply(commands, host, env);
+    });
     assert!(matches!(rig.fe.stage, Stage::Movie { .. }), "the intro movie plays: {:?}", rig.fe.stage);
     assert_eq!(career_stage(), PROLOGUE_STAGE, "the bio has not opened yet");
     rig.with(|fe, host, env| fe.end_movie(host, env));
@@ -86,7 +100,23 @@ fn the_bio_accept_plays_the_rival_movie_then_opens_the_blacklist_page_with_the_o
     let Some(mut rig) = prologue_rig() else { return };
     rig.with(|fe, host, _| fe.first_visit_intro(host));
     rig.with(|fe, host, env| fe.end_movie(host, env));
-    rig.with(|fe, host, env| fe.apply(vec![bio_continue()], host, env));
+    rig.with(|fe, _, env| {
+        fe.screens.update(1.0 / 60.0, 0, env);
+        assert!(fe.screens.update(1.0 / 60.0, pad::ACCEPT, env).is_empty(), "early Accept is blocked");
+        for _ in 0..660 {
+            assert!(fe.screens.update(1.0 / 60.0, 0, env).is_empty());
+        }
+        assert!(fe.screens.update(1.0 / 60.0, pad::BACK, env).is_empty(), "Back cannot advance the first bio");
+        fe.screens.update(1.0 / 60.0, 0, env);
+    });
+    rig.with(|fe, host, env| {
+        let mut commands = fe.screens.update(1.0 / 60.0, pad::ACCEPT, env);
+        for _ in 0..40 {
+            commands.extend(fe.screens.update(1.0 / 60.0, 0, env));
+        }
+        assert_eq!(commands, [bio_continue()]);
+        fe.apply(commands, host, env);
+    });
     assert!(
         matches!(rig.fe.stage, Stage::Movie { then: AfterMovie::Command(_) }),
         "the rival movie plays and hands the sequence back: {:?}",
@@ -116,5 +146,23 @@ fn a_second_visit_does_not_replay_the_intro() {
     assert!(!played, "the stage is 15 now: no intro");
     assert_eq!(rig.fe.stage, Stage::Menus, "no movie plays on a second visit");
     assert_eq!(career_stage(), FIRST_RIVAL_STAGE);
+    CareerHandle::shared().clear();
+}
+
+#[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn career_playtest_first_camera_jump_plays_the_pursuit_tutorial_before_loading() {
+    let _career = crate::career::SHARED_CAREER_TEST.lock().unwrap_or_else(|e| e.into_inner());
+    let mut rig = prologue_rig().expect("the install is available");
+    rig.with(|fe, host, _| fe.first_visit_intro(host));
+    rig.with(|fe, host, env| fe.end_movie(host, env));
+    rig.with(|fe, host, env| fe.apply(vec![bio_continue()], host, env));
+    rig.with(|fe, host, env| fe.end_movie(host, env));
+    let point = crate::career::JumpPoint::from_marker(glam::Vec3::new(1.0, 2.0, 3.0), Some(0.0));
+    assert!(!career_flags().contains(Flags::PURSUIT_TUTORIAL_SEEN));
+    rig.with(|fe, host, env| fe.apply(vec![Command::JumpFromMilestones(point)], host, env));
+    assert_eq!(rig.fe.stage, Stage::Movie { then: AfterMovie::MilestoneJump(point) });
+    assert!(career_flags().contains(Flags::PURSUIT_TUTORIAL_SEEN));
+    assert!(CareerHandle::shared().is_prelude(), "loading waits for the tutorial");
     CareerHandle::shared().clear();
 }

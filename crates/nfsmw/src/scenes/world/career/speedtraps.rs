@@ -7,8 +7,7 @@ use nfsmw_career::economy::cash::award_player_bounty;
 use nfsmw_career::milestones::speedtrap::Crossing;
 use nfsmw_career::phone::{BinMoment, bin_messages};
 
-use crate::hud::{HudEvent, LABEL_KMH, MapBlip, ModMessageTone, RACE_SPEEDTRAP, game_word, set_mod_message};
-use crate::i18n::t;
+use crate::hud::{HudEvent, MapBlip, ModMessageTone, RACE_SPEEDTRAP, set_mod_message};
 use crate::scenes::world::players::{LEAD, PlayerId};
 use crate::scenes::world::{WorldScene, space};
 use crate::settings::SpeedUnits;
@@ -144,6 +143,7 @@ impl WorldScene {
             };
             let crossing = trap.crossing(kmh);
             let Crossing::Passed { bounty, .. } = crossing else { return Some((crossing, 0, target, state)) };
+            career.milestones.update_stat(nfsmw_career::milestones::StatType::SpeedtrapSpeed, kmh, true);
             let credit = trap_credit(career.settings.car_handle, guest_handle, who);
             if let Some(record) = credit.and_then(|handle| career.stable.career_for_handle_mut(handle)) {
                 award_player_bounty(record, bounty);
@@ -156,8 +156,16 @@ impl WorldScene {
             phone.queue_bin_messages(&mut career.settings.sms, bin_messages(bin, BinMoment::Challenges(count)));
             Some((crossing, bounty, target, state))
         });
-        match outcome.flatten() {
-            Some((Crossing::Passed { speed_kmh, .. }, bounty, target, state)) => {
+        let Some((crossing, bounty, target, state)) = outcome.flatten() else { return };
+        crate::parity::career_trace::record(
+            "speed_camera",
+            serde_json::json!({
+                "key": key, "speed_kmh": kmh, "target_kmh": target, "passed": matches!(crossing, Crossing::Passed { .. }),
+                "bounty": bounty,
+            }),
+        );
+        match crossing {
+            Crossing::Passed { speed_kmh, .. } => {
                 log::info!("{}", camera_line(true, speed_kmh, target, SpeedUnits::current(), state));
                 log::info!("career: speed trap {key:#x} passed at {speed_kmh:.0} km/h, bounty {bounty}");
                 self.career.trap_photo = Some(crate::viewer::PhotoReport {
@@ -170,21 +178,22 @@ impl WorldScene {
                     bonus_secs: 0.0,
                     bounty,
                 });
-                let unit = game_word(LABEL_KMH, "KM/H");
-                let line = t!("hud-speed-trap", speed = format!("{speed_kmh:.0}"), unit = unit, bounty = bounty);
-                set_mod_message(&line, ModMessageTone::Big, MESSAGE_SECS);
+                if crate::hud::mod_message_line().is_some_and(|(line, tone)| {
+                    tone == ModMessageTone::Warning && line == crate::i18n::game_or_error(LABEL_TOO_SLOW)
+                }) {
+                    crate::hud::hide_mod_message();
+                }
                 if who == LEAD {
                     self.hud_feed.push(HudEvent::SpeedTrap { kmh: speed_kmh, passed: true });
                 }
             }
-            Some((Crossing::TooSlow, _, target, state)) => {
+            Crossing::TooSlow => {
                 log::info!("{}", camera_line(false, kmh, target, SpeedUnits::current(), state));
                 set_mod_message(&crate::i18n::game_or_error(LABEL_TOO_SLOW), ModMessageTone::Warning, MESSAGE_SECS);
                 if who == LEAD {
                     self.hud_feed.push(HudEvent::SpeedTrap { kmh, passed: false });
                 }
             }
-            None => {}
         }
     }
 
@@ -207,6 +216,56 @@ impl WorldScene {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "needs installed bin 15 camera and world data"]
+    fn installed_speed_camera_photo_records_the_measured_crossing_once() {
+        use crate::career::{Career, CareerData, CareerHandle};
+        use nfsmw_career::blacklist::enter_first_bin;
+        use nfsmw_career::milestones::StatType;
+
+        let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+        let data = CareerData::cached(&dir).unwrap();
+        let mut career = Career::new("CAMERA", data.clone(), &Default::default()).unwrap();
+        enter_first_bin(&mut career.settings, &mut career.blacklist, &mut career.milestones, &mut career.traps);
+        let key = career.traps.iter().find(|trap| trap.bin() == 15).unwrap().key();
+        let handle = CareerHandle::default();
+        handle.set(career);
+        let mut scene = WorldScene::open(
+            &dir,
+            crate::scenes::world::Options {
+                at: None,
+                height: 40.0,
+                heading: 0.0,
+                pitch: 0.0,
+                fog_distance: 1500.0,
+                wait_for_load: false,
+                drive: None,
+            },
+        )
+        .unwrap();
+        scene.set_career(handle.clone(), None);
+        scene.drive_into_trap(LEAD, key, 130.0);
+        assert!(scene.career.trap_photo.is_none());
+        assert_eq!(
+            crate::hud::mod_message_line(),
+            Some((crate::i18n::game_or_error(LABEL_TOO_SLOW), ModMessageTone::Warning))
+        );
+        let kmh = 185.17506;
+        scene.drive_into_trap(LEAD, key, kmh);
+        assert!(!crate::hud::mod_message_up(), "the crossing report replaces the earlier speed warning");
+        let report = scene.career.trap_photo.take().unwrap();
+        assert_eq!(report.speed, kmh / 3.6);
+        scene.drive_into_trap(LEAD, key, kmh + 5.0);
+        assert!(scene.career.trap_photo.is_none());
+        let bytes = handle.with(|career| career.profile_bytes()).unwrap();
+        let loaded = Career::from_profile_bytes("CAMERA", &bytes, data).unwrap();
+        let trap = loaded.traps.iter().find(|trap| trap.key() == key).unwrap();
+        assert_eq!(trap.flags(), 5);
+        assert!((trap.recorded_mps() - 51.43793).abs() < 0.001);
+        assert_eq!(loaded.milestones.stat(StatType::SpeedtrapSpeed).best, Some(kmh));
+        assert_eq!(loaded.blacklist.bin(15).unwrap().challenges.len(), 1);
+    }
 
     #[test]
     fn a_trap_fires_when_entered_and_not_while_the_car_stays() {

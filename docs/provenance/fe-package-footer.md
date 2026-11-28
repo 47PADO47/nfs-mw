@@ -50,3 +50,33 @@ front-end screen dump of the original run unattended (hidden, off-screen, muted)
 - The reveal event of the keyboard art (`0xBDFD2DF9`) is no immediate or string either; the packages send it to
   themselves from their handler scripts.
 - The two code tests of flag `0x8` on an object (`0x00429A59`, `0x0069C994`) belong to other systems.
+
+## Message transition
+
+The installed PC `SMS_Message.fng` package dump also documents the transition protocol in spec section 3.
+Its entry script enables package buttons and sends `INIT_COMPLETE` at tick 500. The pad Back response and
+the focused Done object's press response both start the same exit script on the package event handler.
+The script posts the inbox control restoration at tick 0, then sends `EXIT_COMPLETE` at tick 500.
+
+## First-car lot layout
+
+A stock PC front-end snapshot during the first car purchase shows `Car_Select.fng` groups `0xA5E345EF` and
+`0xB66F0FEC` running the authored `POS2` script (`0x001B20C3`). The Back group moves to y = 520 and Accept
+moves to x = -240 in the package's coordinates. A separate stock screenshot shows Accept and Showcase without Back.
+The remake applies this layout on the first-car purchase path. The snapshot covers that path.
+
+## Rival bio and race photo copies
+
+The installed PC first rival bio has a keyboard Continue group and a separate pad group containing Continue
+and Cross. The pad root has ordinary group flags. The package scripts control each copy's reveal, but the saved
+first-visit probe has no settled per-object dumps for both devices. The win photo's pad Race Stats text and
+its offset shadow have the same authored depth, unlike Restart. The installed colors are white on `0xFC866` and
+black on `0xFC868`. The reported remake frame shows the offset copy on top.
+
+## Locked Challenge Rival during exit
+
+The round-two remake trace records Back on `SafeHouseReputationOverview.fng` and a direct switch to
+`MainMenu_Sub.fng`. Clip 18 shows the Challenge Rival box before the overview leaves while the bin still shows
+unmet requirements. The installed overview's Back response posts `0x97BDB465`, which starts a 300-tick fade
+on the hidden Challenge Rival group `0x55F6AA1A`. Starting a script in the remake runtime clears the object's
+hidden flag. The overview reapplies the career's gate after the package scripts advance.

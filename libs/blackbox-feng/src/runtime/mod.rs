@@ -176,6 +176,11 @@ impl Runtime {
         }
     }
 
+    /// Removes the current button, as the package's set-button event with a zero target does.
+    pub fn clear_focus(&mut self, package: PackageId) {
+        self.set_focus_index(package, None, true);
+    }
+
     /// The GUID of the current button, if any.
     pub fn focus(&self, package: PackageId) -> Option<u32> {
         let p = self.running(package)?;

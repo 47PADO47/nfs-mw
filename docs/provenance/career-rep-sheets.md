@@ -90,6 +90,20 @@ Spawn numbers 9–12 share the Rockport region. The first visible Rockport entry
 support that regional mapping; the recording did not individually select all twelve locations. Installed regressions
 check texture decoding and that grid/detail copies track the selected spawn across the scroll window.
 
+## First confirmed milestone jump (2026-11-23)
+
+**[exe]** PC retail 1.3, SHA-256 `80774c2e5d619b4f120b48d4462896fd504c263399d203a238769cffde1d253c`.
+The milestones notification handler `0x551F80` checks career flag bit 9 on the dialog's Yes result
+(`0x55233B`). The clear branch passes the pursuit tutorial movie to `FEAnyTutorialScreen::LaunchMovie`
+(`0x525D50`) and sets bit 9. The set branch posts `0xC3960EB9`, which resumes the selected jump. Tutorial
+notification `0x559920` posts that same message to the source package when dismissed with Accept or Start.
+The corresponding private Xbox reference confirms the shared tutorial path for both pursuit and photo-ticket rows.
+
+**[live]** One modded PC play capture (executable SHA-256
+`bde12bdd158b7f861078ad4527f5a656f34c6068e4a2120f28044f92f0fa158c`) shows the safe-house milestone sheet
+receive Yes, then `FEAnyTutorial.fng` open. On dismissal, the sheet receives `0xC3960EB9` and the original
+opens `Loading_Tips.fng` before returning to free roam. The paired remake capture went straight to loading.
+
 ## Dead ends
 
 - The pending-jump consumer (`+0x11C` / `+0x111`): not looked for again.

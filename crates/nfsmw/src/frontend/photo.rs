@@ -267,7 +267,7 @@ impl ScreenLogic for PhotoLogic {
         match (message, self.report.is_some()) {
             // The footer keeps its first script: the original plays no other on it (read live on the win photo).
             (PAD_ACCEPT, true) => cx.send(Command::RaceAnswer(RaceAnswer::Exit)),
-            (PAD_ACCEPT, false) => cx.send(Command::Resume),
+            (PAD_ACCEPT, false) if self.once(pad::ACCEPT) => cx.send(Command::AcceptTrapPhoto),
             (STATS, true) => self.show_stats(cx),
             (RESTART, true) => self.ask_restart(cx),
             _ => {}
@@ -278,6 +278,9 @@ impl ScreenLogic for PhotoLogic {
     /// has the focus, as the results screen's do and as the original's keys are (2 opens the results, 1 the Restart
     /// question, read live); the package's own message for the same press is passed over.
     fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
+        if self.report.is_none() && bits & pad::ACCEPT != 0 && self.once(pad::ACCEPT) {
+            cx.send(Command::AcceptTrapPhoto);
+        }
         if bits & STATS_BIT != 0 {
             self.show_stats(cx);
         }

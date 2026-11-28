@@ -427,6 +427,9 @@ impl ScreenLogic for CarLotLogic {
 
     fn start(&mut self, cx: &mut Cx) {
         cx.rt.post_to_package(cx.package, super::car_lot_look::LOT_MODE);
+        if self.first_car {
+            super::car_lot_first::position_footer(cx);
+        }
         // The lot opens on its first row (`career-car-lot.md` section 1.2: the original opens on 1/32, a car it lets the player
         // buy, since the buyable cars come first); back from the Showcase it stands where it was left.
         match super::car_lot_look::take_return() {

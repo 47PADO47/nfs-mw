@@ -15,7 +15,7 @@ use anyhow::{Context, Result};
 use nfsmw_career::blacklist::{Blacklist, PopupQueue};
 use nfsmw_career::economy::markers::MarkerInventory;
 use nfsmw_career::milestones::speedtrap::SpeedTrap;
-use nfsmw_career::milestones::{Milestone, MilestoneSet, MilestoneState, STAT_COUNT, StatValue};
+use nfsmw_career::milestones::{Milestone, MilestoneSet, MilestoneState, STAT_COUNT, StatType, StatValue};
 use nfsmw_career::rapsheet::PursuitHistory;
 use nfsmw_career::save::ProfileSave;
 use nfsmw_career::save::milestones_block::{ArrayError, BinCounter, MilestoneBlock, MilestoneEntry, SpeedTrapEntry};
@@ -75,6 +75,7 @@ impl Career {
     /// Blacklist at stage 16 and every milestone and speed trap locked.
     pub fn new(alias: &str, data: Arc<CareerData>, opts: &NewCareer) -> Result<Career> {
         let mut settings = new_career_with(opts);
+        settings.sms.invalidate_missing(|id| nfsmw_career::phone::is_known(u32::from(id)));
         let blacklist = Blacklist::new(data.bins.clone(), settings.stage).context("building the Blacklist")?;
         let (milestones, traps) = fresh_progress(&data);
         let markers = MarkerInventory::empty();
@@ -207,7 +208,10 @@ impl Career {
             let Some(m) = self.milestones.milestones().iter().find(|m| m.def.key == entry.key) else {
                 continue;
             };
-            let type_key = entry.type_key;
+            let type_key = match entry.type_key {
+                0 => m.def.stat.key(),
+                key => key,
+            };
             entry.update_from_milestone(m, type_key);
         }
         let mut trap_entries = block.speed_traps()?;
@@ -222,7 +226,10 @@ impl Career {
             counter.set_progress(&self.milestones, &self.traps);
         }
         let mut nodes = block.stats()?;
-        for (node, value) in nodes.iter_mut().zip(self.milestones.stats().iter()) {
+        for (index, node) in nodes.iter_mut().enumerate() {
+            let Some(stat) = saved_stat(node.key, index) else { continue };
+            node.key = stat.key();
+            let value = self.milestones.stat(stat);
             node.current = value.current;
             node.best = value.best;
         }
@@ -249,11 +256,10 @@ fn passed_challenges(milestones: &MilestoneSet, traps: &[SpeedTrap], bin: u8) ->
 }
 
 /// The milestone block of a new career: every milestone and speed trap locked, nothing banked, one bin counter per
-/// Blacklist bin. The statistic node keys and the milestone type keys are not in [`CareerData`], so they are `0`
-/// (unconfirmed; see [`MilestoneBlock::new_career`]).
+/// Blacklist bin. Each milestone refers to its statistic by its Attrib key.
 fn new_block(data: &CareerData) -> Result<MilestoneBlock, ArrayError> {
     let milestones: Vec<MilestoneEntry> =
-        data.milestones.iter().map(|&def| MilestoneEntry::new_locked(def, 0)).collect();
+        data.milestones.iter().map(|&def| MilestoneEntry::new_locked(def, def.stat.key())).collect();
     let traps: Vec<SpeedTrapEntry> = data.traps.iter().map(|&def| SpeedTrapEntry::new_locked(def)).collect();
     let bins: Vec<BinCounter> = data.bins.iter().map(|bin| BinCounter::new_career(u16::from(bin.number))).collect();
     MilestoneBlock::new_career(&milestones, &traps, &bins)
@@ -270,7 +276,7 @@ fn fresh_progress(data: &CareerData) -> (MilestoneSet, Vec<SpeedTrap>) {
 /// out, which is the case for a blank profile; the caller then starts fresh.
 ///
 /// A milestone or trap with no entry in the block (or whose entry does not match its definition) starts fresh. The
-/// statistics are taken in the block's node order, which the statistic table of `StatType::ALL` is assumed to follow.
+/// statistics are restored by their saved keys.
 /// The pursuit summary is not in the parts of the block this crate decodes, so it starts empty.
 fn restored_progress(settings: &CareerSettings, data: &CareerData) -> Option<(MilestoneSet, Vec<SpeedTrap>)> {
     let block = MilestoneBlock::from_bytes(&settings.gameplay_blob[..]).ok()?;
@@ -298,10 +304,20 @@ fn restored_progress(settings: &CareerSettings, data: &CareerData) -> Option<(Mi
         })
         .collect();
     let mut stats = [StatValue::default(); STAT_COUNT];
-    for (slot, node) in stats.iter_mut().zip(nodes.iter()) {
-        *slot = node.value();
+    for (index, node) in nodes.iter().enumerate() {
+        if let Some(stat) = saved_stat(node.key, index) {
+            stats[stat.index()] = node.value();
+        }
     }
     Some((MilestoneSet::from_parts(milestones, stats, Vec::new()), traps))
+}
+
+/// Older remake profiles stored zero keys in enum order. Preserve their values on the next write.
+fn saved_stat(key: u32, index: usize) -> Option<StatType> {
+    if key == 0 {
+        return StatType::ALL.get(index).copied();
+    }
+    StatType::ALL.into_iter().find(|stat| stat.key() == key)
 }
 
 #[cfg(test)]

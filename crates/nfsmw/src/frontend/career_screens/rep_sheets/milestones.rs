@@ -242,7 +242,7 @@ impl Page for MilestonePage {
             Entry::Trap { .. } => ("REP_SHEET_PHOTOTICKET_CONFIRM", point),
             Entry::Pursuit { .. } => ("REP_SHEET_MILESTONE_CONFIRM", point.with_chase()),
         };
-        Some(Ask { label: label_hash(label), then: Command::JumpTo(point) })
+        Some(Ask { label: label_hash(label), then: Command::JumpFromMilestones(point) })
     }
 
     fn map(&self, at: usize) -> Option<(u32, Crop)> {
@@ -297,8 +297,8 @@ mod chase_tests {
             label: None,
         };
         let trap = Entry::Trap { threshold: 150, bounty: 5_000, unlocked: true, done: false, best: 0.0 };
-        assert!(matches!(asked(pursuit), Some(Command::JumpTo(point)) if point.chase));
-        assert!(matches!(asked(trap), Some(Command::JumpTo(point)) if !point.chase));
+        assert!(matches!(asked(pursuit), Some(Command::JumpFromMilestones(point)) if point.chase));
+        assert!(matches!(asked(trap), Some(Command::JumpFromMilestones(point)) if !point.chase));
     }
 
     #[test]

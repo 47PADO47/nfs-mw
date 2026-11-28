@@ -110,7 +110,7 @@ impl IconMenu {
                 // The Remastered look has no overview page: its Blacklist is the list of rivals.
                 let screen = match self.vertical {
                     true => screen::SAFE_HOUSE_RIVAL_CHALLENGE,
-                    false => screen::SAFE_HOUSE_REPUTATION_OVERVIEW,
+                    false => crate::frontend::career_screens::reputation_overview::package(true),
                 };
                 cx.send(Command::Switch(screen.into(), args));
             }

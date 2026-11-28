@@ -68,7 +68,14 @@ const CHALLENGE_KEY: u32 = PAD_BUTTON0 + 4;
 /// The page opened at `bin` (the screens it opened come back here).
 pub fn open(cx: &mut Cx, bin: u8, from: Args) {
     let args = Args { overview_sheet: from.overview_sheet, ..super::blacklist::carry(from, bin, false) };
-    cx.send(Command::Switch(screen::SAFE_HOUSE_REPUTATION_OVERVIEW.to_string(), args));
+    cx.send(Command::Switch(package(args.pause).to_string(), args));
+}
+
+pub(in crate::frontend) fn package(in_game: bool) -> &'static str {
+    match in_game {
+        true => screen::IN_GAME_REPUTATION_OVERVIEW,
+        false => screen::SAFE_HOUSE_REPUTATION_OVERVIEW,
+    }
 }
 
 /// The panel of rival `bin` from the career, or `None` without one.
@@ -121,6 +128,7 @@ struct Overview {
     args: Args,
     /// The Blacklist is a list (`ListScreen::Blacklist`): the page is driven as a list and `cursor` is the entry on it.
     vertical: bool,
+    challenge_available: bool,
     cursor: usize,
     row: Row,
 }
@@ -135,7 +143,7 @@ mod return_tests;
 
 /// The logic of `name` (lower case) when it is the overview.
 pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
-    if name != screen::SAFE_HOUSE_REPUTATION_OVERVIEW.to_ascii_lowercase() {
+    if ![package(false), package(true)].iter().any(|file| file.eq_ignore_ascii_case(name)) {
         return None;
     }
     // Outside a career there is no Blacklist to show.
@@ -147,8 +155,9 @@ pub fn make(name: &str, args: Args) -> Option<Box<dyn ScreenLogic>> {
         low: FIRST_RIVAL_STAGE,
         asked: args.rival,
         sheet: args.overview_sheet.min(SHEETS.len() - 1),
-        args: Args { overview_sheet: 0, ..args },
+        args: Args { pause: args.pause || package(true).eq_ignore_ascii_case(name), overview_sheet: 0, ..args },
         vertical: false,
+        challenge_available: false,
         cursor: args.overview_sheet.min(SHEETS.len() - 1),
         row: Row::default(),
     }))
@@ -166,7 +175,8 @@ impl Overview {
         }
         cx.label_group(ALIAS, label_hash(&rival_key(self.shown, "AKA")));
         cx.label_group(CHALLENGE_TEXT, label_hash(&rival_key(self.shown, "CHALLENGE")));
-        let picture = |suffix: &str| fe_hash_upper(&format!("RIVAL_{:02}{suffix}", self.shown));
+        let variant = if self.args.pause { "_IG" } else { "" };
+        let picture = |suffix: &str| fe_hash_upper(&format!("RIVAL_{:02}{variant}{suffix}", self.shown));
         for (name, texture) in [(PORTRAIT, picture("")), (GRAFFITI, picture("_GRAF"))] {
             if let Some(o) = cx.object(name) {
                 cx.rt.set_texture(o, texture);
@@ -174,7 +184,7 @@ impl Overview {
         }
     }
 
-    fn fill_panel(&self, cx: &mut Cx) {
+    fn fill_panel(&mut self, cx: &mut Cx) {
         let Some(panel) = read(self.shown) else { return };
         let rows = [panel.races, panel.challenges, panel.bounty];
         for (i, row) in rows.iter().enumerate() {
@@ -190,7 +200,8 @@ impl Overview {
         }
         cx.hide(STAMP, !panel.defeated);
         // The button and the panel rows share their place: the package hides the rows when the button is on.
-        cx.hide(BUTTON_GROUP, panel.button != Button::On);
+        self.challenge_available = panel.button == Button::On;
+        cx.hide(BUTTON_GROUP, !self.challenge_available);
         if panel.defeated {
             cx.rt.post_to_package(cx.package, RIVAL_LIST_READY);
         }
@@ -316,6 +327,10 @@ impl ScreenLogic for Overview {
 
     fn tick(&mut self, cx: &mut Cx, dt: f32) {
         self.vertical = cx.screen_list_look(ListScreen::Blacklist);
+        // Back starts a package fade that clears the root's hidden bit. Keep a locked challenge hidden through exit.
+        if !self.challenge_available {
+            cx.hide(BUTTON_GROUP, true);
+        }
         if !self.vertical {
             self.row.tick(cx, dt);
         }

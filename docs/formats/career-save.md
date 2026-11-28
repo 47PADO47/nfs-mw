@@ -180,7 +180,7 @@ Record layouts:
 - **Object record**: u32 key, u32 size, `size` bytes. The save writes them in manager list order; the load reads N records.
   The spec's name "script state records" is probably these; not confirmed.
 - **Slot (0x20 bytes)**: u32 at +0, one byte at +4, u32 at +8, 19 bytes of text from +0xC. Matches 3.1 item 2.
-- **Statistic node (0x10 bytes)**: u32 key, f32 current, f32 best, u32 flags. Keys: 30 distinct per save.
+- **Statistic node (0x10 bytes)**: u32 key, f32 current, f32 best, u32 flags. All 30 keys in a PC profile match the Attrib keys of the statistic names, in ascending unsigned key order. The camera statistic holds km/h and the individual camera record holds m/s.
 - **Milestone entry (0x14 bytes)** and **speed trap entry (0x14 bytes)**: as spec section 2.3 and 2.4. Checked in the saves:
   milestone state is 1 in `NAME` and `stock` and 4 in `mwo`; the 55 leaf keys are distinct; the 55 type keys reduce to 8
   distinct values, all of which are statistic node keys. Trap flags are 0 in `NAME` and `stock`, 5 (unlocked, done) in

@@ -1,16 +1,16 @@
 //! The loading screen of the career (`Loading_Tips.fng`, docs/specs/loading-screen.md section 5): `LOADING...` at the
 //! bottom left and a game tip with its picture in the middle. The package also has a `Press (key) To Continue` prompt for
-//! the end of the load; the career does not use it, it goes straight into the world. The package only holds the
-//! layout; this fills in the tip.
+//! the end of the first safe-house arrival. Other tips advance automatically.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use blackbox_feng::ids::{BUTTON_PRESSED, PAD_ACCEPT};
 use blackbox_feng::resource_handle;
 use blackbox_text::label_hash;
 
-use super::logic::{Cx, ScreenLogic};
+use super::logic::{Command, Cx, ScreenLogic};
 use crate::ui::tips::{self, TIPS};
 
 /// The tip's text and title strings and its picture, by object name (`dump-screen Loading_Tips.fng`).
@@ -19,6 +19,8 @@ const TITLE: u32 = 0x0D55_5245;
 const PICTURE: u32 = 0xC9D7_7CB6;
 /// The package's message that fades the tip group in.
 const TIP_IN: u32 = 0xB237_48F4;
+const SHOW_CONTINUE: u32 = 0x9938_A38F;
+const INTRO_TIP_SECONDS: f32 = 5.0;
 /// The tip the next career load shows: the first is picked by the clock, the ones after it follow in table order, so
 /// loads in a row show different tips.
 fn next_key() -> &'static str {
@@ -39,16 +41,21 @@ fn first_tip() -> usize {
 /// `Loading_Tips.fng` with the tip of its load.
 pub struct LoadingTips {
     key: &'static str,
+    intro_left: Option<f32>,
 }
 
 impl LoadingTips {
     pub fn new() -> Self {
-        Self { key: next_key() }
+        Self { key: next_key(), intro_left: None }
+    }
+
+    pub(super) fn first_safe_house() -> Self {
+        Self { key: "ENGAGE_MECHANIC", intro_left: Some(INTRO_TIP_SECONDS) }
     }
 
     #[cfg(test)]
     pub(super) fn with_key(key: &'static str) -> Self {
-        Self { key }
+        Self { key, intro_left: None }
     }
 }
 
@@ -64,9 +71,29 @@ impl ScreenLogic for LoadingTips {
             cx.rt.set_texture(picture, resource_handle(&tips::picture_name(self.key)));
         }
         cx.rt.post_to_package(cx.package, TIP_IN);
+        if self.intro_left.is_some() {
+            cx.rt.set_input_enabled(cx.package, false);
+        }
     }
 
-    fn message(&mut self, _cx: &mut Cx, _message: u32) {}
+    fn tick(&mut self, cx: &mut Cx, dt: f32) {
+        let Some(left) = self.intro_left.as_mut().filter(|left| **left > 0.0) else { return };
+        *left -= dt;
+        if *left <= 0.0 {
+            cx.rt.post_to_package(cx.package, SHOW_CONTINUE);
+        }
+    }
+
+    fn accepts_input(&self) -> bool {
+        self.intro_left.is_none_or(|left| left <= 0.0)
+    }
+
+    fn message(&mut self, cx: &mut Cx, message: u32) {
+        if matches!(message, PAD_ACCEPT | BUTTON_PRESSED) && self.intro_left.is_some_and(|left| left <= 0.0) {
+            self.intro_left = None;
+            cx.send(Command::ContinueFirstSafeHouse);
+        }
+    }
 }
 
 #[cfg(test)]

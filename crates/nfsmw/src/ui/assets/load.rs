@@ -113,10 +113,11 @@ fn wanted_into(dir: &GameDir, rel: &str, quiet_if_missing: bool, keep: impl Fn(u
 /// `GLOBAL/DYNTEX.BIN`, first name wins. Neither file is read whole: the 21 MB and 10 MB packs are read for the
 /// wanted textures only. A missing file is skipped quietly, as the other packs are.
 pub(super) fn rivals_and_tips(dir: &GameDir) -> Textures {
-    // Only the menu pictures (`RIVAL_NN`, `_BG`, `_GRAF`) are decoded: the `_IG` variants would double the 30 MB they
-    // take.
+    // The driving overview uses its own portrait and graffiti. Neither overview needs the in-game background variants.
     let rivals: HashSet<u32> = (1..=15)
-        .flat_map(|n| ["", "_BG", "_GRAF"].map(|suffix| fe_hash_upper(&format!("RIVAL_{n:02}{suffix}"))))
+        .flat_map(|n| {
+            ["", "_BG", "_GRAF", "_IG", "_IG_GRAF"].map(|suffix| fe_hash_upper(&format!("RIVAL_{n:02}{suffix}")))
+        })
         .collect();
     let mut textures = wanted_into(dir, RIVALS_FILE, true, |hash| rivals.contains(&hash));
     // Only the tips' pictures are decoded: the pack holds 278 other textures.

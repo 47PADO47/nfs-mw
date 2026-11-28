@@ -91,6 +91,35 @@ fn a_speed_trap_photo_has_continue_only() {
 }
 
 #[test]
+#[ignore = "needs the game (set NFSMW_GAME_DIR)"]
+fn installed_race_photo_draws_the_pad_stats_caption_over_its_shadow() {
+    use crate::frontend::flow_movie_tests::install_rig;
+    use crate::frontend::photo::PhotoLogic;
+    use crate::viewer::{PhotoReport, RaceReport};
+
+    let mut rig = install_rig().expect("the install is available");
+    rig.with(|fe, _, env| {
+        let photo = PhotoLogic::for_race(PhotoReport::sample(), RaceReport::sample());
+        fe.screens.open_with(screen::PHOTO, Box::new(photo), true, env);
+        for _ in 0..280 {
+            fe.screens.update(1.0 / 60.0, 0, env);
+        }
+    });
+    let presented = |device| rig.fe.screens.presented_trees(&Bindings::default(), device).pop().unwrap();
+    let pad_tree = presented(InputDevice::Xbox);
+    let position = |guid| pad_tree.draw_order.iter().position(|&i| pad_tree.nodes[i].guid == guid);
+    let shadow = position(0x000F_C868).expect("stock dark Stats shadow is drawn");
+    let caption = position(0x000F_C866).expect("stock light Stats caption is drawn");
+    assert!(shadow < caption, "the dark offset cannot cover the light caption");
+    let colour = |i: usize| pad_tree.nodes[pad_tree.draw_order[i]].world_colour;
+    assert!(colour(caption)[0] > colour(shadow)[0], "the foreground keeps its authored contrast");
+    let keyboard = presented(InputDevice::Keyboard);
+    assert!(keyboard.draw_order.iter().all(|&i| !matches!(keyboard.nodes[i].guid, 0x000F_C866 | 0x000F_C868)));
+    let label = crate::i18n::game_or_error(0xD1F2_C488);
+    assert!(keyboard.draw_order.iter().any(|&i| keyboard.nodes[i].text.as_deref() == Some(label.as_str())));
+}
+
+#[test]
 fn only_the_compared_screens_draw_their_package_footer() {
     assert!(owns(screen::PHOTO, Footer::RacePhoto { race: true }));
     assert!(owns("SMS_Message.fng", Footer::SmsMessage { replay: true }));

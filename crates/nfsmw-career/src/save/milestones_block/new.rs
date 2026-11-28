@@ -5,8 +5,7 @@
 //! laid out by the same code that reads it back. The object records are none, the slots are zero, the flag bits are
 //! clear.
 //!
-//! Unconfirmed: the statistic node keys and the milestone type keys are not in the data, so the callers pass `0`
-//! for them. The save's values for those keys are not known.
+//! The original stores its statistic map in ascending Attrib key order.
 
 use super::{
     ArrayError, BLOCK_LEN, BinCounter, GAME_MAGIC, MIN_VERSION, MilestoneBlock, MilestoneEntry, SpeedTrapEntry,
@@ -76,15 +75,17 @@ fn write_header(block: &mut MilestoneBlock, milestones: usize, traps: usize) {
     put_u32(raw, KEY_COUNT_AT, 0);
 }
 
-/// One node per statistic, in `StatType::ALL` order: key `0` (unconfirmed), no current or best value, the flags the
-/// statistic implies.
+/// Empty statistic nodes in the saved map's key order.
 fn stat_nodes() -> Vec<StatNode> {
-    StatType::ALL.iter().map(|&stat| StatNode { key: 0, current: None, best: None, flags: stat_flags(stat) }).collect()
+    let mut nodes =
+        StatType::ALL.map(|stat| StatNode { key: stat.key(), current: None, best: None, flags: stat_flags(stat) });
+    nodes.sort_unstable_by_key(|node| node.key);
+    nodes.to_vec()
 }
 
 impl MilestoneEntry {
     /// The entry of milestone `def` in a new career: locked, nothing banked. `type_key` is the statistic node key
-    /// (unconfirmed; the caller passes `0` when it is not known).
+    /// of the statistic tracked by the milestone.
     pub fn new_locked(def: MilestoneDef, type_key: u32) -> MilestoneEntry {
         MilestoneEntry {
             type_key,

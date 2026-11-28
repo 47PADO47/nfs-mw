@@ -19,7 +19,7 @@ packages are described in [formats/frontend.md](../formats/frontend.md), the flo
 | `loading_boot.fng` | `GLOBAL/GLOBALA.BUN` | 5 | The boot-time logo card (`MW_Logo.tga` on `BasePoly.tga`). Not used by free roam. |
 | `WS_Loading.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 34 | The loading screen: a dark panel, the word `LOADING` twice, a pair of cop-light and headlight glow groups that sweep across, and a stripe (`BaseStripe.tga`) whose UVs scroll on a looping script. |
 | `WS_Loading_Controller.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 74 | The same screen with a controller hint. Not used yet. |
-| `Loading_Tips.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 33 | The career's loading screen: `LOADING...` with cop-light glows at the bottom left, a tip (title, text, picture) in the middle, and a `Press (key) To Continue` prompt that is not used. Used by the career (section 5). |
+| `Loading_Tips.fng` | `GLOBAL/WIDESCREEN_GLOBAL.BUN` | 33 | The career's loading screen: `LOADING...` with cop-light glows at the bottom left, a tip (title, text, picture) in the middle, and a `Press (key) To Continue` prompt for mandatory tips. |
 | `FadeScreen.fng`, `FadeScreenNoLoadingBar.fng` | `GLOBAL/GlobalB.lzc` | 18, 1 | A fade with and without a loading bar (the executable has the `EFadeScreen*LoadingBar*` event names). Not used yet. |
 
 There is **no** 4:3 loading package in the install (`Loading.fng` is named in the executable but not present), so
@@ -109,6 +109,16 @@ script of 2400 ticks. The original bar is therefore a looping animation, not a p
 - **No prompt [ours].** The package has a `Press (key) To Continue` prompt (message `0x9938A38F`, name unknown, hides
   `LOADING...` and flashes the prompt). The career does not send it: the world is revealed as soon as it reports
   ready, as free roam is.
+
+### 5.1 First safe-house arrival
+
+**[exe]** First entry to the career safe house in the Blacklist sequence selects the mandatory `ENGAGE_MECHANIC`
+tip. It shows the installed tip text and picture in `Loading_Tips.fng`. After the load has finished and the tip has
+been visible for at least five seconds, the package shows Continue and enables Accept. Accept hands off to the
+safe-house intro movie. An ordinary career loading tip has no Accept gate.
+
+**[ours]** The remake uses the same loading package for this first handoff. It keeps the previous world concealed
+and uses the five-second display gate before starting the movie.
 
 ## 6. A race starting in a world that is already up [ours]
 

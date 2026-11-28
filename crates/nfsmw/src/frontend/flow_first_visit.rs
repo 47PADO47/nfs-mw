@@ -15,9 +15,10 @@ use nfsmw_career::settings::{FIRST_RIVAL_STAGE, PROLOGUE_STAGE};
 use crate::app::Host;
 use crate::career::CareerHandle;
 use crate::frontend::ids::screen::{
-    MAIN_MENU_SUB, SAFE_HOUSE_REPUTATION_OVERVIEW, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE, SAFEHOUSE_MARKERS,
-    SAFEHOUSE_REGION_UNLOCK,
+    LOADING_TIPS, MAIN_MENU_SUB, SAFE_HOUSE_REPUTATION_OVERVIEW, SAFE_HOUSE_RIVAL_BIO, SAFE_HOUSE_RIVAL_CHALLENGE,
+    SAFEHOUSE_MARKERS, SAFEHOUSE_REGION_UNLOCK,
 };
+use crate::frontend::loading_tips::LoadingTips;
 use crate::frontend::logic::{Args, Command, Env, ListScreen, screen_list_look_of};
 
 use super::Frontend;
@@ -36,8 +37,7 @@ pub(in crate::frontend) fn rival_movie(stage: u8) -> String {
     format!("blacklist_{stage:02}")
 }
 
-/// The command the rival bio sends when the first visit leaves it (Accept). Back does the same: the sequence has no other
-/// way on, and a bio left without it would never open the rival movie or set the opening seen flag.
+/// The command the rival bio sends when the first visit leaves it (Accept).
 pub(in crate::frontend) fn bio_continue() -> Command {
     Command::BlacklistStep(BlacklistStepper { counter: BIO_COUNTER })
 }
@@ -58,6 +58,34 @@ pub(in crate::frontend) fn enter_first_bin_on_open() -> bool {
 }
 
 impl Frontend {
+    /// First arrival opens the mandatory Engage Mechanic tip before the safe-house movie.
+    pub(super) fn first_visit_tip(&mut self, host: &mut Host, env: &mut Env) -> bool {
+        if !self.career.with(|career| career.stage() == PROLOGUE_STAGE).unwrap_or(false) {
+            return false;
+        }
+        if crate::parity::career_trace::skip_cinematics() {
+            return self.first_visit_intro(host);
+        }
+        self.screens.clear();
+        let commands = self.screens.open_with(LOADING_TIPS, Box::new(LoadingTips::first_safe_house()), true, env);
+        if self.screens.top() != Some(LOADING_TIPS) {
+            return self.first_visit_intro(host);
+        }
+        self.paused.set(true);
+        self.conceal.set(true);
+        self.latch = true;
+        self.stage = Stage::Menus;
+        self.apply(commands, host, env);
+        true
+    }
+
+    pub(super) fn continue_first_safe_house(&mut self, host: &mut Host, env: &mut Env) {
+        if !self.first_visit_intro(host) {
+            self.career.set_prelude(true);
+            self.open_safe_house(host, env);
+        }
+    }
+
     /// The safe house request of the world at stage 16: the first visit plays `storyfmv_saf25`, and the rival bio follows it
     /// (`Args::sequence`). True when the intro played. False leaves the request to the safe house menu: any other stage, or a
     /// movie that does not open.

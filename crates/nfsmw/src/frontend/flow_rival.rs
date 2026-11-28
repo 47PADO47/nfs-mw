@@ -3,12 +3,14 @@
 //! `PostRaceActivity` (`docs/specs/story-flow-2.md` sections 4.3 and 4.4).
 
 use nfsmw_career::blacklist::Blacklist;
+use nfsmw_career::settings::Flags;
 
 use crate::app::Host;
 use crate::frontend::logic::{Env, QuitTo};
 
 use super::Frontend;
 use super::flow_loading::LoadingScreen;
+use super::flow_movie::AfterMovie;
 use crate::frontend::flow::Stage;
 
 impl Frontend {
@@ -28,6 +30,25 @@ impl Frontend {
     pub(super) fn launch_event(&mut self, event: String, host: &mut Host, env: &mut Env) {
         log::info!("career: launching event {event} from the race events sheet");
         self.leave_safe_house_for_race(&event, host, env);
+    }
+
+    pub(super) fn jump_from_milestones(&mut self, point: crate::career::JumpPoint, host: &mut Host, env: &mut Env) {
+        let first_tutorial = self.stage == Stage::Menus
+            && self.in_safe_house
+            && self
+                .career
+                .with(|career| !career.settings.flags.contains(Flags::PURSUIT_TUTORIAL_SEEN))
+                .unwrap_or(false);
+        if first_tutorial {
+            self.play_movie("pursuit_tutorial", AfterMovie::MilestoneJump(point), host);
+            if matches!(self.stage, Stage::Movie { .. }) {
+                self.career.with(|career| {
+                    career.settings.flags = career.settings.flags.with(Flags::PURSUIT_TUTORIAL_SEEN);
+                });
+                return;
+            }
+        }
+        self.jump_to(point, host, env);
     }
 
     /// A milestone or a bounty place of the sheets was accepted: the world starts with the car at the marker `point`.

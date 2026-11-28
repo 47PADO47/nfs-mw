@@ -275,6 +275,10 @@ Circle. `0x35F8620B` is no key: it is the event that the screen's handler script
 **[verified]** (install packages, `nfsmw dump-screen`) A deleted message returns to state 0, so a script that sends the
 same id again (a repeat of the trigger) delivers it again.
 
+Both horizontal directions toggle the inbox tab and rebuild its list, including when the other tab is empty.
+Automatic delivery leaves the list panel hidden while the inbox initializes and hands input to the reader.
+Done reveals the inbox list.
+
 ## 5. Who sends what
 
 ### 5.1 Complete list of senders **[verified]**

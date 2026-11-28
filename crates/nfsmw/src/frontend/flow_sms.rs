@@ -73,6 +73,7 @@ mod tests {
     use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
 
     const FRAME: f32 = 1.0 / 60.0;
+    const INBOX_PANEL: u32 = 0x2CF8_01C2;
 
     /// The delivery of message 15 while driving: the inbox at the message, which opens it over itself.
     fn open_popup(screens: &mut Screens, env: &mut Env) {
@@ -80,8 +81,16 @@ mod tests {
         let args = Args { from_world: true, ..Args::default() };
         let commands = screens.open(SMS_MAILBOXES, args, true, env);
         screens.apply_stack_commands(commands, env);
-        // The inbox opens the message once its package is up (its init message, 500 ms in).
+        // Neither the init animation nor the covered inbox may flash the list during delivery.
+        // Check every frame up through the inbox's INIT_COMPLETE and the message opening over it.
         for _ in 0..60 {
+            let trees = screens.trees();
+            let panel = trees
+                .iter()
+                .flat_map(|tree| &tree.nodes)
+                .find(|node| node.name_hash == INBOX_PANEL)
+                .expect("the inbox panel is still loaded");
+            assert!(!panel.visible, "auto-delivery keeps the list hidden with {:?} on top", screens.top());
             let commands = screens.update(FRAME, 0, env);
             screens.apply_stack_commands(commands, env);
         }
@@ -120,6 +129,14 @@ mod tests {
         assert!(
             screens.top().is_some_and(|top| top.eq_ignore_ascii_case(SMS_MAILBOXES)),
             "Done goes back to the inbox"
+        );
+        assert!(
+            screens
+                .trees()
+                .iter()
+                .flat_map(|tree| &tree.nodes)
+                .any(|node| node.name_hash == INBOX_PANEL && node.visible),
+            "Done reveals the inbox panel"
         );
         let commands = back(&mut screens, &mut env);
         assert!(commands.iter().any(|c| matches!(c, Command::Resume)), "the inbox's Back resumes: {commands:?}");

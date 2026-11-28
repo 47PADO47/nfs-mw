@@ -46,6 +46,8 @@ impl<'a> GateInputs<'a> {
 pub enum Trigger<'a> {
     /// `SetRoaming`: every time free roam starts. No condition.
     RoamingStart,
+    /// Continue on the free-roam speed camera photo.
+    SpeedTrapPhotoAccepted,
     /// An event starts (`StartRace` hook).
     EventStart {
         /// The id of the started node, `None` when it does not exist.
@@ -66,7 +68,7 @@ impl Trigger<'_> {
     /// passes the start condition and is refused by the gate.
     pub fn posts_event(&self) -> bool {
         match *self {
-            Trigger::RoamingStart => true,
+            Trigger::RoamingStart | Trigger::SpeedTrapPhotoAccepted => true,
             Trigger::EventStart { node, race_flag } => {
                 node == Some(FINAL_EVENT) || (node.is_some_and(|n| n != OPENING_RACE) && race_flag)
             }

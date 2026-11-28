@@ -26,6 +26,9 @@ fn the_play_wrapper_delivers_nis_audio_and_feedback() {
         fn owns_soundtrack(&self) -> bool {
             true
         }
+        fn holds_radio(&self) -> bool {
+            true
+        }
         fn note_nis_audio(&mut self, playing: bool) {
             self.playing.store(playing, Ordering::Relaxed);
         }
@@ -37,6 +40,7 @@ fn the_play_wrapper_delivers_nis_audio_and_feedback() {
         Pausable::new(Box::new(Observed { request: request.clone(), playing: playing.clone() }), flag.clone());
     assert_eq!(scene.nis_audio(), Some(&request));
     assert!(scene.owns_soundtrack());
+    assert!(scene.holds_radio());
     scene.note_nis_audio(true);
     assert!(playing.load(Ordering::Relaxed));
     flag.set(true);
@@ -44,6 +48,7 @@ fn the_play_wrapper_delivers_nis_audio_and_feedback() {
     scene.conceal.set(true);
     assert!(scene.nis_audio().is_none(), "a hidden world does not play its soundtrack");
     assert!(!scene.owns_soundtrack());
+    assert!(!scene.holds_radio());
     scene.note_nis_audio(false);
     assert!(!playing.load(Ordering::Relaxed));
 }

@@ -24,3 +24,17 @@ all with radius 25 m and nonzero elevation. Their 146 distinct TargetActivity
 keys all resolve to races with a start grid. TargetActivity hashes to
 0x277566F3, matching the constructor's field access. Positions round-trip
 through map-to-physics and physics-to-render conversion without displacement.
+
+2026-11-23: in the same PC executable, GManager::RefreshSpeedTrapIcons
+(0x5e9de0) sets both visibility bits for an armed, incomplete camera and
+clears them otherwise. GIcon creation (0x5ec270) reads 12-byte records at
+0x8f5a5c. Type 13 has model hash 0xc1fd605b and emitter-group hash 0x60bb33ec.
+Type 6 uses a different mesh and shares the emitter group. GIcon::Spawn
+requests geometry and particles independently. The stock InGameA pack has
+the type 6 geometry but does not contain the type 13 name or hash.
+GatherVisibleIcons (0x5e4940) requires both visibility bits and sorts admitted
+icons by distance in the horizontal plane. It does not test the pursuit
+state. The installed tests resolve the shared particle group and exercise
+the bin 15 camera through the world activity list. Draw distance follows
+the existing remake activity pipeline. A matched world-marker frame
+comparison is still open.

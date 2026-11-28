@@ -94,3 +94,13 @@
     entered at that point, not on engaging the safe house (`career-safehouse.md` 5.3).
   - The 12 statistic types with no producer in the executable and the open questions of [specs/career.md](../specs/career.md)
     apply to the runtime as they do to the rules.
+
+### Speed camera photo, Continue
+
+PC 1.3: the photo notification handler at `0x005A7EA0` dispatches Accept on photo type 2 to the unpause and autosave event
+constructors (calls at `0x005A7FAA` and `0x005A7FD2`). The trap completion routine updates the entry and bin before
+the photo opens. A modded PC run independently confirms the resulting saved state at photo dismissal.
+
+The statistic updater resolves the name with Attrib StringToKey. In the same save, all 30 nodes match the named
+statistics in ascending key order. The camera statistic stores 185.175 km/h and the completed entry stores
+51.4379 m/s. All eight distinct milestone statistic keys also resolve in that table.
