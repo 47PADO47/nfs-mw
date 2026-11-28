@@ -57,7 +57,7 @@ fn world_pixel(in: VsOut, texel: vec4<f32>, receive_ao: bool) -> vec4<f32> {
     if WORLD_KIND != 2u || shadow_data.projected.x < 0.5 {
         visibility = scene_visibility(in.world, receiver, in.clip.xy, in.receives_shadow);
     }
-    var light = in.world_ambient * world_environment(in.normal) * ao + in.world_diffuse * visibility * cloud_visibility(in.world);
+    var light = in.world_ambient * world_environment(world_ambient_normal(in.normal,in.clip.xy,ao)) * ao + in.world_diffuse * visibility * cloud_visibility(in.world);
     light *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
     let alpha = select(texel.a * in.color.a, texel.a, WORLD_KIND == 2u);
     var local = vec3(0.0);

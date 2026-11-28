@@ -25,9 +25,13 @@ impl Renderer {
         let ao = self
             .ao
             .get_or_insert_with(|| AmbientOcclusion::new(&self.device, targets.size, self.pipeline_cache.as_ref()));
-        if ao.size != targets.size {
+        let format = match self.graphics.ao.directional() {
+            true => wgpu::TextureFormat::Rgba8Unorm,
+            false => wgpu::TextureFormat::R8Unorm,
+        };
+        if ao.size != targets.size || ao.mask.texture().format() != format {
             ao.size = targets.size;
-            ao.mask = super::super::surface::mask(&self.device, targets.size, "ambient visibility");
+            ao.mask = super::super::surface::mask_with_format(&self.device, targets.size, "ambient visibility", format);
         }
         if self.shared.shadows.ambient != ao.mask {
             self.shared.shadows.set_ambient(&self.device, &self.shared.glossy.material, ao.mask.clone());
@@ -45,6 +49,7 @@ impl Renderer {
                 target: &mask,
                 depth: &targets.depth,
                 normals: &targets.normals,
+                static_depth: surfaces.static_depth.as_ref().and_then(|s| s.current()),
                 size: targets.size,
                 frame,
                 settings: self.graphics.ao,

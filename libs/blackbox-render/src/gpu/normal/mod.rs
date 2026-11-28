@@ -38,7 +38,7 @@ pub(super) struct Normal {
     sampler: wgpu::Sampler,
     lighting: wgpu::Buffer,
     /// What `lighting` holds as of the last queued write, so views of one frame with the same data write it once.
-    written_lighting: Option<[[f32; 4]; 4]>,
+    written_lighting: Option<[[f32; 4]; 6]>,
     black_reflection: wgpu::TextureView,
     projected: Option<wgpu::TextureView>,
     materials: Slots<Material>,
@@ -85,7 +85,7 @@ impl Normal {
                 format!(
                     "{}\n{}\n{}\n{}",
                     instance_view::instance_source(include_str!("../../shaders/normal.wgsl"), store.then_some(3)),
-                    include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"),
+                    crate::shadow_receiver_source("2"),
                     include_str!("../../shaders/road_reflection.wgsl"),
                     include_str!("../../shaders/road_probe.wgsl")
                 )
@@ -95,7 +95,7 @@ impl Normal {
         let sampler = sampler.clone();
         let lighting = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("normal scenery shared specular"),
-            contents: bytemuck::cast_slice(&[[0.0_f32; 4]; 4]),
+            contents: bytemuck::cast_slice(&[[0.0_f32; 4]; 6]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         // WebGPU initializes new textures to zero. Absence of a projected view adds no light.
@@ -169,9 +169,20 @@ impl Normal {
             [water.0.dampness, water.0.pooling, water.0.time, water.0.rain],
             [
                 u8::from(water.1.enhanced_wet_surfaces) as f32,
-                water.1.puddle_coverage,
+                water.0.puddle_threshold(water.1.puddle_coverage).unwrap_or(-1.0),
                 water.1.puddle_scale,
                 water.1.water_ripples,
+            ],
+            // Parallax: depth in metres (0 off), most samples, fade distance (`normal.wgsl`).
+            match water.1.parallax {
+                true => [water.1.parallax_depth / 100.0, water.1.parallax_steps as f32, water.1.parallax_distance, 0.0],
+                false => [0.0; 4],
+            },
+            [
+                u8::from(water.1.world_specular && water.1.shadow_projection.is_none()) as f32,
+                u8::from(water.1.world_specular_aa) as f32,
+                water.1.wet_sheen,
+                water.1.wet_light_strength,
             ],
         ];
         if self.written_lighting == Some(lighting) {
@@ -337,6 +348,10 @@ impl Renderer {
                 desc.uv_offset[1],
                 u8::from(desc.model == blackbox_gfx::NormalModel::Reflective) as f32,
                 u8::from(desc.reflection.is_none()) as f32,
+                desc.roughness.filter(|v| v.is_finite()).unwrap_or(0.78).clamp(0.45, 1.0),
+                0.0,
+                0.0,
+                0.0,
             ]),
             usage: wgpu::BufferUsages::UNIFORM,
         });

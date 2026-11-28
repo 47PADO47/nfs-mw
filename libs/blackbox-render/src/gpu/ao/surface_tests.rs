@@ -31,6 +31,7 @@ fn receiver(r: &mut Renderer, model: NormalModel, blend: BlendMode) -> Instance 
             normal,
             specular,
             reflection: Some(reflection),
+            roughness: None,
             uv_offset: [0.0; 2],
         })
         .unwrap();

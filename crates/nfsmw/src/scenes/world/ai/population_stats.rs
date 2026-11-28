@@ -14,6 +14,7 @@ pub(super) enum Rejection {
 #[derive(Default, Debug)]
 pub(super) struct PopulationStats {
     pub attempts: u64,
+    pub trim_substitutions: u64,
     pub spawned: u64,
     pub rejected: [u64; 6],
     pub waiting_collision: usize,
@@ -31,7 +32,7 @@ impl TrafficWorld {
                 .count()
         };
         format!(
-            "{} actors / {} occupied slots / {} budget; within 150/300/600 m: {}/{}/{}\n{} waiting for collision; {} activations / {} probes\nRejected lane/budget/collision/projection/spacing/ground: {:?}",
+            "{} actors / {} occupied slots / {} budget; within 150/300/600 m: {}/{}/{}\n{} waiting for collision; {} activations / {} probes; {} trim substitutions\nRejected lane/budget/collision/projection/spacing/ground: {:?}",
             self.cars.len(),
             self.population_slots(focus),
             self.target,
@@ -41,6 +42,7 @@ impl TrafficWorld {
             self.population_stats.waiting_collision,
             self.population_stats.spawned,
             self.population_stats.attempts,
+            self.population_stats.trim_substitutions,
             self.population_stats.rejected
         )
     }

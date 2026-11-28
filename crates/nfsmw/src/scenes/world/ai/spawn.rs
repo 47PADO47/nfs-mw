@@ -71,15 +71,6 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) -> Result<(), Rejection> {
-        let model: &TrafficModel = match pick {
-            Pick::Traffic(i) => &self.models[i],
-            Pick::Patrol(i) => &self.cop_models[i].model,
-        };
-        // A mod traffic car cruises at its speed factor times the pattern's speeds.
-        let cruise = match pick {
-            Pick::Traffic(_) => super::mod_traffic::scaled(cruise, &model.name),
-            Pick::Patrol(_) => cruise,
-        };
         let occupied = self.population_slots(focus);
         let rng = &mut self.rng.population;
         let probe = match pick {
@@ -96,6 +87,19 @@ impl TrafficWorld {
         {
             return Err(Rejection::Lane);
         }
+        let pick = match pick {
+            Pick::Traffic(i) => Pick::Traffic(self.trim_for_lane(i, nav.position, focus)),
+            patrol => patrol,
+        };
+        let model: &TrafficModel = match pick {
+            Pick::Traffic(i) => &self.models[i],
+            Pick::Patrol(i) => &self.cop_models[i].model,
+        };
+        // A mod traffic car cruises at its speed factor times the pattern's speeds.
+        let cruise = match pick {
+            Pick::Traffic(_) => super::mod_traffic::scaled(cruise, &model.name),
+            Pick::Patrol(_) => cruise,
+        };
         let slots = 1 + usize::from(model.trailer.is_some());
         // Patrols use the heat row's separate population cap, including when traffic is disabled.
         if matches!(pick, Pick::Traffic(_)) && occupied + slots > self.target {
@@ -126,9 +130,15 @@ impl TrafficWorld {
         let render = space::to_render(nav.position.to_array());
         let facing = space::to_render(nav.forward.to_array());
         let spawn = Spawn { position: render, heading: facing.y.atan2(facing.x) };
-        nav.advance_with_lookahead(&self.network, START_LOOK_AHEAD, Vec3::ZERO, START_LOOK_AHEAD, rng);
+        nav.advance_with_lookahead(
+            &self.network,
+            START_LOOK_AHEAD,
+            Vec3::ZERO,
+            START_LOOK_AHEAD,
+            &mut self.rng.population,
+        );
         let start = Start {
-            stagger: (rng.next_f32() * 10.0) as u32,
+            stagger: (self.rng.population.next_f32() * 10.0) as u32,
             speed: START_SPEED_FACTOR * cruise.street.min(cruise.highway),
             cruise,
             patrol: matches!(pick, Pick::Patrol(_)),

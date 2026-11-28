@@ -184,6 +184,8 @@ impl WorldScene {
             Some(Location { name: "Previous position".into(), position: [p.x, p.y], heading: drive.heading() });
         drive.respawn_near(at, heading);
         self.extra.teleport_heading = heading;
+        // A saved location or the previous position comes with its heading: it is a spot the car stood on.
+        self.extra.teleport_anywhere = heading.is_some();
         self.view = View::Chase;
         self.extra.freecam = false;
         self.extra.selected_bookmark = None;

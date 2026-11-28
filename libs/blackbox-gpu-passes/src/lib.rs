@@ -47,7 +47,10 @@ pub use bind_cache::BindCache;
 pub use colour_cube::{COLOUR_CUBE_WGSL, ColourCubeIo, ColourCubePass};
 
 /// The WGSL of the world effects without a shadow-reception hook (`vs_main` and the `fs_*` stages).
-pub const EFFECTS_BASE_WGSL: &str = include_str!("shaders/effects.wgsl");
+pub const EFFECTS_BASE_WGSL: &str =
+    concat!(include_str!("shaders/liquid_wake.wgsl"), include_str!("shaders/effects.wgsl"));
+pub(crate) const SOFT_PARTICLES_WGSL: &str =
+    concat!(include_str!("shaders/liquid_wake.wgsl"), include_str!("shaders/soft_particles.wgsl"));
 
 /// The hook that leaves the streaks and glows unshadowed, and the one that makes the vertices that ask for it take the
 /// sun's shadow. The second needs the shadow receiver (`direct_visibility`, `shadow_data`) in front, with its bind
@@ -57,8 +60,11 @@ pub const EFFECTS_SHADOWED_WGSL: &str = include_str!("shaders/effects_shadowed.w
 
 /// The WGSL of the world effects (`vs_main` and the `fs_*` stages), for renderers that build their own
 /// effect pipelines. [`TexturedEffects`] and [`Effects::new`] use this source, with no shadows.
-pub const EFFECTS_WGSL: &str =
-    concat!(include_str!("shaders/effects.wgsl"), include_str!("shaders/effects_unshadowed.wgsl"));
+pub const EFFECTS_WGSL: &str = concat!(
+    include_str!("shaders/liquid_wake.wgsl"),
+    include_str!("shaders/effects.wgsl"),
+    include_str!("shaders/effects_unshadowed.wgsl")
+);
 
 pub use effects::{Effects, LocalFogShadows, ShadowReceiver, SoftDraw};
 pub use filter::{Blend, Draw, Filter, POST_COMMON_WGSL, Params, filter_source};

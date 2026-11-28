@@ -174,7 +174,8 @@ pub fn end_of_frame(
     }
     let elapsed = host.title_timer.elapsed().as_secs_f32();
     if elapsed >= 1.0 {
-        let status = host.scene.status().map(|s| format!(" - {s}")).unwrap_or_default();
+        // A title has one line: the status's later lines (the world's camera pose) follow the first.
+        let status = host.scene.status().map(|s| format!(" - {}", s.replace('\n', " · "))).unwrap_or_default();
         let fps = host.frames as f32 / elapsed;
         log::debug!("{fps:.1} fps");
         window.title = crate::i18n::t!(

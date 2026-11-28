@@ -81,6 +81,7 @@ mod traffic;
 #[allow(dead_code)] // the hooks in collide.rs and cop.rs are not wired yet (docs/specs/traffic-sound-events.md Â§4)
 mod traffic_events;
 mod trailer;
+mod trims;
 mod water;
 
 use std::{collections::HashSet, rc::Rc};
@@ -180,6 +181,7 @@ pub struct TrafficWorld {
     /// The patterns of the neighbourhoods, when the install has them, and their type timers.
     patterns: Option<Patterns>,
     timers: TypeTimers,
+    trims: trims::Families,
     /// The patrol cop cars and how fast they cruise.
     patrol: Option<PatrolPlan>,
     /// Models to load before the cars of that type can spawn; the scene loads them when it has a renderer.
@@ -305,6 +307,7 @@ impl TrafficWorld {
             cop_share: 0,
             patterns: None,
             timers: TypeTimers::default(),
+            trims: Default::default(),
             patrol: None,
             requests: Vec::new(),
             known: HashSet::new(),

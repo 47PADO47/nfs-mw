@@ -26,6 +26,9 @@ impl Arena {
     pub fn ids(&self) -> impl Iterator<Item = &usize> {
         self.records.keys()
     }
+    pub fn contains(&self, id: usize) -> bool {
+        self.records.contains_key(&id)
+    }
     pub fn offset(&self, id: usize) -> Option<u32> {
         self.records.get(&id).map(|r| r.triangles.start as u32)
     }
@@ -46,7 +49,7 @@ impl Arena {
         id: usize,
         mesh: &Mesh,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
         (atlas, detail, detail_textures): (&mut Atlas, &mut Atlas, &std::collections::HashSet<usize>),
         views: &HashMap<usize, wgpu::TextureView>,
     ) -> bool {
@@ -64,7 +67,7 @@ impl Arena {
         self.vertices.resize(self.vertex_ranges.end, bytemuck::Zeroable::zeroed());
         self.triangles.resize(self.triangle_ranges.end, [0; 4]);
         self.vertices[vertices.clone()].copy_from_slice(&mesh.vertices);
-        let white = views.get(&0).and_then(|v| atlas.layer(device, queue, 0, v)).unwrap_or(0);
+        let white = views.get(&0).and_then(|v| atlas.layer(device, encoder, 0, v)).unwrap_or(0);
         for vertex in &mut self.vertices[vertices.clone()] {
             if vertex.uv[2] <= 0.0 {
                 continue;
@@ -72,9 +75,9 @@ impl Arena {
             let handle = vertex.uv[2] as usize - 1;
             let layer = views.get(&handle).and_then(|view| {
                 if detail_textures.contains(&handle) && detail.can_fit(handle) {
-                    return detail.layer(device, queue, handle, view).map(|layer| layer | 32768);
+                    return detail.layer(device, encoder, handle, view).map(|layer| layer | 32768);
                 }
-                atlas.layer(device, queue, handle, view)
+                atlas.layer(device, encoder, handle, view)
             });
             vertex.uv[2] = layer.map_or(0.0, |layer| (layer + 1) as f32);
         }
@@ -85,9 +88,9 @@ impl Arena {
                 .get(&handle)
                 .and_then(|v| {
                     if detail_textures.contains(&handle) && detail.can_fit(handle) {
-                        return detail.layer(device, queue, handle, v).map(|layer| layer | 32768);
+                        return detail.layer(device, encoder, handle, v).map(|layer| layer | 32768);
                     }
-                    atlas.layer(device, queue, handle, v)
+                    atlas.layer(device, encoder, handle, v)
                 })
                 .unwrap_or(white);
             *dst = [t[0] + base, t[1] + base, t[2] + base, (t[3] & !65535) | layer];

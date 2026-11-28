@@ -11,6 +11,7 @@ pub(in crate::scenes::world) mod pc_sparks;
 #[cfg(test)]
 mod pc_tests;
 mod sparks;
+mod spray;
 mod sweep;
 #[cfg(test)]
 mod tests;
@@ -204,6 +205,10 @@ impl VehicleEffects {
         for vertex in vertices {
             vertex.detail[1] = 1.0;
         }
+    }
+
+    pub fn spray(&self, camera: Vec3, forward: Vec3, out: &mut Vec<EffectVertex>) {
+        self.water.spray_geometry(camera, forward, out);
     }
 
     pub fn textured(

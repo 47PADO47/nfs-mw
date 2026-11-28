@@ -44,8 +44,15 @@ fn add_families(r: &mut Renderer) {
     let flat = texel(r, "flat", &[128, 128, 255, 255]);
     let black = texel(r, "black", &[0, 0, 0, 255]);
     for model in [NormalModel::Bump, NormalModel::Reflective] {
-        let desc =
-            NormalMaterialDesc { model, diffuse, normal: flat, specular: black, reflection: None, uv_offset: [0.0; 2] };
+        let desc = NormalMaterialDesc {
+            model,
+            diffuse,
+            normal: flat,
+            specular: black,
+            reflection: None,
+            roughness: None,
+            uv_offset: [0.0; 2],
+        };
         r.create_normal_material(&desc).expect("normal material");
     }
     r.create_window_material(&WindowMaterialDesc { diffuse, reflection: black }).expect("window material");

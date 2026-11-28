@@ -97,6 +97,7 @@ impl Renderer {
                 ));
             }
             let shadows = self.shadows.as_mut().expect("prepared shadow pipelines");
+            let _trace = blackbox_trace::scope("Shadow CPU: caster bounds");
             shadows.bounds.clear();
             let casters = self.shadow_casters.as_deref().unwrap_or(visible);
             for (index, instance) in casters.iter().enumerate() {
@@ -118,6 +119,14 @@ impl Renderer {
                 shadows.bounds.push((index, center, mesh.radius * scale));
             }
         }
+        if let Some(shadows) = &self.shadows {
+            let candidates = self.shadow_casters.as_deref().unwrap_or(visible).len();
+            blackbox_trace::global().counter(
+                "Shadow casters",
+                &[("candidates", candidates as f64), ("bounds", shadows.bounds.len() as f64)],
+            );
+        }
+        let fit_trace = blackbox_trace::scope("Shadow CPU: fit");
         let fit = (settings.sun_shadows && stats.supported)
             .then(|| match settings.shadow_projection {
                 Some(_) => {
@@ -137,6 +146,7 @@ impl Renderer {
                 }
             })
             .flatten();
+        drop(fit_trace);
         let resolution = fit.as_ref().map_or(1, |_| settings.shadow_resolution);
         let layers = match settings.shadow_projection.is_some() {
             true => 1,
@@ -233,12 +243,15 @@ impl Renderer {
             true => settings.lighting_debug as u32 as f32,
             false => 0.0,
         };
+        // Lane y: texture variation on (`scene.wgsl`).
+        params.debug[1] = f32::from(u8::from(settings.texture_variation));
         if self.graphics.ao.active()
             && self.screen_lighting_active(frame)
             && let Some(surfaces) = &self.surfaces
         {
             let size = surfaces.targets.size;
-            params.ambient = [size.0 as f32, size.1 as f32, 1.0, 0.0];
+            let directional = self.graphics.ao.directional() && params.world[3] > 0.0;
+            params.ambient = [size.0 as f32, size.1 as f32, 1.0, f32::from(u8::from(directional))];
         }
         if !stats.supported {
             params.options[0] = 0.0;
@@ -268,6 +281,7 @@ impl Renderer {
         let mut shadows = self.shadows.take().expect("prepared shadow pipelines");
         let casters = self.shadow_casters.as_deref().unwrap_or(visible);
         if shadows.store {
+            let _trace = blackbox_trace::scope("Shadow CPU: caster slots");
             let main_view = self.shadow_casters.is_none();
             let store = &mut self.draw_list.store;
             upload::caster_slots(store, &self.device, &self.queue, casters, main_view, &mut shadows.caster_slots);

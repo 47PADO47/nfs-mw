@@ -87,7 +87,9 @@ impl Renderer {
                 result => return self.skip_frame(aa, result),
             },
         };
+        self.time(&mut encoder, super::timing::pair::POST, true);
         self.encode_post(&mut encoder, scene, &post_view, size, false);
+        self.time(&mut encoder, super::timing::pair::POST, false);
         let output_view = match self.output_view(&mut encoder, onscreen, given.as_ref(), &mut acquired) {
             Ok(Some(view)) => view,
             result => return self.skip_frame(aa, result),

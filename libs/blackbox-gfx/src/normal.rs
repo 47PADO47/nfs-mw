@@ -17,6 +17,8 @@ pub struct NormalMaterialDesc {
     pub diffuse: TextureHandle,
     pub normal: TextureHandle,
     pub specular: TextureHandle,
+    /// Optional perceptual roughness for enhanced direct highlights.
+    pub roughness: Option<f32>,
     /// Explicit projected texture, or the live projected scene for reflective materials.
     /// Without either source the backend binds black, never an unrelated environment cube.
     pub reflection: Option<TextureHandle>,

@@ -9,6 +9,8 @@ use crate::{Renderer, gpu::test_support};
 
 struct Fixture {
     normal_tex: [u8; 4],
+    roughness: Option<f32>,
+    varying_normal: bool,
     specular_tex: [u8; 8],
     normal: [f32; 3],
     tangent: [f32; 4],
@@ -26,6 +28,8 @@ impl Default for Fixture {
     fn default() -> Self {
         Self {
             normal_tex: [128, 128, 255, 255],
+            roughness: None,
+            varying_normal: false,
             specular_tex: [128, 64, 32, 255, 0, 255, 0, 255],
             normal: [0.0, 0.0, 1.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
@@ -109,7 +113,10 @@ fn texture(renderer: &mut Renderer, width: u32, bytes: &[u8]) -> blackbox_gfx::T
 
 fn capture(renderer: &mut Renderer, f: &Fixture, blend: BlendMode) -> RgbaImage {
     let diffuse = texture(renderer, 1, &[64, 128, 192, 128]);
-    let normal = texture(renderer, 1, &f.normal_tex);
+    let normal = match f.varying_normal {
+        true => texture(renderer, 2, &[128, 128, 255, 255, 243, 128, 180, 255]),
+        false => texture(renderer, 1, &f.normal_tex),
+    };
     let specular = texture(renderer, 2, &f.specular_tex);
     let material = renderer
         .create_normal_material(&NormalMaterialDesc {
@@ -118,6 +125,7 @@ fn capture(renderer: &mut Renderer, f: &Fixture, blend: BlendMode) -> RgbaImage 
             diffuse,
             normal,
             specular,
+            roughness: f.roughness,
             uv_offset: f.uv_offset,
         })
         .expect("native normal-mapped materials");
@@ -125,7 +133,10 @@ fn capture(renderer: &mut Renderer, f: &Fixture, blend: BlendMode) -> RgbaImage 
         position,
         normal: f.normal,
         color_bgra: [191, 128, 64, f.vertex_alpha],
-        uv: [0.25, 0.5],
+        uv: match f.varying_normal {
+            true => [0.25 + position[0] * 5.0, 0.5],
+            false => [0.25, 0.5],
+        },
     });
     let tangents = [f.tangent; 4];
     let mesh = renderer.create_mesh(&MeshDesc {
@@ -249,4 +260,41 @@ fn authored_normal_mapping_matches_independent_pc_shader_pixels() {
     renderer.set_render_experiments(RenderExperiments::default());
     let image = capture(&mut renderer, &fixture(0), BlendMode::Opaque);
     assert_rgb(&image, 32, [32, 128, 255], "legacy switch restores prelit fallback");
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn world_highlight_uses_roughness_and_filters_only_when_requested() {
+    let _gpu = test_support::serial();
+    let mut renderer = Renderer::headless((64, 64), test_support::options()).expect("selected GPU API");
+    let mut f = Fixture { roughness: Some(0.45), specular: [1.0; 3], specular_tex: [255; 8], ..Fixture::default() };
+    let original = RenderExperiments { original_world_materials: true, ..Default::default() };
+    renderer.set_render_experiments(original);
+    let legacy = capture(&mut renderer, &f, BlendMode::Opaque);
+    let enhanced = RenderExperiments { world_specular: true, ..original };
+    renderer.set_render_experiments(enhanced);
+    let smooth = capture(&mut renderer, &f, BlendMode::Opaque);
+    assert_ne!(smooth.pixel(32, 32), legacy.pixel(32, 32));
+    f.roughness = Some(0.86);
+    let rough = capture(&mut renderer, &f, BlendMode::Opaque);
+    assert!(rough.pixel(32, 32).unwrap()[0] + 10 < smooth.pixel(32, 32).unwrap()[0]);
+    f.roughness = Some(0.45);
+    let aa = RenderExperiments { world_specular_aa: true, ..enhanced };
+    renderer.set_render_experiments(aa);
+    let filtered_flat = capture(&mut renderer, &f, BlendMode::Opaque);
+    assert_eq!(filtered_flat.pixel(32, 32), smooth.pixel(32, 32), "uniform normals need no filtering");
+    f.varying_normal = true;
+    let filtered = capture(&mut renderer, &f, BlendMode::Opaque);
+    renderer.set_render_experiments(enhanced);
+    let unfiltered = capture(&mut renderer, &f, BlendMode::Opaque);
+    assert!(
+        filtered.pixel(32, 32).unwrap()[0] < unfiltered.pixel(32, 32).unwrap()[0],
+        "subpixel normal variance broadens the highlight: filtered {:?}, unfiltered {:?}",
+        filtered.pixel(32, 32),
+        unfiltered.pixel(32, 32)
+    );
+    f.varying_normal = false;
+    renderer.set_render_experiments(RenderExperiments { world_specular_aa: true, ..original });
+    let off = capture(&mut renderer, &f, BlendMode::Opaque);
+    assert_eq!(legacy.pixel(32, 32), off.pixel(32, 32), "AA alone cannot change the original path");
 }

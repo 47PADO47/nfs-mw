@@ -1,9 +1,11 @@
 //! Camera-space depth and world normals, excluding sky and blended surfaces.
+use super::static_depth::{self, StaticDepth};
 use super::targets::{NORMAL_FORMAT, Targets};
 use crate::gpu::cull::{FACES, Face};
 use crate::gpu::draw_list::{instance_store, instance_view, run};
+use crate::gpu::meshes::GpuMesh;
 use crate::gpu::{Renderer, pipelines::VERTEX_ATTRIBUTES};
-use blackbox_gfx::{BlendMode, FrameParams, Instance, Shading};
+use blackbox_gfx::{BlendMode, DrawRange, FrameParams, Instance, Shading};
 
 pub(super) struct Prepass {
     /// One per face setting, in `FACES` order: the colour pass's `Equal` test needs the same faces.
@@ -117,6 +119,8 @@ impl Prepass {
         }
     }
 
+    /// Draw the camera depth and normals. With `snapshot`, the static scene is drawn first, its depth is copied,
+    /// and the dynamic models ([`static_depth::dynamic`]) are drawn over it in a second pass.
     pub(super) fn encode(
         &mut self,
         renderer: &Renderer,
@@ -124,25 +128,72 @@ impl Prepass {
         targets: &Targets,
         (frame, mip_bias): (&FrameParams, f32),
         instances: &[Instance],
+        snapshot: Option<&mut StaticDepth>,
     ) {
         let mut camera = [0.0f32; 20];
         camera[..16].copy_from_slice(&renderer.world_to_clip(frame).to_cols_array());
         camera[16] = mip_bias;
         renderer.queue.write_buffer(&self.matrix, 0, bytemuck::cast_slice(&camera));
+        let only = snapshot.is_some().then_some(false);
+        let mut dynamic_runs = Vec::new();
+        {
+            let mut pass = self.begin(renderer, encoder, targets, true);
+            let mut binder = Binder::default();
+            let mut first = 0;
+            while first < instances.len() {
+                let mesh = renderer.meshes.get(instances[first].mesh.raw());
+                let (end, mirrored) = run(instances, first, mesh.is_some_and(|m| m.draws.iter().any(|d| !d.two_sided)));
+                if let Some(mesh) = mesh
+                    && self.draw_run(&mut pass, &mut binder, (renderer, frame), (first, end, mirrored), mesh, only)
+                {
+                    dynamic_runs.push((first, end, mirrored));
+                }
+                first = end;
+            }
+        }
+        let Some(snapshot) = snapshot else { return };
+        if dynamic_runs.is_empty() {
+            snapshot.invalidate();
+            return;
+        }
+        snapshot.capture(&renderer.device, encoder, &targets.depth, targets.size);
+        {
+            let mut pass = self.begin(renderer, encoder, targets, false);
+            let mut binder = Binder::default();
+            for (first, end, mirrored) in dynamic_runs {
+                let Some(mesh) = renderer.meshes.get(instances[first].mesh.raw()) else { continue };
+                self.draw_run(&mut pass, &mut binder, (renderer, frame), (first, end, mirrored), mesh, Some(true));
+            }
+        }
+        snapshot.mark(&renderer.device, encoder, &targets.depth);
+    }
+
+    /// A prepass over the targets: cleared for the first, loaded for the dynamic models drawn after the snapshot.
+    fn begin<'e>(
+        &self,
+        renderer: &Renderer,
+        encoder: &'e mut wgpu::CommandEncoder,
+        targets: &Targets,
+        clear: bool,
+    ) -> wgpu::RenderPass<'e> {
+        let (normals, depth) = match clear {
+            true => (wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), wgpu::LoadOp::Clear(0.0)),
+            false => (wgpu::LoadOp::Load, wgpu::LoadOp::Load),
+        };
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("contact depth normal prepass"),
+            label: Some(match clear {
+                true => "contact depth normal prepass",
+                false => "contact depth normal prepass (dynamic models)",
+            }),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &targets.normals,
                 depth_slice: None,
                 resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: wgpu::StoreOp::Store,
-                },
+                ops: wgpu::Operations { load: normals, store: wgpu::StoreOp::Store },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &targets.depth,
-                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0.0), store: wgpu::StoreOp::Store }),
+                depth_ops: Some(wgpu::Operations { load: depth, store: wgpu::StoreOp::Store }),
                 stencil_ops: None,
             }),
             timestamp_writes: None,
@@ -155,87 +206,106 @@ impl Prepass {
             pass.set_bind_group(2, instances, &[]);
         }
         pass.set_vertex_buffer(1, renderer.instances.buffer.slice(store.main_offset()..));
-        let mut bound_pipeline: Option<&wgpu::RenderPipeline> = None;
-        let mut bound_texture: Option<&wgpu::BindGroup> = None;
-        let mut first = 0;
-        while first < instances.len() {
-            let mesh = renderer.meshes.get(instances[first].mesh.raw());
-            let (end, mirrored) = run(instances, first, mesh.is_some_and(|m| m.draws.iter().any(|d| !d.two_sided)));
-            if let Some(mesh) = mesh {
+        pass
+    }
+
+    /// Draw the depth-writing draws of one run of instances of `mesh`. With `only`, just the draws whose
+    /// [`static_depth::dynamic`] equals it. Returns whether a dynamic draw was left out.
+    fn draw_run<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'_>,
+        binder: &mut Binder<'a>,
+        (renderer, frame): (&'a Renderer, &FrameParams),
+        (first, end, mirrored): (usize, usize, bool),
+        mesh: &GpuMesh,
+        only: Option<bool>,
+    ) -> bool {
+        let mut skipped = false;
+        let mut bound_mesh = false;
+        for draw in &mesh.draws {
+            if matches!(draw.shading, Shading::Sky | Shading::SkyLayer(_))
+                || !matches!(draw.blend, BlendMode::Opaque | BlendMode::AlphaTest)
+            {
+                continue;
+            }
+            if let Shading::Glossy(material) = draw.shading
+                && renderer.glossy.as_ref().is_none_or(|g| !g.has_material(material))
+            {
+                continue;
+            }
+            // Original cutouts test the composed vertex-ramp alpha. The
+            // texture-only prepass cannot reproduce that material-dependent value.
+            if draw.blend == BlendMode::AlphaTest
+                && let Shading::Glossy(material) = draw.shading
+                && renderer.glossy.as_ref().is_some_and(|g| g.original_material(material))
+            {
+                continue;
+            }
+            let dynamic = static_depth::dynamic(draw.shading);
+            if only.is_some_and(|wanted| wanted != dynamic) {
+                skipped |= dynamic;
+                continue;
+            }
+            let pipeline = self.pipeline(renderer, frame, draw, mirrored);
+            if binder.pipeline.is_none_or(|bound| !std::ptr::eq(bound, pipeline)) {
+                pass.set_pipeline(pipeline);
+                binder.pipeline = Some(pipeline);
+            }
+            let slot = draw.texture.map(|t| renderer.redirects.resolve(t.raw()));
+            let Some(texture) = slot.and_then(|s| renderer.textures.get(s)).or(renderer.textures.get(0)) else {
+                continue;
+            };
+            if binder.texture.is_none_or(|bound| !std::ptr::eq(bound, texture)) {
+                pass.set_bind_group(1, texture, &[]);
+                binder.texture = Some(texture);
+            }
+            if !bound_mesh {
                 pass.set_vertex_buffer(0, mesh.vertices.slice(..));
                 pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint16);
-                for draw in &mesh.draws {
-                    if matches!(draw.shading, Shading::Sky | Shading::SkyLayer(_))
-                        || !matches!(draw.blend, BlendMode::Opaque | BlendMode::AlphaTest)
-                    {
-                        continue;
-                    }
-                    if let Shading::Glossy(material) = draw.shading
-                        && renderer.glossy.as_ref().is_none_or(|g| !g.has_material(material))
-                    {
-                        continue;
-                    }
-                    // Original cutouts test the composed vertex-ramp alpha. The
-                    // texture-only prepass cannot reproduce that material-dependent value.
-                    if draw.blend == BlendMode::AlphaTest
-                        && let Shading::Glossy(material) = draw.shading
-                        && renderer.glossy.as_ref().is_some_and(|g| g.original_material(material))
-                    {
-                        continue;
-                    }
-                    let pipeline = match draw.blend {
-                        BlendMode::AlphaTest if renderer.reflective_surface(draw.shading) => {
-                            &self.opaque[Face::of(draw, mirrored).seen(frame.mirrored_view()).index()]
-                        }
-                        BlendMode::AlphaTest if matches!(draw.shading, Shading::Glossy(_)) => &self.glossy_cutout,
-                        BlendMode::AlphaTest
-                            if renderer.experiments.original_world_materials && draw.shading == Shading::Tree =>
-                        {
-                            &self.tree_cutout
-                        }
-                        BlendMode::AlphaTest
-                            if renderer.experiments.original_world_materials
-                                && matches!(draw.shading, Shading::WorldWindow(_)) =>
-                        {
-                            &self.window_cutout
-                        }
-                        BlendMode::AlphaTest
-                            if renderer.experiments.original_world_materials
-                                && draw.shading == Shading::WorldPrelit =>
-                        {
-                            &self.prelit_cutout
-                        }
-                        BlendMode::AlphaTest
-                            if matches!(
-                                draw.shading,
-                                Shading::World | Shading::WorldDistant | Shading::WorldNoFog | Shading::WorldPrelit
-                            ) =>
-                        {
-                            &self.world_cutout
-                        }
-                        BlendMode::AlphaTest => &self.cutout,
-                        _ => &self.opaque[Face::of(draw, mirrored).seen(frame.mirrored_view()).index()],
-                    };
-                    if bound_pipeline.is_none_or(|bound| !std::ptr::eq(bound, pipeline)) {
-                        pass.set_pipeline(pipeline);
-                        bound_pipeline = Some(pipeline);
-                    }
-                    let slot = draw.texture.map(|t| renderer.redirects.resolve(t.raw()));
-                    let Some(texture) = slot.and_then(|s| renderer.textures.get(s)).or(renderer.textures.get(0)) else {
-                        continue;
-                    };
-                    if bound_texture.is_none_or(|bound| !std::ptr::eq(bound, texture)) {
-                        pass.set_bind_group(1, texture, &[]);
-                        bound_texture = Some(texture);
-                    }
-                    pass.draw_indexed(
-                        draw.first_index..draw.first_index + draw.index_count,
-                        draw.base_vertex,
-                        first as u32..end as u32,
-                    );
-                }
+                bound_mesh = true;
             }
-            first = end;
+            pass.draw_indexed(
+                draw.first_index..draw.first_index + draw.index_count,
+                draw.base_vertex,
+                first as u32..end as u32,
+            );
+        }
+        skipped
+    }
+
+    fn pipeline(
+        &self,
+        renderer: &Renderer,
+        frame: &FrameParams,
+        draw: &DrawRange,
+        mirrored: bool,
+    ) -> &wgpu::RenderPipeline {
+        let original = renderer.experiments.original_world_materials;
+        match draw.blend {
+            BlendMode::AlphaTest if renderer.reflective_surface(draw.shading) => {
+                &self.opaque[Face::of(draw, mirrored).seen(frame.mirrored_view()).index()]
+            }
+            BlendMode::AlphaTest if matches!(draw.shading, Shading::Glossy(_)) => &self.glossy_cutout,
+            BlendMode::AlphaTest if original && draw.shading == Shading::Tree => &self.tree_cutout,
+            BlendMode::AlphaTest if original && matches!(draw.shading, Shading::WorldWindow(_)) => &self.window_cutout,
+            BlendMode::AlphaTest if original && draw.shading == Shading::WorldPrelit => &self.prelit_cutout,
+            BlendMode::AlphaTest
+                if matches!(
+                    draw.shading,
+                    Shading::World | Shading::WorldDistant | Shading::WorldNoFog | Shading::WorldPrelit
+                ) =>
+            {
+                &self.world_cutout
+            }
+            BlendMode::AlphaTest => &self.cutout,
+            _ => &self.opaque[Face::of(draw, mirrored).seen(frame.mirrored_view()).index()],
         }
     }
+}
+
+/// The pipeline and texture bound last in a prepass, so repeated ones are not set again.
+#[derive(Default)]
+struct Binder<'a> {
+    pipeline: Option<&'a wgpu::RenderPipeline>,
+    texture: Option<&'a wgpu::BindGroup>,
 }

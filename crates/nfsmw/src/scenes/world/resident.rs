@@ -109,8 +109,7 @@ pub struct SectionResources {
     /// The cull data of `reflection_placed`, built on the first road-view sweep after the list is final
     /// (`wet_reflections/cull.rs`).
     pub(super) reflection_cull: std::cell::OnceCell<super::wet_reflections::cull::RoadCull>,
-    pub(super) normal_materials:
-        HashMap<(blackbox_gfx::NormalModel, [TextureHandle; 3]), blackbox_gfx::NormalMaterialHandle>,
+    pub(super) normal_materials: super::materials::NormalMaterials,
     pub(super) window_materials: HashMap<[TextureHandle; 2], blackbox_gfx::WindowMaterialHandle>,
     pub materials: HashMap<u32, (TextureHandle, BlendMode)>,
     masked_fixture_texture: Option<TextureHandle>,
@@ -166,6 +165,9 @@ impl SectionResources {
                 // turning street lights or the day/night cycle on later lights already-resident lanterns.
                 if self.masked_fixture_texture.is_none() {
                     self.masked_fixture_texture = super::local_lights::lantern::upload(renderer, t, pixels, discard);
+                }
+                if let Some(cell) = super::materials::variation::cell(&t.name) {
+                    renderer.set_texture_variation(handle, cell);
                 }
                 self.materials.insert(t.name_hash, (handle, blend_mode(Some(t))));
                 self.sides.insert(t.name_hash, Sidedness::of(Some(t)));

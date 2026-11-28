@@ -15,6 +15,13 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
         if !lab.ray_reflections_available {
             ui.small("Hardware RT is unavailable in this session. Use the Vulkan RT launcher to enable it at startup.");
         }
+        ui.add_enabled_ui(lab.options.enhanced_wet_surfaces, |ui| {
+            let lighting = &defaults.appearance.lighting;
+            super::controls::slider(ui, &mut lab.options.wet_sheen, 0.0..=1.0, "Wet road sheen", lighting.wet_sheen)
+                .on_hover_text("How glossy wet surfaces are outside the puddles. 0 is a damp, matte film; 1 is close to standing water, with sharper reflections and highlights and darker asphalt.");
+            super::controls::slider(ui, &mut lab.options.wet_light_strength, 0.0..=5.0, "Wet light reflections", lighting.wet_light_strength)
+                .on_hover_text("Brightness of lamp glints and bright reflected lights (windows, signs, lamp heads) in wet surfaces. Dim reflected surroundings are unchanged. 1 is unboosted.");
+        });
         ui.collapsing("Advanced wet surfaces", |ui| {
             ui.add_enabled_ui(lab.options.enhanced_wet_surfaces, |ui| {
                 ui.checkbox(&mut lab.options.puddle_ripples, "Puddle contours and rain rings");

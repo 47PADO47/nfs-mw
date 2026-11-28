@@ -3,6 +3,8 @@ use super::mesh::Mesh;
 use blackbox_gfx::{BlendMode, MeshDesc, NormalMaterialDesc, Shading};
 use std::collections::HashMap;
 
+type FastMap<K, V> = HashMap<K, V, foldhash::fast::FixedState>;
+
 pub(super) fn apply(
     mesh: &mut Mesh,
     desc: &MeshDesc<'_>,
@@ -10,7 +12,7 @@ pub(super) fn apply(
     surfaces: &[Option<NormalMaterialDesc>],
 ) {
     let mut at = 0;
-    let mut remapped = HashMap::new();
+    let mut remapped = FastMap::default();
     for ((draw, layer), surface) in desc.draws.iter().zip(layers).zip(surfaces) {
         if layer.is_none()
             || !matches!(draw.blend, BlendMode::Opaque | BlendMode::AlphaTest)
@@ -90,6 +92,7 @@ mod tests {
             normal: TextureHandle::from_raw(2),
             specular: TextureHandle::from_raw(3),
             reflection: None,
+            roughness: None,
             uv_offset: [0.5, 0.25],
         };
         apply(

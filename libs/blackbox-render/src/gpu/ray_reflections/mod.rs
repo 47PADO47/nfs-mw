@@ -4,8 +4,10 @@ mod atlas;
 pub(super) mod bindings;
 mod cache;
 mod mesh;
+mod preparing;
 mod ranges;
 mod shadow;
+mod staging;
 mod surfaces;
 #[cfg(test)]
 mod tests;
@@ -29,7 +31,9 @@ pub(super) struct Scene {
     meshes: HashMap<usize, mesh::Mesh>,
     atlas: atlas::Atlas,
     detail: atlas::Atlas,
+    /// The textures in the detail cache now, and the ones the last ranking wants there (`staging.rs`).
     detail_textures: std::collections::HashSet<usize>,
+    detail_target: std::collections::HashSet<usize>,
     quality: u32,
     camera: glam::Vec3,
     ranked_at: Option<glam::Vec3>,
@@ -44,6 +48,16 @@ pub(super) struct Scene {
     live_count: usize,
     previous_emission: Vec<(usize, u32)>,
     dirty: bool,
+    /// Work carried to the next frame: new meshes still waiting, or detail swaps left (`staging.rs`).
+    pending: bool,
+    /// Meshes taken out for a detail swap, which come back this frame whatever the budget.
+    refresh: std::collections::HashSet<usize>,
+    /// New meshes waiting for a later frame. They are left out of the TLAS and mark it incomplete.
+    deferred: std::collections::HashSet<usize>,
+    /// How much waiting work the next frame does: a frame's budget, or all of it for a one-off capture.
+    limits: staging::Limits,
+    /// Large meshes whose hit data is being prepared on a worker (`preparing.rs`).
+    preparing: preparing::Preparing,
 }
 impl Scene {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Option<Self> {
@@ -61,6 +75,7 @@ impl Scene {
             atlas,
             detail,
             detail_textures: Default::default(),
+            detail_target: Default::default(),
             quality: 1,
             camera: glam::Vec3::ZERO,
             ranked_at: None,
@@ -74,6 +89,11 @@ impl Scene {
             live_count: 0,
             previous_emission: Vec::new(),
             dirty: true,
+            pending: false,
+            refresh: Default::default(),
+            deferred: Default::default(),
+            limits: staging::Limits::FRAME,
+            preparing: Default::default(),
         })
     }
     pub(in crate::gpu) fn set_material(&self, queue: &wgpu::Queue, handle: usize, packed: Option<&[u8]>) {
@@ -87,6 +107,7 @@ impl Scene {
         queue.write_buffer(&self.bindings.materials, (handle * bindings::MATERIAL_STRIDE) as u64, &bytes);
     }
     pub fn remove_mesh(&mut self, handle: usize) {
+        self.preparing.cancel(handle);
         self.arena.remove(handle);
         self.meshes.remove(&handle);
         self.dirty = true;
@@ -114,6 +135,11 @@ impl Scene {
         main: &[Instance],
         views: &HashMap<usize, wgpu::TextureView>,
     ) -> bool {
+        for (handle, mesh) in self.preparing.finished() {
+            let Some(mesh) = mesh else { continue };
+            self.meshes.insert(handle, mesh);
+            self.dirty = true;
+        }
         // Exact mesh/transform identity merges main and offscreen feeds without losing repeated placements.
         let mut unique = BTreeMap::new();
         for (i, mask) in self.offscreen.iter().chain(main).map(|i| (i, 1u8)).chain(self.shadow.iter().map(|i| (i, 2u8)))
@@ -135,9 +161,10 @@ impl Scene {
             || self.selected != ids
             || self.ranked_at.is_none_or(|p| p.distance_squared(self.camera) > 32.0 * 32.0)
         {
+            let _scope = blackbox_trace::scope("Vulkan RT: rank detail textures");
             let active = ids.iter().flat_map(|id| self.meshes[id].textures.iter().copied()).chain([0]).collect();
             self.atlas.retain(&active);
-            let selected = cache::select(
+            self.detail_target = cache::select(
                 &self.meshes,
                 unique.values().map(|(i, _)| *i),
                 views,
@@ -145,19 +172,23 @@ impl Scene {
                 self.detail.capacity(),
                 &self.detail_textures,
             );
-            let changed: std::collections::HashSet<_> =
-                self.detail_textures.symmetric_difference(&selected).copied().collect();
-            if !changed.is_empty() {
-                for (id, mesh) in &self.meshes {
-                    if mesh.textures.iter().any(|h| changed.contains(h)) {
-                        self.arena.remove(*id);
-                    }
-                }
-                self.dirty = true;
-            }
-            self.detail.retain(&selected);
-            self.detail_textures = selected;
             self.ranked_at = Some(self.camera);
+        }
+        // A few detail swaps a frame: each resamples its texture and re-adds the meshes that use it (`staging.rs`).
+        let swaps = staging::detail_step(&self.detail_textures, &self.detail_target, self.limits.swaps);
+        for handle in &swaps {
+            if !self.detail_textures.remove(handle) {
+                self.detail_textures.insert(*handle);
+            }
+        }
+        if !swaps.is_empty() {
+            for (id, mesh) in &self.meshes {
+                if self.arena.contains(*id) && mesh.textures.iter().any(|h| swaps.contains(h)) {
+                    self.arena.remove(*id);
+                    self.refresh.insert(*id);
+                }
+            }
+            self.detail.retain(&self.detail_textures);
         }
         // Brightness can change without moving any geometry. Refresh hit data independently of the TLAS.
         let emission: Vec<_> = unique
@@ -166,7 +197,7 @@ impl Scene {
             .filter(|(_, (i, _))| i.emission != 0.0)
             .map(|(index, (i, _))| (index, i.emission.to_bits()))
             .collect();
-        if !self.dirty && keys == self.previous {
+        if !self.dirty && !self.pending && swaps.is_empty() && keys == self.previous {
             if emission != self.previous_emission {
                 let words: Vec<_> = unique
                     .values()
@@ -201,29 +232,46 @@ impl Scene {
             self.bindings.tlas = bindings::tlas(device, capacity);
             changed = true;
         }
-        if self.dirty || self.selected != ids {
+        if self.dirty || self.pending || !swaps.is_empty() || self.selected != ids {
             let _scope = blackbox_trace::scope("Vulkan RT: update hit tables");
             self.arena.retain(&ids);
-            let all_fit = ids.iter().all(|id| {
-                self.arena.ensure(
-                    *id,
-                    &self.meshes[id],
-                    device,
-                    queue,
-                    (&mut self.atlas, &mut self.detail, &self.detail_textures),
-                    views,
-                )
-            });
+            let mut new: Vec<_> = ids.iter().copied().filter(|id| !self.arena.contains(*id)).collect();
+            let mut distances = HashMap::<usize, f32>::new();
+            for (i, _) in unique.values() {
+                let distance = i.transform.w_axis.truncate().distance(self.camera);
+                distances.entry(i.mesh.raw()).and_modify(|d| *d = d.min(distance)).or_insert(distance);
+            }
+            staging::nearest_first(&mut new, &distances);
+            let mut budget = staging::AddBudget::new(self.limits.add, self.limits.layers);
+            let layers_before = self.atlas.len() + self.detail.len();
+            self.deferred.clear();
+            let mut all_fit = true;
+            for id in new {
+                let resampled = (self.atlas.len() + self.detail.len()).saturating_sub(layers_before);
+                if !self.refresh.contains(&id) && !budget.admit(resampled) {
+                    self.deferred.insert(id);
+                    continue;
+                }
+                let tables = (&mut self.atlas, &mut self.detail, &self.detail_textures);
+                if !self.arena.ensure(id, &self.meshes[&id], device, encoder, tables, views) {
+                    all_fit = false;
+                    break;
+                }
+                let _build = blackbox_trace::scope("Vulkan RT: build BLAS");
+                self.meshes.get_mut(&id).expect("selected mesh").build(device, queue);
+            }
+            self.refresh.clear();
             if !all_fit {
                 // Fragmentation can exhaust the high-water mark even when live data fits.
                 // Compact only in that exceptional case, retaining the prototype capacity policy.
+                self.deferred.clear();
                 self.arena = arena::Arena::default();
                 for id in &ids {
                     if !self.arena.ensure(
                         *id,
                         &self.meshes[id],
                         device,
-                        queue,
+                        encoder,
                         (&mut self.atlas, &mut self.detail, &self.detail_textures),
                         views,
                     ) {
@@ -233,9 +281,14 @@ impl Scene {
                 }
             }
             changed |= self.arena.flush(device, queue, &mut self.bindings);
+            blackbox_trace::global().counter(
+                "Vulkan RT staging",
+                &[("deferred_meshes", self.deferred.len() as f64), ("detail_swaps", swaps.len() as f64)],
+            );
             self.selected = ids;
             self.dirty = false;
         }
+        self.pending = !self.deferred.is_empty() || self.detail_textures != self.detail_target;
         let capacity = self.bindings.tlas.get().len();
         self.bindings.tlas.get_mut_slice(0..capacity).unwrap().fill(None);
         let mut count = 0;
@@ -246,6 +299,8 @@ impl Scene {
         }
         for (i, mask) in unique.values() {
             let Some(offset) = self.arena.offset(i.mesh.raw()) else {
+                // Any mesh missing from the TLAS, including one still waiting its turn (`staging.rs`), keeps the
+                // cascades: a deferred mesh can stay out for many frames, and RT shadows would drop its shadow.
                 complete = false;
                 continue;
             };
@@ -281,6 +336,15 @@ impl Scene {
     }
 }
 impl Renderer {
+    /// Whether the frames drawn from now on join all waiting meshes and detail swaps at once (`staging.rs`): set
+    /// around a one-off capture, which no later frame completes.
+    pub(super) fn stage_whole_ray_scene(&mut self, whole: bool) {
+        let Some(rt) = &mut self.ray_reflections else { return };
+        rt.limits = match whole {
+            true => staging::Limits::WHOLE,
+            false => staging::Limits::FRAME,
+        };
+    }
     pub(super) fn add_ray_mesh(&mut self, handle: usize, desc: &MeshDesc<'_>) {
         let Some(rt) = &mut self.ray_reflections else { return };
         let layers: Vec<_> = desc
@@ -298,18 +362,20 @@ impl Renderer {
                 u16::try_from(texture).ok().map(u32::from)
             })
             .collect();
-        if let Some(mut mesh) = mesh::Mesh::new(desc, &layers) {
-            let surfaces: Vec<_> = desc
-                .draws
-                .iter()
-                .map(|draw| match draw.shading {
-                    Shading::WorldNormal(h) => self.normal.as_ref().and_then(|n| n.hit_surface(h)),
-                    _ => None,
-                })
-                .collect();
-            surfaces::apply(&mut mesh, desc, &layers, &surfaces);
-            shadow::classify(&mut mesh, desc, &layers, &surfaces);
-            mesh.partition_cutouts();
+        let surfaces: Vec<_> = desc
+            .draws
+            .iter()
+            .map(|draw| match draw.shading {
+                Shading::WorldNormal(h) => self.normal.as_ref().and_then(|n| n.hit_surface(h)),
+                _ => None,
+            })
+            .collect();
+        rt.preparing.cancel(handle);
+        if desc.vertices.len() >= preparing::ASYNC_VERTICES {
+            rt.preparing.spawn(handle, desc, layers, surfaces);
+            return;
+        }
+        if let Some(mesh) = preparing::prepare(desc, &layers, &surfaces) {
             rt.meshes.insert(handle, mesh);
             rt.dirty = true;
         }

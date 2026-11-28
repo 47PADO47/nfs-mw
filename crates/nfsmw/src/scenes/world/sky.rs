@@ -22,6 +22,7 @@ impl WorldScene {
         renderer.set_night_blend(celestial.map(|c| c.night));
         let night = celestial.map_or(f32::from(u8::from(options.experimental_night)), |c| c.night);
         self.original_sky = uses_original_sky(&options);
+        self.moonlight = [night, options.moonlight, options.moon_cloud_block];
         let mut sky = state(self.atmosphere.intensity(), self.clock);
         sky.enhanced = options.enhanced_sky || options.experimental_night || options.full_day_night;
         if let Some(c) = celestial {

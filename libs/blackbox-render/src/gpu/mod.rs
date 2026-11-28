@@ -43,6 +43,7 @@ mod output;
 mod parallel;
 #[cfg(test)]
 mod parity;
+mod pending;
 mod pipeline_cache;
 mod pipelines;
 mod planar;
@@ -163,6 +164,8 @@ pub struct Renderer {
     textures: slots::Slots<wgpu::BindGroup>,
     texture_views: std::collections::HashMap<usize, wgpu::TextureView>,
     texture_scrolls: std::collections::HashMap<usize, wgpu::Buffer>,
+    /// The values in `texture_scrolls`: UV offset and variation cell.
+    texture_params: std::collections::HashMap<usize, [f32; 4]>,
     meshes: slots::Slots<meshes::GpuMesh>,
     instances: instances::InstanceBuffer,
     effects: effects::Effects,

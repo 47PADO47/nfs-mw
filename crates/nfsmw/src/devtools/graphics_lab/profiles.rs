@@ -78,9 +78,11 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
         }
         Tab::Lighting => {
             let enhanced_windows = lab.options.enhanced_windows;
+            let world_highlights = (lab.options.world_specular, lab.options.world_specular_aa);
             let reflections = (lab.options.cached_reflections, lab.options.screen_reflections);
             lab.options = defaults.appearance.lighting;
             lab.options.enhanced_windows = enhanced_windows;
+            (lab.options.world_specular, lab.options.world_specular_aa) = world_highlights;
             lab.options.cached_reflections = reflections.0;
             lab.options.screen_reflections = reflections.1;
             lab.options.original_world_materials = settings.appearance.lighting.original_world_materials;
@@ -89,6 +91,8 @@ pub(super) fn reset(lab: &mut GraphicsLab, settings: &mut Settings) {
         }
         Tab::Materials => {
             lab.options.enhanced_windows = defaults.appearance.lighting.enhanced_windows;
+            lab.options.world_specular = defaults.appearance.lighting.world_specular;
+            lab.options.world_specular_aa = defaults.appearance.lighting.world_specular_aa;
             lab.options.cached_reflections = defaults.appearance.lighting.cached_reflections;
             lab.options.screen_reflections = defaults.appearance.lighting.screen_reflections;
             settings.texture_filtering = defaults.texture_filtering;

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 // Source: GameTechDev/XeGTAO, a5b1686c7ea37788eeb3576b5be47f7c03db532c,
-// Source/Rendering/Shaders/XeGTAO.hlsli: MainPass (with its thin occluder compensation), CalculateEdges, PackEdges.
+// Source/Rendering/Shaders/XeGTAO.hlsli: MainPass (with its thin occluder compensation), CalculateEdges, PackEdges, optional directional moment.
 // Shares the licensed arc integral from ao_horizon.wgsl.
 
 fn xe_edges(pixel: vec2<i32>, center_z: f32) -> f32 {
@@ -69,7 +69,80 @@ fn xe_position(pixel: vec2<i32>, offset: vec2<i32>) -> vec3<f32> {
     return view_at(center_pixel,z);
 }
 
-fn xe_horizon(pixel: vec2<i32>, offset: vec2<i32>, center: vec3<f32>, normal: vec3<f32>, view: vec3<f32>, low: f32) -> f32 {
+// The depth of the static scene alone, copied in the prepass before the dynamic models (cars, characters) were drawn,
+// and a mip chain of 16-pixel screen tiles that are 1 where a dynamic model covers it. Only read while
+// params.tuning.w is set; otherwise 1x1 placeholders are bound.
+@group(0) @binding(6) var static_depth: texture_2d<f32>;
+@group(0) @binding(7) var dynamic_tiles: texture_2d<f32>;
+const XE_TILE: f32 = 16.0;
+
+// Whether a dynamic model covers any tile within `reach` pixels: the 3x3 tiles around the pixel at the finest level
+// whose tiles are at least `reach` wide.
+fn xe_dynamic_near(pixel: vec2<i32>, reach: f32) -> bool {
+    let top = textureNumLevels(dynamic_tiles)-1u;
+    let level = u32(clamp(ceil(log2(max(reach,1.0)/XE_TILE)),0.0,f32(top)));
+    let tile = XE_TILE*exp2(f32(level));
+    let size = vec2<i32>(textureDimensions(dynamic_tiles,level));
+    let center = vec2<i32>(vec2<f32>(pixel)/tile);
+    for (var y=-1; y<=1; y++) {
+        for (var x=-1; x<=1; x++) {
+            let q = center+vec2<i32>(x,y);
+            if any(q<vec2<i32>(0)) || any(q>=size) { continue; }
+            if textureLoad(dynamic_tiles,q,level).r > 0.5 { return true; }
+        }
+    }
+    // Below the coarsest level the 3x3 tiles span at least `reach` each way; the coarsest is one tile over the image.
+    return false;
+}
+
+// Whether a dynamic model covers the tap's 16-pixel tile.
+fn xe_dynamic_tile(pixel: vec2<i32>) -> bool {
+    if !inside(pixel) { return false; }
+    return textureLoad(dynamic_tiles,vec2<i32>(vec2<f32>(pixel)/XE_TILE),0).r > 0.5;
+}
+
+// Whether the receiver is a static surface near a dynamic model: no model is drawn over it, one is within reach.
+fn xe_static_receiver(pixel: vec2<i32>, reach: f32) -> bool {
+    if params.tuning.w < 0.5 || !xe_dynamic_near(pixel,reach) { return false; }
+    return textureLoad(static_depth,pixel,0).r == depth_at(pixel);
+}
+
+// The static surface a dynamic model hides at this tap, or zero where the tap sees the static scene itself.
+fn xe_hidden_static(pixel: vec2<i32>) -> vec3<f32> {
+    let full = depth_at(pixel);
+    if full <= 0.0 { return vec3<f32>(0.0); }
+    let d = textureLoad(static_depth,pixel,0).r;
+    // Reverse-Z: the model is nearer, so the static surface behind it has the smaller value.
+    if d <= 0.0 || d >= full { return vec3<f32>(0.0); }
+    return view_at(vec2<f32>(pixel),params.projection.z/d);
+}
+
+fn xe_weighted(delta: vec3<f32>, distance: f32, view: vec3<f32>, low: f32) -> f32 {
+    let radius = params.effect.x * 1.457;
+    // Thin occluder compensation (XeGTAO MainPass falloffBase): the tap's view-space depth offset is stretched
+    // before the falloff, so a blocker well in front of the receiver fades out sooner.
+    let falloff = length(vec3<f32>(delta.xy, delta.z*(1.0+params.tuning.x)));
+    let weight = clamp((radius-falloff)/(0.615*radius),0.0,1.0);
+    return mix(low,dot(delta/distance,view),weight);
+}
+
+// A static receiver's horizon also counts the static surface a dynamic model hides at the tap. The screen-space
+// search otherwise finds only the model, which the falloff discounts, so a car parked before a wall's base erased
+// the occlusion of the crease beside it.
+fn xe_horizon(pixel: vec2<i32>, offset: vec2<i32>, center: vec3<f32>, normal: vec3<f32>, view: vec3<f32>, low: f32,
+              receiver_static: bool) -> f32 {
+    let visible = xe_visible_horizon(pixel,offset,center,normal,view,low);
+    if !receiver_static || !xe_dynamic_tile(pixel) { return visible; }
+    let hidden = xe_hidden_static(pixel);
+    if hidden.z == 0.0 { return visible; }
+    let delta = hidden-center;
+    let distance = length(delta);
+    if distance < 1e-6 || dot(delta,normal) <= 0.005 { return visible; }
+    return max(visible,xe_weighted(delta,distance,view,low));
+}
+
+fn xe_visible_horizon(pixel: vec2<i32>, offset: vec2<i32>, center: vec3<f32>, normal: vec3<f32>, view: vec3<f32>,
+                      low: f32) -> f32 {
     let sample = xe_position(pixel,offset);
     if sample.z == 0.0 { return low; }
     let delta = sample-center;
@@ -84,12 +157,16 @@ fn xe_horizon(pixel: vec2<i32>, offset: vec2<i32>, center: vec3<f32>, normal: ve
         let exact = position_at(pixel);
         if exact.z == 0.0 || dot(exact-center,normal) <= 0.005 { return low; }
     }
-    let radius = params.effect.x * 1.457;
-    // Thin occluder compensation (XeGTAO MainPass falloffBase): the tap's view-space depth offset is stretched
-    // before the falloff, so a blocker well in front of the receiver fades out sooner.
-    let falloff = length(vec3<f32>(delta.xy, delta.z*(1.0+params.tuning.x)));
-    let weight = clamp((radius-falloff)/(0.615*radius),0.0,1.0);
-    return mix(low,dot(delta/distance,view),weight);
+    return xe_weighted(delta,distance,view,low);
+}
+
+// GTAO Algorithm 2 (via XeGTAO): first moment of the unoccluded arc in
+// the slice basis (positive screen direction, direction to the eye).
+fn xe_bent_moment(a0: f32, a1: f32, n: f32, sin_n: f32, cos_n: f32) -> vec2<f32> {
+    let t0 = 6.0*(sin(a0-n)+sin(a1-n)) - sin(3.0*a0-n) - sin(3.0*a1-n)
+        + 16.0*sin_n - 3.0*(sin(a0+n)+sin(a1+n));
+    let t1 = -cos(3.0*a0-n) - cos(3.0*a1-n) + 8.0*cos_n - 3.0*(cos(a0+n)+cos(a1+n));
+    return vec2(t0,t1)/12.0;
 }
 
 @compute @workgroup_size(8,8)
@@ -102,7 +179,7 @@ fn generate_xegtao(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
     let normal = normal_at(pixel,position);
-    // FP32 reference bias towards the eye; no history, frame noise or bent normals.
+    // FP32 reference bias towards the eye.
     let center = position * 0.99999;
     let view = normalize(-center);
     let radius = params.effect.x * 1.457;
@@ -111,8 +188,13 @@ fn generate_xegtao(@builtin(global_invocation_id) id: vec3<u32>) {
     let slices = f32(params.sampling.y);
     let steps = f32(params.sampling.z);
     let noise = xe_phase(id.xy);
+    // Taps reach (s*s+min_s)*screen_radius pixels: just over the screen radius.
+    let receiver_static = xe_static_receiver(pixel,screen_radius+2.0);
     var visibility = clamp((10.0-screen_radius)/100.0,0.0,1.0)*0.5;
     var open_visibility = 0.0;
+    var bent_moment = vec3(0.0);
+    var open_moment = vec3(0.0);
+    let directional = params.tuning.z > 0.5;
     for (var slice=0u; slice<params.sampling.y; slice++) {
         let phi = (f32(slice)+noise.x)*PI/slices;
         let direction = vec3<f32>(cos(phi),sin(phi),0.0);
@@ -130,17 +212,33 @@ fn generate_xegtao(@builtin(global_invocation_id) id: vec3<u32>) {
             let phase = fract(noise.y+f32(slice+step*params.sampling.z)*0.61803398875);
             let s = (f32(step)+phase)/steps;
             let offset = vec2<i32>(round(vec2<f32>(direction.x,-direction.y)*(s*s+min_s)*screen_radius));
-            h0=max(h0,xe_horizon(pixel+offset,offset,center,normal,view,low0));
-            h1=max(h1,xe_horizon(pixel-offset,offset,center,normal,view,low1));
+            h0=max(h0,xe_horizon(pixel+offset,offset,center,normal,view,low0,receiver_static));
+            h1=max(h1,xe_horizon(pixel-offset,offset,center,normal,view,low1,receiver_static));
         }
         let a0=-acos(clamp(h1,-1.0,1.0));
         let a1=acos(clamp(h0,-1.0,1.0));
         visibility += mix(projected_length,1.0,0.05)*(arc(a0,n)+arc(a1,n));
         // Normalize discrete slice quadrature against the same unobstructed slope.
         open_visibility += mix(projected_length,1.0,0.05)*(arc(n-HALF_PI,n)+arc(n+HALF_PI,n));
+        if directional {
+            let tangent = safe_normal(ortho,direction);
+            let sin_n = sin(n);
+            let moment = xe_bent_moment(a0,a1,n,sin_n,cos_n);
+            bent_moment += (tangent*moment.x+view*moment.y)*projected_length;
+            // The open hemisphere has these closed-form moments.
+            open_moment += (tangent*(16.0*sin_n)+view*(8.0*cos_n))*(projected_length/12.0);
+        }
     }
     let ao=max(0.03,pow(clamp(visibility/max(open_visibility,1e-4),0.0,1.0),2.2));
     let fade=smoothstep(params.effect.z,params.effect.w,-position.z);
+    var bent = 0.0;
+    if directional {
+        // Remove the finite-slice bias so an open surface keeps its original normal.
+        let delta = safe_normal(bent_moment,normal)-safe_normal(open_moment,normal);
+        let direction = safe_normal(normal+delta*(1.0-fade),normal);
+        let world = vec3(dot(params.view[0].xyz,direction),dot(params.view[1].xyz,direction),dot(params.view[2].xyz,direction));
+        bent = pack_ao_normal(world);
+    }
     // Keep reference edge bytes exactly representable in FP16, alongside unscaled visibility.
-    textureStore(output_ao,id.xy,vec4<f32>(mix(ao,1.0,fade),-position.z,xe_edges(pixel,-position.z),0.0));
+    textureStore(output_ao,id.xy,vec4<f32>(mix(ao,1.0,fade),-position.z,xe_edges(pixel,-position.z),bent));
 }

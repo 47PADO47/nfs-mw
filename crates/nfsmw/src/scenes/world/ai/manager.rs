@@ -115,20 +115,39 @@ impl TypeTimers {
         for _ in 0..n {
             let at = self.cursor % n;
             self.cursor = (self.cursor + 1) % n;
-            let rule = &rules[at];
-            let count = census.active(&rule.name);
-            let free = slots.saturating_sub(census.others());
-            let eligible = rule.rate > 0.0 && self.timers[at] > rule.rate;
-            let within_max = rule.max_instances == 0 || count < rule.max_instances;
-            let within_share = match &quotas {
-                Some(quotas) => count < quotas[at],
-                None => rule.percent == 0 || count < (free * rule.percent / 100).max(1),
-            };
-            if eligible && within_max && within_share {
+            if self.eligible(at, rules, slots, census, quotas.as_deref()) {
                 return Some(at);
             }
         }
         None
+    }
+
+    /// First eligible alternate in round-robin order. Looking does not advance the population cursor.
+    pub(super) fn alternate(
+        &self,
+        rules: &[Rule],
+        slots: u32,
+        census: &impl Census,
+        fill: bool,
+        available: impl Fn(&str) -> bool,
+    ) -> Option<usize> {
+        let n = rules.len().min(MAX_RECORDS).min(self.timers.len());
+        let quotas = fill.then(|| shares::quotas(&rules[..n], slots, census));
+        (0..n)
+            .map(|i| (self.cursor + i) % n)
+            .find(|&i| available(&rules[i].name) && self.eligible(i, rules, slots, census, quotas.as_deref()))
+    }
+
+    fn eligible(&self, at: usize, rules: &[Rule], slots: u32, census: &impl Census, quotas: Option<&[u32]>) -> bool {
+        let rule = &rules[at];
+        let count = census.active(&rule.name);
+        let free = slots.saturating_sub(census.others());
+        let within_max = rule.max_instances == 0 || count < rule.max_instances;
+        let within_share = match quotas {
+            Some(quotas) => count < quotas[at],
+            None => rule.percent == 0 || count < (free * rule.percent / 100).max(1),
+        };
+        rule.rate > 0.0 && self.timers[at] > rule.rate && within_max && within_share
     }
 
     /// A car of `name` was spawned: every record of that model starts waiting again.
@@ -213,6 +232,20 @@ mod tests {
         assert_eq!(timers.next_type(&rules, 10, &full), None);
         let room = Cars(vec![("news", 1), ("sedan", 2)], 1);
         assert_eq!(timers.next_type(&rules, 10, &room), Some(0));
+    }
+
+    #[test]
+    fn alternate_trim_obeys_timers_caps_and_local_availability() {
+        let rules = [rule("base", 3.0, 0, 20), rule("silver", 6.0, 1, 10), rule("blue", 4.0, 1, 10)];
+        let timers = TypeTimers { timers: vec![8.0, 5.0, 8.0], cursor: 1 };
+        let empty = Cars(Vec::new(), 1);
+        assert_eq!(timers.alternate(&rules, 20, &empty, false, |n| n != "base"), Some(2));
+        let capped = Cars(vec![("blue", 1)], 1);
+        for fill in [false, true] {
+            assert_eq!(timers.alternate(&rules, 20, &capped, fill, |n| n != "base"), None);
+            assert_eq!(timers.alternate(&rules, 20, &empty, fill, |_| false), None);
+        }
+        assert_eq!(timers.cursor, 1);
     }
 
     #[test]

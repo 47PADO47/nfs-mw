@@ -8,8 +8,9 @@ struct Globals {
     scatter_mie: vec4<f32>, to_sun: vec4<f32>, surface_ambient: vec4<f32>, surface_diffuse: vec4<f32>,
     camera_right: vec4<f32>, clip_plane: vec4<f32>,
 };
-struct Offset { value: vec4<f32> };
-struct Light { specular: vec4<f32>, reflection: vec4<f32>, water: vec4<f32>, wet_tuning: vec4<f32> };
+struct Offset { value: vec4<f32>, material: vec4<f32> };
+// parallax: depth in metres (0 off), most samples, fade distance.
+struct Light { specular: vec4<f32>, reflection: vec4<f32>, water: vec4<f32>, wet_tuning: vec4<f32>, parallax: vec4<f32>, controls: vec4<f32> };
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(1) @binding(0) var diffuse_texture: texture_2d<f32>;
 @group(1) @binding(1) var normal_texture: texture_2d<f32>;
@@ -86,17 +87,89 @@ fn vs_main(v: Input, placed: InstanceIn) -> Output {
     }
     return out;
 }
+// Parallax occlusion mapping from the normal map's alpha (1 = top of the relief). A texture mod stores a height there;
+// stock normal maps are DXT1 (alpha 1 everywhere) and come out flat. The view ray marches down through the height in
+// layers, then the crossing between the last two is interpolated (relief mapping's secant step). The UV shift per metre
+// of depth comes from the screen-space Jacobian of the surface, so it holds whatever the UV scale. Derivatives are taken
+// before any pixel-dependent return.
+struct Parallax { uv: vec2<f32>, gx: vec2<f32>, gy: vec2<f32> };
+fn relief_depth(uv: vec2<f32>, gx: vec2<f32>, gy: vec2<f32>) -> f32 {
+    return 1.0 - textureSampleGrad(normal_texture, material_sampler, uv, gx, gy).a;
+}
+fn parallax_uv(in: Output) -> Parallax {
+    let ux = dpdx(in.uv);
+    let uy = dpdy(in.uv);
+    let px = dpdx(in.world);
+    let py = dpdy(in.world);
+    let bias = exp2(globals.fog_range.z);
+    var out = Parallax(in.uv, ux * bias, uy * bias);
+    let depth = light.parallax.x;
+    if depth <= 0.0 || globals.fog_range.w > 0.5 { return out; }
+    let distance = length(in.world - globals.camera_pos.xyz);
+    let fade = 1.0 - smoothstep(0.6 * light.parallax.z, light.parallax.z, distance);
+    let v = unit(in.eye);
+    if fade <= 0.0 || v.z <= 0.02 { return out; }
+    let det = ux.x * uy.y - ux.y * uy.x;
+    if abs(det) < 1e-14 { return out; }
+    // Metres per UV unit along u (the tangent) and v (the binormal).
+    let scale = vec2(length((px * uy.y - py * ux.y) / det), length((py * ux.x - px * uy.x) / det));
+    if min(scale.x, scale.y) < 1e-6 { return out; }
+    // Going a depth d into the surface moves the ray -v.xy / v.z * d along it; grazing views are clamped.
+    let shift = v.xy / max(v.z, 0.2) * depth * fade / scale;
+    var sampled = relief_depth(in.uv, out.gx, out.gy);
+    let steps = max(i32(mix(light.parallax.y, max(4.0, light.parallax.y * 0.25), v.z)), 1);
+    let step = 1.0 / f32(steps);
+    var layer = 0.0;
+    var uv = in.uv;
+    var last_layer = 0.0;
+    var last_sampled = sampled;
+    var last_uv = uv;
+    for (var i = 0; i < steps && layer < sampled; i++) {
+        last_layer = layer;
+        last_sampled = sampled;
+        last_uv = uv;
+        layer += step;
+        uv = in.uv - shift * layer;
+        sampled = relief_depth(uv, out.gx, out.gy);
+    }
+    let before = last_sampled - last_layer;
+    let after = sampled - layer;
+    out.uv = mix(last_uv, uv, clamp(before / max(before - after, 1e-5), 0.0, 1.0));
+    return out;
+}
 fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     if CLIP_PLANE && dot(globals.clip_plane, vec4<f32>(in.world, 1.0)) < 0.0 { discard; }
-    let tex = textureSampleBias(diffuse_texture,material_sampler,in.uv,globals.fog_range.z);
-    let normal_tex = textureSampleBias(normal_texture,material_sampler,in.uv,globals.fog_range.z);
-    let spec_tex = textureSampleBias(specular_texture,material_sampler,in.uv,globals.fog_range.z);
+    let relief = parallax_uv(in);
+    var tex: vec4<f32>;
+    var normal_tex: vec4<f32>;
+    var spec_tex: vec4<f32>;
+    if light.parallax.x > 0.0 {
+        tex = textureSampleGrad(diffuse_texture,material_sampler,relief.uv,relief.gx,relief.gy);
+        normal_tex = textureSampleGrad(normal_texture,material_sampler,relief.uv,relief.gx,relief.gy);
+        spec_tex = textureSampleGrad(specular_texture,material_sampler,relief.uv,relief.gx,relief.gy);
+    } else {
+        tex = textureSampleBias(diffuse_texture,material_sampler,in.uv,globals.fog_range.z);
+        normal_tex = textureSampleBias(normal_texture,material_sampler,in.uv,globals.fog_range.z);
+        spec_tex = textureSampleBias(specular_texture,material_sampler,in.uv,globals.fog_range.z);
+    }
     let n = unit(2.0*normal_tex.rgb-vec3(1.0));
     let l = unit(in.light);
     let v = unit(in.eye);
     let d = dot(n,l);
     let reflection = 2.0*d*n-l;
-    let highlight = pow(clamp(dot(reflection,v),0.0,1.0),light.specular.w);
+    var highlight = pow(clamp(dot(reflection,v),0.0,1.0),light.specular.w);
+    let shading_normal = unit(in.tangent*n.x+in.binormal*n.y+in.normal*n.z);
+    var alpha2 = 0.0;
+    if light.controls.x > 0.5 {
+        let roughness = uv_offset.material.x;
+        alpha2 = roughness*roughness*roughness*roughness;
+        if light.controls.y > 0.5 {
+            let dx = dpdx(shading_normal);
+            let dy = dpdy(shading_normal);
+            alpha2 = min(1.0, alpha2+min(0.25*(dot(dx,dx)+dot(dy,dy)),0.16));
+        }
+        highlight = world_highlight(n,v,l,alpha2);
+    }
     let diffuse_light = select(vec3(0.65),globals.surface_diffuse.rgb,globals.surface_ambient.w>0.5);
     var specular = highlight*light.specular.rgb*spec_tex.rgb;
     var reflected = vec3(0.0);
@@ -119,20 +192,21 @@ fn shade(in: Output, receive_ao: bool) -> vec4<f32> {
     var ao = 1.0;
     q *= cloud_visibility(in.world);
     if receive_ao && globals.fog_range.w<0.5 { ao = ambient_visibility(in.clip.xy); }
-    let shading_normal = unit(in.tangent*n.x+in.binormal*n.y+in.normal*n.z);
-    let ambient = in.ambient.rgb*world_environment(shading_normal);
+    let ambient = in.ambient.rgb*world_environment(world_ambient_normal(shading_normal,in.clip.xy,ao));
     // The legacy capture is a dry road's broad reflection: the rough end of the wet road's range (0.32).
     reflected *= specular_occlusion(ao,dot(n,v),0.32);
     var surface = 2.0*(tex.rgb*ambient*ao+(tex.rgb*diffuse_light*clamp(d,0.0,1.0)+specular)*q+reflected);
     // A wet receiver walks its local lights once, for the dry terms below and its own glint.
     var local = LocalLights(vec3(0.0),vec3(0.0),vec3(0.0));
     var local_done = false;
+    // A wet receiver applies the night tint itself, to its own lighting only (`wet_surface`).
     if uv_offset.value.z>0.5 && light.wet_tuning.x>0.5 && light.water.x>0.0 {
-        surface = wet_surface(in, tex, spec_tex, n, l, v, diffuse_light, q, ao, surface, &local, &local_done);
+        surface = wet_surface(in, tex, spec_tex, n, l, v, diffuse_light, q, ao, surface, alpha2, &local, &local_done);
+    } else {
+        surface *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
     }
-    surface *= mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
     if globals.fog_range.w < 0.5 {
-        if !local_done { local = local_lights(in.world,shading_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,0.0); }
+        if !local_done { local = local_lights(in.world,shading_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,0.0,alpha2,0.0); }
         surface += 2.0*tex.rgb*local.diffuse + spec_tex.rgb*local.specular;
     }
     var rgb = surface*in.extinction+in.scatter*mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
@@ -195,10 +269,10 @@ fn puddle_relief(in:Output)->f32 {
     return clamp(-curvature*1.5,-0.14,0.14);
 }
 fn pooled_coverage(world:vec2<f32>, relief:f32)->f32 {
-    if light.wet_tuning.y<=0.0 { return 0.0; }
+    if light.wet_tuning.y<0.0 { return 0.0; }
     let p = world/max(light.wet_tuning.z,0.25);
     let field = 0.7*wet_noise(p)+0.3*wet_noise(p*3.7+vec2(19.0));
-    let threshold = 0.66-relief-0.48*light.water.y*light.wet_tuning.y;
+    let threshold = light.wet_tuning.y-relief;
     // Widen edges when patches fall below a pixel; no screen-anchored dither or temporal history.
     let width = max(0.025,fwidth(field));
     return smoothstep(threshold-width,threshold+width,field)*light.water.y;
@@ -209,7 +283,7 @@ fn wet_capture(uv:vec2<f32>,pixel:vec2<f32>)->vec3<f32> {
     return textureSampleLevel(reflection_texture,material_sampler,clamp(uv,pixel*0.5,vec2(1.0)-pixel*0.5),0.0).rgb;
 }
 fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32>,
-    v:vec3<f32>,diffuse_light:vec3<f32>,q:f32,ao:f32,dry:vec3<f32>,
+    v:vec3<f32>,diffuse_light:vec3<f32>,q:f32,ao:f32,dry:vec3<f32>,alpha2:f32,
     local:ptr<function,LocalLights>,local_done:ptr<function,bool>)->vec3<f32> {
     // Only upward authored reflective receivers. Vertical walls never acquire procedural pools.
     let slope = smoothstep(0.90,0.995,unit(in.normal).z);
@@ -218,8 +292,13 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
     let pool = pooled_coverage(in.world.xy,puddle_relief(in))*slope;
     let p = in.world.xy;
     let footprint = max(length(dpdx(p)),length(dpdy(p)));
+    // Normal-map variance within the pixel: a glint narrower than it would sparkle, so it widens instead (Toksvig).
+    let normal_variance = dot(dpdx(n),dpdx(n))+dot(dpdy(n),dpdy(n));
     // Finish derivatives before a pixel-dependent return. Vertical receivers are dry.
-    if damp <= 0.0 { return dry; }
+    // Night dims what the surface itself is lit by, in the encoded space the dry road uses (`shade`); light the
+    // water carries from elsewhere (reflections, lamp glints) keeps its own brightness, as wet asphalt at night does.
+    let night = mix(vec3(1.0),vec3(0.30,0.35,0.45),shadow_data.local_options.w);
+    if damp <= 0.0 { return dry*night; }
     let ripple_fade = 1.0-smoothstep(0.12,0.8,footprint);
     let phase = light.water.z*0.785398163;
     let ripples = vec2(sin(dot(p,vec2(7.3,4.1))+phase),cos(dot(p,vec2(-3.7,8.9))-phase*2.0));
@@ -233,26 +312,30 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
             ripple = vec2(dot(tilt,unit(in.tangent)),dot(tilt,unit(in.binormal)))*strength*0.8;
         }
     }
+    // Sheen (F8): a continuous film between the pools fills part of the micro-relief and polishes the surface. `film`
+    // is the gloss of the whole receiver: the sheen's share of a mirror pool, or the pool itself.
+    let sheen = light.controls.z;
+    let film = max(pool,0.45*sheen);
     // Water smooths the road micro-normal, but keeps its geometric slope.
-    let water_n = unit(mix(n,vec3(ripple,1.0),pool*0.94));
+    let water_n = unit(mix(n,vec3(ripple,1.0),max(pool*0.94,0.55*sheen)));
     let nv = clamp(dot(water_n,v),0.0,1.0);
     let fresnel = 0.02+0.98*pow(1.0-nv,5.0);
     let mask = clamp(2.0*spec_tex.r*tex.a*in.ambient.a,0.0,1.0);
     // The legacy mask already attenuates the old nonphysical reflection. Keep its zero regions,
     // but let a continuous water layer approach dielectric reflectance within eligible regions.
     let water_mask = mix(mask,smoothstep(0.0,0.08,mask),pool);
-    let reflectance = fresnel*mix(0.3,1.0,pool)*water_mask;
+    let reflectance = fresnel*mix(mix(0.3,0.75,sheen),1.0,pool)*water_mask;
     // Receiver pixel size for the road march's origin bias. Derivatives must stay in uniform control flow.
     let world_footprint = ray_footprint;
     var filtered = vec3(0.0);
     let road_environment_path = light.reflection.z > 0.5 && uv_offset.value.w>0.5;
     // Same roughness as the road environment lookup: a damp film (0.32) to a near-mirror pool (0.07).
-    let occlusion = specular_occlusion(ao,nv,mix(0.32,0.07,pool));
+    let occlusion = specular_occlusion(ao,nv,mix(0.32,0.07,film));
     // The capture taps only serve the paths that do not trace the road environment.
     if !road_environment_path && reflectance > 0.0 {
         let uv = in.projected_reflection.xy/in.projected_reflection.w;
         let pixel = vec2(1.0)/vec2<f32>(textureDimensions(reflection_texture));
-        let radius = mix(3.5,0.35,pool);
+        let radius = mix(3.5,0.35,film);
         let center = wet_capture(uv,pixel);
         // Spatially filtered film; pooled water retains the capture's detail. No fabricated parallax offsets.
         filtered = (wet_capture(uv+pixel*vec2(radius,0.0),pixel)
@@ -261,31 +344,48 @@ fn wet_surface(in:Output,tex:vec4<f32>,spec_tex:vec4<f32>,n:vec3<f32>,l:vec3<f32
             +wet_capture(uv-pixel*vec2(0.0,radius),pixel)+center*4.0)/8.0;
     }
     let shading_normal = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
-    let base = 2.0*tex.rgb*(in.ambient.rgb*world_environment(shading_normal)*ao+diffuse_light*max(dot(water_n,l),0.0)*q);
-    let power = mix(24.0,192.0,pool);
+    let base = 2.0*tex.rgb*(in.ambient.rgb*world_environment(world_ambient_normal(shading_normal,in.clip.xy,ao))*ao+diffuse_light*max(dot(water_n,l),0.0)*q);
+    let smooth_power = mix(mix(24.0,96.0,sheen),192.0,pool);
+    // Water hides the micro-normal it covers, in proportion to how flat it made the receiver.
+    let covered = max(pool*0.94,0.55*sheen);
+    let power = smooth_power/(1.0+smooth_power*normal_variance*(1.0-covered));
+    // Lamp glints and bright reflected sources (F8 "Wet light reflections"); 1 leaves them unboosted.
+    let light_boost = light.controls.w;
     var local_glint = vec3(0.0);
     if globals.fog_range.w < 0.5 {
         let dry_normal = unit(in.tangent*n.x+in.binormal*n.y+in.normal*n.z);
-        *local = local_lights(in.world,dry_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,power);
+        *local = local_lights(in.world,dry_normal,globals.camera_pos.xyz-in.world,32.0,shading_normal,power,alpha2,0.0);
         *local_done = true;
         local_glint = (*local).glint;
     }
-    let diffuse = wet_linear(base)*mix(1.0,0.72,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
+    // The glint is light carried from the emitter, added as linear radiance: decoding it like a surface colour would
+    // crush the faint, distant reflections that make a wet street's light streaks.
+    let glint_linear = local_glint*water_mask*light_boost;
+    // A film darkens asphalt beyond the damp look: the water fills the pores that scatter light.
+    let diffuse = wet_linear(base)*mix(1.0,0.72-0.14*sheen,damp)*mix(1.0,0.78,pool)*(1.0-reflectance);
     let h = unit(l+v);
     let glint = pow(max(dot(water_n,h),0.0),power)*(power+2.0)/50.0;
     let spec = wet_linear(light.specular.rgb)*glint*q*fresnel*water_mask;
     // A ray or screen march only pays where it could show: a reflection that differs from the probe by half a
     // unit must move the pixel by 3/255 or more (encoded). Pools, grazing film and dark receivers still trace;
     // faint film on a lit road keeps the probe: docs/weather-gpu-tuning.md.
-    let lit = diffuse+spec+wet_linear(local_glint)*water_mask;
+    let lit = diffuse+spec+glint_linear;
     let level = max(lit.r,max(lit.g,lit.b));
     let trace = damp*(pow(level+0.5*reflectance*occlusion,1.0/2.2)-pow(level,1.0/2.2)) >= 3.0/255.0;
     if road_environment_path && reflectance > 0.0 {
         let world_n = unit(in.tangent*water_n.x+in.binormal*water_n.y+in.normal*water_n.z);
         let ray = reflect(-unit(globals.camera_pos.xyz-in.world),world_n);
         // Resolve the fallback only for misses or partial traced contributions.
+        // Only pools trace: the film's ray would follow the road's micro-normal and come out as grain.
         filtered = road_environment_at(in.world,world_n,ray,pool,world_footprint,trace);
     }
-    let env = wet_linear(filtered)*reflectance*occlusion*select(0.0,1.0,light.reflection.x>0.0);
-    return mix(dry,wet_encoded(diffuse+spec+env+wet_linear(local_glint)*water_mask),damp);
+    let source = wet_linear(filtered);
+    let night_linear = wet_linear(night);
+    // Only reflected sources that stay bright at night (lit windows, lamp heads, signs) take the light boost; dim
+    // surroundings and a daylit background stay as they are.
+    let bright = smoothstep(0.08,0.5,dot(source*sqrt(night_linear),vec3(0.2126,0.7152,0.0722)));
+    let env = source*mix(1.0,light_boost,bright)*reflectance*occlusion*select(0.0,1.0,light.reflection.x>0.0);
+    // The reflected surroundings are lit by the same night as the road, but a wet surface still reads brighter than
+    // the matte asphalt around it: half the night tint (in log terms) on reflections, none on lamp glints.
+    return mix(dry*night,wet_encoded((diffuse+spec)*night_linear+env*sqrt(night_linear)+glint_linear),damp);
 }

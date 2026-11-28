@@ -74,8 +74,8 @@ impl PostPass for DlssPass {
             encoder,
             [io.input, &ctx.scene.depth_view, &motion.view, result],
             frame,
-            self.mode,
-            ctx.dlss_model,
+            (self.mode, ctx.dlss_model),
+            ctx.prefix,
         ) {
             log::error!("DLSS disabled for this pass: {error}");
             self.failed.store(true, std::sync::atomic::Ordering::Release);

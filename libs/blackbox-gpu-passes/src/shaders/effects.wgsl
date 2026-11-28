@@ -18,6 +18,7 @@ struct VsOut {
     @location(3) brightness: f32,
     // Streaks and glows only: set when the vertex takes the sun's shadow (`detail.y`).
     @location(4) shadowed: f32,
+    @location(5) age: f32,
 };
 
 @vertex
@@ -29,6 +30,7 @@ fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec4<f32>, @loc
     out.world = position;
     out.brightness = select(1.0, detail.x, detail.x > 0.0);
     out.shadowed = detail.y;
+    out.age = detail.x;
     return out;
 }
 
@@ -65,6 +67,10 @@ fn fs_surface_srgb(in: VsOut) -> @location(0) vec4<f32> {
 }
 
 fn particle_color(in: VsOut) -> vec4<f32> {
+    if in.shadowed < 0.0 {
+        let spray = liquid_wake(in.uv, in.age, -in.shadowed, in.world, in.color.a);
+        return vec4<f32>(spray.rgb, spray.a);
+    }
     let p = in.uv * 2.0 - 1.0;
     let radius = dot(p, p);
     let edge = 1.0 - smoothstep(0.05, 1.0, radius);

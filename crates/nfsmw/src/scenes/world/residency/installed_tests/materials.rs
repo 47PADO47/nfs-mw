@@ -61,15 +61,15 @@ fn installed_original_normal_materials_resolve_resident_bindings_and_release() {
                     })
                     .collect();
                 let key = [handles[0], handles[1], handles[2]];
-                let handle = *resources
-                    .normal_materials
-                    .get(&(blackbox_gfx::NormalModel::Bump, key))
-                    .expect("complete ID3 inputs must register a material");
+                let mesh = resources.meshes[&solid.name_hash].0;
+                let Shading::WorldNormal(handle) = renderer.mesh_draws[&mesh][index].shading else {
+                    panic!("{}: complete ID3 inputs must route to a normal material", solid.name);
+                };
+                assert!(resources.normal_materials.values().any(|&registered| registered == handle));
                 registered.insert(handle);
                 let descriptor = &renderer.normal_descriptors[&handle];
+                assert_eq!(descriptor.model, blackbox_gfx::NormalModel::Bump);
                 assert_eq!([descriptor.diffuse, descriptor.normal, descriptor.specular], key);
-                let mesh = resources.meshes[&solid.name_hash].0;
-                assert_eq!(renderer.mesh_draws[&mesh][index].shading, Shading::WorldNormal(handle), "{}", solid.name);
                 let uploaded = &renderer.mesh_tangents[&mesh];
                 let tangents = solid.tangents.as_deref().expect("a normal-mapped solid has tangents");
                 assert_eq!(uploaded.len(), tangents.len(), "{} tangent count", solid.name);

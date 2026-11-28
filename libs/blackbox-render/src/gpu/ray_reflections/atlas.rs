@@ -91,10 +91,11 @@ impl Atlas {
         });
         Self { texture, view, sampler, pipeline, layers: HashMap::new(), free: (0..count).rev().collect() }
     }
+    /// The layer holding `handle`'s texture, resampling it into a free layer (recorded into `encoder`) on first use.
     pub fn layer(
         &mut self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
         handle: usize,
         view: &wgpu::TextureView,
     ) -> Option<u32> {
@@ -113,7 +114,7 @@ impl Atlas {
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) },
             ],
         });
-        let mut encoder = device.create_command_encoder(&Default::default());
+        let _trace = blackbox_trace::scope("Vulkan RT: atlas layer");
         for mip in 0..self.texture.mip_level_count() {
             let target = self.texture.create_view(&wgpu::TextureViewDescriptor {
                 dimension: Some(wgpu::TextureViewDimension::D2),
@@ -140,7 +141,6 @@ impl Atlas {
             pass.set_bind_group(0, &group, &[]);
             pass.draw(0..3, 0..1);
         }
-        queue.submit([encoder.finish()]);
         self.layers.insert(handle, layer);
         Some(layer)
     }

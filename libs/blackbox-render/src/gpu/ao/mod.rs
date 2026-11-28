@@ -11,6 +11,8 @@ mod convergence_tests;
 mod depth;
 #[cfg(test)]
 mod depth_tests;
+#[cfg(test)]
+mod directional_tests;
 mod frame;
 #[cfg(test)]
 mod integration_tests;
@@ -18,6 +20,8 @@ mod integration_tests;
 mod jitter_tests;
 #[cfg(test)]
 mod method_tests;
+#[cfg(test)]
+mod occluder_tests;
 mod pipelines;
 #[cfg(test)]
 mod pyramid_tests;
@@ -45,7 +49,7 @@ struct Params {
     sampling: [u32; 4],
     fog: [f32; 4],
     view: [f32; 16],
-    /// XeGTAO thin occluder compensation, the shading normal guard, then unused.
+    /// XeGTAO thin occluder compensation, the shading normal guard, the bent-normal flag, the static depth switch.
     tuning: [f32; 4],
 }
 
@@ -55,13 +59,18 @@ fn env_override(name: &'static str, cell: &'static std::sync::OnceLock<Option<f3
 }
 
 /// `BLACKBOX_AO_THIN_OCCLUDERS` overrides the thin occluder compensation and `BLACKBOX_AO_NORMAL_GUARD` the normal
-/// guard (each 0 to 1; 0 turns it off).
-fn tuning(settings: &AoSettings) -> [f32; 4] {
+/// guard (each 0 to 1; 0 turns it off). The third value is 1 when XeGTAO also searches the static depth.
+fn tuning(settings: &AoSettings, static_depth: bool) -> [f32; 4] {
     static THIN: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
     static GUARD: std::sync::OnceLock<Option<f32>> = std::sync::OnceLock::new();
     let thin = env_override("BLACKBOX_AO_THIN_OCCLUDERS", &THIN).map_or(settings.thin_occluders, |v| v.clamp(0.0, 1.0));
     let guard = env_override("BLACKBOX_AO_NORMAL_GUARD", &GUARD).map_or(settings.normal_guard, |v| v.clamp(0.0, 1.0));
-    [thin, guard, 0.0, 0.0]
+    [
+        thin,
+        guard,
+        f32::from(u8::from(settings.directional())),
+        f32::from(u8::from(static_depth && settings.method.is_xe())),
+    ]
 }
 
 struct Images {
@@ -117,6 +126,9 @@ pub(super) struct Draw<'a> {
     pub settings: AoSettings,
     /// The frame is jittered for a temporal upscaler, which accumulates what it is given over frames.
     pub jittered: bool,
+    /// The depth of the static scene alone (reverse-Z) and the mip chain of tiles a dynamic model covers, when
+    /// dynamic models cover part of `depth`.
+    pub static_depth: Option<(&'a wgpu::TextureView, &'a wgpu::TextureView)>,
 }
 
 impl AmbientOcclusion {
@@ -204,7 +216,7 @@ impl AmbientOcclusion {
                 },
             ],
             view: draw.frame.view.to_cols_array(),
-            tuning: tuning(&settings),
+            tuning: tuning(&settings, draw.static_depth.is_some()),
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
         let depth_size = match settings.depth_mips {
@@ -218,12 +230,20 @@ impl AmbientOcclusion {
         if settings.depth_mips {
             self.depth.encode(device, encoder, &self.pipelines, &self.params, draw.depth, &self.fallback_depth);
         }
-        let views = [draw.depth, draw.normals, &images.raw, &images.filtered, &self.depth.view];
+        let views = [
+            draw.depth,
+            draw.normals,
+            &images.raw,
+            &images.filtered,
+            &self.depth.view,
+            draw.static_depth.map_or(&self.fallback_depth, |(depth, _)| depth),
+            draw.static_depth.map_or(&self.fallback_depth, |(_, tiles)| tiles),
+        ];
         if self.inputs.as_ref().is_none_or(|inputs| !inputs.matches(views)) {
             self.inputs = Some(bindings::Inputs::new(device, &self.pipelines, &self.params, views));
         }
         let inputs = &self.inputs.as_ref().expect("AO inputs exist").groups;
-        let composite = &self.pipelines.resolve;
+        let composite = &self.pipelines.resolve[usize::from(settings.directional())];
         let generate = match settings.method {
             AoMethod::Gtao => &self.pipelines.generate,
             AoMethod::Ssao => &self.pipelines.ssao,
@@ -292,7 +312,10 @@ impl AmbientOcclusion {
                 view: draw.target,
                 depth_slice: None,
                 resolve_target: None,
-                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::WHITE), store: wgpu::StoreOp::Store },
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color { a: 0.0, ..wgpu::Color::WHITE }),
+                    store: wgpu::StoreOp::Store,
+                },
             })],
             depth_stencil_attachment: None,
             timestamp_writes: None,

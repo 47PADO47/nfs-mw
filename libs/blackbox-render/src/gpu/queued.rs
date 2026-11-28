@@ -13,12 +13,15 @@
 //! The planar capture reads the sun shadow data and the normal-scenery lighting, which every frame rewrites, and the
 //! rear-view mirror writes the shared globals and post uniforms, so both keep a submission of their own.
 //!
-//! The reflection cube's faces, when several are recorded at once on worker threads, wait here too: the commands
-//! their encoder held before them, then one command buffer per face (see `reflections.rs`). They are queued in the
+//! The reflection cube's faces, when several are drawn, wait here too: the commands their encoder held before them,
+//! then one command buffer per face (see `reflections.rs`), each finished on a worker thread. They are queued in the
 //! middle of recording that encoder, which goes out right after them in the same submission, so they see the writes
 //! they saw when they were recorded into it. Whoever submits that encoder does so with
-//! [`Renderer::submit_after_captures`]. Native DLSS submits its scene prefix internally, so
-//! `encode_post` flushes queued captures before entering that path.
+//! [`Renderer::submit_after_captures`]. Native DLSS submits its scene prefix internally, so it takes everything
+//! queued ahead of that prefix (`PassContext::prefix`).
+//!
+//! The frame closes its own encoder at a few points as well ([`Renderer::split_frame`]), so the parts are finished
+//! at the same time on worker threads; `pending.rs` has how they keep their place.
 
 use wgpu::util::DeviceExt;
 
@@ -27,7 +30,8 @@ use super::Renderer;
 /// The captures waiting for the frame's submission.
 #[derive(Default)]
 pub(super) struct QueuedCaptures {
-    commands: Vec<wgpu::CommandBuffer>,
+    /// The captures, and the parts of the frame closed so far (see `pending.rs`).
+    pub(super) commands: super::pending::PendingCommands,
     /// The environment lanes of the shadow receiver data as last written (as bits), which glossy draws read in
     /// every view.
     shadow_environment: Option<[u32; 4]>,
@@ -36,26 +40,36 @@ pub(super) struct QueuedCaptures {
 impl Renderer {
     /// Whether a capture waits for the next submission.
     pub(super) fn captures_queued(&self) -> bool {
-        !self.queued_captures.commands.is_empty()
+        self.queued_captures.commands.has_captures()
     }
 
     /// Send a capture's commands with the next submission, after the captures already queued.
     pub(super) fn queue_capture(&mut self, commands: wgpu::CommandBuffer) {
-        self.queued_captures.commands.push(commands);
+        self.queued_captures.commands.push_capture(commands);
+    }
+
+    /// Close the part of the frame `encoder` holds: a worker finishes it while the frame goes on recording into a
+    /// fresh encoder. The part is submitted in its place, ahead of what is recorded next (see `pending.rs`).
+    pub(super) fn split_frame(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        let next = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
+        let part = std::mem::replace(encoder, next);
+        self.queued_captures.commands.finish_later(part, false);
     }
 
     /// Submit the queued captures now: before a write to something they read, or a submission they must precede.
     pub(super) fn flush_captures(&mut self) {
-        if self.queued_captures.commands.is_empty() {
+        let captures = self.queued_captures.commands.take_captures();
+        if captures.is_empty() {
             return;
         }
         let _trace = blackbox_trace::scope("GPU API: queue submit");
-        self.queue.submit(self.queued_captures.commands.drain(..));
+        self.queue.submit(captures);
     }
 
     /// Submit `commands` after the queued captures, in one submission.
     pub(super) fn submit_after_captures(&mut self, commands: wgpu::CommandBuffer) {
-        self.queue.submit(self.queued_captures.commands.drain(..).chain(std::iter::once(commands)));
+        let queued = self.queued_captures.commands.take_all();
+        self.queue.submit(queued.into_iter().chain(std::iter::once(commands)));
     }
 
     /// Open a new epoch of the instance store, unless a queued capture was recorded in the open one: the frame then
@@ -108,7 +122,8 @@ mod tests {
     #[test]
     fn nothing_is_queued_at_first() {
         let queued = QueuedCaptures::default();
-        assert!(queued.commands.is_empty());
+        assert!(!queued.commands.has_captures());
+        assert!(queued.commands.take_all().is_empty());
         assert_eq!(queued.shadow_environment, None);
     }
 }

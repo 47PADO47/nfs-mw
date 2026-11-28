@@ -12,6 +12,7 @@ pub mod head_look;
 mod lens_mix;
 mod orbit;
 pub mod original;
+pub mod pose;
 mod pursuit;
 mod rear_view;
 pub mod rider_follow;

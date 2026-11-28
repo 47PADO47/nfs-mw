@@ -1,4 +1,4 @@
-//! The world viewer's console commands: `drive`, `reset`, `repair`, `tp`, `goto`, `freecam`, `pos`, `props`, `debug`,
+//! The world viewer's console commands: `drive`, `reset`, `repair`, `tp`, `goto`, `cam`, `freecam`, `pos`, `props`, `debug`,
 //! `race`, `nis`, `movie`, `story`, `session`, `coop`, `plate` and `plate-design`.
 
 use blackbox_gfx::RenderBackend;
@@ -23,6 +23,10 @@ pub(super) const LIST: &[(&str, &str)] = &[
     (
         "goto <x> <y> [height] [heading pitch]",
         "fly the free camera to a map position, optionally looking along a heading and pitch (degrees)",
+    ),
+    (
+        "cam [<x> <y> <z> <heading> <pitch> [fov]]",
+        "put the free camera exactly there (z absolute, heading and pitch in degrees as goto, vertical fov); the status line's cam line (F9 advanced, --screenshot) pastes as is; no argument: the drawn camera's pose",
     ),
     (
         "garage",
@@ -99,6 +103,7 @@ pub(super) fn run(
         "damage" => damage(scene, args),
         "tp" => tp(scene, args),
         "goto" => goto(scene, args),
+        "cam" => super::camera_pose::command(scene, args),
         "gps" => gps(scene, args),
         "race" => super::race::race_command(scene, args),
         "nis" => super::nis::nis_command(scene, args),

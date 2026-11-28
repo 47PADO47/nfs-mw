@@ -32,6 +32,7 @@ use crate::scenes::world::object_geometry::{BodyGeometryFrame, BodyPose};
 use crate::scenes::world::props::PropWorld;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::space;
+use crate::scenes::world::vehicle_effects::WaterContact;
 mod telemetry;
 pub use telemetry::Telemetry;
 mod wheel_visuals;
@@ -319,21 +320,14 @@ impl CarSim {
     pub fn effect_velocity(&self) -> Vec3 {
         space::to_render(self.vehicle.linear_velocity().to_array())
     }
-    pub fn water_contacts(
-        &self,
-        contacts: [Option<Contact>; 4],
-    ) -> [Option<crate::scenes::world::vehicle_effects::WaterContact>; 4] {
+    pub fn water_contacts(&self, contacts: [Option<Contact>; 4]) -> [Option<WaterContact>; 4] {
         std::array::from_fn(|i| {
-            let contact = contacts[i]?;
-            let wheel = self.wheel_state(i);
-            Some(crate::scenes::world::vehicle_effects::WaterContact {
-                point: contact.point,
-                normal: contact.normal,
-                surface: self.wheel_surface(i)?,
-                slip: wheel.slip,
-                slide: wheel.lateral_speed,
-                flat: self.vehicle.tire_damage.is_blown(i),
-            })
+            Some(WaterContact::from_wheel(
+                contacts[i]?,
+                self.wheel_state(i),
+                self.wheel_surface(i)?,
+                self.vehicle.tire_damage.is_blown(i),
+            ))
         })
     }
 

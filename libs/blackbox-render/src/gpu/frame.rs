@@ -11,6 +11,7 @@ use super::post::PassContext;
 use super::reflections::{CaptureKind, CaptureView};
 use super::scene_pass::{PreparedView, begin_pass};
 use super::targets::SceneTargets;
+use super::timing::pair;
 use crate::{FrameParams, Instance, RenderError};
 impl Renderer {
     /// Draw `instances` and present. Returns `Ok(false)` when the frame was skipped
@@ -108,12 +109,6 @@ impl Renderer {
         secondary_view: bool,
     ) {
         let _trace = blackbox_trace::scope("Renderer CPU: post-processing / upscaling");
-        #[cfg(all(windows, feature = "streamline", streamline_sdk))]
-        if self.dlss.is_some() {
-            // Parallel cube faces may own the frame prefix, including the TLAS build.
-            // Native DLSS submits this encoder internally, so that prefix must reach the queue first.
-            self.flush_captures();
-        }
         let Some(scene) = targets.unwrap_or(&self.targets).offscreen() else { return };
         #[cfg(all(windows, feature = "streamline", streamline_sdk))]
         let frame_generation = targets.is_none() && self.presentation.status.generation_active;
@@ -128,6 +123,9 @@ impl Renderer {
             frame_generation,
             secondary_view,
             dlss_model: self.graphics.dlss_model,
+            // Cube faces and closed parts of the frame may hold the frame's prefix, including the TLAS build.
+            // Native DLSS submits this encoder itself, so it sends that prefix ahead of it.
+            prefix: Some(&self.queued_captures.commands),
         };
         if self.experiments.lighting_debug != blackbox_gfx::LightingDebug::Off
             && self.info.api != blackbox_gfx::GraphicsApi::Gl
@@ -135,7 +133,14 @@ impl Renderer {
             self.post.encode_diagnostic(&ctx, encoder, (output, output.texture().format()));
             return;
         }
-        self.post.encode(&ctx, encoder, (output, output.texture().format()));
+        // The main view's passes are timed one by one (`timing.rs`); a secondary view would overwrite them.
+        let mut timing = self.timing.as_mut().filter(|_| targets.is_none() && !secondary_view);
+        let mut timer = |encoder: &mut wgpu::CommandEncoder, index: usize, name: &'static str, start: bool| {
+            if let Some(timing) = timing.as_deref_mut() {
+                timing.post_pass(encoder, index, name, start);
+            }
+        };
+        self.post.encode_timed(&ctx, encoder, (output, output.texture().format()), &mut timer);
     }
 
     /// Record the scene into the colour and depth of `targets` (default: the window's): the offscreen
@@ -155,26 +160,35 @@ impl Renderer {
         // use the same instance order and transforms.
         self.begin_store_epoch();
         self.upload_main_instances(instances);
+        self.time(encoder, pair::RAY_SCENE, true);
         if (self.experiments.ray_road_reflections && self.road_reflections_active(frame, false))
             || self.ray_cars_active(frame)
             || self.ray_shadows_active(frame)
         {
+            let _trace = blackbox_trace::scope("Renderer CPU: ray scene");
             self.prepare_ray_reflections(encoder, instances, frame);
         }
-        if let Some(timing) = &mut self.timing {
-            timing.stamp(encoder, 4);
-        }
+        self.time(encoder, pair::RAY_SCENE, false);
         let depth = targets.unwrap_or(&self.targets).depth_view().clone();
         let mip_bias = self.scene_mip_bias(false, targets.is_some());
-        self.encode_surfaces(encoder, size, (frame, mip_bias), instances, &depth);
-        self.encode_effect_motion(encoder, frame, instances);
-        self.encode_contact(encoder, size, frame);
-        self.encode_ray_shadows(encoder, size, frame);
-        if let Some(timing) = &mut self.timing {
-            timing.stamp(encoder, 5);
-            timing.stamp(encoder, 2);
+        {
+            let _trace = blackbox_trace::scope("Renderer CPU: surfaces / contact / ray shadows");
+            self.time(encoder, pair::SURFACES, true);
+            self.encode_surfaces(encoder, size, (frame, mip_bias), instances, &depth);
+            self.encode_effect_motion(encoder, frame, instances);
+            self.encode_contact(encoder, size, frame);
+            self.time(encoder, pair::SURFACES, false);
+            self.time(encoder, pair::RAY_SHADOWS, true);
+            self.encode_ray_shadows(encoder, size, frame);
+            self.time(encoder, pair::RAY_SHADOWS, false);
         }
+        // The prepass and the cascades are each finished on a worker while the frame records on (`pending.rs`).
+        self.split_frame(encoder);
+        self.time(encoder, pair::SHADOWS, true);
         self.encode_shadows(encoder, frame, instances);
+        self.time(encoder, pair::SHADOWS, false);
+        self.split_frame(encoder);
+        self.time(encoder, pair::LOCAL_SHADOWS, true);
         self.encode_local_shadows(encoder, frame, instances);
         self.encode_cascade_history(encoder, frame);
         if self.experiments.cloud_shadows
@@ -187,22 +201,33 @@ impl Renderer {
             sky.prepare(&self.device, &self.queue, self.targets.color_format(), self.pipeline_cache.as_ref());
             sky.prepare_cloud_shadow(&self.device, &self.queue, encoder, &self.shared.shadows.cloud, globals);
         }
-        if let Some(timing) = &mut self.timing {
-            timing.stamp(encoder, 3);
-        }
+        self.time(encoder, pair::LOCAL_SHADOWS, false);
+        self.time(encoder, pair::REFLECTION_FACES, true);
         self.encode_reflections(encoder, true);
         self.encode_irradiance(encoder);
-        if let Some(timing) = &mut self.timing {
-            timing.stamp(encoder, 6);
+        self.time(encoder, pair::REFLECTION_FACES, false);
+        {
+            let _trace = blackbox_trace::scope("Renderer CPU: ambient occlusion");
+            self.time(encoder, pair::AMBIENT, true);
+            self.encode_ambient(encoder, frame);
+            self.time(encoder, pair::AMBIENT, false);
         }
-        self.encode_ambient(encoder, frame);
-        if let Some(timing) = &mut self.timing {
-            timing.stamp(encoder, 7);
-        }
+        self.time(encoder, pair::COLOUR, true);
         self.encode_scene_mode(encoder, targets, output, frame, instances, false, None);
         let colour = targets.unwrap_or(&self.targets).offscreen().map_or(output, |off| &off.color_view).clone();
+        let _trace = blackbox_trace::scope("Renderer CPU: glare / motion");
         self.encode_sun_glare(encoder, &colour, &depth, frame);
         self.encode_motion(encoder, targets, instances);
+        self.time(encoder, pair::COLOUR, false);
+    }
+
+    /// Open (`start`) or close one GPU timer pair of the frame at this point of `encoder` (`timing.rs`).
+    pub(super) fn time(&mut self, encoder: &mut wgpu::CommandEncoder, pair: usize, start: bool) {
+        let Some(timing) = &mut self.timing else { return };
+        match start {
+            true => timing.open(encoder, pair),
+            false => timing.close(encoder, pair),
+        }
     }
 
     /// Reflection views omit effects, AO and glossy draws (no reflective-object feedback). `reduced` views

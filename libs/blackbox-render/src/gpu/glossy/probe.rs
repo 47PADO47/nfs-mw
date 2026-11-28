@@ -9,7 +9,15 @@ pub(super) struct Probe {
     pub control: wgpu::Buffer,
     pub sky: wgpu::Buffer,
     pub active: bool,
+    /// The background colours of the current environment, before the night dims them (`sync_night`).
+    sky_base: [[f32; 4]; 6],
+    /// The night blend `sky` was last written with.
+    sky_night: f32,
 }
+
+/// How far a full night dims the background colours. The environment faces hold a daytime sky, which a road
+/// reflection's ray falls back to past the end of its trace.
+const NIGHT_SKY: f32 = 0.12;
 
 impl Probe {
     pub fn new(device: &wgpu::Device, size: u32, faces: [&[u8]; 6]) -> Self {
@@ -33,12 +41,41 @@ impl Probe {
             contents: bytemuck::cast_slice(&[0.0_f32; 4]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
+        let sky_base = sky_colours(size, faces);
         let sky = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("road background colours"),
-            contents: bytemuck::cast_slice(&sky_colours(size, faces)),
+            contents: bytemuck::cast_slice(&sky_base),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        Self { depth, control, sky, active: false }
+        Self { depth, control, sky, active: false, sky_base, sky_night: 0.0 }
+    }
+
+    /// Use `colours` as the daytime background, dimmed for the last night blend.
+    pub fn set_sky(&mut self, queue: &wgpu::Queue, colours: [[f32; 4]; 6]) {
+        self.sky_base = colours;
+        self.write_sky(queue);
+    }
+
+    /// Dim the background colours for `night` (0 day, 1 full night); writes only when it changed.
+    pub fn sync_night(&mut self, queue: &wgpu::Queue, night: f32) {
+        if (night - self.sky_night).abs() < 1e-3 {
+            return;
+        }
+        self.sky_night = night;
+        self.write_sky(queue);
+    }
+
+    fn write_sky(&self, queue: &wgpu::Queue) {
+        let scale = 1.0 + (NIGHT_SKY - 1.0) * self.sky_night;
+        let colours = self.sky_base.map(|[r, g, b, a]| [r * scale, g * scale, b * scale, a]);
+        queue.write_buffer(&self.sky, 0, bytemuck::cast_slice(&colours));
+    }
+}
+
+impl super::Glossy {
+    /// Dim the road reflections' background colours for `night` (`Probe::sync_night`).
+    pub(in crate::gpu) fn sync_sky_night(&mut self, queue: &wgpu::Queue, night: f32) {
+        self.probe.sync_night(queue, night);
     }
 }
 

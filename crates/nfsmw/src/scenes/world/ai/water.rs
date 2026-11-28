@@ -72,12 +72,14 @@ impl TrafficWorld {
     }
     pub(in crate::scenes::world) fn rain_particles(
         &self,
+        camera: Vec3,
         forward: Vec3,
         textures: &std::collections::HashMap<u32, (blackbox_gfx::TextureHandle, blackbox_gfx::BlendMode)>,
-        out: &mut Vec<blackbox_gfx::TexturedEffect>,
+        layer: &mut blackbox_gfx::EffectLayer,
     ) {
         for actor in self.water.actors.values() {
-            actor.geometry(forward, textures, out);
+            actor.geometry(forward, textures, &mut layer.textured);
+            actor.spray_geometry(camera, forward, &mut layer.particles);
         }
     }
 }

@@ -190,6 +190,13 @@ pub(super) fn show(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &mut Sett
 fn sky_tuning(ui: &mut egui::Ui, lab: &mut GraphicsLab, settings: &Settings) {
     let defaults = super::profiles::defaults(settings).appearance.lighting;
     ui.collapsing("Sky tuning", |ui| {
+        ui.add_enabled_ui(lab.options.experimental_night || lab.options.full_day_night, |ui| {
+            let o = &mut lab.options;
+            super::controls::slider(ui, &mut o.moonlight, 0.0..=1.0, "Moonlight", defaults.moonlight)
+                .on_hover_text("How much of the sun's direct light stays as moonlight at night: its shadows and highlights on cars and wet roads. The rest becomes soft ambient light, so the night keeps its brightness. 1 is the old daylight-strength moon.");
+            super::controls::slider(ui, &mut o.moon_cloud_block, 0.0..=1.0, "Clouds block moonlight", defaults.moon_cloud_block)
+                .on_hover_text("How much a full overcast takes away of the moonlight, and hides the moon. Partial clouds take part of it.");
+        });
         ui.add_enabled_ui(lab.options.enhanced_sky, |ui| {
             let o = &mut lab.options;
             super::controls::slider(ui, &mut o.sky_wind_speed, 0.0..=12.0, "Cloud speed", defaults.sky_wind_speed)

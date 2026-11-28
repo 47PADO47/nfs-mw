@@ -112,6 +112,7 @@ impl RenderBackend for Renderer {
     }
     fn set_shadow_casters(&mut self, casters: Option<&[Instance]>) {
         if let Some(casters) = casters {
+            let _trace = blackbox_trace::scope("Renderer CPU: copy shadow casters");
             let stored = self.shadow_casters.get_or_insert_with(Vec::new);
             stored.clear();
             stored.extend_from_slice(casters);
@@ -300,6 +301,11 @@ impl RenderBackend for Renderer {
     fn set_texture_uv_offset(&mut self, texture: TextureHandle, offset: [f32; 2]) {
         self.touch_scene();
         Renderer::set_texture_uv_offset(self, texture, offset);
+    }
+
+    fn set_texture_variation(&mut self, texture: TextureHandle, cell: f32) {
+        self.touch_scene();
+        Renderer::set_texture_variation(self, texture, cell);
     }
 
     fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {

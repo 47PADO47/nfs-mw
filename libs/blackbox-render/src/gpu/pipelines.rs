@@ -140,7 +140,7 @@ impl Pipelines {
                     "{}\n{}\n{}",
                     instance_view::instance_source(include_str!("../shaders/scene.wgsl"), store.then_some(3)),
                     include_str!("../shaders/world_surface.wgsl"),
-                    include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
+                    crate::shadow_receiver_source("2")
                 )
                 .into(),
             ),
@@ -253,12 +253,7 @@ impl Pipelines {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("glossy shader"),
             source: wgpu::ShaderSource::Wgsl(
-                format!(
-                    "{}\n{}",
-                    super::glossy::SHADER,
-                    include_str!("../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "3")
-                )
-                .into(),
+                format!("{}\n{}", super::glossy::SHADER, crate::shadow_receiver_source("3")).into(),
             ),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

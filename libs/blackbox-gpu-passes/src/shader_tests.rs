@@ -11,7 +11,7 @@ const SHADERS: [(&str, &str); 10] = [
     ("ui_mask", include_str!("shaders/ui_mask.wgsl")),
     ("ui_picture", include_str!("shaders/ui_picture.wgsl")),
     ("effects", crate::EFFECTS_WGSL),
-    ("soft_particles", include_str!("shaders/soft_particles.wgsl")),
+    ("soft_particles", crate::SOFT_PARTICLES_WGSL),
     ("fsr1", include_str!("shaders/fsr1.wgsl")),
 ];
 

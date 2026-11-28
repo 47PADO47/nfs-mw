@@ -97,7 +97,7 @@ impl WorldScene {
                 traffic.car_flares(flare_view, &mut layer.textured);
                 traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);
                 traffic.cop_particles(position, forward, &mut layer.textured);
-                traffic.rain_particles(forward, &self.residency.shared.materials, &mut layer.textured);
+                traffic.rain_particles(position, forward, &self.residency.shared.materials, &mut layer);
                 traffic.lamp_glows(position, forward, self.residency.props(), &mut layer.glows);
             }
             rain.append(&mut layer);
@@ -154,6 +154,7 @@ impl WorldScene {
         // drive before it would hang in the air.
         let show_trails = self.view == View::Chase && (!cutscene || self.tuning.xenon_effects.nis_contrails);
         drive.vehicle_effects.geometry(position, forward, show_trails, &mut layer.streaks);
+        drive.vehicle_effects.spray(position, forward, &mut layer.particles);
         drive.vehicle_effects.glows(position, forward, &mut layer.glows);
         flares.draw(&lamps, lamp_frame, lamp_state, flare_view, &mut layer.textured);
         let style = self.tuning.tail_trail_style;
@@ -185,7 +186,7 @@ impl WorldScene {
             traffic.car_glows(self.tuning.turn_signals, position, forward, &mut layer.glows);
             traffic.car_flares(flare_view, &mut layer.textured);
             traffic.cop_particles(position, forward, &mut layer.textured);
-            traffic.rain_particles(forward, &self.residency.shared.materials, &mut layer.textured);
+            traffic.rain_particles(position, forward, &self.residency.shared.materials, layer);
             traffic.lamp_glows(position, forward, self.residency.props(), &mut layer.glows);
         }
         self.cop_health.emit(

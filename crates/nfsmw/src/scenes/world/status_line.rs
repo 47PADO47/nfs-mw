@@ -1,4 +1,5 @@
-//! The one-line status of the world scene (`--screenshot` prints it).
+//! The status of the world scene (`--screenshot` prints it, the advanced F9 overlay shows it): one line, then the drawn camera's
+//! pose as the `cam` command that sets it again.
 use super::*;
 
 impl WorldScene {
@@ -17,8 +18,9 @@ impl WorldScene {
             }
             _ => String::new(),
         };
+        let camera = self.view_pose().map(|pose| format!("\n{}", pose.line())).unwrap_or_default();
         Some(format!(
-            "{}zone {zone}, tiles {resident} (+{loading} loading), shadows {selected}/{eligible} extra, {} drawn, {} props ({} knocked over), at ({:.0}, {:.0}, {:.0}){markers}",
+            "{}zone {zone}, tiles {resident} (+{loading} loading), shadows {selected}/{eligible} extra, {} drawn, {} props ({} knocked over), at ({:.0}, {:.0}, {:.0}){markers}{camera}",
             if shared { "" } else { "loading shared sets… " },
             self.visible.len(),
             self.residency.props().len(),

@@ -34,6 +34,7 @@ fn receiver(r: &mut Renderer, family: usize, alpha: u8) -> Instance {
                 diffuse,
                 normal,
                 specular,
+                roughness: None,
                 reflection: Some(reflection),
                 uv_offset: [0.0; 2],
             })

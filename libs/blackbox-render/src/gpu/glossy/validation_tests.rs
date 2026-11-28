@@ -4,8 +4,7 @@ use super::SHADER;
 use super::uniforms::{MaterialUniform, RigUniform};
 
 fn module() -> naga::Module {
-    let source =
-        format!("{}\n{}", SHADER, include_str!("../../shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "3"));
+    let source = format!("{}\n{}", SHADER, crate::shadow_receiver_source("3"));
     let module = naga::front::wgsl::parse_str(&source).unwrap_or_else(|e| panic!("{}", e.emit_to_string(&source)));
     naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::empty())
         .validate(&module)

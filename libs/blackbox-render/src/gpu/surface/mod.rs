@@ -1,11 +1,21 @@
 //! One camera depth/normal prepass shared by ambient occlusion and contact visibility.
 mod prepass;
+pub(super) mod static_depth;
 pub(super) mod targets;
 
 use super::Renderer;
 use blackbox_gfx::{FrameParams, GraphicsApi, Instance, Projection};
 
 pub(super) fn mask(device: &wgpu::Device, size: (u32, u32), label: &str) -> wgpu::TextureView {
+    mask_with_format(device, size, label, wgpu::TextureFormat::R8Unorm)
+}
+
+pub(super) fn mask_with_format(
+    device: &wgpu::Device,
+    size: (u32, u32),
+    label: &str,
+    format: wgpu::TextureFormat,
+) -> wgpu::TextureView {
     device
         .create_texture(&wgpu::TextureDescriptor {
             label: Some(label),
@@ -13,7 +23,7 @@ pub(super) fn mask(device: &wgpu::Device, size: (u32, u32), label: &str) -> wgpu
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R8Unorm,
+            format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
@@ -25,6 +35,8 @@ pub(super) fn mask(device: &wgpu::Device, size: (u32, u32), label: &str) -> wgpu
 pub(super) struct Surfaces {
     prepass: prepass::Prepass,
     pub targets: targets::Targets,
+    /// The depth of the static scene alone, for XeGTAO horizons that a dynamic model hides.
+    pub static_depth: Option<static_depth::StaticDepth>,
 }
 
 impl Renderer {
@@ -63,6 +75,7 @@ impl Renderer {
                 self.pipeline_cache.as_ref(),
             ),
             targets: make_targets(),
+            static_depth: None,
         });
         if surfaces.targets.size != size {
             surfaces.targets = make_targets();
@@ -73,7 +86,28 @@ impl Renderer {
         if !reuse_depth && surfaces.targets.depth == *depth {
             surfaces.targets = targets::Targets::new(&self.device, size);
         }
-        surfaces.prepass.encode(self, encoder, &surfaces.targets, (frame, mip_bias), instances);
+        let split = self.graphics.ao.active() && self.graphics.ao.method.is_xe() && static_depth_enabled();
+        match split {
+            true => {
+                let cache = self.pipeline_cache.as_ref();
+                surfaces.static_depth.get_or_insert_with(|| static_depth::StaticDepth::new(&self.device, cache));
+            }
+            false => surfaces.static_depth = None,
+        }
+        surfaces.prepass.encode(
+            self,
+            encoder,
+            &surfaces.targets,
+            (frame, mip_bias),
+            instances,
+            surfaces.static_depth.as_mut(),
+        );
         self.surfaces = Some(surfaces);
     }
+}
+
+/// `BLACKBOX_AO_STATIC_DEPTH=0` leaves the static depth out, so XeGTAO searches the full depth only (for comparisons).
+fn static_depth_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var("BLACKBOX_AO_STATIC_DEPTH").as_deref() != Ok("0"))
 }

@@ -10,6 +10,7 @@ use nfsmw_data::car::{
 };
 use nfsmw_data::world::{DEFAULT_TRACK, WorldIndex};
 
+mod concrete;
 mod visuals;
 
 fn installed() -> Option<(GameDir, PhysicsData)> {

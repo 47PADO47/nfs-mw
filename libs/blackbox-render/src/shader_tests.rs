@@ -2,7 +2,7 @@
 
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 
-const SHADERS: [(&str, &str); 15] = [
+const SHADERS: [(&str, &str); 16] = [
     ("screen displacement", include_str!("shaders/screen_distortion.wgsl")),
     ("scene", include_str!("shaders/scene.wgsl")),
     ("resolve", include_str!("shaders/resolve.wgsl")),
@@ -18,6 +18,7 @@ const SHADERS: [(&str, &str); 15] = [
     ("window", include_str!("shaders/window.wgsl")),
     ("motion", include_str!("shaders/motion.wgsl")),
     ("reflection depth", include_str!("shaders/reflection_depth.wgsl")),
+    ("static depth", include_str!("shaders/static_depth.wgsl")),
 ];
 
 fn entry_points(name: &str) -> Vec<String> {
@@ -28,17 +29,17 @@ fn entry_points(name: &str) -> Vec<String> {
             "{}\n{}\n{}",
             source,
             include_str!("shaders/world_surface.wgsl"),
-            include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
+            crate::shadow_receiver_source("2")
         ),
         "normal" => format!(
             "{}\n{}\n{}\n{}",
             source,
-            include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"),
+            crate::shadow_receiver_source("2"),
             include_str!("shaders/road_reflection.wgsl"),
             include_str!("shaders/road_probe.wgsl")
         ),
         "window" => {
-            format!("{}\n{}", source, include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2"))
+            format!("{}\n{}", source, crate::shadow_receiver_source("2"))
         }
         _ => source.to_string(),
     };
@@ -71,7 +72,7 @@ fn the_scene_shader_has_the_switch_the_character_pipeline_sets() {
         "{}\n{}\n{}",
         include_str!("shaders/scene.wgsl"),
         include_str!("shaders/world_surface.wgsl"),
-        include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "2")
+        crate::shadow_receiver_source("2")
     );
     let module = naga::front::wgsl::parse_str(&source).unwrap_or_else(|e| panic!("{}", e.emit_to_string(&source)));
     let names: Vec<&str> = module.overrides.iter().filter_map(|(_, o)| o.name.as_deref()).collect();
@@ -81,7 +82,7 @@ fn the_scene_shader_has_the_switch_the_character_pipeline_sets() {
 #[test]
 fn the_effects_shader_with_the_shadow_receiver_validates_and_keeps_its_entry_points() {
     use blackbox_gpu_passes::{EFFECTS_BASE_WGSL, EFFECTS_SHADOWED_WGSL};
-    let receiver = include_str!("shaders/shadow_receiver.wgsl").replace("SHADOW_GROUP", "1");
+    let receiver = crate::shadow_receiver_source("1");
     let source = format!("{receiver}\n{EFFECTS_BASE_WGSL}{EFFECTS_SHADOWED_WGSL}");
     let module = naga::front::wgsl::parse_str(&source).unwrap_or_else(|e| panic!("{}", e.emit_to_string(&source)));
     Validator::new(ValidationFlags::all(), Capabilities::default()).validate(&module).unwrap();

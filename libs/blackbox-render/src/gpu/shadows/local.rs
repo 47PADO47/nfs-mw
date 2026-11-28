@@ -22,6 +22,8 @@ pub(in crate::gpu) struct Params {
     /// Specular strength, light-grid origin x and y, light-grid cell edge (`light_grid.rs`).
     tuning: [f32; 4],
     grid: [[u32; 4]; 256],
+    /// Car paint at night: reflection level, light strength, RT lamp lighting (0 or 1), lamp radius.
+    car: [f32; 4],
 }
 
 pub(in crate::gpu) struct Local {
@@ -49,6 +51,15 @@ impl Renderer {
         params.tuning[0] = options.local_specular_strength;
         let night = self.night_blend.unwrap_or(f32::from(u8::from(options.experimental_night)));
         params.options[3] = night;
+        params.car = [
+            options.car_night_reflections,
+            options.car_light_strength,
+            f32::from(u8::from(options.car_rt_lamp_lighting)),
+            options.car_lamp_size,
+        ];
+        if let Some(glossy) = self.glossy.as_mut() {
+            glossy.sync_sky_night(&self.queue, night);
+        }
         let offset = size_of::<super::fit::Params>() as u64;
         // With no lights `options.x` stays zero, which the shader treats as "skip all local lighting".
         if self.local_lights.is_empty() || !matches!(frame.projection, Projection::PerspectiveInfiniteReverse { .. }) {

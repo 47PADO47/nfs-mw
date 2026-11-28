@@ -65,6 +65,15 @@ car with the key named in the log. The pure checks are `libs/blackbox-modding/sr
 * **Not offered.** A rule of time of day (the game's traffic has none), districts below a pattern, trailers, per-car horn or engine
   sound, a colour per spawn.
 
+### Nearby trim selection
+
+A content pack can supply `files/GLOBAL/TRAFFIC_TRIMS.TOML` with a list of families, for example
+`families = [["stock_sedan", "sedan_blue", "sedan_gold"]]`. Names are traffic model IDs, case-insensitive. When a
+civilian car would spawn within 85 metres of another copy of its exact trim, the manager prefers a loaded sibling
+that is absent from that area and eligible under the current district, timers, instance limits and shares. With
+no eligible sibling it places the originally selected car. Named spawns, towed rigs and patrols keep their selections.
+The optional file follows normal overlay priority. Without it the manager uses the original selection.
+
 ## Console
 
 | Command | Does |

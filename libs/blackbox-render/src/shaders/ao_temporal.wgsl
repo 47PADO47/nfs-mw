@@ -27,6 +27,8 @@ fn accumulate(@builtin(global_invocation_id) id: vec3<u32>) {
     if any(p>=size) { return; }
     let value=textureLoad(current_ao,p,0);
     var visibility=value.x;
+    var bent=value.w;
+    let directional=params.tuning.z>0.5;
     let pixel=ao_pixel(p);
     let motion=textureLoad(object_motion,pixel,0);
     if reprojection.control.x>0.5 && value.y>0.0 && motion.w>0.5 && motion.z>0.0 {
@@ -35,14 +37,17 @@ fn accumulate(@builtin(global_invocation_id) id: vec3<u32>) {
             let location=history_coordinate(uv);
             let base=vec2<i32>(floor(location));
             let fraction=fract(location);
-            let normal=normalize((reprojection.previous_from_current*vec4<f32>(decode_normal(value.zw),0.0)).xyz);
+            let normal=normalize((reprojection.previous_from_current*vec4<f32>(ao_geometry_normal(value),0.0)).xyz);
             let expected=view_at(uv*params.sizes.xy-0.5,motion.z);
             var sum=0.0; var total=0.0;
+            var bent_sum=vec3(0.0); var bent_weight=0.0;
+            var bent_now=vec3(0.0);
+            if directional { bent_now=unpack_ao_normal(value.w); }
             for(var y=0;y<=1;y++) { for(var x=0;x<=1;x++) {
                 let q=base+vec2<i32>(x,y);
                 if any(q<vec2<i32>(0)) || any(q>=size) { continue; }
                 let previous=textureLoad(history_ao,q,0);
-                if previous.y<=0.0 || dot(normal,decode_normal(previous.zw))<=0.9 { continue; }
+                if previous.y<=0.0 || dot(normal,ao_geometry_normal(previous))<=0.9 { continue; }
                 // Compare the previous surface plane, not raw depth at a neighboring ray.
                 // A sloping road has different depths across the four bilinear taps.
                 let old_point=view_at(vec2<f32>(ao_pixel(q)),previous.y);
@@ -50,22 +55,32 @@ fn accumulate(@builtin(global_invocation_id) id: vec3<u32>) {
                 let weight=select(1.0-fraction,fraction,vec2<i32>(x,y)!=vec2<i32>(0));
                 let w=weight.x*weight.y;
                 sum+=previous.x*w; total+=w;
+                if directional {
+                    let previous_bent=unpack_ao_normal(previous.w);
+                    let agreement=smoothstep(0.75,0.98,dot(bent_now,previous_bent));
+                    bent_sum+=previous_bent*(w*agreement);
+                    bent_weight+=w*agreement;
+                }
             }}
             if total>0.001 {
                 var low=value.x; var high=value.x;
                 for(var y=-1;y<=1;y++) { for(var x=-1;x<=1;x++) {
                     let neighbor=textureLoad(current_ao,clamp(p+vec2<i32>(x,y),vec2<i32>(0),size-1),0);
-                    if abs(neighbor.y-value.y)<max(0.04,value.y*0.01) && dot(decode_normal(neighbor.zw),decode_normal(value.zw))>0.9 {
+                    if abs(neighbor.y-value.y)<max(0.04,value.y*0.01) && dot(ao_geometry_normal(neighbor),ao_geometry_normal(value))>0.9 {
                         low=min(low,neighbor.x); high=max(high,neighbor.x);
                     }
                 }}
                 // A tiny noisy current neighborhood must not erase the accumulated estimate
                 // every frame. Keep a bounded margin; fully open surfaces still clear at once.
                 if low<0.995 {
+                    if bent_weight>0.001 {
+                        let blended=mix(bent_now,bent_sum/bent_weight,0.8*clamp(bent_weight,0.0,1.0));
+                        bent=pack_ao_normal(safe_normal(blended,bent_now));
+                    }
                     visibility=mix(value.x,clamp(sum/total,max(0.0,low-0.035),min(1.0,high+0.035)),reprojection.control.y);
                 }
             }
         }
     }
-    textureStore(accumulated,p,vec4<f32>(visibility,value.yzw));
+    textureStore(accumulated,p,vec4<f32>(visibility,value.yz,bent));
 }

@@ -56,6 +56,38 @@ specular/reflection layers and clearcoat. Its diffuse ramps are capped at unity
 to remove the authored 1.2x boost on already-coloured cargo atlases. This policy
 is limited to background vehicles; player-car material and indirect-light response are unchanged.
 
+## Directional ambient occlusion
+
+F8 > Lighting > World lighting > Directional AO (bent normals) uses the open
+direction estimated by XeGTAO to steer the sky and ground field. It requires
+directional sky and ground light and either XeGTAO method. The feature is
+off by default and stores its setting with the appearance profile.
+
+It adjusts only the existing diffuse ambient term on eligible world
+receivers. The scalar AO still applies once. Open surfaces retain their
+authored direction. Capture views and surfaces without screen AO keep their
+ordinary direction. See [ambient occlusion](ambient-occlusion.md) for filtering.
+
+## Roughness-based world highlights
+
+F8 > Materials > Roughness-based world highlights gives normal-mapped scenery
+a dielectric GGX highlight with Smith visibility and Schlick Fresnel, using the
+same roughness for sunlight and local lamps. It preserves the existing display
+colour domain, texture gains, vertex lighting and wet reflection masks. Known
+stock asphalt strips use perceptual roughness 0.86, known concrete sidewalk
+textures use 0.68, and other normal-mapped scenery uses 0.78. The values are
+artistic defaults, and the stock diffuse identifiers come from the texture
+inventory in [the road texture format notes](formats/chameleon-road-textures.md).
+The water film and puddles retain their own shading.
+
+World highlight anti-aliasing optionally widens the highlight based on the
+screen-space variation of the shading normal. It works at render resolution
+before upscaling and can be compared independently with DLSS enabled. Both
+controls default off. Original PC projection retains its authored highlights.
+The equations follow the repository's existing car BRDF and
+[Filament's material notes](https://google.github.io/filament/main/materials.html).
+No reference shader code or visual assets were imported for the highlights.
+
 ## References
 
 The SH diffuse irradiance principle is described in

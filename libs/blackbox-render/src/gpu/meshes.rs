@@ -24,6 +24,7 @@ pub(super) struct GpuMesh {
 
 impl Renderer {
     pub fn create_mesh(&mut self, desc: &MeshDesc<'_>) -> MeshHandle {
+        let buffers_trace = blackbox_trace::scope("Renderer CPU: mesh buffers");
         let vertices = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(desc.label),
             contents: bytemuck::cast_slice(desc.vertices),
@@ -69,6 +70,7 @@ impl Renderer {
             contents: bytemuck::cast_slice(&indices[..]),
             usage: wgpu::BufferUsages::INDEX,
         });
+        drop(buffers_trace);
         let (center, radius) = bounds(desc.vertices);
         let single_sided = desc.draws.iter().any(|draw| !draw.two_sided);
         if single_sided {
@@ -86,6 +88,7 @@ impl Renderer {
             center,
             radius,
         });
+        let _rt_trace = blackbox_trace::scope("Renderer CPU: RT mesh prepare");
         self.add_ray_mesh(slot, desc);
         MeshHandle::from_raw(slot)
     }

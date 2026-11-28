@@ -70,6 +70,10 @@ fn intersection(in: VsOut) -> f32 {
     return smoothstep(0.0, parameters.fade.x, scene_distance - particle_distance);
 }
 fn particle_color(in: VsOut) -> vec4<f32> {
+    if in.detail.y < 0.0 {
+        let spray = liquid_wake(in.uv, in.detail.x, -in.detail.y, in.world, in.color.a);
+        return vec4<f32>(spray.rgb, spray.a * intersection(in));
+    }
     let p = in.uv * 2.0 - 1.0;
     let mask = density(p, in.detail.x, in.detail.y);
     let distance = length(in.world - globals.camera_pos.xyz);

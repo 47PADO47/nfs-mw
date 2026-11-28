@@ -189,6 +189,7 @@ fn render_surface(
                     normal,
                     specular: black,
                     reflection: Some(black),
+                    roughness: None,
                     uv_offset: [0.0; 2],
                 })
                 .expect("native reflective material"),

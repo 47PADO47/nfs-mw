@@ -209,7 +209,35 @@ impl TrafficWorld {
         };
         if self.spawn_one(Pick::Traffic(model), pattern.cruise, focus, collision, surfaces) {
             self.timers.spawned(&pattern.rules, &name);
+            if let Some(placed) = self.cars.last().filter(|c| !c.name.eq_ignore_ascii_case(&name)) {
+                self.timers.spawned(&pattern.rules, &placed.name);
+                self.population_stats.trim_substitutions += 1;
+            }
         }
+    }
+
+    /// Keep the scheduled family and all of its population limits when exchanging two paint/trim variants.
+    pub(super) fn trim_for_lane(&self, scheduled: usize, at: Vec3, focus: Focus) -> usize {
+        let model = &self.models[scheduled];
+        let Some(family) = self.trims.of(&model.name) else { return scheduled };
+        let nearby = |name: &str| {
+            self.cars.iter().any(|car| {
+                car.name.eq_ignore_ascii_case(name) && car.physics_position().distance_squared(at) <= 85.0_f32.powi(2)
+            })
+        };
+        if model.trailer.is_some() || !nearby(&model.name) {
+            return scheduled;
+        }
+        let Some(pattern) = self.patterns.as_ref().and_then(Patterns::current) else { return scheduled };
+        let census = Cars { cars: &self.cars, models: &self.models, others: self.other_slots(focus) as u32 };
+        let index =
+            self.timers.alternate(&pattern.rules, self.target as u32, &census, self.policy.common_fill, |name| {
+                family.iter().any(|id| id.eq_ignore_ascii_case(name))
+                    && !nearby(name)
+                    && self.models.iter().any(|model| model.name.eq_ignore_ascii_case(name) && model.trailer.is_none())
+            });
+        let Some(rule) = index.map(|i| &pattern.rules[i]) else { return scheduled };
+        self.models.iter().position(|m| m.name.eq_ignore_ascii_case(&rule.name)).unwrap_or(scheduled)
     }
 
     fn start_pattern(&mut self) {

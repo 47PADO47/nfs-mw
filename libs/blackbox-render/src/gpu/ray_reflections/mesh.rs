@@ -34,7 +34,9 @@ impl Mesh {
                 uv: [v.uv[0], v.uv[1], 0.0, 0.0],
             })
             .collect();
-        let mut triangles = Vec::new();
+        let mut triangles = Vec::with_capacity(desc.indices.len() / 3);
+        // The layers of the draws that gave triangles: the low half of every triangle's flags, collected per draw.
+        let mut textures = std::collections::BTreeSet::new();
         for (draw, layer) in desc.draws.iter().zip(layers) {
             if !matches!(draw.blend, BlendMode::Opaque | BlendMode::AlphaTest) {
                 continue;
@@ -58,6 +60,9 @@ impl Mesh {
                 | (u32::from(!draw.two_sided) << 25);
             let start = draw.first_index as usize;
             let end = start.checked_add(draw.index_count as usize)?;
+            if end - start >= 3 {
+                textures.insert(*layer as usize);
+            }
             for triangle in desc.indices.get(start..end)?.as_chunks::<3>().0 {
                 let mut ids = [0; 3];
                 for (id, index) in ids.iter_mut().zip(triangle) {
@@ -73,12 +78,7 @@ impl Mesh {
         if triangles.is_empty() {
             return None;
         }
-        let textures = triangles
-            .iter()
-            .map(|t| (t[3] & 65535) as usize)
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect();
+        let textures = textures.into_iter().collect();
         let mut low = glam::Vec3::splat(f32::INFINITY);
         let mut high = glam::Vec3::splat(f32::NEG_INFINITY);
         for v in &vertices {
