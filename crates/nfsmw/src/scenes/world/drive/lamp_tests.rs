@@ -51,6 +51,20 @@ fn installed_player_lamps_follow_idle_braking_reverse_and_processed_pedals() {
         assert_eq!(state.brake_surfaces_on(), brake, "surfaces and flares share the brake state");
         assert_eq!(state.reverse, reverse, "reverse remains independent for {input:?}");
     }
+    let mut scene_pose = drive.pose();
+    scene_pose.position += Vec3::new(35.0, 18.0, 2.0);
+    let tilt = Quat::from_rotation_y(0.2);
+    drive.set_nis_pose(Some(scene_pose));
+    drive.set_nis_body_tilt(tilt);
+    drive.set_nis_headlights(Some(false));
+    let (_, _, lamp_frame, state) = drive.lamp_source();
+    assert!(lamp_frame.abs_diff_eq(scene_pose.transform() * glam::Mat4::from_quat(tilt), 1e-5));
+    assert!(!state.headlights);
+
+    drive.set_nis_pose(None);
+    let (_, _, lamp_frame, state) = drive.lamp_source();
+    assert!(lamp_frame.abs_diff_eq(drive.pose().transform(), 1e-5));
+    assert_eq!(state.headlights, drive.headlights);
     drive.rig.release(&mut renderer);
 }
 

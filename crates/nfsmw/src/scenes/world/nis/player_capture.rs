@@ -11,6 +11,8 @@ pub struct ChannelNow {
     pub slot: usize,
     /// The real car the channel drives, once linked.
     pub target: Option<Target>,
+    /// How the world placed this car after applying scene events.
+    pub motion: Option<&'static str>,
     /// The pose the scene data gives the channel, in render space and before the ground lift.
     pub spot: CarSpot,
     /// The scene time at which the channel's clips end.
@@ -39,11 +41,17 @@ impl NisPlayer {
         let channels = playing
             .cars
             .iter()
-            .map(|car| ChannelNow {
-                slot: car.slot,
-                target: links.iter().find(|(slot, _)| *slot == car.slot).map(|link| link.1),
-                spot: car.spot(&playing.anchor, time),
-                clip_end: car.end_time(),
+            .map(|car| {
+                let target = links.iter().find(|(slot, _)| *slot == car.slot).map(|link| link.1);
+                ChannelNow {
+                    slot: car.slot,
+                    target,
+                    motion: target.and_then(|target| {
+                        playing.memory.crash.mode(target).or_else(|| playing.memory.coasts.mode(target))
+                    }),
+                    spot: car.spot(&playing.anchor, time),
+                    clip_end: car.end_time(),
+                }
             })
             .collect();
         Some(SceneNow {

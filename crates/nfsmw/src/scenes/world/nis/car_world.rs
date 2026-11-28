@@ -156,31 +156,60 @@ impl WorldScene {
         };
         let mut spots = self.nis.car_spots();
         self.stage_extra_intro_cars(&mut spots);
-        for (target, spot) in spots {
+        let opening = self.nis.playing_name().is_some_and(|name| name.eq_ignore_ascii_case("IntroNisDD"));
+        let crash_channels = opening.then(|| spots.clone());
+        let mut travels = Vec::with_capacity(spots.len());
+        for (target, channel) in &mut spots {
+            let target = *target;
+            let spot = *channel;
             // A detached car coasts on from where its channel left it (`coast.rs`).
             let (attached, braking) = self
                 .nis
                 .car_motion(target)
                 .map_or((true, false), |(motion, _)| (motion.attached, motion.brake_lock.0 || motion.brake_lock.1));
             let spot = match self.nis.car_memory() {
+                _ if opening && matches!(target, Target::Spawned(_)) => spot,
                 Some(memory) => memory.coasts.place(target, spot, attached, braking, dt),
                 None => spot,
             };
-            let last = self.nis.car_memory().and_then(|memory| memory.ground(target));
-            let ground = self.ground_at(spot.position, last);
+            let last = self.nis.car_memory().and_then(|memory| memory.ground(target, spot.position));
+            let ground = self.ground_at(spot.position);
             if let (Some(height), Some(memory)) = (ground, self.nis.car_memory()) {
-                memory.set_ground(target, height);
+                memory.set_ground(target, spot.position.with_z(height));
             }
-            let clearance = match target {
+            let ground = ground.or(last);
+            if let Some(road) = ground
+                && let Some((treads, scale, _)) = self.target_treads(target)
+                && let Some((placed, travel)) = super::road_pose::place(spot, treads, scale, road, |p, reach| {
+                    space::ground_below(self.residency.collision(), p.x, p.y, road + reach, road - reach)
+                })
+            {
+                *channel = placed;
+                travels.push(travel);
+                continue;
+            }
+            travels.push([0.0; 4]);
+            let lift = match target {
                 Target::Player => self.players.lead().and_then(|drive| drive.sim()).map(|sim| sim.nis_ground_lift()),
                 Target::Traffic(index) | Target::Spawned(index) => {
                     self.traffic.as_ref().and_then(|traffic| traffic.nis_ground_lift(index))
                 }
-            }
-            .filter(|lift| CLEARANCE_RANGE.contains(lift))
-            .unwrap_or(DEFAULT_CLEARANCE);
-            let spot = cars::lifted(spot, ground, clearance);
-            self.set_nis_car(target, Some(spot), dt);
+            };
+            *channel = cars::lifted(spot, ground, clearance(lift));
+        }
+        if let Some(channels) = crash_channels {
+            self.step_opening_crash(&channels, &mut spots, &mut travels, dt);
+        }
+        for ((target, spot), travel) in spots.into_iter().zip(travels) {
+            self.set_nis_car(target, Some(spot), dt, travel);
+        }
+        // The race simulation is frozen during a scene. Its world emitters still run on scene time.
+        if dt > 0.0 {
+            let (_, props) = self.residency.world_parts();
+            self.object_fx.request(props.take_particle_commands());
+            self.object_fx.step(props, dt);
+            self.ambient_fx.step(dt);
+            self.finish_flares.step(dt);
         }
     }
 
@@ -206,7 +235,7 @@ impl WorldScene {
 
     /// Gives the car of `target` the pose `spot`, its wheels rolled with the distance the scene moved it
     /// (`car_memory.rs`), or clears its override with `None`, `dt` scene seconds after the last frame.
-    fn set_nis_car(&mut self, target: Target, spot: Option<CarSpot>, dt: f32) {
+    fn set_nis_car(&mut self, target: Target, spot: Option<CarSpot>, dt: f32, travel: [f32; 4]) {
         let motion = self.nis.car_motion(target);
         self.apply_nis_car_state(target, motion.map(|(motion, _)| motion));
         let held = motion.map_or([false; 4], |(motion, _)| locked_wheels(motion));
@@ -226,7 +255,7 @@ impl WorldScene {
                         }
                         drive.set_nis_body_tilt(tilt);
                     }
-                    posed(spot, base, spin)
+                    posed(spot, base, spin, travel)
                 });
                 match pose {
                     Some(pose) => drive.move_nis_pose(pose, dt),
@@ -247,7 +276,7 @@ impl WorldScene {
                         }
                         traffic.set_nis_body_tilt(index, motion.rotation(time, wheelbase, width));
                     }
-                    Some(posed(spot, base, spin))
+                    Some(posed(spot, base, spin, travel))
                 });
                 traffic.set_nis_pose(index, pose);
             }
@@ -257,15 +286,20 @@ impl WorldScene {
     /// Places the player's car at `spot`, lifted onto the ground under it, at rest. The drive does it the way a race
     /// places its cars, once the world around it has loaded.
     fn stand_player(&mut self, spot: CarSpot) {
-        let spot = cars::lifted(spot, self.ground_at(spot.position, None), 0.0);
+        let spot = cars::lifted(spot, self.ground_at(spot.position), 0.0);
         let Some(drive) = self.players.lead_mut() else { return };
         drive.place_exactly(Spawn { position: spot.position, heading: heading_of(spot.rotation) }, 0.0);
     }
 
-    /// The ground height under a car at `at` (render space), from a little above it down (`car_memory.rs`), else `last`.
-    fn ground_at(&mut self, at: Vec3, last: Option<f32>) -> Option<f32> {
-        let (collision, _) = self.residency.world_parts();
-        first_ground_below(|from, to| space::ground_below(collision, at.x, at.y, from, to), at.z, last)
+    /// A missed clip-height cast may start under the street. Retry at the mapped road deck.
+    fn ground_at(&self, at: Vec3) -> Option<f32> {
+        let probe = |from, to| space::ground_below(self.residency.collision(), at.x, at.y, from, to);
+        first_ground_below(probe, at.z, None).or_else(|| {
+            let (net, index) = self.traffic.as_ref()?.road_graph();
+            let point = Vec3::from(space::to_physics(at));
+            let road = blackbox_roads::closest_segment(net, index, point, Vec3::ZERO, 0.0, Default::default())?;
+            super::road_pose::mapped_ground(at, space::to_render(road.point.to_array()), probe)
+        })
     }
 }
 
@@ -294,15 +328,16 @@ const DEFAULT_RADIUS: f32 = 0.33;
 const CLEARANCE_RANGE: std::ops::RangeInclusive<f32> = 0.0..=1.5;
 const DEFAULT_CLEARANCE: f32 = 0.35;
 
-/// A car's pose from its spot and its base pose: the spot's position and rotation, the base's steering, the wheels at
-/// their rest travel and turned to `spin`. The physics under a scene's car is frozen, often in a pose it never settled
-/// in (a police car the scene placed and never stepped hung its wheels at full droop), so its suspension is not used
-/// [ours].
-fn posed(spot: CarSpot, base: CarPose, spin: [f32; 4]) -> CarPose {
+pub(super) fn clearance(lift: Option<f32>) -> f32 {
+    lift.filter(|h| CLEARANCE_RANGE.contains(h)).unwrap_or(DEFAULT_CLEARANCE)
+}
+
+/// Combine scene motion with the suspension travel at each displayed wheel.
+fn posed(spot: CarSpot, base: CarPose, spin: [f32; 4], travel: [f32; 4]) -> CarPose {
     let mut wheels = base.wheels;
-    for (wheel, spin) in wheels.iter_mut().zip(spin) {
-        wheel.spin = spin;
-        wheel.travel = 0.0;
+    for (i, wheel) in wheels.iter_mut().enumerate() {
+        wheel.spin = spin[i];
+        wheel.travel = travel[i];
     }
     CarPose { position: spot.position, rotation: spot.rotation, wheels }
 }

@@ -24,12 +24,13 @@ struct Rolling {
 /// The playing scene's memory of its cars.
 #[derive(Debug, Default)]
 pub struct CarMemory {
-    grounds: Vec<(Target, f32)>,
+    grounds: Vec<(Target, Vec3)>,
     rolling: Vec<Rolling>,
     /// The scene time of the last frame.
     clock: Option<f32>,
     /// The cars' channel motion, and the cars that coast after a detach (`coast.rs`).
     pub coasts: super::coast::Coasts,
+    pub(super) crash: super::opening_crash::OpeningCrash,
     /// The repairs the scene asked for that the world has made, per car.
     repairs: Vec<(Target, u32)>,
 }
@@ -47,14 +48,17 @@ impl CarMemory {
     }
 
     /// The ground `target` last stood on in this scene.
-    pub fn ground(&self, target: Target) -> Option<f32> {
-        self.grounds.iter().find(|(t, _)| *t == target).map(|&(_, h)| h)
+    pub fn ground(&self, target: Target, at: Vec3) -> Option<f32> {
+        self.grounds
+            .iter()
+            .find(|(t, p)| *t == target && p.truncate().distance(at.truncate()) <= CUT_JUMP)
+            .map(|(_, p)| p.z)
     }
 
-    pub fn set_ground(&mut self, target: Target, height: f32) {
+    pub fn set_ground(&mut self, target: Target, point: Vec3) {
         match self.grounds.iter_mut().find(|(t, _)| *t == target) {
-            Some(entry) => entry.1 = height,
-            None => self.grounds.push((target, height)),
+            Some(entry) => entry.1 = point,
+            None => self.grounds.push((target, point)),
         }
     }
 }
@@ -191,11 +195,12 @@ mod tests {
     #[test]
     fn the_memory_keeps_one_ground_per_car() {
         let mut memory = CarMemory::default();
-        memory.set_ground(Target::Player, 1.0);
-        memory.set_ground(Target::Traffic(3), 2.0);
-        memory.set_ground(Target::Player, 4.0);
-        assert_eq!(memory.ground(Target::Player), Some(4.0));
-        assert_eq!(memory.ground(Target::Traffic(3)), Some(2.0));
-        assert_eq!(memory.ground(Target::Spawned(3)), None);
+        memory.set_ground(Target::Player, Vec3::Z * 1.0);
+        memory.set_ground(Target::Traffic(3), Vec3::Z * 2.0);
+        memory.set_ground(Target::Player, Vec3::Z * 4.0);
+        assert_eq!(memory.ground(Target::Player, Vec3::ZERO), Some(4.0));
+        assert_eq!(memory.ground(Target::Player, Vec3::X * 20.0), None);
+        assert_eq!(memory.ground(Target::Traffic(3), Vec3::ZERO), Some(2.0));
+        assert_eq!(memory.ground(Target::Spawned(3), Vec3::ZERO), None);
     }
 }

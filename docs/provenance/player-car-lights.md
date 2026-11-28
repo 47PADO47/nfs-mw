@@ -111,3 +111,7 @@ names and cross-checks. Existing NOTICE credits that reference. The implementati
 is independently written from the behavioral spec. Runtime texture replacement
 is tested separately from optical parity; a synthetic render cannot establish
 pixel-exact agreement with the original game.
+
+In matched Rog lineup shots the stock BMW lamps move with the approaching car. During the remake's
+scene the drawn body followed its animated pose while its light sources still used the driving pose.
+The correction ties both to the same pose. Brightness and the nearby flare smoke need a separate comparison.

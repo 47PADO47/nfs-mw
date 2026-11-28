@@ -250,6 +250,11 @@ impl CarRig {
         }
     }
 
+    pub(in crate::scenes::world) fn scene_treads(&self, sim: &super::CarSim, pose: CarPose) -> ([Vec3; 4], f32, bool) {
+        let (points, visual) = sim.scene_treads(pose);
+        (points.map(|p| p * self.scale), self.scale, visual)
+    }
+
     pub(super) fn visual_tires(&self) -> Option<[super::visual_tires::VisualTire; 4]> {
         super::visual_tires::from_model(&self.model)
     }

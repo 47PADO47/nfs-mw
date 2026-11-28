@@ -67,3 +67,15 @@
 - Nitrous, neutral revs, aerodynamics, rain, road noise, the photo-finish pulse and the D-Day speech are not acted on.
 - Camera key bytes 6 to 9, hybrid space and overlay values 2 and 4 are not applied.
 - `ENISPlayEffect` plays its effect in the rewrite (a stand-in); the original does nothing with it.
+
+## Opening intersection and ramp
+
+The stock PC scene trace releases the minivan and a patrol car at scene time 26.61 s and the stationary sedan at
+27.01 s. Between 26.6 and 28 s the minivan advances past the sedan. Its recorded height varies by 0.58 m.
+The remake's former channel-following behavior stopped the minivan short and held its height constant.
+Replaying the opening with scene-owned cars on the vehicle solver produced a 0.49 m height range. Over 14
+paired samples the median distance in the two available position axes was 1.2 m. One original coordinate
+was missing. The release and reattach handlers are described in the event spec.
+
+The later ramp pile-up remains an imperfect match. In particular, body contact alone does not reconstruct
+the authored prop effect or establish its debris, smoke, or camera response.
