@@ -88,3 +88,27 @@ order of four category hashes, then swaps three cards with random indices in 0..
 already revealed (`FUN_007a77c0`) it refuses; else it reveals the focused card and applies it (`0x12` →
 `FUN_005a41e0(stable + 0x414, value)`, `0x13` → cash `+0xB4` += value, else `FUN_00576c50(kind, value)`); on
 `0xE1FDE1D1` it clears the queue (`FUN_00576bd0`) and calls the arrival stepper.
+
+### Opening D-Day race fade and finish
+
+Installed race handlers call `ForceAIControl(0)` and `ForceAIControl(1)` at the fade and clear both three seconds
+later (story-flow 2.4). In one recorded original session with audio and mods enabled, the front end loaded
+`FadeScreenNoLoadingBar.fng` and unloaded it 3.01 seconds later. The HUD unloaded and the next in-game movie
+loaded in the same probe batch, with no results package. A separate stock harness recording with the game's
+sound-off option reached the finish line and logged race finalization followed by `storyfmv_cro06_coh06a`.
+The same harness logged `InGamePhotoMaster.fng` after later prologue wins. The sound-off recording supports
+the opening finish-line path; the sound-on recording supports the scripted path.
+
+### Prologue sprint police
+
+In the installed `gameplay.bin` gpcore vault, `stategraph_basicrace_racing_handler_triggerenter_12` tests
+whether the element is the player, then matches the sender against `cop_spawn_trigger`, `bail_pursuit`,
+and `trigger_911`. The spawn branch enables cops and passes both spawn markers, the `copmidsize` model, and
+two false flags to the spawn function. The stock PC `Game_SpawnCop` wrapper (0x0060A670) clears lockout
+before enqueueing the spawn (0x00439DD0). `TrySpawnCop` (0x0042E6C0) uses the patrol branch when both flags
+are false. The no-new-pursuits call reaches the cop manager (0x00406540) and sets a flag. Its prerace reset
+(0x0043A200) and lockout release clear that flag. The spawn path and flag behavior were read in the PC executable.
+The second D-Day race calls the same suppression function at its bail trigger. The separate bail event's
+effect on active units remains unverified. The stock career frames archive first reports two class-2
+vehicles about 14.65 s after the sprint timer starts and about 43.16 s after the second D-Day timer starts.
+Those samples report vehicle class and motion. They lack the police role, target and dispatch cue.

@@ -382,7 +382,7 @@ impl TrafficWorld {
         pursuit.spawn_timer -= sim_dt;
         self.update_budget(sim_dt, focus);
         self.flee_surplus(focus, cooldown);
-        if self.world_moment {
+        if self.world_moment || self.cops.new_pursuits_suppressed() {
             return;
         }
         // A latched roadblock request stops the manager from spawning pursuit cops until the roadblock stands.

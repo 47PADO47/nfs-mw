@@ -67,6 +67,10 @@ impl WorldScene {
                 false => u8::try_from(place).unwrap_or(u8::MAX),
             };
             self.career_race_finished(&session.event, credited, session.cash_value);
+            // The opening BMW win advances even on the fallback path where Mia's call never starts.
+            if me.finished && place == 1 && session.event == super::scripted_chase::OPENING_EVENT {
+                super::outro::begin(session, true);
+            }
             return;
         }
         // Outside the career a win of the challenge series opens the events it lists. Running out of time alone on
@@ -105,10 +109,16 @@ impl WorldScene {
     /// What a race holds on the world, given back: the racers, the race's walls, the traffic count a console command had
     /// set, the grid hold and the drag steering. The career hears nothing: `end_race` adds its roaming autosave, a restart adds none.
     pub(super) fn release_race(&mut self, session: &mut RaceSession) {
-        if session.event == super::scripted_chase::CHASE_EVENT
+        let had_sprint_police = self.career.sprint_police.take().is_some();
+        if (had_sprint_police || session.event == super::scripted_chase::CHASE_EVENT)
             && let Some(traffic) = self.traffic.as_mut()
         {
+            traffic.suppress_new_cops(false);
             traffic.cancel_cop_spawns();
+        }
+        if self.career.chase.take().is_some_and(|run| run.forces_ai_control()) {
+            self.release_autopilot();
+            self.screen_fade.clear();
         }
         // A race given up in its intro or outro takes the movie or NIS it plays with it.
         if matches!(session.stage, Stage::Intro { .. } | Stage::Outro { .. }) {

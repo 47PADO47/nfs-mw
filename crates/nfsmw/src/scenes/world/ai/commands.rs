@@ -245,7 +245,7 @@ fn load_wave_models(scene: &mut WorldScene, renderer: &mut dyn RenderBackend, na
 /// player starts one when the player is over the speeding line, has hit traffic lately, or the heat is high enough.
 pub(in crate::scenes::world) fn speeding_pursuit(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) {
     let Some(traffic) = scene.traffic.as_ref() else { return };
-    if traffic.is_pursuing() {
+    if traffic.is_pursuing() || traffic.cops.new_pursuits_suppressed() {
         return;
     }
     if !traffic.police.can_begin() {
@@ -323,6 +323,23 @@ const SCRIPTED_HEAT: u32 = 1;
 /// each point, to join it. They are placed on a later run of the cop manager, when nothing overlaps the spot.
 pub(in crate::scenes::world) fn scripted_cops(scene: &mut WorldScene, renderer: &mut dyn RenderBackend) {
     use super::cop_manager::requests::Role;
+    let patrols = scene.take_sprint_patrols();
+    if !patrols.is_empty() {
+        if let Some(traffic) = scene.traffic.as_mut() {
+            traffic.bar_cops(false);
+            traffic.cops.unlock();
+        }
+        match load_cop_models(scene, renderer, &[SCRIPTED_COP.to_owned()]) {
+            Ok(()) => {
+                if let Some(traffic) = scene.traffic.as_mut() {
+                    for (at, forward) in patrols {
+                        traffic.queue_cop_spawn(SCRIPTED_COP, at, forward, Role::Patrol);
+                    }
+                }
+            }
+            Err(error) => log::warn!("sprint: could not load {SCRIPTED_COP}: {error}"),
+        }
+    }
     if scene.career.scripted_cops.is_empty() {
         return;
     }

@@ -213,6 +213,13 @@ impl TrafficWorld {
         }
     }
 
+    /// Releases one rolling-start racer at its authored cutscene speed.
+    pub(in crate::scenes::world) fn roll_racer_from_grid(&mut self, id: usize, speed: f32) {
+        if let Some(car) = self.cars.iter_mut().find(|car| car.racer_id() == Some(id)) {
+            car.roll_from_grid(speed);
+        }
+    }
+
     /// Which way the racer points on the minimap (render space).
     pub fn racer_heading(&self, id: usize) -> Option<[f32; 2]> {
         self.cars.iter().find(|car| car.racer_id() == Some(id)).map(AiCar::heading)

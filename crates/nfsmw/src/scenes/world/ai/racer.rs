@@ -20,6 +20,8 @@ use super::traffic::CarState;
 mod installed_tests;
 mod off_path;
 #[cfg(test)]
+mod opening_roll_tests;
+#[cfg(test)]
 mod pace_tests;
 
 /// Racers decide at 30 Hz in the 60 Hz simulation (`ai-simulation-lod.md`, section 4).
@@ -115,6 +117,13 @@ pub struct TankView {
 }
 
 impl RacerState {
+    /// Releases an authored rolling start with the driver already moving at its carried speed.
+    pub(super) fn roll_from_grid(&mut self, speed: f32) {
+        self.held = false;
+        self.governor = SpeedGovernor::begin(speed);
+        self.last_speed = Some(speed);
+    }
+
     pub(super) fn set_think_delta(&mut self, dt: f32) {
         self.think_delta = dt;
     }

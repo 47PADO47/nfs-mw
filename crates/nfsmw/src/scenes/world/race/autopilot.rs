@@ -1,8 +1,8 @@
-//! The autopilot of an unattended race run (`--autopilot`): the opponents' driver takes the player's car in a race.
+//! The opponents' driver takes the player's car for an unattended race run or during the opening D-Day fade.
 //! It is the driver a world moment lends the car to (`ai/moment_driver.rs`), told where the race goes as an opponent is
 //! (`flow.rs`, `race_goals`): the point past the next gate, the leg and the race's route. Its pedals reach the car as a
 //! moment's do, through the car's own input step (`drive/cinematic.rs`), which also gives the car the control set-up
-//! the computer's cars drive with. Nothing is placed or moved by hand. Without the option nothing here runs.
+//! the computer's cars drive with.
 
 use std::sync::Arc;
 
@@ -45,7 +45,14 @@ impl WorldScene {
     /// One physics tick of the autopilot, before the player's car steps: it sets the car's pedals for the tick, or lets
     /// the car go when the race no longer needs it.
     pub(in crate::scenes::world) fn autopilot_tick(&mut self, dt: f32) {
-        let Some(autopilot) = self.unattended.plan.autopilot else { return };
+        let scripted = self.career.chase.as_ref().is_some_and(super::scripted_chase::ChaseRun::forces_ai_control);
+        let requested = self.unattended.plan.autopilot;
+        let autopilot = match (scripted, requested) {
+            (true, None) => Autopilot { after_secs: 0.0, skill: 0.5 },
+            (true, Some(pilot)) => Autopilot { after_secs: 0.0, ..pilot },
+            (false, Some(pilot)) => pilot,
+            (false, None) => return self.release_autopilot(),
+        };
         // A world moment has the car for its length (`moment_world.rs`); the road is searched again after it.
         if self.moment.hides_hud() {
             self.unattended.pilot = None;
@@ -72,7 +79,7 @@ impl WorldScene {
         if let Some(drive) = self.players.lead_mut() {
             drive.set_cinematic_input(Some(input));
         }
-        if std::mem::replace(&mut self.unattended.engaged, true) {
+        if std::mem::replace(&mut self.unattended.engaged, true) || requested.is_none() {
             return;
         }
         let race_time = self.race.as_ref().and_then(|session| session.engine.as_ref()).map_or(0.0, Race::elapsed);

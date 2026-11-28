@@ -133,6 +133,7 @@ mod tests {
             name_label: label.map(str::to_owned),
             model: Some("x".into()),
             spawn: crate::scenes::world::road::Spawn { position: glam::Vec3::ZERO, heading: 0.0 },
+            rolling_speed: None,
             grid_slot: 0,
             skill: 0.5,
             bias: 0.5,

@@ -238,6 +238,9 @@ impl TrafficWorld {
         collision: &CollisionWorld,
         surfaces: &SurfaceTable,
     ) {
+        if self.cops.new_pursuits_suppressed() {
+            return;
+        }
         let strategy = order.strategy();
         let distance: fn(u32) -> f32 = match strategy.is_heavy() {
             true => Search::heavy_distance,

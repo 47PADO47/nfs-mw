@@ -172,6 +172,11 @@ apply.
 **Which list.** The front-end list is used while the game is in the front end (menus), the in-game list while
 driving. Music volume 0 or the EA Trax option off means no licensed music.
 
+**D-Day races [exe].** The in-game eligibility check rejects licensed tracks when a loaded race has the authored
+`DDayRace` flag. It uses the race attribute, so entering a new career alone does not disable the radio.
+Ambient and interactive music have separate controls. The remake holds its radio transport during the active
+D-Day race while continuing to update interactive music.
+
 **Choosing the next song** (the original runs it when a song is to start):
 - If `PlayBits` is empty and songs are enabled, refill it from `TraxMask` and forget the last song.
 - Ordered mode (`PBMode` 0, the default): the first song after the last one played (list order, no wrap) whose

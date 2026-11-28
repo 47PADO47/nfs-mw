@@ -162,6 +162,27 @@ fn a_spawn_request_waits_out_the_lockout_and_is_placed_where_it_was_asked() {
 }
 
 #[test]
+fn script_suppression_keeps_placed_patrols_and_defers_queued_requests() {
+    let mut world = world();
+    let focus = player_at(0.0, 0.0);
+    let (collision, surfaces) = (floor(), SurfaceTable::default());
+    queue_patrol(&mut world, 120.0);
+    world.service_spawn_requests(focus, &collision, &surfaces);
+    assert_eq!(world.active_cop_cars(), 1);
+
+    world.suppress_new_cops(true);
+    queue_patrol(&mut world, 160.0);
+    world.service_spawn_requests(focus, &collision, &surfaces);
+    assert_eq!(world.active_cop_cars(), 1);
+    assert_eq!(world.cop_requests_waiting(), 1);
+
+    world.cops.unlock();
+    world.service_spawn_requests(focus, &collision, &surfaces);
+    assert_eq!(world.active_cop_cars(), 2);
+    assert_eq!(world.cop_requests_waiting(), 0);
+}
+
+#[test]
 fn a_spawn_request_whose_spot_overlaps_a_car_stays_queued() {
     let mut world = world();
     let focus = player_at(0.0, 0.0);

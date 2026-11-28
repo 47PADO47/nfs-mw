@@ -47,3 +47,31 @@ instance 11.57 s off, skill about 0.53: base 0.4 plus catch-up). Opponents then
 burn five to eleven times in the two laps, 0.4 to 13 s each. The rewrite's opponents had no nitrous choice.
 
 No translated code is included in public sources.
+
+## Second Razor race launch
+
+The stock PC career frames archive records Razor at 1.78 m/s 0.217 s after
+the 16.2.1 master timer hook. The first remake sample is at rest at timer
+start. At 0.20 s the remake records 1.10 m/s, full throttle and no brake.
+By about 5 s Razor is at 31.36 m/s in the stock sample and 26.23 m/s in the
+remake. The stock archive does not sample the opponent's pedals, gear,
+effective performance settings or target speed. The comparison brackets
+an early pace difference without identifying which input caused it.
+
+Across four stock PC career captures Razor trails by 0.43 to 0.93 s at
+checkpoint 1. At checkpoint 8 he ranges from 5.45 s ahead to 5.40 s behind.
+The recorded remake run trails by 2.83 s at checkpoint 1 and 28.32 s at
+checkpoint 8. The stock and remake runs use different player controls and
+traffic conditions. These times describe the recordings and do not set
+racer tuning targets.
+
+An additional PC career run identifies the Mustang by its start-grid position and racer role.
+The stock engine reports 646.04 hp and the transmission has six forward gears. The installed
+MustangGT ordinary maximum engine and induction records reproduce 646.04 hp. The base engine
+produces 299.55 hp and has a five-speed transmission. The Razor appearance preset has no
+physics record in the installed databases. The AI's native vehicle creation requests the full
+ordinary performance match. The remake had skipped that match for this career event.
+
+At the first stock sample, 0.017 s after the timer started, Razor was at 6,109 RPM. The earlier
+remake capture has 1,467 RPM at the timer boundary. Those samples fall on different simulation
+ticks. Matching the installed hardware does not establish staging RPM or checkpoint timing.

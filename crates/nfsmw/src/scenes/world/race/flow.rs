@@ -183,7 +183,7 @@ impl WorldScene {
     }
 
     /// Each opponent drives to the next gate of its own progress; a racer that is done has no goal and cruises on.
-    fn race_goals(&mut self, session: &RaceSession) {
+    pub(super) fn race_goals(&mut self, session: &RaceSession) {
         let (Some(engine), Some(traffic)) = (session.engine.as_ref(), self.traffic.as_mut()) else { return };
         for (id, racer) in engine.racers().iter().enumerate().skip(1) {
             let goal = match racer.done() {

@@ -176,6 +176,11 @@ impl Chase {
         self.finished
     }
 
+    /// Whether the opening race has handed both cars to AI for the fade.
+    pub fn forces_ai_control(&self) -> bool {
+        self.faded_on && !self.finished
+    }
+
     /// Advances the chase by one frame and returns what it asks for, in order.
     pub fn update(&mut self, input: ChaseInput) -> Vec<ChaseEvent> {
         let mut out = Vec::new();

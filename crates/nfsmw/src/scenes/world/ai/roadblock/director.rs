@@ -44,7 +44,7 @@ impl TrafficWorld {
         if self.roadblocks.clock >= RUN_PERIOD {
             self.roadblocks.clock = 0.0;
             self.roadblocks_release();
-            if pursuing {
+            if pursuing && !self.cops.new_pursuits_suppressed() {
                 self.roadblocks_request(view, collision, props, surfaces);
             }
         }

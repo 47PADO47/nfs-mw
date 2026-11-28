@@ -16,6 +16,7 @@ use crate::scenes::world::{WorldScene, space};
 
 /// The career event id of the chase that ends in the car lot.
 pub const CHASE_EVENT: &str = "16.2.1";
+pub(super) const OPENING_EVENT: &str = "16.1.0";
 
 /// Seconds the phone takes to load the call's voice before the call starts (`WaitForCallLoad`, `notifycellcallstarted`).
 /// The original waits on the voice stream; the rewrite uses a fixed wait, long enough that the engine gives out before
@@ -206,6 +207,10 @@ impl ChaseRun {
         self.cops_allowed
     }
 
+    pub(super) fn forces_ai_control(&self) -> bool {
+        self.chase.forces_ai_control()
+    }
+
     /// One frame: `point` is the player's place (physics space) and `dt` the frame's time. Returns what the chase asks
     /// for, in order. The call starts [`CALL_LOAD_SECS`] after it is requested (the voice load).
     pub fn update(&mut self, point: Vec3, dt: f32) -> Vec<ChaseEvent> {
@@ -245,10 +250,8 @@ impl ChaseRun {
         };
         let events = self.chase.update(input);
         for event in &events {
-            match event {
-                ChaseEvent::CopsOn => self.cops_allowed = true,
-                ChaseEvent::NoNewPursuits => self.cops_allowed = false,
-                _ => {}
+            if matches!(event, ChaseEvent::CopsOn) {
+                self.cops_allowed = true;
             }
         }
         if events.iter().any(|event| matches!(event, ChaseEvent::SabotageEngine { .. })) {
@@ -340,8 +343,7 @@ impl WorldScene {
             }
             ChaseEvent::NoNewPursuits => {
                 if let Some(traffic) = self.traffic.as_mut() {
-                    traffic.cancel_cop_spawns();
-                    traffic.bar_cops(true);
+                    traffic.suppress_new_cops(true);
                 }
             }
             ChaseEvent::FadeOn => {
@@ -367,6 +369,7 @@ impl WorldScene {
     fn chase_post_race(&mut self) {
         log::info!("chase: the race is over");
         let Some(mut session) = self.race.take() else { return };
+        self.release_autopilot();
         self.stop_chase_effects();
         // The scripted end counts as the win of the event, as the NIS shell's does: the chain and the resume read it.
         if session.options.career {
