@@ -114,6 +114,11 @@ impl StatType {
         self as usize
     }
 
+    /// The key used by the gameplay statistic map and its saved nodes.
+    pub const fn key(self) -> u32 {
+        blackbox_attrib::vlt_hash(self.name())
+    }
+
     /// The collection name in `GLOBAL/attributes.bin`.
     pub const fn name(self) -> &'static str {
         match self {

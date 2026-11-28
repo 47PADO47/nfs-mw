@@ -82,8 +82,13 @@ Pursuit icons reuse the installed statistic artwork used by challenge series/rew
 The detail icon shares the selected slot's texture. Exact original icon variants remain unverified.
 
 Accept on a done row does nothing (the original plays sound 7). On an open row it asks `REP_SHEET_MILESTONE_CONFIRM`
-(`REP_SHEET_PHOTOTICKET_CONFIRM` for a trap) and, on Yes, the world starts with the car on the row's spawn point
-(`Command::JumpTo`, section 5). All 55 milestones and 39 traps have a spawn point **[verified]**.
+(`REP_SHEET_PHOTOTICKET_CONFIRM` for a trap). The first Yes on either row plays `pursuit_tutorial` in
+`FEAnyTutorial.fng` from the safe house and sets career flag `0x200`. The tutorial returns control to the pending
+jump when finished or dismissed. Later Yes confirmations jump directly. The selected row's spawn point and chase
+rule carry through the tutorial unchanged. All 55 milestones and 39 traps have a spawn point **[verified]**.
+
+**[ours]** The rewrite uses its full-screen movie player for the safe-house tutorial. The separate stock tutorial
+package layout and the in-game version of this tutorial route remain open.
 
 ## 4. Bounty **[exe]** + **[verified]**
 
@@ -117,7 +122,7 @@ reload forgot every race won and every rival state.
 ## 7. From the pause menu and in the Remastered look **[ours]**
 
 The original opens in-game twins for the reputation overview, race sheet, milestones, and bounty [exe]. The remake opens
-`InGameMilestones.fng` for the milestone sheet from Pause, with its own cursor objects and scripts. The overview, race
+`InGameReputationOverview.fng` and `InGameMilestones.fng` from Pause in the Original look. The race
 sheet, and bounty still use the safe-house packages over the frozen world [ours]. Back goes to the
 pause menu. A Yes on a race starts it in the running world (`Scene::start_career_event`) and a Yes on a jump moves the car
 (`Scene::jump_player`), then the game goes on.

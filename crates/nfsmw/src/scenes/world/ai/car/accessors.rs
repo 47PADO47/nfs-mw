@@ -3,6 +3,14 @@
 use super::*;
 
 impl AiCar {
+    pub(in crate::scenes::world::ai) fn scene_treads(&self, pose: CarPose) -> ([Vec3; 4], f32, bool) {
+        self.rig.scene_treads(&self.sim, pose)
+    }
+
+    pub(in crate::scenes::world::ai) fn scene_sim(&mut self) -> &mut CarSim {
+        &mut self.sim
+    }
+
     /// Simulation time covered by the next staggered pursuit decision.
     pub(in crate::scenes::world::ai) fn next_think_delta(&self, dt: f32) -> f32 {
         match self.has_thought {

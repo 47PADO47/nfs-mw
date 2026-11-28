@@ -3,9 +3,10 @@
 
 use blackbox_race::Race;
 use glam::Vec3;
+use nfsmw_data::car::physics::{CarPhysics, PerformanceCatalog, PhysicsData};
 use nfsmw_data::pursuit::ai_vehicle;
 
-use super::{RaceSession, Stage, intro, shortcuts};
+use super::{RaceSession, Stage, intro, scripted_chase::CHASE_EVENT, shortcuts};
 use crate::scenes::world::ai::{ModelState, RacerSpawn};
 use crate::scenes::world::{WorldScene, space};
 
@@ -114,22 +115,20 @@ impl WorldScene {
             for plan in session.plan.iter().skip(1) {
                 let Some(model) = plan.model.clone() else { continue };
                 let car_type = model.split(':').next().unwrap_or(&model);
-                // A preset ride is the car's looks; its hardware is the same full match as any other quick-race car
-                // (`docs/specs/race-play-path-parity.md`, pace evidence).
-                let physics = (plan.person.is_none() && !session.options.career)
-                    .then(|| {
-                        let package =
-                            nfsmw_data::car::physics::PerformanceCatalog::read(self.physics.database(), car_type)?
-                                .maximum();
-                        self.physics.car_with_performance(car_type, package)
-                    })
-                    .and_then(|result| match result {
-                        Ok(physics) => Some(physics),
-                        Err(error) => {
-                            log::warn!("race: {model} keeps original equipment: {error:#}");
-                            None
-                        }
-                    });
+                let physics = matched_racer_physics(
+                    &self.physics,
+                    session.options.career,
+                    &session.event,
+                    &model,
+                    plan.person.is_some(),
+                )
+                .and_then(|result| match result {
+                    Ok(physics) => Some(physics),
+                    Err(error) => {
+                        log::warn!("race: {model} keeps original equipment: {error:#}");
+                        None
+                    }
+                });
                 let spec = RacerSpawn {
                     id: kept.len(),
                     ai: ai_vehicle(self.physics.database(), car_type),
@@ -140,8 +139,8 @@ impl WorldScene {
                     player_nitrous,
                     bias: plan.bias,
                     base_skill: plan.skill,
-                    speed,
-                    held: !prep.rolling,
+                    speed: if plan.rolling_speed.is_some() { 0.0 } else { speed },
+                    held: !prep.rolling || plan.rolling_speed.is_some(),
                     person: plan.person,
                 };
                 if !traffic.spawn_racer(&spec, collision, &self.physics.surfaces) {
@@ -207,5 +206,51 @@ impl WorldScene {
             return;
         }
         session.stage = Stage::Intro { steps, current: intro::Playing::Idle };
+    }
+}
+
+/// Native race-vehicle matching gives quick opponents maximum ordinary hardware. The same
+/// request is verified on Razor's scripted second race; his named preset still supplies the looks.
+fn matched_racer_physics(
+    data: &PhysicsData,
+    career: bool,
+    event: &str,
+    model: &str,
+    human: bool,
+) -> Option<anyhow::Result<CarPhysics>> {
+    if human || (career && !(event == CHASE_EVENT && model.eq_ignore_ascii_case("mustanggt:razormustang"))) {
+        return None;
+    }
+    let car_type = model.split(':').next().unwrap_or(model);
+    Some(
+        PerformanceCatalog::read(data.database(), car_type)
+            .and_then(|catalog| data.car_with_performance(car_type, catalog.maximum())),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "needs installed MustangGT equipment records"]
+    fn installed_second_razor_uses_native_matched_hardware() {
+        let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+        let data = PhysicsData::load(&dir).unwrap();
+        let model = "mustanggt:RAZORMUSTANG";
+        let stock = data.car("mustanggt").unwrap().spec;
+        let matched = matched_racer_physics(&data, true, CHASE_EVENT, model, false).unwrap().unwrap().spec;
+
+        // Native live engine produced 646.04 hp: its upper ordinary torque endpoint multiplied
+        // by its high-RPM induction boost. The transmission had six forward gears.
+        let engine_hp = matched.engine.torque.last().unwrap() * matched.engine.max_rpm / 5252.0;
+        let max_hp = engine_hp * (1.0 + matched.induction.high_boost);
+        assert!((max_hp - 646.04).abs() < 0.1, "native peak horsepower: {max_hp}");
+        assert_eq!(matched.transmission.gear_ratio.len(), 8);
+        assert_eq!(stock.transmission.gear_ratio.len(), 7);
+        assert_eq!(stock.induction.high_boost, 0.0);
+        assert!(matched_racer_physics(&data, true, "16.1.0", model, false).is_none());
+        assert!(matched_racer_physics(&data, true, CHASE_EVENT, model, true).is_none());
+        assert!(matched_racer_physics(&data, true, CHASE_EVENT, "gto", false).is_none());
     }
 }

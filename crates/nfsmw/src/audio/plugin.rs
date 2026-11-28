@@ -195,7 +195,11 @@ pub(super) fn drive_car(
     }
     let scene_soundtrack = host.scene.owns_soundtrack();
     let songs_free = audio.update_interactive(&music.state(), driving && !scene_soundtrack, time.delta_secs());
-    audio.update_radio(driving, host.scene.radio_on_menus(), !songs_free || scene_soundtrack);
+    audio.update_radio(
+        driving,
+        host.scene.radio_on_menus(),
+        !songs_free || scene_soundtrack || host.scene.holds_radio(),
+    );
     audio.follow_clip(host.scene.as_mut());
 }
 

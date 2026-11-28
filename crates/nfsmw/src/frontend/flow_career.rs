@@ -125,8 +125,8 @@ impl Frontend {
         if let CareerRequest::SafeHouse { zone } = &request {
             self.safe_house_start.zone = Some(zone.clone());
         }
-        // The first safe house visit (stage 16) plays its intro movie, then the rival bio (`flow_first_visit.rs`).
-        if matches!(request, CareerRequest::SafeHouse { .. }) && self.first_visit_intro(host) {
+        // The first visit shows the Engage Mechanic tip before its intro movie and rival bio.
+        if matches!(request, CareerRequest::SafeHouse { .. }) && self.first_visit_tip(host, env) {
             return;
         }
         let (screen, args) = match request {
@@ -179,6 +179,10 @@ impl Frontend {
         if !std::mem::take(&mut self.in_safe_house) {
             return;
         }
+        self.free_roam_autosave(Trigger::RoamingStart);
+    }
+
+    pub(super) fn free_roam_autosave(&self, trigger: Trigger<'_>) {
         let inputs = AutosaveInputs {
             context: FrontEndContext::CAREER,
             node_id: None,
@@ -186,7 +190,7 @@ impl Frontend {
             gameplay_idle: true,
             profile_loaded: true,
         };
-        handle_autosave(&self.career, self.profiles.as_ref(), Trigger::RoamingStart, inputs);
+        handle_autosave(&self.career, self.profiles.as_ref(), trigger, inputs);
     }
 
     /// Carries out a confirmed car lot purchase or sale on the career; a refusal is shown in an alert. The first car of the

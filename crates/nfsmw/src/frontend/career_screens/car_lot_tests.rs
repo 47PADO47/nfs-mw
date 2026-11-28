@@ -53,6 +53,54 @@ fn each_tab_has_its_own_title_label() {
 }
 
 #[test]
+#[ignore = "requires installed Car_Select package; set NFSMW_GAME_DIR"]
+fn only_the_first_car_lot_uses_the_packages_second_footer_layout() {
+    use super::super::car_lot_first::{FOOTER_GROUPS, FOOTER_POS2};
+    use crate::settings::{Partial, Settings, test_caps};
+    use crate::ui::{Catalog, SCREEN_FILES, UiAssets};
+    use blackbox_feng::Runtime;
+    use std::collections::HashMap;
+
+    let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("installed menus")).unwrap();
+    let assets = UiAssets::load(&dir).unwrap();
+    let catalog = Catalog::load(&dir, &SCREEN_FILES);
+    let def = catalog.find(screen::CAR_SELECT).expect("installed car select package");
+    let mut settings = Settings::from(Partial::default());
+    let mut changed = Partial::default();
+    let mut commands = Vec::new();
+    let mut memory = HashMap::new();
+    for first_car in [false, true] {
+        let mut rt = Runtime::new();
+        let package = rt.load(def.clone());
+        let mut cx = Cx {
+            rt: &mut rt,
+            package,
+            assets: &assets,
+            settings: &mut settings,
+            changed: &mut changed,
+            caps: test_caps::native(),
+            commands: &mut commands,
+            memory: &mut memory,
+            key_texts: &[],
+            world_map: None,
+            mods: None,
+            name: screen::CAR_SELECT,
+        };
+        let mut lot = CarLotLogic { first_car, ..CarLotLogic::new() };
+        lot.start(&mut cx);
+        cx.rt.update(1.0 / 60.0);
+        for name in FOOTER_GROUPS {
+            let group = cx.object(name).expect("authored footer group");
+            assert_eq!(
+                cx.rt.script_of(group) == Some(FOOTER_POS2),
+                first_car,
+                "group {name:08x}, first-car mode = {first_car}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_purchase_the_cash_cannot_cover_is_refused_with_the_no_cash_notice() {
     let car = lot("cobaltss", 0xC0, 26_000);
     let refusal = buy_refusal(&settings(25_999), &Stable::empty(), &car, &Limits::SPEC);

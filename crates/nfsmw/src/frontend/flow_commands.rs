@@ -47,6 +47,8 @@ impl Frontend {
             Command::ChallengeRival { bin } => self.challenge_rival(bin, host, env),
             Command::LaunchEvent { event } => self.launch_event(event, host, env),
             Command::JumpTo(point) => self.jump_to(point, host, env),
+            Command::JumpFromMilestones(point) => self.jump_from_milestones(point, host, env),
+            Command::ContinueFirstSafeHouse => self.continue_first_safe_house(host, env),
             Command::BlacklistStep(stepper) => self.blacklist_step(stepper, host, env),
             Command::StartFirstDrive => self.start_first_drive(host, env),
             Command::LeaveCarLot => self.leave_car_lot(host, env),
@@ -54,6 +56,10 @@ impl Frontend {
             Command::RestartRace => self.restart_race(host),
             Command::Resume if self.career.is_prelude() => self.start_from_safe_house(host, env),
             Command::Resume => self.resume_driving(env),
+            Command::AcceptTrapPhoto => {
+                self.resume_driving(env);
+                self.free_roam_autosave(nfsmw_career::savefile::Trigger::SpeedTrapPhotoAccepted);
+            }
             Command::EndCoop => self.end_coop_from_pause(host, env),
             Command::SetWaypoint(target) => {
                 host.scene.set_waypoint(Some(target));

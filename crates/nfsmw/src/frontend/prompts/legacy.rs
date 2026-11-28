@@ -84,6 +84,23 @@ pub(super) fn hide(tree: &mut UiTree, splash: bool, brief: bool, settings: bool,
     tree.draw_order.retain(|i| !hidden[*i]);
 }
 
+/// The driving reputation footer shares its bar with the selected category title.
+pub(super) fn hide_in_game_reputation(tree: &mut UiTree, name: &str) {
+    if ![ids::screen::IN_GAME_REPUTATION_OVERVIEW, ids::screen::IN_GAME_MILESTONES]
+        .iter()
+        .any(|package| name.eq_ignore_ascii_case(package))
+    {
+        return;
+    }
+    hide_roots(tree, &[0x1c7f_cf8b]);
+    for node in &mut tree.nodes {
+        if matches!(node.guid, 0x000f_3e78 | 0x0010_bc17) {
+            node.visible = false;
+        }
+    }
+    tree.draw_order.retain(|&index| tree.nodes[index].visible);
+}
+
 /// Hide old footer content, retaining its animated root and background strip.
 pub(super) fn hide_children(tree: &mut UiTree, hash: u32) {
     let Some(root) = tree.nodes.iter().find(|n| n.name_hash == hash).map(|n| n.index) else { return };

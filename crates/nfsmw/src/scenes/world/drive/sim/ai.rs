@@ -167,6 +167,24 @@ impl CarSim {
         (spec.chassis.wheel_base, spec.chassis.track_width[0], [split != 0.0, split != 0.0, split != 1.0, split != 1.0])
     }
 
+    /// Tread bottoms relative to the drawn model origin, at zero suspension travel.
+    /// A body with baked wheels uses its installed chassis footprint.
+    pub fn scene_treads(&self, pose: super::CarPose) -> ([Vec3; 4], bool) {
+        if let Some(tires) = self.visual_tires {
+            return (
+                std::array::from_fn(|i| tires[i].point(nfsmw_data::car::WheelPose { travel: 0.0, ..pose.wheels[i] })),
+                true,
+            );
+        }
+        let spec = self.vehicle.spec();
+        let geometry = blackbox_vehicle::suspension::Geometry::new(&spec.chassis, &spec.tires, spec.dimension.y);
+        let points = super::PHYSICS_WHEEL.map(|i| {
+            let arm = geometry.arms[i];
+            space::to_render((Vec3::new(arm.x, -self.ride_lift(), arm.z) + self.pivot).to_array())
+        });
+        (points, false)
+    }
+
     /// Puts the car's body over the road point `road` (physics space), its nose along `forward` (which may climb or
     /// fall) and level across, rolling at `speed`, with no ground under it: the stand-in of a car off the loaded world
     /// (`ai/car/stand_in.rs`). The next step does not sweep from where the car was.

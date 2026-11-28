@@ -123,7 +123,12 @@ Until the destinations exist, entering logs and shows a placeholder:
 
 A **race** zone is no stub any more: Interact starts the race (`entry.rs`, `enter_race_zone`; `docs/specs/race-mode.md`),
 in the career when the Blacklist has opened the race, and while a race runs every other card and zone is held. A race
-the Blacklist lists and has not opened shows no start icon on the minimap, and no start icon shows during a race. The
+the Blacklist lists and has not opened shows no race icon, road disc, or entry prompt. In career, a roaming race
+needs an authored engage trigger and its exact stored event ID must be open in the Blacklist or side-event ladder.
+The three first ordinary entries are `15.1.1`, `15.2.1` and `15.3.1`. An open rival with an authored trigger can
+still be entered from the road. The ordinary race-icon pool leaves out rival events, which have their own stock
+icon type. The standalone free-roam marker path and the event launchers in the front end have their own selection rules.
+No start icon shows during a race. The
 safe house and the auto shop keep their own handlers. During a race the rewrite also hides the garage, car lot and safe house
 icons, the free-roam speed-trap icons and every entry disc on the road (`hud.rs`, `effects/world.rs`) **[ours]**.
 

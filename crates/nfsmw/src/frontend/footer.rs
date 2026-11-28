@@ -21,6 +21,8 @@ pub enum Footer {
     /// Back then Accept: the original category, career and safe house carousels; the custom race's track list and
     /// the mode select of a mode with no tutorial.
     BackAccept,
+    /// The one Continue button during the career rival introduction.
+    RivalBioContinue,
     RacePhoto {
         race: bool,
     },

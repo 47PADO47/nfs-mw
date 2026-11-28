@@ -18,12 +18,7 @@ impl Scene for WorldScene {
         self.extra.hide_ui
     }
     fn close(&mut self, renderer: &mut dyn RenderBackend) {
-        // The player car goes with the world: its live heat goes into its career record.
-        self.write_driven_heat();
-        renderer.set_night_blend(None);
-        renderer.set_sun_glare(None);
-        self.close_garage_backdrop(renderer);
-        self.release_gpu(renderer);
+        self.close_world(renderer);
     }
     fn garage(&mut self) -> Option<&mut crate::garage::Model> {
         Some(&mut self.garage)
@@ -481,6 +476,9 @@ impl Scene for WorldScene {
     }
     fn owns_soundtrack(&self) -> bool {
         self.cutscene_playing() || self.photo_shot.is_some()
+    }
+    fn holds_radio(&self) -> bool {
+        self.race.as_ref().is_some_and(|race| race.origin.race.story.dday)
     }
     fn note_nis_audio(&mut self, playing: bool) {
         self.nis.note_voice(playing);

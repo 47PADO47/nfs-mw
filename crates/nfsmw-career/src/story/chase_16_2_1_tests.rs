@@ -47,7 +47,15 @@ fn kill_engine_before_the_call_trigger_sabotages_and_the_call_is_placed_later() 
 fn the_call_path_fades_on_at_8_s_and_ends_at_11_s_after_the_call_starts() {
     let mut chase = Chase::for_script(OPENING_SCRIPT);
     let frames = (1..=15).map(|f| ChaseInput { call_started: f == 2, ..trigger_clock(f) });
-    let events = run(&mut chase, frames);
+    let events = frames
+        .enumerate()
+        .flat_map(|(index, input)| {
+            let frame = index + 1;
+            let events = chase.update(input);
+            assert_eq!(chase.forces_ai_control(), (10..13).contains(&frame), "frame {frame}");
+            events.into_iter().map(move |event| (frame, event))
+        })
+        .collect::<Vec<_>>();
     assert_eq!(
         events,
         vec![

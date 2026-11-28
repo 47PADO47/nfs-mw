@@ -223,6 +223,19 @@ Tags: **[verified]** (CF 3 step 6, CSE 2.1, CB 9, CS 3.2).
 
 ### 2.4 The D-Day races 16.1.0 and 16.2.1 (machine C)
 
+The prologue sprint `16.2.3` has its own player-only trigger handler **[verified]** (installed Lua). Before a trigger
+changes police availability, the basic race's initial and prerace handlers use the race's `CopsInRace` setting.
+
+| Trigger | Action |
+|---|---|
+| `cop_spawn_trigger` | Enable cops and request `copmidsize` patrols at `cop_spawn_1` and `cop_spawn_2`. The spawn request clears the cop lockout and passes false for both immediate pursuit and roadblock. **[exe]** |
+| `bail_pursuit` | Emit `EBailPursuit(1, 1)` and suppress new pursuits or cop spawns. The cop manager clears suppression on its prerace reset or an explicit lockout release. The effect of the two event parameters is **[unconfirmed]**. |
+| `trigger_911` | Emit the no-argument `E911Call`. Which native listener consumes it is **[unconfirmed]**. |
+
+The remake handles the patrol trigger and the bail trigger's suppression of new police using the authored planes.
+This gate leaves active police and pursuits in place. See
+[provenance](../provenance/story-flow.md#prologue-sprint-police) for the source and coverage.
+
 Tags: **[verified]** (Lua, 2026-11-18): each handler copy below names its race in its owner field (`0x857FE432`), read
 from the `messagehandler` collections of `gameplay.bin`'s `gpcore` vault; the chunks were read as in
 [provenance/race-goals.md](../provenance/race-goals.md). Hooks **[exe]**. Copies run in addition to the generic `basicrace`
@@ -247,14 +260,16 @@ generic engine-blown handler skip its loss.
 
 So the call from Mia ends `16.1.0` 11 s after the call starts, with the cars under AI control behind the fade, before the
 finish line unless the finish comes first. If the call never starts (`notifycellcallstarted` is a native message; when the
-speech system sends it is not read), the race runs to its finish line.
+speech system sends it is not read), the race runs to its finish line. An opening career win advances directly to the
+next story movie on either path, without the finish photo or results screen **[verified]** (see
+[provenance](../provenance/story-flow.md#opening-dday-race-fade-and-finish)).
 
 `16.2.1` (`16_2_1_d_day_intro`):
 
 | Handler copy | Actions |
 |---|---|
 | prerace enter | `DoMiaSMS = true`. |
-| trigger enter | `call_from_mia` while `DoMiaSMS`, by the player: `DoMiaSMS = false`, a 15 s `backup` timer, `ECellCall(10)`. `kill_engine` by the player: kill `backup`, `SabotageEngine(player, 5)`. `cop_spawn_trigger`: cops on, spawn `cop_spawn_1` and `cop_spawn_2` as `copmidsize`. `bail_trigger`: `EDispIntroRace()`, `EBailPursuit(1.0, 1.0)`, `Game.NoNewPursuitsOrCops()` (F-15). |
+| trigger enter | `call_from_mia` while `DoMiaSMS`, by the player: `DoMiaSMS = false`, a 15 s `backup` timer, `ECellCall(10)`. `kill_engine` by the player: kill `backup`, `SabotageEngine(player, 5)`. `cop_spawn_trigger`: cops on, spawn `cop_spawn_1` and `cop_spawn_2` as `copmidsize`. `bail_trigger`: `EDispIntroRace()`, `EBailPursuit(1.0, 1.0)`, `Game.NoNewPursuitsOrCops()` (F-15). This suppression uses the cop-manager latch described above, so it does not itself remove existing police. |
 | engine blown | A 1 s `eblown` timer. |
 | timer | `eblown`: kill it, `Fade()`, go to postrace. `backup`: kill it, `SabotageEngine(player, 5)`. |
 | racing exit | Kill `eblown` and `backup`. |
@@ -294,7 +309,8 @@ Tags: **[exe]** (CSH 3.6, CSH 4, CSH 5.3, CSH2 11.1; CF 6). Order of the stepper
 
 1. `DoSafeHouseIntro(marker)` runs. The marker key goes into the respawn fields `+0x108` and `+0x10C`. The field `+0x110`
    is set to 1. Stage is set to 16. The time-of-day index is 0.
-2. The intro movie is `storyfmv_saf25` (a file of this name is in `MOVIES/`, this pass). Its next screen is
+2. The first arrival shows the Engage Mechanic loading tip and waits for Continue (loading-screen 5.1). The intro
+   movie is `storyfmv_saf25` (a file of this name is in `MOVIES/`, this pass). Its next screen is
    `SafeHouseRivalBio.fng`.
 3. The front end request has platform 2 and screen `FEAnyMovie.fng` (`WS_FEAnyMovie.fng` on wide screens). Because the
    screen is the default front end screen, context bit 17 (`0x20000`, the "Blacklist sequence") is set (CSH 4).
@@ -305,9 +321,10 @@ Tags: **[exe]** (CSH 3.6, CSH 4, CSH 5.3, CSH2 11.1; CF 6). Order of the stepper
    message `0x0B21A45F` hides the Back prompt and the side groups (the plain open message `0xAF922178` shows them), and
    arms the controller image `0x104BCB` so that `0x5FF45174` fires `0x7E7075D5` at once, which runs a 6600-tick script on
    `0x104CEC` that ends with `0x7E4D1288` (input on) and `INIT_COMPLETE`: 6.9 s at 960 ticks a second before Continue
-   answers (the plain branch fires `0xB467E5EE`, whose script turns input on after 600 ticks, 0.6 s). The bio panel `0x116316`
-   starts at alpha 0 and shows only on `0x8BBAB3ED`. Who posts `0x5FF45174` (through `0xD22B95D0` on `0x104BCA`) and
-   `0x8BBAB3ED` in the original is not traced. The rewrite posts one open message by the context, then `0x8BBAB3ED`.
+   answers (the plain branch fires `0xB467E5EE`, whose script turns input on after 600 ticks, 0.6 s). The texture
+   streamer's background-ready message `0xD22B95D0` starts the sequence through `0x5FF45174`. At tick 4000 the title
+   script starts the 6000-tick reveal animation. Its final event `0x8BBAB3ED` shows the full bio panel `0x116316`.
+   The first bio opens with input disabled, enables it through the package event, and advances only on Accept.
 6. The stepper continues from the point F-18 names. Stage 15 is the stage that the arrival sequence (story-flow-2
    section 4.6) reads at its step 6.
 
@@ -339,7 +356,9 @@ What the rewrite decides where the spec above is silent. All of it is open to Gh
 2. The voice load of call 10 is a fixed 10 s: the call counts as started 10 s after it is asked for, in either race. In
    `16.1.0` the fade comes 8 s later and the race ends 3 s after that. In `16.2.1` `notifyengineblown` is the sabotage
    plus 6 s, or the car coasting under 3 m/s after 1.5 s; then the 1 s timer ends the race. The screen fades to black over
-   3 s and stays black until the next race or movie takes the screen. `ForceAIControl` behind the fade is not modelled.
+   3 s and stays black until the next race or movie takes the screen. During the opening race's fade, the race driver
+   takes the BMW and Razor continues under his race AI. The BMW returns to player control on leaving the race. The
+   BMW uses the shared race driver's midpoint skill when no unattended skill is configured.
 3. A scripted end counts as a win of the event (the chain and the resume read it) and goes through the race outro: `16.1.0`
    chains to `16.2.2`; `16.2.1` plays `storyfmv_bus12` and then opens the car lot.
 4. A race shows a message card only where its data sets `IntroMessageID`. In the prologue that is `16.1.1` alone

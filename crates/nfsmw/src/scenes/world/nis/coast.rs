@@ -45,6 +45,14 @@ pub struct Coasts {
 }
 
 impl Coasts {
+    pub(super) fn mode(&self, target: Target) -> Option<&'static str> {
+        self.tracks.iter().find(|track| track.target == target).map(|track| match track.phase {
+            Phase::Attached => "attached",
+            Phase::Following => "detached_following",
+            Phase::Free => "detached_coasting",
+        })
+    }
+
     /// Where `target` stands this frame, `dt` scene seconds after the last: at `channel` while `attached`, and while
     /// detached until its channel is cut; then coasting from where it was at the channel's last velocity, slowed while
     /// `braking`.

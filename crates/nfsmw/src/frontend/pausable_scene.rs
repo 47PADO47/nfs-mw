@@ -289,6 +289,9 @@ impl Scene for Pausable {
     fn owns_soundtrack(&self) -> bool {
         !self.concealed() && self.inner.owns_soundtrack()
     }
+    fn holds_radio(&self) -> bool {
+        !self.concealed() && self.inner.holds_radio()
+    }
     fn note_nis_audio(&mut self, playing: bool) {
         self.inner.note_nis_audio(playing);
     }
@@ -331,10 +334,7 @@ impl Scene for Pausable {
     }
 
     fn take_bust_ticket(&mut self) -> Option<Vec<(blackbox_pursuit::Infraction, u32)>> {
-        if self.concealed() {
-            return None;
-        }
-        self.inner.take_bust_ticket()
+        self.visible_scene()?.take_bust_ticket()
     }
 
     fn take_race_report(&mut self) -> Option<crate::viewer::RaceReport> {
@@ -342,17 +342,11 @@ impl Scene for Pausable {
     }
 
     fn take_trap_photo(&mut self) -> Option<crate::viewer::PhotoReport> {
-        if self.concealed() {
-            return None;
-        }
-        self.inner.take_trap_photo()
+        self.visible_scene()?.take_trap_photo()
     }
 
     fn take_rewards_report(&mut self) -> Option<crate::viewer::RewardsReport> {
-        if self.concealed() {
-            return None;
-        }
-        self.inner.take_rewards_report()
+        self.visible_scene()?.take_rewards_report()
     }
 
     fn race_active(&self) -> bool {
@@ -381,10 +375,7 @@ impl Scene for Pausable {
     }
 
     fn take_career_request(&mut self) -> Option<crate::career::CareerRequest> {
-        if self.concealed() {
-            return None;
-        }
-        self.inner.take_career_request()
+        self.visible_scene()?.take_career_request()
     }
 
     fn paused(&self) -> bool {

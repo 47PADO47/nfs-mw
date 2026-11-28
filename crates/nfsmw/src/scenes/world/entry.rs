@@ -9,7 +9,7 @@
 use glam::Vec3;
 
 use super::career::RaceEntry;
-use super::entry_zones::{EntryZones, ZoneKind};
+use super::entry_zones::{EntryZones, Zone, ZoneKind};
 use super::players::{LEAD, PlayerId};
 use super::road::Spawn;
 use super::{View, WorldScene};
@@ -83,7 +83,12 @@ impl WorldScene {
     /// controls enters it. The lead is tested first; a mod interior's zone counts before the stock zones.
     fn update_outside(&mut self, input: &ActionState, dt: f32) {
         let points = self.entry_points();
-        let Some((id, hit)) = first_holder(&points, |point| zone_hit(&self.entry.zones, point)) else {
+        self.refresh_race_locks();
+        let Some((id, hit)) = first_holder(&points, |point| {
+            zone_hit(&self.entry.zones, point, |zone| {
+                zone.kind != ZoneKind::Race || !self.career_race_locked(&zone.name)
+            })
+        }) else {
             self.entry.popup.set_target(None);
             self.entry.popup.update(dt);
             return;
@@ -324,11 +329,11 @@ enum Hit {
 }
 
 /// What the entry zones hold at `point`: a mod interior's zone first, then the stock zones.
-fn zone_hit(zones: &EntryZones, point: Vec3) -> Option<Hit> {
+fn zone_hit(zones: &EntryZones, point: Vec3, allowed: impl Fn(&Zone) -> bool) -> Option<Hit> {
     if let Some(index) = zones.entered_interior(point) {
         return Some(Hit::Interior(index));
     }
-    let zone = zones.entered(point)?;
+    let zone = zones.entered_where(point, allowed)?;
     Some(Hit::Zone { kind: zone.kind, name: zone.name.clone() })
 }
 

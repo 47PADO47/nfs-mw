@@ -92,6 +92,14 @@ selectable but grey, and Accept opens nothing. The row reads destination availab
 The footer uses the shared bound keyboard/controller Back and Accept prompts inside the authored footer bar.
 Recorded-artwork evidence is listed in [the sheets' provenance](../provenance/career-rep-sheets.md).
 
+The Original look opens `InGameReputationOverview.fng` from Pause and returns to that package from an in-game
+child sheet. The installed in-game package has its own dimmed layout, portrait and graffiti variants and footer
+bar. The remake binds its keyboard and controller hints in that bar and keeps the current category on child return.
+The original's direct driving shortcut to this overview is a separate route.
+
+The locked Challenge Rival panel stays hidden during the authored Back animation. The Back response can
+start the panel's exit script, but the panel remains subject to the same career gate throughout the transition.
+
 `crates/nfsmw/src/frontend/career_screens/reputation_overview.rs`. The pure parts (the step rule, the shown rival, the
 panel, the sheets) are tested in `reputation_overview_tests.rs`. Differences from the original:
 

@@ -67,6 +67,8 @@ pub(super) struct WorldCareer {
     pub safe_house_drive: drive_to_target::SafeHouseDrive,
     /// The scripted chase of race 16.2.1 while that race runs (`race/scripted_chase.rs`).
     pub chase: Option<super::race::scripted_chase::ChaseRun>,
+    /// The patrol trigger of the prologue sprint while that race runs.
+    pub sprint_police: Option<super::race::sprint_police::SprintPolice>,
     /// The places the scripted chase of 16.2.1 asked cops at (physics space: position and facing), until the police step places
     /// them (`ai::scripted_cops`).
     pub scripted_cops: Vec<(glam::Vec3, glam::Vec3)>,
@@ -104,6 +106,7 @@ impl WorldScene {
         self.screen_fade.advance(dt);
         self.career_jump_fade();
         self.update_scripted_chase(dt);
+        self.update_sprint_police();
         self.career_drive_to_target(dt);
         self.career_regions();
         self.career_hud();

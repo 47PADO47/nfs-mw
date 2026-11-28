@@ -121,10 +121,16 @@ impl EntryZones {
     }
 
     /// The zone the point is inside, if any: the one whose centre is nearest when zones overlap.
+    #[cfg(test)]
     pub fn entered(&self, point: Vec3) -> Option<&Zone> {
+        self.entered_where(point, |_| true)
+    }
+
+    /// The nearest allowed zone covering the point.
+    pub(super) fn entered_where(&self, point: Vec3, allowed: impl Fn(&Zone) -> bool) -> Option<&Zone> {
         self.zones
             .iter()
-            .filter(|zone| sphere_contains(zone.centre, zone.radius, point))
+            .filter(|zone| sphere_contains(zone.centre, zone.radius, point) && allowed(zone))
             .min_by(|a, b| a.centre.distance_squared(point).total_cmp(&b.centre.distance_squared(point)))
     }
 

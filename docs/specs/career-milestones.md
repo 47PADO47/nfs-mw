@@ -316,6 +316,13 @@ Every pass is therefore written to the game's log, which the console shows, in t
 `speed camera: too slow, 143 km/h, target 180 km/h`, `speed camera: passed, 214 km/h, target 180 km/h`, and for a trap that cannot
 complete a reason: `(not armed: bin 9 is not entered yet)` or `(already done)`. [ours]
 
+On Continue from the free-roam speed camera photo the game resumes driving and requests a profile autosave. The normal
+autosave gate applies. One PC capture wrote the completed camera, recorded speed and bin counter as the photo closed.
+**[exe + observed]** See [career runtime provenance](../provenance/career-runtime.md).
+
+The successful crossing displays the speed and bounty in the speed-camera photo. A timed warning from an
+earlier crossing ends when the success photo opens. The mod message overlay does not repeat the photo text.
+
 ### 3.8 Bin counters
 
 The recount (`0x006010E0`, run after every milestone bank and speed trap completion) sets two u16 counters on the bin

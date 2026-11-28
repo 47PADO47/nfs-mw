@@ -138,6 +138,11 @@ failures, per-side damaged surface selection, hazard/indicator timing and exact
 optical equivalence remain separate parity gaps. Emergency modulation has its own
 evidence and installed-profile coverage.
 
+## In-game scenes
+
+Position the player's flares and projected light using the pose of the drawn car, including cinematic pitch
+and roll. Use the scene's headlight state for lit lamp meshes as well.
+
 ## Unwanted HUD streaks
 
 Remove the procedural radial UI overlay driven by pursuit effect strength.

@@ -80,6 +80,8 @@ fn a_new_career_starts_at_stage_16_with_no_cash() {
     assert_eq!(career.stage(), 16);
     assert_eq!(career.cash(), 0);
     assert_eq!(career.alias, "mwo");
+    assert_eq!(career.settings.sms.slots.iter().filter(|slot| slot.id != u8::MAX).count(), 95);
+    assert_eq!(career.settings.sms.counter, 0);
 }
 
 #[test]
@@ -274,4 +276,58 @@ fn batch18_failed_autosave_preference_write_keeps_the_previous_choice() {
     assert_eq!(career.autosave, before);
     assert_eq!(career.profile.to_bytes(), native);
     std::fs::remove_file(root).unwrap();
+}
+
+#[test]
+fn speed_camera_photo_autosave_restores_the_crossing_and_respects_the_profile_option() {
+    use crate::career::autosave::{AutosaveInputs, autosave};
+    use nfsmw_career::{milestones::speedtrap::unlock_bin, safehouse::FrontEndContext, savefile::Trigger};
+
+    let profiles = crate::career::ProfileDir::new(autosave_test_folder());
+    let mut career = Career::new("PHOTO", data_with_progress(), &NewCareer::default()).unwrap();
+    unlock_bin(&mut career.traps, 1);
+    career.traps[0].crossing(185.18);
+    let facts = AutosaveInputs {
+        context: FrontEndContext::CAREER,
+        node_id: None,
+        boss_race: false,
+        gameplay_idle: true,
+        profile_loaded: true,
+    };
+    career.autosave.option_on = false;
+    assert!(!autosave(&mut career, &profiles, Trigger::SpeedTrapPhotoAccepted, facts.clone()).unwrap());
+    assert!(!profiles.path("PHOTO").exists());
+    career.autosave.option_on = true;
+    assert!(autosave(&mut career, &profiles, Trigger::SpeedTrapPhotoAccepted, facts).unwrap());
+    let back = Career::from_profile_bytes("PHOTO", &profiles.read("PHOTO").unwrap(), data_with_progress()).unwrap();
+    assert_eq!(back.traps[0].flags(), 5);
+    assert_eq!(back.traps[0].recorded_mps(), career.traps[0].recorded_mps());
+    std::fs::remove_dir_all(profiles.root()).unwrap();
+}
+
+#[test]
+fn speed_camera_photo_statistic_survives_legacy_and_keyed_save_layouts() {
+    let data = data_with_progress();
+    let mut career = Career::new("PHOTO", data.clone(), &NewCareer::default()).unwrap();
+    let mut block = MilestoneBlock::from_bytes(&career.settings.gameplay_blob[..]).unwrap();
+    let mut nodes = block.stats().unwrap();
+    assert!(nodes.windows(2).all(|pair| pair[0].key < pair[1].key));
+    let speed = StatType::SpeedtrapSpeed;
+    assert_eq!(speed.key(), 0x9E3E_BB78);
+    for (node, stat) in nodes.iter_mut().zip(StatType::ALL) {
+        *node = nfsmw_career::save::milestones_block::StatNode::from_value(0, stat, StatValue::default());
+    }
+    nodes[speed.index()].best = Some(185.18);
+    block.set_stats(&nodes).unwrap();
+    block.refresh_digest();
+    block.write_into(&mut career.settings.gameplay_blob[..]).unwrap();
+    let (progress, _) = restored_progress(&career.settings, &data).unwrap();
+    assert_eq!(progress.stat(speed).best, Some(185.18));
+    career.milestones = progress;
+    let bytes = career.profile_bytes();
+    let restored = Career::from_profile_bytes("PHOTO", &bytes, data).unwrap();
+    let block = MilestoneBlock::from_bytes(&restored.settings.gameplay_blob[..]).unwrap();
+    let node = block.stats().unwrap().into_iter().find(|node| node.key == speed.key()).unwrap();
+    assert_eq!(node.best, Some(185.18));
+    assert_eq!(restored.milestones.stat(speed).best, node.best);
 }

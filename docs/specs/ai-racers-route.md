@@ -77,9 +77,15 @@ engine side of those two calls is not read.
 - A racer whose slot has no channel (more racers than the scene has cars) keeps its planned slot, below.
 - The intro still binds `car1` to the human. With a custom grid that moves the player, the channels' actors swap as in
   [race-presentation-followup.md](race-presentation-followup.md), and each physical slot keeps its own channel's end.
-- Not applied **[unconfirmed]**: boss races (the fifteen `IntroNisBL*` scenes end their cars up to 107 m from the start,
-  some turned 70 or 178 degrees, so their ends are not a grid in the data), rolling starts (`IntroNisDD` ends 64 m ahead
-  of the start) and the NIS shell. How the original stands those is not established.
+- The opening career race `16.1.0` rolls out of `IntroNisDD` on channels `car1` and `car2`. Sample the two authored
+  poses at scene vanish and take each speed from its motion over the preceding authored frame. Both channels extend
+  past the scene cut. The stock run hands into GO at roughly 33.3 m/s side by side. The remake stages the two cars on
+  the road at that cut and starts them rolling at GO, including when the intro is skipped. **[verified]** (stock
+  animation and telemetry; see [provenance](../provenance/race-mode.md#10-opening-dday-rolling-handoff)).
+  The race driver enters this handoff with its speed request and governor initialized from the carried speed.
+  Its first route goal is available before the first released physics tick.
+- Not applied **[unconfirmed]**: boss races, other rolling starts, and the NIS shell. How the original stands those
+  is not established.
 
 **The planned grid** (no intro NIS, and the slots a scene does not cover). The opponents line up behind and beside the
 start **[unconfirmed]** — the rewrite uses two columns 3.5 m apart and 7.5 m between rows, the player first, then the

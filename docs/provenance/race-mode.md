@@ -183,6 +183,20 @@ rank, `+0x14` rank among racers with a driver, `+0x18` percent complete (set to 
   `321_GO_GROUP` (fe-hash `0xA7B3AA16`) with the scripts `THREE`, `TWO` and `ONE` (1200 ms each: fade in 0 to 100 ms,
   hold, fade out 1100 to 1200 ms) and `GO` (3200 ms). Three number scripts started a second apart give the 3 s
   countdown **[inferred]**; `COUNTDOWN_SECS = 3.0` stays, now with this evidence.
+
+## 10. Opening D-Day rolling handoff
+
+In the stock PC `IntroNisDD`, scene vanish is frame 1290 at 30 Hz. The two car tracks extend to 45.067 s.
+The last archived native scene sample at scene time 42.9311 s places the two racers side by side near the exit.
+Over the preceding four seconds both cars move at about 33.3 m/s. The stock race starts at sim 43.605 s with
+both cars together, and the first post-GO sample (at +0.184 s) has speeds 33.67 and 33.60 m/s and a 3.04 m gap.
+The authored final-frame displacement agrees with that motion. The rolling start reader in section 9 retains a
+moving car's incoming speed before falling back to the race attribute. The cut pose and speed preserve this
+handoff for the single-player opening. Stage placement still uses the road surface for height and attitude.
+In a remake trace with only the physical handoff, the Mustang already carried 33.345 m/s on its first tick,
+but its controller asked for 0.533 m/s and full brake. The stock Mustang still carried 33.60 m/s at +0.184 s.
+The remake reinitializes the governor and request at the staged car's actual release speed, following the
+existing live-speed initialization of a driver that takes over a moving car.
 - **Gate half sizes:** see section 7; no executable reader of the dimensions was found, the evidence is the install.
 - **HUD objects** (fe-hash matches in `HUD_SingleRace.fng`): `321_GO_GROUP`, `POSITION_GROUP` (`0x0FC5B7A0`, two
   strings: place and racer count), `TIMER_ICON`, `CurrentLapTime` (`0x30D9802E`), the race information group

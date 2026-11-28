@@ -23,6 +23,8 @@ pub(super) struct CopManager {
     lockout: f32,
     /// A race with no police is on: no cop spawns or stays, and no lockout timer or 911 call lifts it.
     barred: bool,
+    /// A race script prevents new police while allowing existing vehicles to continue.
+    suppress_new: bool,
     no_spawn: Vec<TrackZone>,
     /// The free-roam 911 call (`roam.rs`).
     pub roam: roam::Roam911,
@@ -47,7 +49,19 @@ impl CopManager {
 
     /// Whether cops may spawn and stay (`VehicleSpawningEnabled`): false during the lockout.
     pub fn spawning_enabled(&self) -> bool {
+        !self.suppress_new && self.active_cops_allowed()
+    }
+
+    pub(super) fn active_cops_allowed(&self) -> bool {
         !self.barred && self.lockout <= 0.0
+    }
+
+    pub(super) fn new_pursuits_suppressed(&self) -> bool {
+        self.suppress_new
+    }
+
+    pub(super) fn suppress_new(&mut self, suppress: bool) {
+        self.suppress_new = suppress;
     }
 
     /// Keeps the cops out (`true`) for as long as a race with no police runs, or lets the lockout rule again (`false`).
@@ -72,6 +86,7 @@ impl CopManager {
     /// Clears the lockout: a chase starts (`LockoutCops(false)`).
     pub fn unlock(&mut self) {
         self.lockout = 0.0;
+        self.suppress_new = false;
     }
 
     /// Gives the camera eye the world's view has this tick (physics space): the spawn window of `CheckSpawnPosition` and
@@ -129,6 +144,19 @@ pub(super) fn square_zone(half: f32) -> TrackZone {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn script_suppression_blocks_new_police_until_reset_or_unlock() {
+        let mut cops = CopManager::default();
+        cops.suppress_new(true);
+        assert!(!cops.spawning_enabled());
+        assert!(cops.active_cops_allowed());
+        cops.suppress_new(false);
+        assert!(cops.spawning_enabled());
+        cops.suppress_new(true);
+        cops.unlock();
+        assert!(cops.spawning_enabled());
+    }
 
     fn square_around_zone_origin() -> TrackZone {
         square_zone(10.0)

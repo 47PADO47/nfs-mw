@@ -72,7 +72,11 @@ pub(super) fn wants_background(name: &str, in_game: bool) -> bool {
     if name.eq_ignore_ascii_case(NAME) || name.eq_ignore_ascii_case(screen::PHOTO) {
         return false;
     }
-    in_game || name.to_ascii_lowercase().starts_with("pause_")
+    in_game
+        || name.to_ascii_lowercase().starts_with("pause_")
+        || [screen::IN_GAME_REPUTATION_OVERVIEW, screen::IN_GAME_MILESTONES]
+            .iter()
+            .any(|package| name.eq_ignore_ascii_case(package))
 }
 
 /// Stretches the dim panel across a window wider than 4:3, as the original draws its whole 640 x 480 front end stretched

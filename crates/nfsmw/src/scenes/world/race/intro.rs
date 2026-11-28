@@ -307,12 +307,28 @@ impl WorldScene {
                 .unwrap_or("GenericStart");
             self.nis.begin_countdown_audio(scene);
         }
+        let opening_roll = session.plan.first().and_then(|player| player.rolling_speed);
+        if let Some(speed) = opening_roll
+            && let Some(player) = self.players.lead_mut()
+        {
+            player.roll_from_grid(speed);
+        }
+        if let Some(traffic) = self.traffic.as_mut() {
+            for (id, plan) in session.plan.iter().enumerate().skip(1) {
+                if let Some(speed) = plan.rolling_speed {
+                    traffic.roll_racer_from_grid(id, speed);
+                }
+            }
+        }
         let Some(engine) = session.engine.as_mut() else { return };
         let started = match rolling {
             true => engine.start_now(),
             false => engine.begin_countdown(),
         };
         session.stage = Stage::Running;
+        if opening_roll.is_some() {
+            self.race_goals(session);
+        }
         let line = serde_json::json!({"event": session.event, "rolling": rolling});
         crate::parity::career_trace::record("race_countdown", line);
         self.race_events(session, started);

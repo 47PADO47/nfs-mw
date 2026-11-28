@@ -86,6 +86,7 @@ impl Frame {
             "pause_options.fng" | "pause_pc_controller.fng" | "postrace_milestonerewards.fng" | "sms_mailboxes.fng" => {
                 (0xB3A6_9E89, 0x81B4_FAD0)
             }
+            "ingamereputationoverview.fng" | "ingamemilestones.fng" => (0xB3A6_9E89, 0x81B4_FAD0),
             "options.fng" | "ea_trax_jukebox.fng" | "challengeseries.fng" => (0x84BC_F2B5, 0x3D3B_C1AC),
             "safehousereputationoverview.fng"
             | "safehouseracesheet.fng"

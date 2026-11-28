@@ -28,6 +28,11 @@ const OVERLAP_MARGIN: f32 = 2.0;
 const START_LOOK_AHEAD: f32 = 30.0;
 
 impl TrafficWorld {
+    /// Changes the race script's new-pursuit and spawn gate without ending a chase.
+    pub(in crate::scenes::world) fn suppress_new_cops(&mut self, suppress: bool) {
+        self.cops.suppress_new(suppress);
+    }
+
     /// An explicit chase request starts the pursuit once its car can be placed, without an offence or sighting.
     pub(super) fn requested_chase_ready(
         &self,
@@ -124,7 +129,7 @@ impl TrafficWorld {
 
     /// Step 7 of the manager's run: tries queued requests in order. A chase request waits for scene pursuit construction.
     pub(super) fn service_spawn_requests(&mut self, focus: Focus, collision: &CollisionWorld, surfaces: &SurfaceTable) {
-        if self.world_moment {
+        if self.world_moment || self.cops.new_pursuits_suppressed() {
             return;
         }
         if self.cops.requests.is_empty() {
@@ -158,6 +163,14 @@ impl TrafficWorld {
         }
         let Some(car) = self.build_requested_car(request, collision, surfaces) else { return false };
         log::info!("cop manager: {} placed by a spawn request as {:?}", car.name, request.role);
+        crate::parity::career_trace::record(
+            "cop_request_placed",
+            serde_json::json!({
+                "model": car.name.as_str(),
+                "role": format!("{:?}", request.role),
+                "position": car.physics_position().to_array(),
+            }),
+        );
         let cooldown = self.police.cooldown_status() == blackbox_pursuit::CooldownStatus::CoolDown;
         if request.role == RequestRole::Chase
             && let Some(pursuit) = self.pursuit.as_mut()

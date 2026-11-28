@@ -48,6 +48,14 @@ no keyboard button for the marker). Every other screen keeps the host's hint row
 | `SMS_MailBoxes.fng` | Read `0x9502D148` / `0x23AFB3F6` accept; Done `0x523250E9` / `0x1C7FCF8B` back; Delete `0xC1C190EB` / `0xD18B818D` button 5 |
 | `Car_Select.fng` | Back `0xC0A32823` / `0x02DDF58C`; Accept `0x73DCB662` / `0x7379349B`; Showcase `0x18A4384F` / `0x4B890CDB` button 3; unused Sell `0xD6463100` / `0xD42F677B`, Load Cars `0x5F34A28C` |
 
+The first-car lot uses the package's authored `POS2` footer layout. Back moves below the screen and Accept moves
+into the left slot. Showcase keeps its position. See
+[provenance](../provenance/fe-package-footer.md#first-car-lot-layout).
+
+The first rival bio uses the package's Continue footer. The keyboard root `0xDDE3DB34` has the PC Enter icon.
+The pad root `0x1E617016` supplies the Continue caption and the bound Accept glyph. Its root lacks the ordinary
+pad-only flag, so the presentation explicitly filters both roots by device and keeps their authored animations.
+
 ## 2. The dim panel under screens opened over the game
 
 **[exe]** The in-game push of a screen takes a flag that skips the panel. While the game runs (game flow state 6), a
@@ -85,9 +93,12 @@ covers it).
   the screen. **[live, 1 run]** The call was queued 0.43 s after the screen was built, while it was up. There is no
   Accept branch: the message `0xD05FC3A3` the handler answers is the Yes of its delete question (it empties the slot and
   sends Back to the package). Accept on the focused Done button goes through the package's Done button.
-- **The remake.** The message is marked read and the voice queued on the init message; the speech queue runs while a
-  message screen is up although the game is paused, so the voice sounds at once, and the line stops when the screen
-  closes.
+- **Message transition [install data].** The entry script enables input and sends `INIT_COMPLETE` at tick 500.
+  Back and Done run the same 500-tick exit script. It disables input and restores the covered inbox's controls
+  at its start, then sends `EXIT_COMPLETE` at the end.
+- **The remake.** The package controls input during entry and exit. The message is marked read and the voice queued
+  on the init message. The speech queue runs while the game is paused and the message is up. On exit, the line stops
+  when the package reports completion and the screen closes.
 - **Scroll bar [live, 2 messages].** While the body fits the window the original keeps the scroll bar's thumb
   `0x3FBB7A4E` and track `0x688A1551` on the package's `HIDE` script (alpha 0). The remake runs `HIDE` on both while the
   body fits and `SHOW` for a longer body.
@@ -109,6 +120,11 @@ The inbox sends `HIDE_INCOMING` to itself under two global conditions (not read 
 **The remake.** The delivery opens the inbox with the message pending; the inbox opens it on its init message after
 running `READ`, as above. Done returns to the inbox, whose Back resumes driving.
 
+**[exe + install data]** If the constructor receives a message slot, it skips the ordinary inbox panel reveal.
+The list panel remains on its default transparent script while the inbox header appears and while the reader
+is on top. The reader's exit restores the panel and list. The remake leaves the panel hidden for automatic
+delivery and runs the ordinary reveal when the player opens the inbox directly.
+
 **[exe]** The HUD's pad handler, outside races, opens the inbox (`SMS_MailBoxes.fng`, the list) on its right pad action
 (`HUDACTION_PAD_RIGHT`); its left action opens the world map, its down action the race sheet. The default keyboard table
 gives these actions the scan codes `0x0F` (Tab), `0x32` (M) and `0x30` (B). **[live, 1 run]** The pad's d-pad right in
@@ -126,6 +142,9 @@ The cash line reads `CASH: 10,000` (the word, a colon, the amount with thousands
 (Race Stats), 1 the Restart question. On a pad the owner's pictures of the original (modded install, Xbox pad) show
 button 4 as X and button 5 as Y (Restart, Delete); the remake binds menu button 1 (button 5) to Y first, the left
 shoulder second. The footer container keeps its first script (no other is run on it).
+
+On the pad, the offset dark Race Stats shadow draws behind the light caption. The installed PC package gives
+both strings the same depth, so the display order decides which is visible at overlapping pixels.
 
 ## 6. Open questions
 

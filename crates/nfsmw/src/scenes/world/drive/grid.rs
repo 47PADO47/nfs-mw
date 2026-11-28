@@ -33,6 +33,16 @@ impl Drive {
         self.sim.as_mut().is_some_and(|sim| sim.launch_from_grid())
     }
 
+    /// Releases the rolling opening without awarding a standing launch.
+    pub(in crate::scenes::world) fn roll_from_grid(&mut self, speed: f32) {
+        self.hold_on_grid(false);
+        if let Some(sim) = self.sim.as_mut() {
+            sim.roll_from_grid(speed);
+            self.telemetry = sim.telemetry();
+            self.gauges.snap(sim.gauge_sample());
+        }
+    }
+
     /// Sets the point the car steers at by itself (physics space), or clears it. While it is set, the car's steering
     /// follows the point above 1 m/s and the player's own steering is ignored (`docs/specs/race-mode.md` section 8).
     pub fn set_steer_assist(&mut self, aim: Option<glam::Vec3>) {

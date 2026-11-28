@@ -15,6 +15,14 @@ impl Pausable {
         self.conceal.get()
     }
 
+    /// The world that can supply reports to the visible front end.
+    pub(super) fn visible_scene(&mut self) -> Option<&mut dyn Scene> {
+        if self.concealed() {
+            return None;
+        }
+        Some(self.inner.as_mut())
+    }
+
     pub(super) fn advance_scene(&mut self, renderer: &mut dyn RenderBackend, input: &ActionState, dt: f32) {
         self.presentation_changed = false;
         // A multiplayer client's world never stops (the server does not pause): it runs on under the menu with

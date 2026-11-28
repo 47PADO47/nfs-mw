@@ -6,12 +6,14 @@
 //! and dropped when the [`Key`] of those inputs changes. The key is read from the career each frame (one lock, fifteen
 //! bin lookups), so a change anywhere in the career is seen without every mutation site having to announce it.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
-use nfsmw_career::blacklist::BinState;
+use nfsmw_career::blacklist::{BinState, Blacklist};
+use nfsmw_data::gameplay::{GameplayData, Race};
 
 use super::events::{LAST_BIN, RaceEntry, race_entry};
-use crate::career::event_id;
+use super::ladder::{is_side_event, side_locked};
+use crate::career::race_event_id;
 use crate::scenes::world::WorldScene;
 
 /// The inputs of a lock the career can change: the state of each bin (0 not entered, 1 locked, 2 unlocked, 3 done) and
@@ -64,6 +66,24 @@ fn bin_code(state: Option<BinState>) -> u8 {
     }
 }
 
+/// Installed roaming entries are authored engage targets. Stored event IDs distinguish reverse courses.
+pub(super) fn roaming_entry(
+    data: &GameplayData,
+    blacklist: &Blacklist,
+    side_won: &BTreeSet<String>,
+    race: &Race,
+) -> RaceEntry {
+    if !data.engages.is_empty() && !data.engages.iter().any(|entry| entry.target == race.key) {
+        return RaceEntry::Locked;
+    }
+    let event = race_event_id(race);
+    match race_entry(blacklist, &event) {
+        RaceEntry::NotCareer if is_side_event(&event) && !side_locked(data, side_won, &event) => RaceEntry::NotCareer,
+        RaceEntry::NotCareer => RaceEntry::Locked,
+        entry => entry,
+    }
+}
+
 impl WorldScene {
     /// Ties the kept locks to the career as it is now. Called once a frame before the locks are asked for.
     pub(in crate::scenes::world) fn refresh_race_locks(&self) {
@@ -85,26 +105,32 @@ impl WorldScene {
         if let Some(locked) = kept {
             return locked;
         }
-        let locked = self.race_locked_now(name);
+        let locked = self.roaming_entry(name) == RaceEntry::Locked;
         self.career.locks.borrow_mut().remember(name, locked);
         locked
     }
 
-    /// [`Self::career_race_locked`] worked out from the career.
-    fn race_locked_now(&self, name: &str) -> bool {
-        let event = event_id(name);
-        let Some(blacklisted) =
-            self.career.handle.with(|career| race_entry(&career.blacklist, &event) == RaceEntry::Locked)
-        else {
-            return false;
-        };
-        blacklisted || self.side_race_locked(&event)
+    /// A rival's authored road entry uses a separate stock map icon type.
+    pub(in crate::scenes::world) fn ordinary_race_marker(&self, name: &str) -> bool {
+        !self.career_race_locked(name) && !(self.entry.zones.rivals.contains(name) && self.career.handle.is_active())
+    }
+
+    pub(super) fn roaming_entry(&self, name: &str) -> RaceEntry {
+        self.career
+            .handle
+            .with(|career| {
+                let Some(data) = self.gameplay.as_ref() else { return RaceEntry::Locked };
+                let Some(race) = data.race_named(name) else { return RaceEntry::Locked };
+                roaming_entry(data, &career.blacklist, &self.career.side_won, race)
+            })
+            .unwrap_or(RaceEntry::NotCareer)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nfsmw_data::gameplay::{EngageMarker, RaceParams};
 
     fn key(side_won: usize) -> Option<Key> {
         Some(Key { bins: [0; LAST_BIN as usize], side_won })
@@ -144,5 +170,50 @@ mod tests {
             bin_code(Some(BinState::Done)),
         ];
         assert_eq!(codes, [0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn authored_side_entries_keep_their_unlock_ladder() {
+        use nfsmw_career::blacklist::BinDef;
+
+        let blacklist = Blacklist::new(
+            (1..=15)
+                .map(|number| BinDef {
+                    number,
+                    races: Vec::new(),
+                    races_needed: 0,
+                    challenges_needed: 0,
+                    bounty_needed: 0,
+                    rival_events: Vec::new(),
+                })
+                .collect(),
+            15,
+        )
+        .unwrap();
+        let side = |key, event: &str, initially_unlocked, unlock_races| Race {
+            key,
+            name: format!("authored_bonus_{key}"),
+            event_icon: String::new(),
+            race_type: None,
+            event: Some(event.to_owned()),
+            region: None,
+            laps: 1,
+            start: None,
+            finish: None,
+            checkpoints: Vec::new(),
+            barriers: Vec::new(),
+            params: RaceParams { initially_unlocked, unlock_races, ..Default::default() },
+            story: Default::default(),
+        };
+        let data = GameplayData {
+            races: vec![side(1, "21.1.1", true, vec![2]), side(2, "21.2.1", false, Vec::new())],
+            engages: (1..=2).map(|target| EngageMarker { target, position: glam::Vec3::ZERO, radius: 4.0 }).collect(),
+            ..Default::default()
+        };
+        let mut won = BTreeSet::new();
+        assert_eq!(roaming_entry(&data, &blacklist, &won, &data.races[0]), RaceEntry::NotCareer);
+        assert_eq!(roaming_entry(&data, &blacklist, &won, &data.races[1]), RaceEntry::Locked);
+        won.insert("21.1.1".to_owned());
+        assert_eq!(roaming_entry(&data, &blacklist, &won, &data.races[1]), RaceEntry::NotCareer);
     }
 }

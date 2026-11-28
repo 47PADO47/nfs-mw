@@ -5,6 +5,13 @@ use blackbox_vehicle::LaunchConfig;
 use super::CarSim;
 
 impl CarSim {
+    /// Begins the authored roll from the car's staged, road-aligned pose.
+    pub(in crate::scenes::world) fn roll_from_grid(&mut self, speed: f32) {
+        let position = self.vehicle.position();
+        let orientation = self.vehicle.body().orientation;
+        self.vehicle.place_moving(position, orientation, speed);
+    }
+
     pub(in crate::scenes::world::drive) fn staged_launch_band(&self) -> Option<(f32, f32)> {
         self.vehicle.staged_launch_band()
     }

@@ -108,3 +108,7 @@ red flare smoke behind it. `--exec "race start 10_2_1_sprint"` followed by `--ex
 spot before the finish line) shows the two red flares at the road edges. A drag race (`1_7_3_drag`) takes the yellow
 cracked backdrop. (The console's `race` command only runs once the scene exists: a `wait` of ten seconds or more comes
 first.)
+
+On a circuit the finish line can also frame the starting grid. Advance its installed flare emitters during the
+prerace scene so that smoke can rise during the approach and lineup. Gameplay pause and post-race screens
+still hold the effect.

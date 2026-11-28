@@ -10,6 +10,10 @@ use super::{CarPose, Drive};
 const MAX_SCENE_SPEED: f32 = 120.0;
 
 impl Drive {
+    pub(in crate::scenes::world) fn scene_treads(&self, pose: CarPose) -> Option<([Vec3; 4], f32, bool)> {
+        Some(self.rig.scene_treads(self.sim()?, pose))
+    }
+
     /// Sets the pose a NIS scene gives the car, or clears it with `None`: the car then draws its physics pose again.
     pub fn set_nis_pose(&mut self, pose: Option<CarPose>) {
         self.nis_pose = pose;

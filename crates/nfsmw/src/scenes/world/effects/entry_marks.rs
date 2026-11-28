@@ -11,6 +11,8 @@ use super::super::resident::SectionResources;
 
 pub(in crate::scenes::world) const DRAW_RANGE: f32 = 250.0;
 const ID_NAMESPACE: usize = usize::MAX - 1;
+// Trap indexes occupy the upper half of the shared activity icon key space.
+const CAMERA_ID_BASE: usize = 1 << 31;
 
 #[derive(Clone, Copy)]
 struct Icon {
@@ -39,6 +41,8 @@ fn icon(kind: ZoneKind, race: Option<RaceType>) -> Option<Icon> {
 const HIDDEN: Icon = Icon { model: "CHECKPOINT_GEOMETRY_HIDECAR_00", group: "fxgame_icongrp_hidecar" };
 const RIVAL: Icon = Icon { model: "CHECKPOINT_GEOMETRY_RIVAL_00", group: "fxgame_icongrp_rivalr" };
 
+const SPEED_CAMERA: Icon = Icon { model: "CHECKPOINT_GEOMETRY_SHORT_ORANGE_00", group: "fxgame_icongrp_speedt" };
+
 impl super::super::WorldScene {
     pub(in crate::scenes::world) fn activity_icons(&self, camera: Vec3) -> Vec<VisibleIcon> {
         let car = self.players.lead().map_or(camera, |drive| drive.position());
@@ -57,6 +61,9 @@ impl super::super::WorldScene {
             item.kind.is_none_or(|kind| entry_visible(kind, pursuing, cooldown))
                 && unlocked(item.unlock_bin, current_bin)
         });
+        if entries {
+            self.append_speed_camera_icons(car, &mut icons);
+        }
         for item in &mut icons {
             let p = item.position;
             if !needs_ground_snap(p) {
@@ -69,6 +76,27 @@ impl super::super::WorldScene {
             }
         }
         icons
+    }
+
+    fn append_speed_camera_icons(&self, car: Vec3, out: &mut Vec<VisibleIcon>) {
+        let Some(data) = &self.gameplay else { return };
+        self.career.handle.with(|career| {
+            for (index, trap) in data.speed_traps.iter().enumerate() {
+                let Some(position) = trap.position else { continue };
+                let position = super::super::space::to_render(position.to_array());
+                if position.distance_squared(car) <= DRAW_RANGE * DRAW_RANGE
+                    && career.traps.iter().any(|state| state.key() == trap.key && state.is_active())
+                {
+                    out.push(VisibleIcon {
+                        id: CAMERA_ID_BASE + index,
+                        position,
+                        icon: SPEED_CAMERA,
+                        kind: None,
+                        unlock_bin: None,
+                    });
+                }
+            }
+        });
     }
 }
 
@@ -263,6 +291,62 @@ mod tests {
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].mesh, mesh);
         assert_eq!(out[0].transform.w_axis.truncate(), Vec3::X);
+    }
+
+    #[test]
+    #[ignore = "needs installed bin 15 camera and world data"]
+    fn installed_milestone_camera_world_marker_tracks_bin_15_availability() {
+        use super::super::super::{Options, WorldScene};
+        use crate::career::{Career, CareerData, CareerHandle};
+        use nfsmw_career::blacklist::enter_first_bin;
+
+        let dir = game_install::GameDir::open(std::env::var_os("NFSMW_GAME_DIR").unwrap()).unwrap();
+        let data = CareerData::cached(&dir).unwrap();
+        let career = Career::new("CAMERA", data, &Default::default()).unwrap();
+        let key = career.traps.iter().find(|trap| trap.bin() == 15).unwrap().key();
+        assert_eq!(key, 0xa3d3f573);
+        let handle = CareerHandle::default();
+        handle.set(career);
+        let mut scene = WorldScene::open(
+            &dir,
+            Options {
+                at: None,
+                height: 40.0,
+                heading: 0.0,
+                pitch: 0.0,
+                fog_distance: 1500.0,
+                wait_for_load: false,
+                drive: None,
+            },
+        )
+        .unwrap();
+        let record = scene.gameplay.as_ref().unwrap().speed_traps.iter().find(|trap| trap.key == key).unwrap();
+        let raw = record.position.unwrap();
+        let position = Vec3::new(raw.z, -raw.x, raw.y);
+        let visible = |scene: &WorldScene, camera| {
+            scene.activity_icons(camera).into_iter().find(|icon| icon.id >= CAMERA_ID_BASE)
+        };
+
+        assert!(visible(&scene, position).is_none(), "no career");
+        scene.set_career(handle.clone(), None);
+        assert!(visible(&scene, position).is_none(), "unarmed");
+        handle.with(|career| {
+            enter_first_bin(&mut career.settings, &mut career.blacklist, &mut career.milestones, &mut career.traps);
+        });
+        let marker = visible(&scene, position).unwrap();
+        assert_eq!(marker.position, position);
+        assert_eq!(bstring_hash(marker.icon.model), 0xc1fd605b);
+        assert_eq!(vlt_hash(marker.icon.group), 0x60bb33ec);
+        assert_eq!(visible(&scene, position + Vec3::X).unwrap().id, marker.id);
+        let effects = placements(std::slice::from_ref(&marker));
+        assert_eq!(effects[0].0, (ID_NAMESPACE, marker.id));
+        assert_eq!(effects[0].1.matrix[12..15], position.to_array());
+        assert!(visible(&scene, position + Vec3::X * (DRAW_RANGE + 1.0)).is_none(), "out of range");
+        handle.with(|career| {
+            let trap = career.traps.iter_mut().find(|trap| trap.key() == key).unwrap();
+            let _ = trap.crossing(f32::from(trap.threshold_kmh()) + 1.0);
+        });
+        assert!(visible(&scene, position).is_none(), "completed");
     }
 
     #[test]

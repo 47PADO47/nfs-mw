@@ -11,6 +11,19 @@ use blackbox_vehicle::vehicle::SimpleChassisConfig;
 pub(super) type Saved = (ControlConfig, Option<SimpleChassisConfig>, bool);
 
 impl super::CarSim {
+    /// Place a scene-owned car from its animated model origin and carry the channel's velocity into physics.
+    pub(in crate::scenes::world) fn place_scene_body(
+        &mut self,
+        origin: glam::Vec3,
+        orientation: glam::Quat,
+        velocity: glam::Vec3,
+    ) {
+        let position = origin + orientation * self.pivot;
+        self.vehicle.place_moving(position, orientation, velocity.dot(orientation * glam::Vec3::Z));
+        self.vehicle.body_mut().linear_velocity = velocity;
+        self.previous_contact_pose = (position, orientation);
+    }
+
     pub fn cinematic_control(&mut self, active: bool) {
         if active {
             if self.cinematic_controls.is_none() {

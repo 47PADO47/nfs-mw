@@ -126,6 +126,8 @@ pub enum Command {
     },
     /// Close the pause menu and go on driving.
     Resume,
+    /// Resume driving and request the speed camera photo autosave.
+    AcceptTrapPhoto,
     /// End co-op from the pause menu: player 2's car leaves the world, then the game goes on for player 1 alone.
     EndCoop,
     /// The first car is picked in the car lot: start the drive to the first safe house in the world with it (`flow_prologue.rs`).
@@ -173,6 +175,10 @@ pub enum Command {
     },
     /// The milestones or bounty sheet, answered Yes: the world starts with the car at this marker (`flow_rival.rs`).
     JumpTo(crate::career::JumpPoint),
+    /// Jump from the milestones sheet after showing its one-time tutorial.
+    JumpFromMilestones(crate::career::JumpPoint),
+    /// Close the Engage Mechanic tip and play the first safe-house movie.
+    ContinueFirstSafeHouse,
     /// The Blacklist sequence goes on from this stepper state: one call of the stepper and the screen or movie it names
     /// (`flow_first_visit.rs`).
     BlacklistStep(BlacklistStepper),

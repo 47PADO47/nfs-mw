@@ -19,7 +19,7 @@ impl WorldScene {
             return data.markers.iter().filter(|marker| marker.name == FIRST_SAFE_HOUSE).map(place_marker).collect();
         }
         self.refresh_race_locks();
-        let races = data.races.iter().filter_map(|race| race_marker(race, !self.career_race_locked(&race.name)));
+        let races = data.races.iter().filter_map(|race| race_marker(race, self.ordinary_race_marker(&race.name)));
         races.chain(data.markers.iter().map(place_marker)).collect()
     }
 }

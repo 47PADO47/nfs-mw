@@ -164,6 +164,9 @@ fn installed_race_play_path_win_opens_photo_on_the_next_update() {
     assert!(scene.photo_lens(16.0 / 9.0).is_some());
 }
 
+#[path = "installed_dday_radio.rs"]
+mod dday_radio;
+
 #[test]
 #[ignore = "needs installed cars, scene bundles, roads and world collision"]
 fn installed_custom_race_intro_and_police_off_with_traffic() {

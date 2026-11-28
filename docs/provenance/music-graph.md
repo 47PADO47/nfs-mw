@@ -44,6 +44,14 @@
   - The radio is a game-side decision of this project in two places: it stops when driving ends, and `radio next`
     works outside the game (the original has a front end where the same thing happens).
 
+## In-game licensed track eligibility
+
+Read in the unmodded PC 1.3 executable (SHA-256 prefix `80774c2e`). The licensed-track state test
+(`SFXObj_PFEATrax::TestToLicensed`, `0x004DF490`) checks that the current race parameters are loaded.
+It rejects licensed tracks when `GRaceParameters::GetIsDDayRace` (`0x005FBD20`) reports a D-Day race.
+That query reads the matched race's authored `DDayRace` field or the saved parameters' equivalent flag.
+This check is separate from soundtrack starts for ambience or interactive music.
+
 ## Song table
 
 Order of the `PFMapping` array (the bit number of a song); `DefPlay` is `FE` (menus), `IG` (in game) or `AL` (both); "start" is the song's first node, "streams" the length of its chain, "secs" the sum of the stored

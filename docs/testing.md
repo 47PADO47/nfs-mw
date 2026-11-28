@@ -424,6 +424,7 @@ lines in a row can share a `sim_time`.
 | `boot_step` | `step`: a boot movie or the title screen |
 | `movie_start`, `movie_end`, `movie_missing` | `movie`; `player` (`front_end` over the menus, `world` over a race); `how` (`finished`, `skipped`, `stopped`) |
 | `nis_start`, `nis_failed`, `nis_end` | `scene`, `track`, `error`; `outcome` at the end |
+| `nis_sample` | Opening scenes `IntroNisDD` and `IntroNis10` at most once per half-second of scene time. Includes `scene_time`, `elapsed`, the drawn `camera`, and car `channels` with authored and drawn poses, linked target and motion mode. |
 | `message_card` | `id`, `label` (language hash) and `text` of a race's message card |
 | `career_new`, `career_resume` | a new career (`alias`) or Resume Career |
 | `career_race_request` | the front end starts a career race behind the loading screen: `event`, `car` |

@@ -2,7 +2,7 @@
 //! scene frame with what the scene data asks for next to what the frame draws. The frames after a scene's end are
 //! captured too (`<scene>-end-<n>.png`), to show the hand-over to the race.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use glam::{Quat, Vec3};
 use serde_json::{Value, json};
@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use super::cars::Target;
 use super::player::SCENE_FPS;
 use super::player::capture_api::SceneNow;
-use crate::parity::nis_capture;
+use crate::parity::{career_trace, nis_capture};
 use crate::scenes::world::WorldScene;
 use crate::scenes::world::scene_space::place_on_car;
 use crate::viewer::camera::Lens;
@@ -32,6 +32,24 @@ struct Last {
 
 thread_local! {
     static LAST: RefCell<Last> = RefCell::new(Last::default());
+    static CAREER_SAMPLE: Cell<Option<(OpeningScene, u32)>> = const { Cell::new(None) };
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OpeningScene {
+    DDay,
+    RollingStart,
+}
+
+fn career_sample_key(name: &str, time: f32) -> Option<(OpeningScene, u32)> {
+    let scene = if name.eq_ignore_ascii_case("IntroNisDD") {
+        OpeningScene::DDay
+    } else if name.eq_ignore_ascii_case("IntroNis10") {
+        OpeningScene::RollingStart
+    } else {
+        return None;
+    };
+    Some((scene, (time * 2.0).floor() as u32))
 }
 
 impl WorldScene {
@@ -63,6 +81,9 @@ impl WorldScene {
 
     /// Records the frame being built with the lens `lens`, and asks for its picture every so many scene frames.
     pub(in crate::scenes::world) fn record_nis_frame(&self, lens: &Lens, aspect: f32) {
+        if career_trace::enabled() {
+            self.record_opening_sample(lens);
+        }
         if !nis_capture::enabled() {
             return;
         }
@@ -87,6 +108,40 @@ impl WorldScene {
         }
         let line = self.frame_line(&now, lens, aspect, shot);
         nis_capture::record(&line);
+    }
+
+    fn record_opening_sample(&self, lens: &Lens) {
+        let key =
+            self.nis.playing_name().zip(self.nis.scene_time()).and_then(|(name, time)| career_sample_key(name, time));
+        let previous = CAREER_SAMPLE.with(|last| last.replace(key));
+        if key.is_none() || key == previous {
+            return;
+        }
+        let Some(now) = self.nis.capture_now() else { return };
+        let channels: Vec<_> = now
+            .channels
+            .iter()
+            .map(|channel| {
+                let drawn = channel.target.and_then(|target| self.drawn_pose(target));
+                json!({
+                    "channel": channel_name(channel.slot),
+                    "target": channel.target.map(|target| format!("{target:?}")),
+                    "motion": channel.motion,
+                    "scene": pose_json(channel.spot.position, channel.spot.rotation),
+                    "drawn": drawn.map(|(position, rotation)| pose_json(position, rotation)),
+                })
+            })
+            .collect();
+        career_trace::record(
+            "nis_sample",
+            json!({
+                "scene": now.name,
+                "scene_time": round(now.scene_time),
+                "elapsed": round(now.elapsed),
+                "camera": lens_json(lens),
+                "channels": channels,
+            }),
+        );
     }
 
     /// The frames after a captured scene's end: [`AFTER_END_SHOTS`] of them, [`AFTER_END_STEP`] drawn frames apart.
@@ -130,6 +185,8 @@ impl WorldScene {
                     "drawn": drawn.map(|(position, rotation)| pose_json(position, rotation)),
                     "lift": drawn.map(|(position, _)| round(position.z - channel.spot.position.z)),
                     "speed": speed.map(round),
+                    "treads": channel.target.and_then(|t| self.tread_sample(t)),
+                    "motion": channel.motion,
                     "clip_end": round(channel.clip_end),
                 })
             })
@@ -148,6 +205,13 @@ impl WorldScene {
                 "letterbox": round(sample.letterbox),
             })
         });
+        let mut staged = self.nis.car_spots();
+        let linked = staged.len();
+        self.stage_extra_intro_cars(&mut staged);
+        let extras: Vec<_> = staged[linked..]
+            .iter()
+            .map(|(t, _)| json!({"target":format!("{t:?}"),"treads":self.tread_sample(*t)}))
+            .collect();
         let scene_lens = self.nis.lens(aspect).map(|lens| lens_json(&lens));
         json!({
             "kind": "frame",
@@ -160,8 +224,30 @@ impl WorldScene {
             "anchor": {"origin": v3(now.anchor.origin), "turn_deg": round(f32::from(now.anchor.turn) / 65536.0 * 360.0)},
             "camera": {"track": track, "scene_lens": scene_lens, "used": lens_json(lens)},
             "channels": channels,
+            "extra_grid": extras,
             "others": self.nearby_cars(Some(lens.position), &taken),
         })
+    }
+
+    /// Vertical gaps at the displayed tread positions, queried only for a requested frame trace.
+    fn tread_sample(&self, target: Target) -> Option<Value> {
+        let (pose, model) = match target {
+            Target::Player => {
+                let car = self.players.lead()?;
+                (car.render_pose(), car.car_name.as_str())
+            }
+            Target::Traffic(i) | Target::Spawned(i) => {
+                let traffic = self.traffic.as_ref()?;
+                (traffic.car_render_pose(i)?, traffic.scene_model_name(i)?)
+            }
+        };
+        let (points, scale, visual) = self.target_treads(target)?;
+        let gaps = std::array::from_fn::<_, 4, _>(|i| {
+            let p = pose.position + pose.rotation * (points[i] + Vec3::Z * (pose.wheels[i].travel * scale));
+            super::super::space::ground_below(self.residency.collision(), p.x, p.y, p.z + 1.5, p.z - 8.0)
+                .map(|h| round(p.z - h))
+        });
+        Some(json!({"model":model,"mesh_treads":visual,"gap_m":gaps}))
     }
 
     /// Where the car of `target` is drawn now.
@@ -215,4 +301,19 @@ fn pose_json(position: Vec3, rotation: Quat) -> Value {
 
 fn lens_json(lens: &Lens) -> Value {
     json!({"position": v3(lens.position), "forward": v3(lens.forward), "fov_y_deg": round(lens.fov_y_degrees)})
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn career_opening_samples_use_half_second_scene_time_buckets() {
+        let origin = career_sample_key("IntroNisDD", 0.0);
+        assert!(origin.is_some());
+        assert!(origin == career_sample_key("intronisdd", 0.499));
+        assert!(origin != career_sample_key("IntroNisDD", 0.5));
+        assert!(origin != career_sample_key("IntroNis10", 0.0));
+        assert!(career_sample_key("IntroNis11", 0.0).is_none());
+    }
 }

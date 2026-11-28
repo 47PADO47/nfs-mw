@@ -42,7 +42,7 @@ impl Drive {
                     car: crate::scenes::world::keys::PLAYER_CAR,
                     nos_lamps: !dark && self.nos_glow() > 0.0,
                     lamps: [
-                        self.headlights && !dark,
+                        self.nis_headlights.unwrap_or(self.headlights) && !dark,
                         LampState { brake: self.brake_lamp, broken: sim.lamp_damage(), dark, ..Default::default() }
                             .brake_surfaces_on(),
                     ],

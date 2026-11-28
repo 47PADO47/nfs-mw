@@ -227,15 +227,11 @@ pub struct Drive {
 }
 
 impl Drive {
-    /// Who changes gear from now on (the transmission setting).
     /// The map position residency should follow, if the car is not on the road yet.
     pub fn waiting_for_road(&self) -> Option<SpawnRequest> {
         self.request
     }
 
-    /// Heading of the car, radians from +X.
-    /// The car's lamps, with the car frame and brake pedal they are drawn with (copied, so the caller can hold
-    /// the effect layer meanwhile).
     /// The car's lamps, with the car frame and what lights them. Copied, so the caller can hold the effect layer.
     pub fn lamp_source(&self) -> (CarLights, super::car_light_flares::CarLightFlares, Mat4, LampState) {
         let dark = self.lights_dark();
@@ -253,7 +249,8 @@ impl Drive {
             dark,
             time: self.lamp_time,
         };
-        (self.rig.lights().clone(), self.rig.flares().clone(), self.pose().transform(), state)
+        let frame = self.render_pose().transform() * Mat4::from_quat(self.nis_body_tilt);
+        (self.rig.lights().clone(), self.rig.flares().clone(), frame, state)
     }
 
     /// The player car's model scale (`CarScale`).

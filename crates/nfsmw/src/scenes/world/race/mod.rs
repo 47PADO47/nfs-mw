@@ -44,6 +44,7 @@ mod setup;
 mod setup_course_tests;
 pub(in crate::scenes::world) mod shortcuts;
 mod split;
+pub(in crate::scenes::world) mod sprint_police;
 mod start;
 mod startable;
 #[cfg(test)]
@@ -136,6 +137,8 @@ pub(super) struct RacerPlan {
     /// The `pvehicle` name of the car; `None` for the player.
     pub model: Option<String>,
     pub spawn: Spawn,
+    /// The authored rolling speed to apply when the opening NIS hands the car back.
+    pub rolling_speed: Option<f32>,
     /// Physical grid position; racer ID zero remains the player.
     pub grid_slot: usize,
     pub skill: f32,
@@ -259,6 +262,12 @@ impl crate::scenes::world::WorldScene {
     pub(in crate::scenes::world) fn bars_cops_in(&self, session: &RaceSession) -> bool {
         if session.event == scripted_chase::CHASE_EVENT {
             return self.career.chase.as_ref().is_none_or(|run| !run.cops_allowed());
+        }
+        if session.options.career
+            && session.event == sprint_police::EVENT
+            && self.career.sprint_police.as_ref().is_some_and(sprint_police::SprintPolice::enabled)
+        {
+            return false;
         }
         !session.has_police()
     }

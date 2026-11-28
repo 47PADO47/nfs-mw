@@ -26,6 +26,7 @@ pub struct ResourceCounts {
 }
 
 pub struct ReflectionSnapshot {
+    pub frame: FrameParams,
     pub quality: blackbox_gfx::ReflectionQuality,
     pub refresh: u8,
     pub faces: [Vec<Instance>; 6],
@@ -217,6 +218,7 @@ impl RenderBackend for NullBackend {
             return;
         }
         self.reflection = scene.map(|scene| ReflectionSnapshot {
+            frame: scene.frame,
             quality: scene.quality,
             refresh: scene.refresh,
             faces: scene.faces.map(<[Instance]>::to_vec),

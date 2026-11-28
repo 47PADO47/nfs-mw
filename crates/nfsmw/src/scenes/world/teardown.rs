@@ -10,7 +10,12 @@ impl WorldScene {
     /// and the projected wet-road reflection it set are cleared; all are set again every frame, so a next scene that
     /// already runs is not affected. The focus mask is not cleared: this runs after the next scene's init, which may
     /// have set its own.
-    pub(super) fn release_gpu(&mut self, renderer: &mut dyn RenderBackend) {
+    pub(super) fn close_world(&mut self, renderer: &mut dyn RenderBackend) {
+        // The player car goes with the world: its live heat goes into its career record.
+        self.write_driven_heat();
+        renderer.set_night_blend(None);
+        renderer.set_sun_glare(None);
+        self.close_garage_backdrop(renderer);
         // Camera water belongs to this world, and must not remain over the next menu or car viewer.
         renderer.set_effects(&blackbox_gfx::EffectLayer::default());
         renderer.set_shadow_casters(None);

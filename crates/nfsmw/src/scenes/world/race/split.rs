@@ -122,6 +122,7 @@ mod tests {
                 name_label: None,
                 model: (i > 0).then(|| "x".to_owned()),
                 spawn: Spawn { position: glam::Vec3::ZERO, heading: 0.0 },
+                rolling_speed: None,
                 grid_slot: i,
                 skill: 0.5,
                 bias: 0.5,

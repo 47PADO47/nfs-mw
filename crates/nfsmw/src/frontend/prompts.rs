@@ -84,10 +84,7 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
         (action(Action::MenuAccept), L::Accept, Some(Action::MenuAccept)),
     );
     // The custom race's screens list Back before Accept, as the reference screenshots do.
-    if [screen::SAFE_HOUSE_RACE_SHEET, "SafeHouseMilestones.fng", "SafeHouseBounty.fng"]
-        .iter()
-        .any(|s| name.eq_ignore_ascii_case(s))
-    {
+    if super::career_screens::rep_sheets::Kind::of(&name.to_ascii_lowercase()).is_some() {
         let mut hints =
             vec![back, (prompts::pair(bindings, Action::MenuUp, Action::MenuDown, device), L::Select, None)];
         if footer == Footer::BackAccept {
@@ -184,6 +181,7 @@ pub fn hint_set(name: &str, footer: Footer, bindings: &Bindings, device: InputDe
             return vec![back, (zoom, L::Zoom, None), (arrows, L::ViewCar, None)];
         }
         Footer::Standard
+        | Footer::RivalBioContinue
         | Footer::RacePhoto { .. }
         | Footer::RaceResults { .. }
         | Footer::CareerCarSelect { .. }
@@ -304,6 +302,7 @@ pub fn decorate(
     if name.eq_ignore_ascii_case(screen::SAFE_HOUSE_RIVAL_BIO) {
         legacy::hide_children(tree, 0xdde3_db34);
     }
+    legacy::hide_in_game_reputation(tree, name);
     if [screen::SAFE_HOUSE_RACE_SHEET, screen::SAFE_HOUSE_MILESTONES, screen::SAFE_HOUSE_BOUNTY]
         .iter()
         .any(|s| name.eq_ignore_ascii_case(s))

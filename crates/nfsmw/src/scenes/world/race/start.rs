@@ -6,7 +6,6 @@ use nfsmw_data::gameplay::{GameplayData, Race, RaceType};
 
 use super::grid;
 use super::heat::{self, HeatChase, Police};
-use super::nis_grid;
 use super::setup::{self, RaceOptions};
 use super::startable;
 use super::wrong_way;
@@ -169,12 +168,13 @@ impl WorldScene {
             catch_up: options.catch_up.unwrap_or(p.catch_up) && split.is_none(),
         };
         let prepared_catch_up = prepared.catch_up;
-        let speed = if prepared.rolling { prepared.initial_speed } else { 0.0 };
+        let held = !prepared.rolling || plan[0].rolling_speed.is_some();
+        let speed = if held { 0.0 } else { prepared.initial_speed };
         let player_spawn = plan[0].spawn;
         if let Some(drive) = self.players.lead_mut() {
             drive.set_launch_mode(race.race_type == Some(RaceType::Drag));
             drive.place_exactly(player_spawn, speed);
-            drive.hold_on_grid(!prepared.rolling);
+            drive.hold_on_grid(held);
         }
         self.view = View::Chase;
         let previous_traffic = self.traffic_manual;
@@ -285,28 +285,6 @@ impl WorldScene {
     }
 }
 
-impl WorldScene {
-    /// Puts the racers where the race's intro NIS leaves its cars (`nis_grid.rs`), when the race has such an intro.
-    fn stand_on_intro_grid(
-        &self,
-        race: &Race,
-        start: &nfsmw_data::gameplay::Placement,
-        career: bool,
-        plan: &mut [RacerPlan],
-    ) {
-        let Some(scene) = nis_grid::grid_scene(race, career) else { return };
-        let ends = match crate::scenes::world::nis::intro_grid(&self.dir, &scene, start_spawn(start)) {
-            Ok(ends) => ends,
-            Err(e) => {
-                log::warn!("race: the grid of {scene} could not be read, so the racers keep the planned grid: {e}");
-                return;
-            }
-        };
-        let moved = nis_grid::stand_on(plan, &ends);
-        log::info!("race: {moved} of {} racer(s) stand where {scene} leaves its cars", plan.len());
-    }
-}
-
 /// The race start as a spawn: the `racestart` marker in render space, facing its heading.
 pub(super) fn start_spawn(start: &nfsmw_data::gameplay::Placement) -> Spawn {
     Spawn { position: space::to_render(start.position.to_array()), heading: grid::spawn_heading(start.heading_deg) }
@@ -342,6 +320,7 @@ fn plan_racers(
         name_label: None,
         model: None,
         spawn: slot(start),
+        rolling_speed: None,
         grid_slot: 0,
         skill: 1.0,
         bias: 1.0,
@@ -360,6 +339,7 @@ fn plan_racers(
             name_label: opponent.name_label.clone(),
             model: Some(model),
             spawn: slot(&placement),
+            rolling_speed: None,
             grid_slot: i + 1,
             skill: opponent.skill,
             bias: opponent.bias,

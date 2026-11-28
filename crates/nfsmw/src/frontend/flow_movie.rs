@@ -13,6 +13,8 @@ pub enum AfterMovie {
     /// Carries out this command, as a screen's own command would be (`Frontend::apply`).
     #[allow(dead_code)] // no caller yet; the career sends its story movies with it
     Command(Box<Command>),
+    /// Continue to the milestone or camera chosen before a pursuit tutorial.
+    MilestoneJump(crate::career::JumpPoint),
 }
 
 impl Frontend {
@@ -36,10 +38,10 @@ impl Frontend {
     /// One frame of a movie over the menus: the movie is over when it has ended, or when the pad's accept, start or back
     /// or a click skips it.
     pub(in crate::frontend) fn movie_frame(&mut self, actions: &ActionState, host: &mut Host, env: &mut Env) {
-        let skip = actions.just_pressed(Action::MenuAccept)
-            || actions.just_pressed(Action::MenuStart)
-            || actions.just_pressed(Action::MenuBack)
-            || actions.just_pressed(Action::Click)
+        let accept = actions.just_pressed(Action::MenuAccept) || actions.just_pressed(Action::MenuStart);
+        let milestone = matches!(self.stage, Stage::Movie { then: AfterMovie::MilestoneJump(_) });
+        let skip = accept
+            || (!milestone && (actions.just_pressed(Action::MenuBack) || actions.just_pressed(Action::Click)))
             || crate::parity::career_trace::skip_cinematics();
         if host.scene.finished() || skip {
             let how = if skip { "skipped" } else { "finished" };
@@ -58,6 +60,7 @@ impl Frontend {
         match then {
             AfterMovie::Open(screen, args) => self.open_menu(&screen, args, host, env),
             AfterMovie::Command(command) => self.apply(vec![*command], host, env),
+            AfterMovie::MilestoneJump(point) => self.jump_to(point, host, env),
         }
     }
 }

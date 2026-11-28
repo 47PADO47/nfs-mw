@@ -187,6 +187,19 @@ reflection of the windows); adding `BACKDROP_REFLECTION` mirrors the room's fram
 drawn. `CAR_LOT.BIN` has `BACKDROP_CRIB` (9,039 polygons), `BACKDROP_CURRGEN`, `BACKDROP_CAST_SHADOW_MAP`, `OBJECT01` and `FX_*_EMITTER_*`
 markers. No file has a solid with position markers.
 
+**Car lot emitter proxies (2026-11-23).** The stock car-lot file SHA-256 is
+`d44bae9df7664133126243da3c35f38bc230759b3310a0cb3e1982a5e1adf86e`. The solid reader reports four emitter
+helpers (two haze-fog and two leaf), each a 17-vertex pyramid with an apex 1.75 m above its local origin.
+Their pivots locate the helpers around the lot. The remake originally submitted every solid with the platform
+matrix alone, which put all four proxies at the car stand. The unmodded first-car-lot reference shows no
+pyramid above the Lexus IS 300 roof. The room filters these helper names from colour geometry and still
+reads the independent emitter library.
+
+The car-lot shadow pass uses the installed `BACKDROP_CAST_SHADOW_MAP` as a separate caster, as for the crib's
+authored caster solids. This follows the platform's existing suffix-based draw-mask evidence. The lot keeps
+the solid's existing colour visibility. The car-lot reflection cube uses the same scenery-light parameters as
+the main room view.
+
 ## 6. Dead ends
 
 - The `FrontB.lzc` markers and the `PlatformCrib.BIN` solids carry no car position: the stand is code.

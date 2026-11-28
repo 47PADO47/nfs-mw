@@ -11,7 +11,7 @@ use nfsmw_career::savefile::Trigger;
 use nfsmw_career::settings::NodeStates;
 use nfsmw_data::gameplay::RewardRecord;
 
-use crate::career::{AutosaveInputs, Career, event_id, grant_rewards, handle_autosave, race_event_id};
+use crate::career::{AutosaveInputs, Career, grant_rewards, handle_autosave, race_event_id};
 use crate::scenes::world::WorldScene;
 use crate::scenes::world::effects::entry_marks;
 use crate::scenes::world::entry_zones::ZoneKind;
@@ -41,12 +41,10 @@ impl WorldScene {
     /// The career's answer to a race zone the car drove into, with its card up and Interact pressed. An open race
     /// raises the event-start autosave; the caller then shows the stub, or the locked card for a locked race.
     pub(in crate::scenes::world) fn career_enter_race(&mut self, name: &str) -> RaceEntry {
-        let event = event_id(name);
-        let Some(entry) = self.career.handle.with(|career| race_entry(&career.blacklist, &event)) else {
-            return RaceEntry::NotCareer;
-        };
-        let entry = if entry == RaceEntry::NotCareer { self.side_entry(&event) } else { entry };
-        if entry == RaceEntry::Open {
+        let entry = self.roaming_entry(name);
+        if entry == RaceEntry::Open
+            && let Some(event) = self.gameplay.as_ref().and_then(|data| data.race_named(name)).map(race_event_id)
+        {
             self.autosave_event_start(&event);
         }
         entry

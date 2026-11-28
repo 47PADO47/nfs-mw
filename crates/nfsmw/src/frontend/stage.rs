@@ -110,12 +110,13 @@ impl Stage {
         }
     }
 
-    /// Geometry submitted as a separate shadow source; the crib warehouse also draws in colour. Names are canonical.
+    /// Geometry submitted as a separate shadow source. Names are canonical.
     pub fn shadow_source(self, name: &str) -> bool {
         match self {
-            Stage::Crib | Stage::Customization | Stage::Backroom => name.starts_with("BACKDROP_CAST_SHADOW_MAP"),
+            Stage::Crib | Stage::Customization | Stage::Backroom | Stage::CarLot => {
+                name.starts_with("BACKDROP_CAST_SHADOW_MAP")
+            }
             Stage::SafeHouse => name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN"),
-            Stage::CarLot => false,
         }
     }
 
@@ -128,7 +129,7 @@ impl Stage {
     pub fn draws(self, name: &str) -> bool {
         match self {
             Stage::Crib | Stage::Customization | Stage::Backroom => name.starts_with("BACKDROP_"),
-            Stage::CarLot => true,
+            Stage::CarLot => !["FX_HAZEFOG_EMITTER_", "FX_LEAF_EMITTER_"].iter().any(|prefix| name.starts_with(prefix)),
             Stage::SafeHouse => {
                 !name.starts_with("BACKDROP_CAST_SHADOW_MAP_NEXTGEN") && !name.starts_with("STEAM EMITTER")
             }

@@ -8,6 +8,7 @@ use nfsmw_data::nis::NisBundle;
 
 use super::car_world::heading_of;
 use super::cars::{CAR_SLOTS, CarTrack, read_tracks};
+use super::player::SCENE_FPS;
 use crate::scenes::world::moment::heading_angle;
 use crate::scenes::world::road::Spawn;
 use crate::scenes::world::scene_space::{Anchor, placed};
@@ -35,6 +36,37 @@ pub(in crate::scenes::world) fn intro_grid(
         .collect())
 }
 
+/// Samples a rolling intro's race cars at the scene cut, with speed from the preceding authored frame.
+pub(in crate::scenes::world) fn rolling_intro_grid(
+    dir: &GameDir,
+    scene: &str,
+    start: Spawn,
+) -> Result<Vec<(usize, Spawn, f32)>, String> {
+    let bundle = NisBundle::load(dir, scene).map_err(|error| format!("{error:#}"))?;
+    let forward = Vec3::new(start.heading.cos(), start.heading.sin(), 0.0);
+    let anchor = placed(bundle.scene.scene_type, Anchor::facing(start.position, heading_angle(forward)));
+    if bundle.scene.vanish_frame <= 0 {
+        return Err(format!("{scene} has no rolling handoff frame"));
+    }
+    let cut = bundle.scene.vanish_frame as f32 / SCENE_FPS;
+    let prior = (bundle.scene.vanish_frame - 1) as f32 / SCENE_FPS;
+    let grid = read_tracks(&bundle.anim.banks)
+        .into_iter()
+        .filter(|track| track.slot < CAR_SLOTS / 2)
+        .filter_map(|track| {
+            let at = track.spot(&anchor, cut);
+            let before = track.spot(&anchor, prior);
+            let speed = (at.position - before.position).length() * SCENE_FPS;
+            (speed.is_finite() && speed > 0.0).then_some((
+                track.slot,
+                Spawn { position: at.position, heading: heading_of(at.rotation) },
+                speed,
+            ))
+        })
+        .collect();
+    Ok(grid)
+}
+
 /// The end pose of each racer channel of `tracks` for a scene placed at `anchor`.
 pub(super) fn channel_ends(tracks: &[CarTrack], anchor: &Anchor) -> Vec<(usize, Spawn)> {
     tracks
@@ -50,6 +82,23 @@ pub(super) fn channel_ends(tracks: &[CarTrack], anchor: &Anchor) -> Vec<(usize, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "requires installed IntroNisDD data; set NFSMW_GAME_DIR"]
+    fn installed_opening_roll_uses_scene_cut_and_each_actors_velocity() {
+        let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("installed NIS data")).unwrap();
+        let marker = Spawn { position: Vec3::new(2100.0, -529.0, 114.0), heading: 0.2 };
+        let grid = rolling_intro_grid(&dir, "IntroNisDD", marker).unwrap();
+        assert_eq!(grid.iter().map(|(slot, ..)| *slot).collect::<Vec<_>>(), [0, 1]);
+        let (_, player, player_speed) = grid[0];
+        let (_, opponent, opponent_speed) = grid[1];
+        assert!((2094.0..2098.0).contains(&player.position.x), "{player:?}");
+        assert!((2.7..3.4).contains(&player.position.distance(opponent.position)), "{grid:?}");
+        assert!(player.heading.abs() < 0.05 && opponent.heading.abs() < 0.05, "{grid:?}");
+        for speed in [player_speed, opponent_speed] {
+            assert!((32.0..35.0).contains(&speed), "{grid:?}");
+        }
+    }
 
     /// `16_1_1_circuit`'s start marker (`16_1_1_startgrid`) in render space, and its heading.
     const START: Vec3 = Vec3::new(1631.384, 382.1315, 94.96969);

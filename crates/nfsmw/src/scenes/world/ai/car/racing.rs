@@ -110,6 +110,17 @@ impl AiCar {
         }
     }
 
+    /// Releases a racer on the rolling grid at its own authored speed.
+    pub(in crate::scenes::world::ai) fn roll_from_grid(&mut self, speed: f32) {
+        if let Some(racer) = self.racer_mut() {
+            racer.roll_from_grid(speed);
+        }
+        self.speed = speed;
+        self.driver.reset();
+        self.sim.set_race_staging(false);
+        self.sim.roll_from_grid(speed);
+    }
+
     /// A person drives this racer from now on (split screen): the car takes the player's control set-up, with an
     /// automatic gearbox when `automatic`.
     pub fn seat_person(&mut self, automatic: bool) {

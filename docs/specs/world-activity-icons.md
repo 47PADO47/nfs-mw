@@ -36,6 +36,14 @@ Retail PC static inspection of `GZoneTrigger` construction, `RefreshZoneIcons`,
   the underlying circuit/sprint icon. The retail table's type 7 emitter hash
   matches this installed group.
 
+- An armed, incomplete career speed camera in free roam uses type 13:
+  CHECKPOINT_GEOMETRY_SHORT_ORANGE_00 with fxgame_icongrp_speedt. Its world
+  position comes from the installed gameplay camera record. This marker is
+  independent of road-entry availability and uses the same distance admission
+  and transform for geometry and particles. The installed stock shared pack
+  does not contain this model. The particle group still renders. The marker
+  disappears after completion.
+
 These are static PC findings, not a matched original-game frame comparison.
 The remake retains a 250 m admission distance; exact section-spawn ordering
 and original global icon-pool limits are not established. Race/cutscene hiding

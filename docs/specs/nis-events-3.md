@@ -78,6 +78,12 @@ The release of a scene also hides the camera overlay (section 4). **[pc]**
 - A car following its channel takes only its **x/z position, x/z velocity and yaw rate** from the channel each frame; its
   height, pitch and roll come from its suspension on the ground, clamped to plus or minus half the constraint angle
   (60 degrees by default). **[pc + decomp]**
+- **Remake approximation.** For channel-driven cars, sample road height at the four displayed treads. Use grade and bank
+  across the footprint for the body and the remaining height difference for each wheel. When a clip lies below the
+  street and misses collision, recheck at the nearest mapped deck height, at the actor's own coordinates. Rigs without separate wheel
+  geometry use their chassis footprint. Released opening traffic takes its rotation and suspension pose from physics.
+  The opening crash solver places the animated collision box with its physical tyre clearance before release.
+  For upright released actors the display corrects tyre penetration at the road surface. Airborne wheels retain droop.
 - A detached car is no longer placed. It keeps the velocity the channel gave it last and runs on its physics with the
   NIS input (throttle 0.5, or 1 with a burnout; brakes from the brake lock) and collides with what it meets. **[pc + decomp]**
 - The channel goes on without it; at the reattach the car is placed on the channel again. In `IntroNisDD` the channel
@@ -144,3 +150,11 @@ Read in the PC camera mover. **[pc]**
   overlay values 2 and 4.
 - `ENISPlayEffect` still plays its named effect, as a stand-in for the crash effects the original's detached cars make
   by colliding **[ours]**; the original does nothing with the event.
+
+### Opening crash cars
+
+In IntroNisDD, the scene-spawned traffic and patrol vehicles become physical actors on Detach. Carry the
+motion from their last animated poses into suspension, ground and car contacts. Reattach restores channel
+placement, including across a shot cut. The race grid and the player's handoff keep their own ownership.
+During an in-game scene, advance placed particle emitters and requested object effects with the scene clock.
+A paused scene or a frame held for capture contributes no particle time.

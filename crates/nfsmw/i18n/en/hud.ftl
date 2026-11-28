@@ -40,11 +40,6 @@ hud-entry-not-built = Not built yet
 hud-entry-race-locked = Race locked
 hud-entry-not-open = Not open yet
 
-## A speed trap in free roam (scenes/world/career/speedtraps.rs)
-
-# $speed is whole km/h, $unit the game's word for it (KM/H), $bounty the bounty it paid.
-hud-speed-trap = Speed trap: { $speed } { $unit }  +{ $bounty } bounty
-
 ## The Remastered pursuit panel (ui/theme/remastered/pursuit): shown in capitals.
 
 hud-pursuit-time-label = Pursuit time

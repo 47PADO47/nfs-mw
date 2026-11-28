@@ -23,7 +23,7 @@ impl super::super::TrafficWorld {
     /// While the lockout runs every active cop is removed, as the original's patrol pass does (`VehicleSpawningEnabled`
     /// is false for a despawn too). A chase clears the lockout when it starts, so a chase never runs under it.
     fn remove_cops_while_locked_out(&mut self) {
-        if self.cops.spawning_enabled() || self.is_pursuing() || self.police.bust.active() {
+        if self.cops.active_cops_allowed() || self.is_pursuing() || self.police.bust.active() {
             return;
         }
         self.cars.retain(|car| !car.is_police());

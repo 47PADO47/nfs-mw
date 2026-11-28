@@ -20,6 +20,8 @@ impl Flags {
     pub const OPENING_SEEN: Flags = Flags(0x20);
     /// Bits 6 to 10 (`0x40..=0x400`): set together by two routines, probably one-time dialogs. Unconfirmed.
     pub const DIALOGS_SEEN: Flags = Flags(0x7C0);
+    /// The pursuit tutorial has been shown (career-rep-sheets.md, section 3).
+    pub const PURSUIT_TUTORIAL_SEEN: Flags = Flags(0x200);
     /// Game over (every car impounded). Cleared on every load: the loader merges flags with
     /// `(old | stored) & !0x800`.
     pub const GAME_OVER: Flags = Flags(0x800);

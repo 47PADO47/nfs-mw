@@ -25,6 +25,24 @@ const NIS_COP_MODEL: &str = "copmidsize";
 const FACING_REACH: f32 = 10.0;
 
 impl TrafficWorld {
+    pub(in crate::scenes::world) fn scene_model_name(&self, index: usize) -> Option<&str> {
+        Some(&self.cars.get(index)?.model().name)
+    }
+
+    pub(in crate::scenes::world) fn scene_treads(&self, index: usize, pose: CarPose) -> Option<([Vec3; 4], f32, bool)> {
+        Some(self.cars.get(index)?.scene_treads(pose))
+    }
+
+    pub(in crate::scenes::world) fn nis_sim(&mut self, index: usize) -> Option<&mut super::super::drive::CarSim> {
+        self.cars.get_mut(index).map(AiCar::scene_sim)
+    }
+
+    pub(in crate::scenes::world) fn collide_nis_cars(&mut self, a: usize, b: usize) {
+        if let Ok([a, b]) = self.cars.get_disjoint_mut([a, b]) {
+            a.scene_sim().collide_with_each(b.scene_sim(), |_, _, _| {});
+        }
+    }
+
     /// A race channel binds by racer ID, independent of civilian proximity and vector order.
     pub fn racer_car_index(&self, id: usize) -> Option<usize> {
         self.cars.iter().position(|car| car.racer_id() == Some(id))

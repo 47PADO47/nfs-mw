@@ -7,9 +7,32 @@ use nfsmw_career::blacklist::{BinState, enter_first_bin};
 use nfsmw_career::settings::NewCareer;
 use nfsmw_data::gameplay::RewardRecord;
 
-use super::events::{RaceFinish, apply_race_finish, arrival_pending};
+use super::events::{RaceEntry, RaceFinish, apply_race_finish, arrival_pending};
+use super::locks::roaming_entry;
 use super::phone::PhoneState;
 use crate::career::{Career, CareerData, race_event_id};
+
+#[test]
+#[ignore = "needs installed gameplay records and engage triggers"]
+fn installed_bl15_roaming_races_are_the_three_authored_world_events() {
+    let dir = GameDir::open(std::env::var_os("NFSMW_GAME_DIR").expect("set NFSMW_GAME_DIR")).unwrap();
+    let data = CareerData::cached(&dir).unwrap();
+    let gameplay = nfsmw_data::gameplay::cached(&dir).unwrap();
+    let mut career = Career::new("map15", data, &NewCareer::default()).unwrap();
+    enter_first_bin(&mut career.settings, &mut career.blacklist, &mut career.milestones, &mut career.traps);
+    let side_won = Default::default();
+    let admitted: std::collections::BTreeSet<_> = gameplay
+        .races
+        .iter()
+        .filter(|race| roaming_entry(&gameplay, &career.blacklist, &side_won, race) != RaceEntry::Locked)
+        .map(race_event_id)
+        .collect();
+    assert_eq!(admitted, ["15.1.1", "15.2.1", "15.3.1"].map(str::to_owned).into());
+    let reverse = gameplay.races.iter().find(|race| race.event.as_deref() == Some("3.3.2.r")).unwrap();
+    assert_eq!(roaming_entry(&gameplay, &career.blacklist, &side_won, reverse), RaceEntry::Locked);
+    career.blacklist.enter_bin(2);
+    assert_eq!(roaming_entry(&gameplay, &career.blacklist, &side_won, reverse), RaceEntry::Open);
+}
 
 struct Install {
     data: Arc<CareerData>,

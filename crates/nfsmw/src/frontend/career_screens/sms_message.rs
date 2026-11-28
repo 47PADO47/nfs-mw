@@ -5,13 +5,13 @@
 //! (`nfsmw dump-screen SMS_Message.fng`). The body is wrapped into lines with the installed font and written top to
 //! bottom; a body longer than ten lines scrolls one line per press of the package's up and down arrows (or the wheel).
 
-use blackbox_feng::ids::{PAD_BACK, PAD_DOWN, PAD_UP};
+use blackbox_feng::ids::{PAD_DOWN, PAD_UP};
 use nfsmw_career::phone::{from_label_for, is_story, label_for, subject_label_for};
 
 use super::sms::{
     DELETE, REPLAY, delete_question, leave, leave_command, lookup, open_message, opened, replay_voice, set_text,
 };
-use crate::frontend::ids::{INIT_COMPLETE, INPUT_ENABLE};
+use crate::frontend::ids::{EXIT_COMPLETE, INIT_COMPLETE};
 use crate::frontend::logic::{Args, Command, Cx, Footer, ScreenLogic};
 use crate::frontend::text_wrap::wrap;
 
@@ -134,51 +134,20 @@ impl Drop for MessageView {
     }
 }
 
-/// The Done button's group in `SMS_Message.fng` (`nfsmw dump-screen SMS_Message.fng`).
-const DONE: u32 = 0x000F_A4AA;
-
-/// Whether a pad press closes the message: Accept while Done has the focus (the package's Done button).
-pub const fn closes_on_press(bits: u32, focus: Option<u32>) -> bool {
-    bits & blackbox_feng::runtime::pad::ACCEPT != 0 && matches!(focus, Some(DONE))
-}
-
 /// The message the inbox opened, from the safe house, from the inbox key in free roam, or on delivery while driving
 /// (the original opens the inbox at the delivered message, which opens it: `flow_sms.rs`).
 pub struct MessageLogic {
     args: Args,
     view: Option<MessageView>,
-    /// Done was pressed: the close is asked once (a press reaches the screen as a pad bit and as the package's message).
-    closing: bool,
 }
 
 impl MessageLogic {
     pub fn new(args: Args) -> Self {
-        Self { args, view: None, closing: false }
-    }
-}
-
-impl MessageLogic {
-    fn close(&mut self, cx: &mut Cx) {
-        if !std::mem::replace(&mut self.closing, true) {
-            leave(cx, self.args);
-        }
+        Self { args, view: None }
     }
 }
 
 impl ScreenLogic for MessageLogic {
-    fn pressed(&mut self, cx: &mut Cx, button: u32) {
-        if button == DONE {
-            self.close(cx);
-        }
-    }
-
-    fn pad_pressed(&mut self, cx: &mut Cx, bits: u32) {
-        let focus = cx.rt.focus(cx.package);
-        if closes_on_press(bits, focus) {
-            self.close(cx);
-        }
-    }
-
     fn sound_trigger(
         &mut self,
         _: &blackbox_feng::Runtime,
@@ -197,12 +166,11 @@ impl ScreenLogic for MessageLogic {
         let mut view = MessageView::new(id);
         view.show(cx);
         self.view = Some(view);
-        cx.rt.post_to_package(cx.package, INPUT_ENABLE);
     }
 
     fn message(&mut self, cx: &mut Cx, message: u32) {
-        if message == PAD_BACK {
-            self.close(cx);
+        if message == EXIT_COMPLETE {
+            leave(cx, self.args);
             return;
         }
         let then = leave_command(self.args);
@@ -227,16 +195,6 @@ pub(super) fn replay_sound(view: Option<&MessageView>, message: u32, cue: Option
         return None;
     }
     cue
-}
-
-#[cfg(test)]
-#[test]
-fn accept_closes_only_on_the_done_button() {
-    use blackbox_feng::runtime::pad;
-    assert!(closes_on_press(pad::ACCEPT, Some(DONE)));
-    assert!(!closes_on_press(pad::ACCEPT, Some(0x000F_A584)), "Re-Play has the focus");
-    assert!(!closes_on_press(pad::ACCEPT, None));
-    assert!(!closes_on_press(pad::BACK, Some(DONE)), "Back is the message, not the press");
 }
 
 #[cfg(test)]
